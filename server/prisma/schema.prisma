@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN_ASET
+  ADMIN_UNIT
+  AUDITOR
+  USER
+}
+
+enum Condition {
+  BAIK
+  RUSAK_RINGAN
+  RUSAK_BERAT
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  email     String?  @unique
+  nip       String?  @unique
+  password  String
+  role      Role     @default(USER)
+  unitId    Int?
+  unit      Unit?    @relation(fields: [unitId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  logs      Log[]
+}
+
+model Unit {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  name      String
+  head      String?
+  location  String?
+  assets    Asset[]
+  users     User[]
+  requests  Request[]
+}
+
+model Room {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  name      String
+  floor     String
+  building  String
+  pic       String?
+  assets    Asset[]
+}
+
+model Category {
+  id                 Int      @id @default(autoincrement())
+  code               String   @unique
+  name               String
+  usefulLife         Int      // In years
+  depreciationMethod String   // e.g. STRAIGHT_LINE
+  assets             Asset[]
+}
+
+model Vendor {
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String?
+  contact   String?
+  assets    Asset[]
+}
+
+model Asset {
+  id              Int      @id @default(autoincrement())
+  code            String   @unique // Format: KB-KT-TH-URUT
+  name            String
+  categoryId      Int
+  category        Category @relation(fields: [categoryId], references: [id])
+  roomId          Int?
+  room            Room?    @relation(fields: [roomId], references: [id])
+  unitId          Int?
+  unit            Unit?    @relation(fields: [unitId], references: [id])
+  vendorId        Int?
+  vendor          Vendor?  @relation(fields: [vendorId], references: [id])
+  
+  brand           String?
+  specification   String?
+  purchaseDate    DateTime
+  price           Float
+  quantity        Int      @default(1)
+  condition       Condition
+  
+  image           String?
+  invoice         String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  movements       Movement[]
+  maintenances    Maintenance[]
+}
+
+model Request {
+  id          Int      @id @default(autoincrement())
+  itemName    String
+  spec        String?
+  qty         Int
+  priceEst    Float
+  urgency     String
+  status      String   // e.g. DRAFT, PENDING, APPROVED, PURCHASED
+  unitId      Int
+  unit        Unit     @relation(fields: [unitId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Movement {
+  id          Int      @id @default(autoincrement())
+  assetId     Int
+  asset       Asset    @relation(fields: [assetId], references: [id])
+  fromLocation String
+  toLocation  String
+  date        DateTime @default(now())
+  reason      String?
+  type        String   // MUTATION, DISPOSAL
+}
+
+model Maintenance {
+  id          Int      @id @default(autoincrement())
+  assetId     Int
+  asset       Asset    @relation(fields: [assetId], references: [id])
+  date        DateTime
+  description String
+  cost        Float
+  status      String
+  createdAt   DateTime @default(now())
+}
+
+model Log {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  details   String?
+  timestamp DateTime @default(now())
+}

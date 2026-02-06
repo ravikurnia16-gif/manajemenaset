@@ -1,0 +1,23 @@
+# Master .gitignore untuk monorepo Asset Management
+
+# Folders yang tidak boleh diupload (Sangat Penting!)
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Hasil build (akan dibuat ulang oleh Docker)
+client/dist/
+
+# File Rahasia & Database Lokal
+.env
+server/.env
+server/prisma/dev.db
+server/prisma/dev.db-journal
+
+# File System / OS
+.DS_Store
+Thumbs.db
+
+# Log
+*.log
+npm-debug.log*
