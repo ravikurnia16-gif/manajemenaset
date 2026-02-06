@@ -24,12 +24,12 @@ const distPath = path.resolve(__dirname, '../client/dist');
 app.use(express.static(distPath));
 
 // Kirim index.html untuk semua route non-API
-app.get('*', (req, res) => {
+app.get('/*', (req, res) => {
     // Jika bukan API, kirim index.html (React)
     if (!req.path.startsWith('/api')) {
         res.sendFile(path.join(distPath, 'index.html'), (err) => {
             if (err) {
-                res.status(500).send("Error: Frontend build not found. Please run 'npm run build' in client folder.");
+                res.status(500).send("Error: Frontend build not found. Passtikan 'npm run build' sudah dijalankan di folder client.");
             }
         });
     } else {
