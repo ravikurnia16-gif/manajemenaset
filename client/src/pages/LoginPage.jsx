@@ -45,7 +45,7 @@ const LoginPage = () => {
 
                     <form onSubmit={handleLogin} className="space-y-5">
                         <div>
-                            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1 ml-1">Username / NIP</label>
+                            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1 ml-1">Username / NIY</label>
                             <div className="relative group">
                                 <User className="absolute left-3 top-3 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
                                 <input

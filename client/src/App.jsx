@@ -5,12 +5,27 @@ import AssetList from './pages/AssetList';
 import AssetForm from './pages/AssetForm';
 import LoginPage from './pages/LoginPage';
 
+// Komponen untuk melindungi route yang butuh login
+const ProtectedRoute = ({ children }) => {
+  const user = localStorage.getItem('user');
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+};
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<Layout />}>
+
+        {/* Semua route di dalam sini diproteksi */}
+        <Route path="/" element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }>
           <Route index element={<Navigate to="/dashboard" />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="aset" element={<AssetList />} />

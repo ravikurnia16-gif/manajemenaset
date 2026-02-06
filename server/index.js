@@ -19,14 +19,19 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/assets', require('./routes/assetRoutes'));
 
 // --- BAGIAN DEPLOYMENT: Melayani File Tampilan (Frontend) ---
-// Di Docker, folder dist berada di ../client/dist
-const distPath = path.join(__dirname, '../client/dist');
+// Pastikan path ke folder 'dist' benar (relatif dari server/index.js)
+const distPath = path.resolve(__dirname, '../client/dist');
 app.use(express.static(distPath));
 
-// Kirim index.html untuk semua route non-API (mendukung React Router)
+// Kirim index.html untuk semua route non-API
 app.get('*', (req, res) => {
+    // Jika bukan API, kirim index.html (React)
     if (!req.path.startsWith('/api')) {
-        res.sendFile(path.join(distPath, 'index.html'));
+        res.sendFile(path.join(distPath, 'index.html'), (err) => {
+            if (err) {
+                res.status(500).send("Error: Frontend build not found. Please run 'npm run build' in client folder.");
+            }
+        });
     } else {
         res.status(404).json({ message: 'API Route Not Found' });
     }
