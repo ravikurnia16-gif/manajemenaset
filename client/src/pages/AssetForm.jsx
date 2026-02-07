@@ -144,6 +144,27 @@ const AssetForm = () => {
                     <div className="space-y-5">
                         <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wider mb-4 border-b border-blue-100 pb-2">Lokasi & Kondisi</h3>
 
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Sumber Dana</label>
+                                <select {...register('sourceOfFunds')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-blue-700">
+                                    <option value="Mandiri">Mandiri</option>
+                                    <option value="Hibah">Hibah</option>
+                                    <option value="Pemerintah">Pemerintah</option>
+                                    <option value="BOS">BOS</option>
+                                    <option value="Lainnya">Lainnya</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Kondisi</label>
+                                <select {...register('condition')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                    <option value="BAIK">Baik</option>
+                                    <option value="RUSAK_RINGAN">Rusak Ringan</option>
+                                    <option value="RUSAK_BERAT">Rusak Berat</option>
+                                </select>
+                            </div>
+                        </div>
+
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Unit / Divisi</label>
                             <select {...register('unitId')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
@@ -166,27 +187,12 @@ const AssetForm = () => {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Sumber Dana</label>
-                                <select {...register('sourceOfFunds')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                                    <option value="Mandiri">Mandiri</option>
-                                    <option value="Hibah">Hibah</option>
-                                    <option value="Pemerintah">Pemerintah</option>
-                                    <option value="Lainnya">Lainnya</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Kondisi</label>
-                                <select {...register('condition')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                                    <option value="BAIK">Baik</option>
-                                    <option value="RUSAK_RINGAN">Rusak Ringan</option>
-                                    <option value="RUSAK_BERAT">Rusak Berat</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Umur Manfaat (Tahun)</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Umur Manfaat (Thn)</label>
                                 <input type="number" {...register('usefulLife', { value: 5 })} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Jumlah Item</label>
+                                <input type="number" {...register('quantity', { value: 1 })} disabled={isEdit} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50" />
                             </div>
                         </div>
 

@@ -170,7 +170,12 @@ const AssetList = () => {
         const reader = new FileReader();
         reader.onload = async (event) => {
             const data = new Uint8Array(event.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
+            const workbook = XLSX.read(data, {
+                type: 'array',
+                cellDates: true,
+                cellNF: false,
+                cellText: false
+            });
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(worksheet);
