@@ -23,13 +23,15 @@ app.use('/api/assets', require('./routes/assetRoutes'));
 const distPath = path.resolve(__dirname, '../client/dist');
 app.use(express.static(distPath));
 
-// Kirim index.html untuk semua route non-API
-app.get('(.*)', (req, res) => {
-    // Jika bukan API, kirim index.html (React)
+// --- CATCH-ALL MIDDLEWARE ---
+// Menggunakan app.use di akhir untuk menangani semua request yang tidak cocok dengan route API
+app.use((req, res) => {
+    // Jika bukan API, kirim index.html (React Router akan menangani routing di sisi client)
     if (!req.path.startsWith('/api')) {
         res.sendFile(path.join(distPath, 'index.html'), (err) => {
             if (err) {
-                res.status(500).send("Error: Frontend build not found. Pastikan 'npm run build' sudah dijalankan di folder client.");
+                console.error("Build frontend tidak ditemukan di:", distPath);
+                res.status(500).send("Error: Frontend build not found. Pastikan folder 'client/dist' sudah ada.");
             }
         });
     } else {
