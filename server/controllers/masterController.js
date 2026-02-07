@@ -22,3 +22,13 @@ exports.getAllRooms = async (req, res) => {
         res.status(500).json({ error: 'Database Error (Ruangan): ' + error.message });
     }
 };
+
+exports.getAllCategories = async (req, res) => {
+    try {
+        const categories = await prisma.category.findMany();
+        res.json(categories);
+    } catch (error) {
+        console.error('GetCategories Error:', error);
+        res.status(500).json({ error: 'Database Error (Kategori): ' + error.message });
+    }
+};

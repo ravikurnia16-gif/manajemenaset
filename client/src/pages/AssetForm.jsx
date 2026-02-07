@@ -1,13 +1,63 @@
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import { Save, X } from 'lucide-react';
+import api from '../lib/axios';
 
 const AssetForm = () => {
-    const { register, handleSubmit, formState: { errors } } = useForm();
+    const navigate = useNavigate();
+    const { register, handleSubmit, watch, formState: { errors } } = useForm({
+        defaultValues: {
+            condition: 'BAIK',
+            quantity: 1,
+            purchaseDate: new Date().toISOString().split('T')[0]
+        }
+    });
 
-    const onSubmit = (data) => {
-        console.log(data);
-        alert('Data siap dikirim: ' + JSON.stringify(data));
-        // Implementation of API call pending
+    const [masterData, setMasterData] = useState({
+        units: [],
+        rooms: [],
+        categories: []
+    });
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        const fetchMaster = async () => {
+            try {
+                const [rUnits, rRooms, rCats] = await Promise.all([
+                    api.get('/master/units'),
+                    api.get('/master/rooms'),
+                    api.get('/master/categories')
+                ]);
+                setMasterData({
+                    units: rUnits.data,
+                    rooms: rRooms.data,
+                    categories: rCats.data
+                });
+            } catch (err) {
+                console.error("Master data fetch error:", err);
+            }
+        };
+        fetchMaster();
+    }, []);
+
+    const selectedUnitId = watch("unitId");
+    const filteredRooms = selectedUnitId
+        ? masterData.rooms.filter(r => r.unitId === parseInt(selectedUnitId))
+        : masterData.rooms;
+
+    const onSubmit = async (data) => {
+        try {
+            setLoading(true);
+            await api.post('/assets', data);
+            alert('Aset berhasil disimpan!');
+            navigate('/aset');
+        } catch (error) {
+            console.error('Submit error:', error);
+            alert('Gagal menyimpan aset: ' + (error.response?.data?.error || error.message));
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -17,7 +67,12 @@ const AssetForm = () => {
                     <h2 className="text-xl font-bold text-slate-800">Input Aset Baru</h2>
                     <p className="text-slate-500 text-sm">Masukkan detail aset dengan lengkap</p>
                 </div>
-                <button className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={20} /></button>
+                <button
+                    onClick={() => navigate('/aset')}
+                    className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+                >
+                    <X size={20} />
+                </button>
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -36,9 +91,9 @@ const AssetForm = () => {
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Kategori <span className="text-red-500">*</span></label>
                                 <select {...register('categoryId', { required: true })} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                                     <option value="">Pilih Kategori</option>
-                                    <option value="1">Elektronik</option>
-                                    <option value="2">Furniture</option>
-                                    <option value="3">Kendaraan</option>
+                                    {masterData.categories.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
                                 </select>
                                 {errors.categoryId && <span className="text-red-500 text-xs mt-1">Wajib dipilih</span>}
                             </div>
@@ -75,9 +130,9 @@ const AssetForm = () => {
                             <label className="block text-sm font-medium text-slate-700 mb-1">Unit / Divisi</label>
                             <select {...register('unitId')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                                 <option value="">Pilih Unit</option>
-                                <option value="1">IT Department</option>
-                                <option value="2">Human Resources</option>
-                                <option value="3">Finance</option>
+                                {masterData.units.map(u => (
+                                    <option key={u.id} value={u.id}>{u.name}</option>
+                                ))}
                             </select>
                         </div>
 
@@ -85,8 +140,9 @@ const AssetForm = () => {
                             <label className="block text-sm font-medium text-slate-700 mb-1">Ruangan</label>
                             <select {...register('roomId')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                                 <option value="">Pilih Ruangan</option>
-                                <option value="1">R. Server Lt.1</option>
-                                <option value="2">R. Meeting Utama</option>
+                                {filteredRooms.map(r => (
+                                    <option key={r.id} value={r.id}>{r.name}</option>
+                                ))}
                             </select>
                         </div>
 
@@ -117,9 +173,19 @@ const AssetForm = () => {
                 </div>
 
                 <div className="flex justify-end pt-6 border-t border-slate-100">
-                    <button type="button" className="px-6 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg mr-4 transition-colors">Batal</button>
-                    <button type="submit" className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-200 transition-all transform hover:scale-105">
-                        <Save size={18} /> Simpan Data Aset
+                    <button
+                        type="button"
+                        onClick={() => navigate('/aset')}
+                        className="px-6 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg mr-4 transition-colors"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-200 transition-all transform hover:scale-105 disabled:opacity-50"
+                    >
+                        <Save size={18} /> {loading ? 'Menyimpan...' : 'Simpan Data Aset'}
                     </button>
                 </div>
             </form>
