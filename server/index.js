@@ -7,7 +7,7 @@ dotenv.config();
 
 const app = express();
 const prisma = new PrismaClient();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
 const path = require('path');
 
@@ -39,6 +39,9 @@ app.use((req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server successfully started!`);
+    console.log(`   - Port: ${PORT}`);
+    console.log(`   - Interface: 0.0.0.0`);
+    console.log(`   - Frontend Path: ${distPath}`);
 });
