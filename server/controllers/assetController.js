@@ -16,21 +16,21 @@ exports.createAsset = async (req, res) => {
 
         const year = new Date(purchaseDate).getFullYear();
 
-        // Get last sequence for this pattern
-        // This is a simple count. For production, strictly locking or finding last created is better.
-        const count = await prisma.asset.count({
-            where: {
-                categoryId: parseInt(categoryId),
-                purchaseDate: {
-                    gte: new Date(`${year}-01-01`),
-                    lte: new Date(`${year}-12-31`)
-                }
-            }
-        });
+        // Robust sequence generation
+        let sequence = 1;
+        let code = "";
+        let exists = true;
 
-        const sequence = (count + 1).toString().padStart(4, '0');
-        // Example: KM-2026-0001 (If Category Code is KM)
-        const code = `AST-${category.code}-${year}-${sequence}`;
+        while (exists) {
+            const seqStr = sequence.toString().padStart(4, '0');
+            code = `AST-${category.code}-${year}-${seqStr}`;
+            const existingAsset = await prisma.asset.findUnique({ where: { code } });
+            if (!existingAsset) {
+                exists = false;
+            } else {
+                sequence++;
+            }
+        }
 
         const asset = await prisma.asset.create({
             data: {
@@ -185,11 +185,22 @@ exports.batchImportAssets = async (req, res) => {
                     }
                 }
 
-                // 5. Generate Asset Code
-                const year = new Date().getFullYear();
-                const count = await prisma.asset.count({ where: { categoryId: category.id } });
-                const sequence = (count + 1).toString().padStart(4, '0');
-                const assetCode = `AST-${category.code}-${year}-${sequence}`;
+                // 5. Generate Asset Code (Robust)
+                const yearNow = new Date().getFullYear();
+                let seq = 1;
+                let assetCode = "";
+                let codeExists = true;
+
+                while (codeExists) {
+                    const seqStr = seq.toString().padStart(4, '0');
+                    assetCode = `AST-${category.code}-${yearNow}-${seqStr}`;
+                    const existing = await prisma.asset.findUnique({ where: { code: assetCode } });
+                    if (!existing) {
+                        codeExists = false;
+                    } else {
+                        seq++;
+                    }
+                }
 
                 // 6. Aggregate "Extra Details" into specification
                 const extraDetails = [
