@@ -6,7 +6,8 @@ exports.getAllUnits = async (req, res) => {
         const units = await prisma.unit.findMany();
         res.json(units);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('GetUnits Error:', error);
+        res.status(500).json({ error: 'Database Error (Unit): ' + error.message });
     }
 };
 
@@ -17,6 +18,7 @@ exports.getAllRooms = async (req, res) => {
         });
         res.json(rooms);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('GetRooms Error:', error);
+        res.status(500).json({ error: 'Database Error (Ruangan): ' + error.message });
     }
 };

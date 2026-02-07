@@ -42,6 +42,7 @@ model Unit {
   head      String?
   location  String?
   assets    Asset[]
+  rooms     Room[]
   users     User[]
   requests  Request[]
 }
@@ -53,6 +54,8 @@ model Room {
   floor     String
   building  String
   pic       String?
+  unitId    Int?
+  unit      Unit?    @relation(fields: [unitId], references: [id])
   assets    Asset[]
 }
 

@@ -62,7 +62,8 @@ exports.getAllAssets = async (req, res) => {
         });
         res.json(assets);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('GetAssets Error:', error);
+        res.status(500).json({ error: 'Database Error (Aset): ' + error.message });
     }
 };
 
