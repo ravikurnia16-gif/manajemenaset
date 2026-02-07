@@ -1,10 +1,18 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const Sidebar = () => {
     const location = useLocation();
+    const navigate = useNavigate();
+
     const isActive = (path) => location.pathname.startsWith(path);
+
+    const handleLogout = () => {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        navigate('/login');
+    };
 
     const navItemClass = (path) => cn(
         "flex items-center gap-3 p-3 rounded-lg transition-colors mb-1",
@@ -34,7 +42,10 @@ const Sidebar = () => {
             </nav>
 
             <div className="p-4 border-t border-slate-800">
-                <button className="flex items-center gap-3 p-3 w-full rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors">
+                <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-3 p-3 w-full rounded-lg text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors"
+                >
                     <LogOut size={20} /> Logout
                 </button>
             </div>
