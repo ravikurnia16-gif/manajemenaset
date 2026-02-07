@@ -29,6 +29,10 @@ const AssetList = () => {
     const [selectedUnit, setSelectedUnit] = useState('');
     const [selectedRoom, setSelectedRoom] = useState('');
 
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+
     // Fetch Data from Backend
     const fetchData = async () => {
         try {
@@ -83,6 +87,18 @@ const AssetList = () => {
 
         return matchesSearch && matchesUnit && matchesRoom;
     });
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredAssets.length / itemsPerPage);
+    const paginatedAssets = filteredAssets.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, selectedUnit, selectedRoom, itemsPerPage]);
 
     const availableRooms = selectedUnit
         ? rooms.filter(r => r.unitId === parseInt(selectedUnit))
@@ -300,7 +316,7 @@ const AssetList = () => {
                                         Memuat data...
                                     </td>
                                 </tr>
-                            ) : filteredAssets.length > 0 ? filteredAssets.map((asset) => (
+                            ) : paginatedAssets.length > 0 ? paginatedAssets.map((asset) => (
                                 <tr key={asset.id} className="hover:bg-slate-50/80 transition-colors group">
                                     <td className="px-6 py-4 font-medium text-blue-600 font-mono tracking-tight">{asset.code}</td>
                                     <td className="px-6 py-4 font-medium text-slate-800">
@@ -341,8 +357,48 @@ const AssetList = () => {
                     </table>
                 </div>
 
-                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center text-xs text-slate-500">
-                    <span>Menampilkan {filteredAssets.length} dari {assets.length} data</span>
+                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-slate-500">
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <span>Tampilkan:</span>
+                            <select
+                                value={itemsPerPage}
+                                onChange={e => setItemsPerPage(parseInt(e.target.value))}
+                                className="bg-white border border-slate-200 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
+                            >
+                                {[10, 25, 50, 100].map(limit => (
+                                    <option key={limit} value={limit}>{limit}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <span>Menampilkan {paginatedAssets.length} dari {filteredAssets.length} data</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                            className="px-3 py-1.5 border border-slate-200 bg-white rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Sebelumnya
+                        </button>
+                        <div className="flex items-center gap-1">
+                            <span className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md font-medium border border-blue-100">
+                                {currentPage}
+                            </span>
+                            <span className="text-slate-400 mx-1">dari</span>
+                            <span className="px-3 py-1.5 bg-white border border-slate-200 rounded-md">
+                                {totalPages || 1}
+                            </span>
+                        </div>
+                        <button
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages || totalPages === 0}
+                            className="px-3 py-1.5 border border-slate-200 bg-white rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Berikutnya
+                        </button>
+                    </div>
                 </div>
             </div>
 
