@@ -112,10 +112,12 @@ const AssetList = () => {
 
             try {
                 const response = await api.post('/assets/import', jsonData);
-                alert(`Import Berhasil! \nSukses: ${response.data.success} \nGagal: ${response.data.failed}`);
+                alert(`Import Berhasil! \nSukses: ${response.data.success} \nGagal: ${response.data.failed}${response.data.errors?.length > 0 ? '\n\nContoh Error: ' + response.data.errors[0] : ''}`);
                 fetchData(); // Refresh list
             } catch (error) {
-                alert("Gagal melakukan import data ke server.");
+                console.error("Import error details:", error);
+                const msg = error.response?.data?.error || error.message;
+                alert("Gagal melakukan import data ke server: " + msg);
             }
         };
         reader.readAsArrayBuffer(file);

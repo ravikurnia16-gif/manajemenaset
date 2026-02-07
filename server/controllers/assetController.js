@@ -134,14 +134,18 @@ exports.batchImportAssets = async (req, res) => {
                 // 2. Unit
                 let unit = null;
                 if (item['Unit Aset']) {
+                    const unitName = String(item['Unit Aset']).trim();
                     unit = await prisma.unit.findFirst({
-                        where: { name: { contains: item['Unit Aset'] } }
+                        where: { name: { contains: unitName } }
                     });
                     if (!unit) {
+                        // Generate unique-ish code
+                        const baseCode = unitName.substring(0, 3).toUpperCase();
+                        const randomSuffix = Math.floor(Math.random() * 900) + 100;
                         unit = await prisma.unit.create({
                             data: {
-                                name: item['Unit Aset'],
-                                code: item['Unit Aset'].substring(0, 3).toUpperCase()
+                                name: unitName,
+                                code: `${baseCode}-${randomSuffix}`
                             }
                         });
                     }
@@ -150,14 +154,17 @@ exports.batchImportAssets = async (req, res) => {
                 // 3. Room
                 let room = null;
                 if (item['Ruangan Aset']) {
+                    const roomName = String(item['Ruangan Aset']).trim();
                     room = await prisma.room.findFirst({
-                        where: { name: { contains: item['Ruangan Aset'] } }
+                        where: { name: { contains: roomName } }
                     });
                     if (!room) {
+                        const baseCode = roomName.substring(0, 3).toUpperCase();
+                        const randomSuffix = Math.floor(Math.random() * 900) + 100;
                         room = await prisma.room.create({
                             data: {
-                                name: item['Ruangan Aset'],
-                                code: item['Ruangan Aset'].substring(0, 3).toUpperCase(),
+                                name: roomName,
+                                code: `${baseCode}-${randomSuffix}`,
                                 floor: '1',
                                 building: 'Utama'
                             }
@@ -165,39 +172,46 @@ exports.batchImportAssets = async (req, res) => {
                     }
                 }
 
-                // Generate Code
+                // Generate Asset Code
                 const year = new Date().getFullYear();
                 const count = await prisma.asset.count({
                     where: { categoryId: category.id }
                 });
                 const sequence = (count + 1).toString().padStart(4, '0');
-                const code = `AST-${category.code}-${year}-${sequence}`;
+                const assetCode = `AST-${category.code}-${year}-${sequence}`;
+
+                // Check if Code already exists to prevent crash
+                const existing = await prisma.asset.findUnique({ where: { code: assetCode } });
+                const finalCode = existing ? `${assetCode}-DUP-${Math.floor(Math.random() * 100)}` : assetCode;
 
                 // Create Asset
                 await prisma.asset.create({
                     data: {
-                        code,
-                        name: item['Nama Aset'] || 'Tanpa Nama',
-                        brand: item['Merek Aset'] || '-',
+                        code: finalCode,
+                        name: String(item['Nama Aset'] || 'Tanpa Nama'),
+                        brand: String(item['Merek Aset'] || '-'),
                         categoryId: category.id,
                         unitId: unit ? unit.id : null,
                         roomId: room ? room.id : null,
-                        price: parseFloat(item['Harga Perolehan'] || 0),
+                        price: parseFloat(String(item['Harga Perolehan'] || 0).replace(/[^\d.-]/g, '')),
                         purchaseDate: item['Tanggal Transaksi Masuk (yyyy-mm-dd)'] ? new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']) : new Date(),
-                        condition: 'BAIK', // Default during import
-                        specification: item.Spesifikasi || '-',
+                        condition: 'BAIK',
+                        specification: String(item.Spesifikasi || '-'),
                     }
                 });
 
                 results.success++;
             } catch (err) {
+                console.error(`Error importing row for ${item['Nama Aset']}:`, err);
                 results.failed++;
-                results.errors.push(`Error on ${item['Nama Aset']}: ${err.message}`);
+                results.errors.push(`Gagal pada ${item['Nama Aset']}: ${err.message}`);
             }
         }
 
+        console.log(`Import finished. Success: ${results.success}, Failed: ${results.failed}`);
         res.json(results);
     } catch (error) {
+        console.error("Batch import primary error:", error);
         res.status(500).json({ error: error.message });
     }
 };
