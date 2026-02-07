@@ -78,7 +78,7 @@ const AssetList = () => {
     const handleTemplateDownload = () => {
         const headers = [[
             'Nama Aset', 'Merek Aset', 'Kategori', 'Unit Aset', 'Ruangan Aset',
-            'Harga Perolehan', 'Tanggal Transaksi Masuk (yyyy-mm-dd)', 'Umur Manfaat', 'Spesifikasi'
+            'Harga Perolehan', 'Tanggal Transaksi Masuk (yyyy-mm-dd)', 'Umur Manfaat', 'Sumber Dana', 'Spesifikasi'
         ]];
         const ws = XLSX.utils.aoa_to_sheet(headers);
         const wscols = headers[0].map(() => ({ wch: 25 }));
@@ -89,27 +89,60 @@ const AssetList = () => {
     };
 
     const handleExport = () => {
-        const exportData = filteredAssets.map(a => ({
-            'ID': a.id,
-            'Kode Aset': a.code,
-            'Nama Aset': a.name,
-            'Kategori': a.category?.name || '-',
-            'Unit': a.unit?.name || '-',
-            'Ruangan': a.room?.name || '-',
-            'Merek': a.brand || '-',
-            'Spesifikasi': a.specification || '-',
-            'Tanggal Perolehan': a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString('id-ID') : '-',
-            'Umur Manfaat': a.usefulLife || '-',
-            'Harga': a.price,
-            'Jumlah': a.quantity,
-            'Kondisi': a.condition,
-            'Vendor': a.vendor?.name || '-',
-        }));
+        const now = new Date();
+        const exportData = filteredAssets.map((a, index) => {
+            const purchaseDate = new Date(a.purchaseDate);
+            const monthsElapsed = Math.max(0, (now.getFullYear() - purchaseDate.getFullYear()) * 12 + (now.getMonth() - purchaseDate.getMonth()));
+            const totalMonths = (a.usefulLife || 5) * 12;
+            const monthlyDepreciation = Math.round(a.price / totalMonths);
+            const accumulatedDepreciation = Math.min(a.price, monthlyDepreciation * monthsElapsed);
+            const bookValue = Math.max(0, a.price - accumulatedDepreciation);
+
+            // Days calculation (rough estimation for display)
+            const msPerDay = 24 * 60 * 60 * 1000;
+            const daysElapsed = Math.max(0, Math.floor((now - purchaseDate) / msPerDay));
+
+            return {
+                'No': index + 1,
+                'Kode': a.code,
+                'Nama': a.name,
+                'Merek': a.brand || '-',
+                'Vendor': a.vendor?.name || '-',
+                'Tanggal Perolehan': a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString('id-ID') : '-',
+                'Status Perolehan': 'Beli Baru', // Placeholder
+                'Harga Perolehan': a.price,
+                'Kategori': a.category?.name || '-',
+                'Sumber Dana': a.sourceOfFunds || 'Mandiri',
+                'Kondisi': a.condition,
+                'Nama Ruangan': a.room?.name || '-',
+                'Lokasi': a.room?.building || '-',
+                'Nama Unit/Bidang': a.unit?.name || '-',
+                'Penjual/Penghibah': a.vendor?.name || '-',
+                'Umur Ekonomis': a.usefulLife + ' Tahun',
+                'Nilai Penyusutan per Bulan': monthlyDepreciation,
+                'Jumlah Bulan Penyusutan': Math.min(monthsElapsed, totalMonths),
+                'Jurnal Penyusutan (Bulanan)': `D: Beban Penyusutan / K: Akum. Penyusutan (${monthlyDepreciation})`,
+                'Jumlah Nominal Penyusutan Terkini': accumulatedDepreciation,
+                'Perkiraan Hari Penyusutan Terkini': daysElapsed,
+                'Jumlah Hari Penyusutan Terkini': daysElapsed,
+                'Nilai Buku': bookValue,
+                'Tanggal PHPP': '-',
+                'Hari Penyusutan Sebelum PHPP': '-',
+                'Nilai Penyusutan Saat PHPP': '-',
+                'Nilai Buku Saat PHPP': '-',
+                'Status PHPP': '-',
+                'No. Bukti PHPP': '-',
+                'Nama Penerima/Pembeli': '-',
+                'Unit Penerima/Pembeli': '-',
+                'Harga Jual': 0,
+                'Laba/Rugi Penjualan': 0
+            };
+        });
 
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Aset");
-        XLSX.writeFile(wb, "Data_Aset_Export.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "Data Aset & Penyusutan");
+        XLSX.writeFile(wb, `Laporan_Aset_Terkini_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     const handleImport = async (e) => {

@@ -96,6 +96,7 @@ model Asset {
   quantity        Int      @default(1)
   usefulLife      Int      @default(5)
   condition       Condition
+  sourceOfFunds   String?  @default("Mandiri")
   
   image           String?
   invoice         String?

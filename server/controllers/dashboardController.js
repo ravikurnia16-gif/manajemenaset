@@ -1,27 +1,40 @@
-const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 exports.getDashboardStats = async (req, res) => {
     try {
         const now = new Date();
 
-        // 1. Basic Stats
-        const [totalAssets, totalValue, damagedAssets, assets] = await Promise.all([
+        // 1. Fetch assets for value calculation
+        const allAssets = await prisma.asset.findMany({
+            select: { price: true, purchaseDate: true, usefulLife: true }
+        });
+
+        const totalBookValue = allAssets.reduce((sum, a) => {
+            const purchaseDate = new Date(a.purchaseDate);
+            const monthsElapsed = (now.getFullYear() - purchaseDate.getFullYear()) * 12 + (now.getMonth() - purchaseDate.getMonth());
+            const totalMonths = (a.usefulLife || 5) * 12;
+
+            const monthlyDepreciation = a.price / totalMonths;
+            const accumulatedDepreciation = Math.min(a.price, monthlyDepreciation * Math.max(0, monthsElapsed));
+            const bookValue = Math.max(0, a.price - accumulatedDepreciation);
+
+            return sum + bookValue;
+        }, 0);
+
+        // 2. Fetch other counts
+        const [totalAssets, damagedAssets] = await Promise.all([
             prisma.asset.count(),
-            prisma.asset.aggregate({ _sum: { price: true } }),
             prisma.asset.count({
                 where: {
                     condition: { in: ['RUSAK_RINGAN', 'RUSAK_BERAT'] }
                 }
-            }),
-            prisma.asset.findMany({
-                select: { id: true, purchaseDate: true, usefulLife: true }
             })
         ]);
+        const assetsForExpiry = allAssets; // Use already fetched data
 
-        // 2. Calculate Expired Assets (Habis Umur)
+        // 3. Calculate Expired Assets (Habis Umur)
         // purchaseDate + usefulLife < now
-        const expiredAssetsCount = assets.filter(a => {
+        const expiredAssetsCount = allAssets.filter(a => {
             const expiryDate = new Date(a.purchaseDate);
             expiryDate.setFullYear(expiryDate.getFullYear() + (a.usefulLife || 5));
             return expiryDate < now;
@@ -63,7 +76,7 @@ exports.getDashboardStats = async (req, res) => {
         res.json({
             stats: {
                 totalAssets,
-                totalValue: totalValue._sum.price || 0,
+                totalValue: totalBookValue,
                 damagedAssets,
                 expiredAssets: expiredAssetsCount
             },

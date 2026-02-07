@@ -6,7 +6,7 @@ exports.createAsset = async (req, res) => {
         const {
             name, categoryId, roomId, unitId,
             price, purchaseDate, condition, brand,
-            usefulLife, vendorId, specification
+            usefulLife, vendorId, specification, sourceOfFunds
         } = req.body;
 
         // Generate Code Logic
@@ -46,6 +46,7 @@ exports.createAsset = async (req, res) => {
                 condition,
                 brand,
                 specification,
+                sourceOfFunds: sourceOfFunds || "Mandiri",
                 quantity: 1
             }
         });
@@ -200,6 +201,7 @@ exports.batchImportAssets = async (req, res) => {
                         usefulLife: parseInt(item['Umur Manfaat'] || 5),
                         condition: 'BAIK',
                         specification: String(item.Spesifikasi || '-'),
+                        sourceOfFunds: String(item['Sumber Dana'] || 'Mandiri'),
                         quantity: 1,
                     }
                 });

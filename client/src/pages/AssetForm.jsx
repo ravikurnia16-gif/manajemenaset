@@ -148,6 +148,16 @@ const AssetForm = () => {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Sumber Dana</label>
+                                <select {...register('sourceOfFunds')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                    <option value="Mandiri">Mandiri</option>
+                                    <option value="Hibah">Hibah</option>
+                                    <option value="Pemerintah">Pemerintah</option>
+                                    <option value="Lainnya">Lainnya</option>
+                                </select>
+                            </div>
+
+                            <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Kondisi</label>
                                 <select {...register('condition')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                                     <option value="BAIK">Baik</option>
