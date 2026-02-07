@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import AssetList from './pages/AssetList';
 import AssetForm from './pages/AssetForm';
+import MasterData from './pages/MasterData';
 import LoginPage from './pages/LoginPage';
 
 // Komponen untuk melindungi route yang butuh login
@@ -30,6 +31,7 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="aset" element={<AssetList />} />
           <Route path="aset/input" element={<AssetForm />} />
+          <Route path="master" element={<MasterData />} />
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />
         </Route>
       </Routes>

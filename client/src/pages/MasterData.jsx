@@ -1,0 +1,259 @@
+import { useState, useEffect } from 'react';
+import { Database, Plus, Trash2, Building2, MapPin, Tag, Save } from 'lucide-react';
+import api from '../lib/axios';
+
+const MasterData = () => {
+    const [activeTab, setActiveTab] = useState('units');
+    const [units, setUnits] = useState([]);
+    const [rooms, setRooms] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [vendors, setVendors] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    // Form inputs
+    const [newUnit, setNewUnit] = useState({ name: '', code: '' });
+    const [newRoom, setNewRoom] = useState({ name: '', code: '', floor: '1', building: '', unitId: '' });
+    const [newCategory, setNewCategory] = useState({ name: '', code: '', usefulLife: 5 });
+    const [newVendor, setNewVendor] = useState({ name: '', contact: '', address: '' });
+
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const [ru, rr, rc, rv] = await Promise.all([
+                api.get('/master/units'),
+                api.get('/master/rooms'),
+                api.get('/master/categories'),
+                api.get('/master/vendors')
+            ]);
+            setUnits(ru.data);
+            setRooms(rr.data);
+            setCategories(rc.data);
+            setVendors(rv.data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const handleAddUnit = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('/master/units', newUnit);
+            setNewUnit({ name: '', code: '' });
+            fetchData();
+        } catch (err) { alert(err.message); }
+    };
+
+    const handleAddRoom = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('/master/rooms', newRoom);
+            setNewRoom({ name: '', code: '', floor: '1', building: '', unitId: '' });
+            fetchData();
+        } catch (err) { alert(err.message); }
+    };
+
+    const handleAddCategory = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('/master/categories', newCategory);
+            setNewCategory({ name: '', code: '', usefulLife: 5 });
+            fetchData();
+        } catch (err) { alert(err.message); }
+    };
+
+    const handleAddVendor = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('/master/vendors', newVendor);
+            setNewVendor({ name: '', contact: '', address: '' });
+            fetchData();
+        } catch (err) { alert(err.message); }
+    };
+
+    const handleDelete = async (type, id) => {
+        if (!confirm('Hapus data ini?')) return;
+        try {
+            await api.delete(`/master/${type}/${id}`);
+            fetchData();
+        } catch (err) { alert(err.message); }
+    };
+
+    return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+            <div>
+                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    <Database className="text-blue-600" /> Pengelolaan Master Data
+                </h1>
+                <p className="text-slate-500 text-sm">Kelola Unit, Ruangan, dan Kategori untuk dropdown formulir aset</p>
+            </div>
+
+            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100 w-fit">
+                <button onClick={() => setActiveTab('units')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'units' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Unit / Divisi</button>
+                <button onClick={() => setActiveTab('rooms')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'rooms' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Ruangan</button>
+                <button onClick={() => setActiveTab('categories')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'categories' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Kategori</button>
+                <button onClick={() => setActiveTab('vendors')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'vendors' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Vendor</button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Form Section */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-fit">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <Plus className="text-blue-600" size={20} /> Tambah {activeTab === 'units' ? 'Unit' : activeTab === 'rooms' ? 'Ruangan' : activeTab === 'categories' ? 'Kategori' : 'Vendor'}
+                    </h3>
+
+                    {activeTab === 'units' && (
+                        <form onSubmit={handleAddUnit} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Nama Unit</label>
+                                <input required value={newUnit.name} onChange={e => setNewUnit({ ...newUnit, name: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Pemasaran" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Kode Unit</label>
+                                <input required value={newUnit.code} onChange={e => setNewUnit({ ...newUnit, code: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="MKT" />
+                            </div>
+                            <button className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
+                                <Save size={16} /> Simpan Unit
+                            </button>
+                        </form>
+                    )}
+
+                    {activeTab === 'rooms' && (
+                        <form onSubmit={handleAddRoom} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Unit Induk</label>
+                                <select required value={newRoom.unitId} onChange={e => setNewRoom({ ...newRoom, unitId: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none bg-white">
+                                    <option value="">Pilih Unit</option>
+                                    {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Nama Ruangan</label>
+                                <input required value={newRoom.name} onChange={e => setNewRoom({ ...newRoom, name: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ruang Rapat 1" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Kode</label>
+                                    <input required value={newRoom.code} onChange={e => setNewRoom({ ...newRoom, code: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="RR1" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Lantai</label>
+                                    <input required value={newRoom.floor} onChange={e => setNewRoom({ ...newRoom, floor: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="1" />
+                                </div>
+                            </div>
+                            <button className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
+                                <Save size={16} /> Simpan Ruangan
+                            </button>
+                        </form>
+                    )}
+
+                    {activeTab === 'categories' && (
+                        <form onSubmit={handleAddCategory} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Nama Kategori</label>
+                                <input required value={newCategory.name} onChange={e => setNewCategory({ ...newCategory, name: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Laptop" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Kode</label>
+                                    <input required value={newCategory.code} onChange={e => setNewCategory({ ...newCategory, code: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="LPT" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Masa Manfaat (Thn)</label>
+                                    <input type="number" required value={newCategory.usefulLife} onChange={e => setNewCategory({ ...newCategory, usefulLife: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="5" />
+                                </div>
+                            </div>
+                            <button className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
+                                <Save size={16} /> Simpan Kategori
+                            </button>
+                        </form>
+                    )}
+
+                    {activeTab === 'vendors' && (
+                        <form onSubmit={handleAddVendor} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Nama Vendor</label>
+                                <input required value={newVendor.name} onChange={e => setNewVendor({ ...newVendor, name: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="PT. Media Utama" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Kontak / Telp</label>
+                                <input value={newVendor.contact} onChange={e => setNewVendor({ ...newVendor, contact: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="0812..." />
+                            </div>
+                            <button className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
+                                <Save size={16} /> Simpan Vendor
+                            </button>
+                        </form>
+                    )}
+                </div>
+
+                {/* Table Section */}
+                <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden h-fit">
+                    <div className="p-4 bg-slate-50/50 border-b border-slate-100 font-bold text-slate-700 flex items-center justify-between">
+                        <span>Daftar {activeTab === 'units' ? 'Unit' : activeTab === 'rooms' ? 'Ruangan' : 'Kategori'}</span>
+                        <span className="text-xs font-normal text-slate-500">Total: {activeTab === 'units' ? units.length : activeTab === 'rooms' ? rooms.length : categories.length} item</span>
+                    </div>
+                    <div className="max-h-[500px] overflow-y-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-slate-500 font-medium sticky top-0">
+                                <tr>
+                                    <th className="px-6 py-3">Nama</th>
+                                    {activeTab === 'vendors' ? <th className="px-6 py-3">Kontak</th> : <th className="px-6 py-3">Kode</th>}
+                                    {activeTab === 'rooms' && <th className="px-6 py-3">Unit</th>}
+                                    {activeTab === 'categories' && <th className="px-6 py-3">Masa Manfaat</th>}
+                                    <th className="px-6 py-3 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {activeTab === 'units' && units.map(u => (
+                                    <tr key={u.id} className="hover:bg-slate-50/50">
+                                        <td className="px-6 py-3 font-medium text-slate-800">{u.name}</td>
+                                        <td className="px-6 py-3 text-slate-600 font-mono">{u.code}</td>
+                                        <td className="px-6 py-3 text-center">
+                                            <button onClick={() => handleDelete('units', u.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {activeTab === 'rooms' && rooms.map(r => (
+                                    <tr key={r.id} className="hover:bg-slate-50/50">
+                                        <td className="px-6 py-3 font-medium text-slate-800">{r.name}</td>
+                                        <td className="px-6 py-3 text-slate-600 font-mono">{r.code}</td>
+                                        <td className="px-6 py-3 text-slate-500 text-xs">{r.unit?.name || '-'}</td>
+                                        <td className="px-6 py-3 text-center">
+                                            <button onClick={() => handleDelete('rooms', r.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {activeTab === 'categories' && categories.map(c => (
+                                    <tr key={c.id} className="hover:bg-slate-50/50">
+                                        <td className="px-6 py-3 font-medium text-slate-800">{c.name}</td>
+                                        <td className="px-6 py-3 text-slate-600 font-mono">{c.code}</td>
+                                        <td className="px-6 py-3 text-slate-500">{c.usefulLife} Tahun</td>
+                                        <td className="px-6 py-3 text-center">
+                                            <button onClick={() => handleDelete('categories', c.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {activeTab === 'vendors' && vendors.map(v => (
+                                    <tr key={v.id} className="hover:bg-slate-50/50">
+                                        <td className="px-6 py-3 font-medium text-slate-800">{v.name}</td>
+                                        <td className="px-6 py-3 text-slate-600">{v.contact || '-'}</td>
+                                        <td className="px-6 py-3 text-center">
+                                            <button onClick={() => handleDelete('vendors', v.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default MasterData;
