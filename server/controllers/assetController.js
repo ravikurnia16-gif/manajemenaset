@@ -175,12 +175,12 @@ exports.batchImportAssets = async (req, res) => {
 
                 // 4. Vendor Lookup/Create
                 let vendor = null;
-                if (item['Vendor Aset']) {
+                if (item['Vendor Aset'] && String(item['Vendor Aset']).trim()) {
                     const vendorName = String(item['Vendor Aset']).trim();
                     vendor = await prisma.vendor.findFirst({ where: { name: { contains: vendorName } } });
                     if (!vendor) {
                         vendor = await prisma.vendor.create({
-                            data: { name: vendorName, code: vendorName.substring(0, 3).toUpperCase(), contact: '-' }
+                            data: { name: vendorName, contact: '-' }
                         });
                     }
                 }
