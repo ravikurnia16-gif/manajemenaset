@@ -19,6 +19,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/assets', require('./routes/assetRoutes'));
 app.use('/api/master', require('./routes/masterRoutes'));
+app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 
 // Health Check untuk memastikan API & DB aman
 app.get('/api/health', async (req, res) => {
