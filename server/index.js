@@ -17,6 +17,7 @@ app.use(express.json());
 // Routes API
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/assets', require('./routes/assetRoutes'));
+app.use('/api/master', require('./routes/masterRoutes'));
 
 // --- BAGIAN DEPLOYMENT: Melayani File Tampilan (Frontend) ---
 // Pastikan path ke folder 'dist' benar (relatif dari server/index.js)

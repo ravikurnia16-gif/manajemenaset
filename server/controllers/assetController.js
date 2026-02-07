@@ -103,3 +103,101 @@ exports.deleteAsset = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.batchImportAssets = async (req, res) => {
+    try {
+        const assetsData = req.body; // Array of objects from Excel
+        const results = {
+            success: 0,
+            failed: 0,
+            errors: []
+        };
+
+        for (const item of assetsData) {
+            try {
+                // Smart Lookup or Create Master Data
+                // 1. Category
+                let category = await prisma.category.findFirst({
+                    where: { name: { contains: item.Kategori || 'Umum' } }
+                });
+                if (!category) {
+                    category = await prisma.category.create({
+                        data: {
+                            name: item.Kategori || 'Umum',
+                            code: (item.Kategori || 'UM').substring(0, 2).toUpperCase(),
+                            usefulLife: 5,
+                            depreciationMethod: 'STRAIGHT_LINE'
+                        }
+                    });
+                }
+
+                // 2. Unit
+                let unit = null;
+                if (item['Unit Aset']) {
+                    unit = await prisma.unit.findFirst({
+                        where: { name: { contains: item['Unit Aset'] } }
+                    });
+                    if (!unit) {
+                        unit = await prisma.unit.create({
+                            data: {
+                                name: item['Unit Aset'],
+                                code: item['Unit Aset'].substring(0, 3).toUpperCase()
+                            }
+                        });
+                    }
+                }
+
+                // 3. Room
+                let room = null;
+                if (item['Ruangan Aset']) {
+                    room = await prisma.room.findFirst({
+                        where: { name: { contains: item['Ruangan Aset'] } }
+                    });
+                    if (!room) {
+                        room = await prisma.room.create({
+                            data: {
+                                name: item['Ruangan Aset'],
+                                code: item['Ruangan Aset'].substring(0, 3).toUpperCase(),
+                                floor: '1',
+                                building: 'Utama'
+                            }
+                        });
+                    }
+                }
+
+                // Generate Code
+                const year = new Date().getFullYear();
+                const count = await prisma.asset.count({
+                    where: { categoryId: category.id }
+                });
+                const sequence = (count + 1).toString().padStart(4, '0');
+                const code = `AST-${category.code}-${year}-${sequence}`;
+
+                // Create Asset
+                await prisma.asset.create({
+                    data: {
+                        code,
+                        name: item['Nama Aset'] || 'Tanpa Nama',
+                        brand: item['Merek Aset'] || '-',
+                        categoryId: category.id,
+                        unitId: unit ? unit.id : null,
+                        roomId: room ? room.id : null,
+                        price: parseFloat(item['Harga Perolehan'] || 0),
+                        purchaseDate: item['Tanggal Transaksi Masuk (yyyy-mm-dd)'] ? new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']) : new Date(),
+                        condition: 'BAIK', // Default during import
+                        specification: item.Spesifikasi || '-',
+                    }
+                });
+
+                results.success++;
+            } catch (err) {
+                results.failed++;
+                results.errors.push(`Error on ${item['Nama Aset']}: ${err.message}`);
+            }
+        }
+
+        res.json(results);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

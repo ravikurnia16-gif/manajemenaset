@@ -1,38 +1,44 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin, Printer, QrCode } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { LabelPrint, BatchLabelPrint } from '../components/LabelPrint';
 import { useReactToPrint } from 'react-to-print';
+import api from '../lib/axios';
 
 const AssetList = () => {
-    // Mock Master Data
-    const units = [
-        { id: 1, name: 'IT Department' },
-        { id: 2, name: 'Human Resources' },
-        { id: 3, name: 'Finance' },
-        { id: 4, name: 'General Affairs' }
-    ];
-
-    const rooms = [
-        { id: 1, unitId: 1, name: 'R. Server Lt.1' },
-        { id: 2, unitId: 1, name: 'R. Dev Team' },
-        { id: 3, unitId: 2, name: 'R. Meeting HR' },
-        { id: 4, unitId: 3, name: 'R. Arsip Keuangan' },
-        { id: 5, unitId: 4, name: 'Lobby Utama' }
-    ];
-
-    // Mock Assets (Updated structure with unitId and roomId)
-    const [assets, setAssets] = useState([
-        { id: 1, code: 'AST-KMP-2025-0001', name: 'MacBook Pro M3', category: 'Elektronik', unit: 'IT Department', unitId: 1, location: 'R. Server Lt.1', roomId: 1, condition: 'BAIK', price: 25000000 },
-        { id: 2, code: 'AST-FRN-2025-0002', name: 'Meja Kerja Staff', category: 'Furniture', unit: 'Human Resources', unitId: 2, location: 'R. Meeting HR', roomId: 3, condition: 'BAIK', price: 1500000 },
-        { id: 3, code: 'AST-KMP-2024-0010', name: 'Monitor LG 24"', category: 'Elektronik', unit: 'IT Department', unitId: 1, location: 'R. Dev Team', roomId: 2, condition: 'RUSAK_RINGAN', price: 2000000 },
-        { id: 4, code: 'AST-KEND-2023-005', name: 'Mobil Operasional', category: 'Kendaraan', unit: 'General Affairs', unitId: 4, location: 'Lobby Utama', roomId: 5, condition: 'BAIK', price: 250000000 },
-    ]);
+    const [units, setUnits] = useState([]);
+    const [rooms, setRooms] = useState([]);
+    const [assets, setAssets] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedUnit, setSelectedUnit] = useState('');
     const [selectedRoom, setSelectedRoom] = useState('');
+
+    // Fetch Data from Backend
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const [respAssets, respUnits, respRooms] = await Promise.all([
+                api.get('/assets'),
+                api.get('/master/units'),
+                api.get('/master/rooms')
+            ]);
+            setAssets(respAssets.data);
+            setUnits(respUnits.data);
+            setRooms(respRooms.data);
+        } catch (error) {
+            console.error('Fetch error:', error);
+            alert('Gagal mengambil data dari server');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
 
     // Print Handling
     const [printAsset, setPrintAsset] = useState(null);
@@ -50,7 +56,6 @@ const AssetList = () => {
 
     const openPrintModal = (asset) => {
         setPrintAsset(asset);
-        // Small delay to allow render before print triggers
         setTimeout(() => handlePrintSingle(), 100);
     };
 
@@ -64,29 +69,21 @@ const AssetList = () => {
         return matchesSearch && matchesUnit && matchesRoom;
     });
 
-    // Derived State for Room Dropdown (Dependent on Unit)
     const availableRooms = selectedUnit
         ? rooms.filter(r => r.unitId === parseInt(selectedUnit))
         : rooms;
 
     const handleTemplateDownload = () => {
         const headers = [[
-            'Nama Aset', 'Merek Aset', 'Vendor Aset',
-            'Umur Ekonomis Aset(hari)', 'Umur Ekonomis Aset(bulan)', 'Umur Ekonomis Aset(tahun)',
-            'Kondisi Aset', 'Sumber Dana Aset', 'Ruangan Aset', 'Unit Aset', 'Kategori',
-            'Tanggal Transaksi Masuk (yyyy-mm-dd)', 'Jenis Transaksi Masuk', 'Bukti Transaksi Masuk',
-            'Harga Perolehan', 'NIK/NIY Pihak Kedua', 'Apakah Pihak Kedua Karyawan? (ya/tidak)',
-            'Nama Pihak Kedua (hanya digunakan kalau pihak kedua baru)', 'Alamat Pihak Kedua (hanya digunakan kalau pihak kedua baru)',
-            'Tanggal Transaksi Keluar (yyyy-mm-dd)', 'Jenis Transaksi Keluar', 'Bukti Transaksi Keluar', 'Harga Jual',
-            'NIK/NIY Pihak Kedua (Keluar)', 'Apakah Pihak Kedua Karyawan? (Keluar)',
-            'Nama Pihak Kedua (Keluar)', 'Alamat Pihak Kedua (Keluar)'
+            'Nama Aset', 'Merek Aset', 'Kategori', 'Unit Aset', 'Ruangan Aset',
+            'Harga Perolehan', 'Tanggal Transaksi Masuk (yyyy-mm-dd)', 'Spesifikasi'
         ]];
         const ws = XLSX.utils.aoa_to_sheet(headers);
-        const wscols = headers[0].map(() => ({ wch: 20 }));
+        const wscols = headers[0].map(() => ({ wch: 25 }));
         ws['!cols'] = wscols;
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Template Custom");
-        XLSX.writeFile(wb, "Template_Aset_Lengkap.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "Template_Import");
+        XLSX.writeFile(wb, "Template_Import_Aset.xlsx");
     };
 
     const handleExport = () => {
@@ -96,8 +93,32 @@ const AssetList = () => {
         XLSX.writeFile(wb, "Data_Aset_Export.xlsx");
     };
 
-    const handleImport = (e) => {
-        alert("Fitur Import akan disesuaikan dengan Unit/Ruangan yang ada di database.");
+    const handleImport = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            const data = new Uint8Array(event.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+            if (jsonData.length === 0) {
+                alert("File kosong!");
+                return;
+            }
+
+            try {
+                const response = await api.post('/assets/import', jsonData);
+                alert(`Import Berhasil! \nSukses: ${response.data.success} \nGagal: ${response.data.failed}`);
+                fetchData(); // Refresh list
+            } catch (error) {
+                alert("Gagal melakukan import data ke server.");
+            }
+        };
+        reader.readAsArrayBuffer(file);
     };
 
     return (
@@ -187,28 +208,34 @@ const AssetList = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {filteredAssets.length > 0 ? filteredAssets.map((asset) => (
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="7" className="px-6 py-12 text-center text-slate-500">
+                                        Memuat data...
+                                    </td>
+                                </tr>
+                            ) : filteredAssets.length > 0 ? filteredAssets.map((asset) => (
                                 <tr key={asset.id} className="hover:bg-slate-50/80 transition-colors group">
                                     <td className="px-6 py-4 font-medium text-blue-600 font-mono tracking-tight">{asset.code}</td>
                                     <td className="px-6 py-4 font-medium text-slate-800">
                                         {asset.name}
-                                        <div className="text-xs text-slate-400 font-normal">{asset.category}</div>
+                                        <div className="text-xs text-slate-400 font-normal">{asset.category?.name}</div>
                                     </td>
                                     <td className="px-6 py-4 text-slate-600">
                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
-                                            {asset.unit}
+                                            {asset.unit?.name || '-'}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-slate-600">{asset.location}</td>
+                                    <td className="px-6 py-4 text-slate-600">{asset.room?.name || '-'}</td>
                                     <td className="px-6 py-4">
                                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${asset.condition === 'BAIK' ? 'bg-emerald-100 text-emerald-700' :
                                             asset.condition === 'RUSAK_RINGAN' ? 'bg-orange-100 text-orange-700' :
                                                 'bg-red-100 text-red-700'
                                             }`}>
-                                            {asset.condition.replace('_', ' ')}
+                                            {(asset.condition || 'BAIK').replace('_', ' ')}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-slate-600">Rp {asset.price.toLocaleString()}</td>
+                                    <td className="px-6 py-4 text-slate-600">Rp {(asset.price || 0).toLocaleString()}</td>
                                     <td className="px-6 py-4 text-center">
                                         <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button onClick={() => openPrintModal(asset)} className="p-1 hover:bg-slate-800 hover:text-white text-slate-500 rounded transition-colors" title="Cetak Label QR"><QrCode size={16} /></button>

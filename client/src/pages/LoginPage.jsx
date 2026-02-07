@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User, LayoutDashboard } from 'lucide-react';
+import api from '../lib/axios';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -17,18 +18,19 @@ const LoginPage = () => {
         setLoading(true);
         setError('');
 
-        // Mock Login Logic
-        setTimeout(() => {
-            if (formData.username === 'admin' && formData.password === 'admin') {
-                const mockUser = { id: 1, name: 'Super Admin', role: 'SUPER_ADMIN' };
-                localStorage.setItem('user', JSON.stringify(mockUser));
-                localStorage.setItem('token', 'mock_token_123');
-                navigate('/dashboard');
-            } else {
-                setError('Username atau password salah (Coba: admin / admin)');
-            }
+        try {
+            const response = await api.post('/auth/login', formData);
+            const { token, user } = response.data;
+
+            localStorage.setItem('user', JSON.stringify(user));
+            localStorage.setItem('token', token);
+
+            navigate('/dashboard');
+        } catch (error) {
+            setError(error.response?.data?.error || 'Username atau password salah');
+        } finally {
             setLoading(false);
-        }, 1000);
+        }
     };
 
     return (
