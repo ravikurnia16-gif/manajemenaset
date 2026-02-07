@@ -90,7 +90,7 @@ model Asset {
   vendor          Vendor?  @relation(fields: [vendorId], references: [id])
   
   brand           String?
-  specification   String?
+  specification   String?  @db.Text
   purchaseDate    DateTime
   price           Float
   quantity        Int      @default(1)

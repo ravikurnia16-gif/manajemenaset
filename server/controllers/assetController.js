@@ -220,7 +220,7 @@ exports.batchImportAssets = async (req, res) => {
                         usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)'] || 5),
                         condition: String(item['Kondisi Aset'] || 'BAIK').toUpperCase().includes('RUSAK') ? 'RUSAK_RINGAN' : 'BAIK',
                         sourceOfFunds: String(item['Sumber Dana Aset'] || 'Mandiri'),
-                        specification: extraDetails,
+                        specification: extraDetails.substring(0, 5000), // Safety truncation
                         quantity: 1,
                     }
                 });
