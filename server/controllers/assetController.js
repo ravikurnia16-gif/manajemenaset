@@ -127,17 +127,12 @@ exports.deleteAsset = async (req, res) => {
 
 exports.batchImportAssets = async (req, res) => {
     try {
-        const assetsData = req.body; // Array of objects from Excel
-        const results = {
-            success: 0,
-            failed: 0,
-            errors: []
-        };
+        const assetsData = req.body;
+        const results = { success: 0, failed: 0, errors: [] };
 
         for (const item of assetsData) {
             try {
-                // Smart Lookup or Create Master Data
-                // 1. Category
+                // 1. Category Lookup/Create
                 let category = await prisma.category.findFirst({
                     where: { name: { contains: item.Kategori || 'Umum' } }
                 });
@@ -146,80 +141,86 @@ exports.batchImportAssets = async (req, res) => {
                         data: {
                             name: item.Kategori || 'Umum',
                             code: (item.Kategori || 'UM').substring(0, 2).toUpperCase(),
-                            usefulLife: 5,
+                            usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)'] || 5),
                             depreciationMethod: 'STRAIGHT_LINE'
                         }
                     });
                 }
 
-                // 2. Unit
+                // 2. Unit Lookup/Create
                 let unit = null;
                 if (item['Unit Aset']) {
                     const unitName = String(item['Unit Aset']).trim();
-                    unit = await prisma.unit.findFirst({
-                        where: { name: { contains: unitName } }
-                    });
+                    unit = await prisma.unit.findFirst({ where: { name: { contains: unitName } } });
                     if (!unit) {
-                        // Generate unique-ish code
                         const baseCode = unitName.substring(0, 3).toUpperCase();
-                        const randomSuffix = Math.floor(Math.random() * 900) + 100;
                         unit = await prisma.unit.create({
-                            data: {
-                                name: unitName,
-                                code: `${baseCode}-${randomSuffix}`
-                            }
+                            data: { name: unitName, code: `${baseCode}-${Math.floor(Math.random() * 900) + 100}` }
                         });
                     }
                 }
 
-                // 3. Room
+                // 3. Room Lookup/Create
                 let room = null;
                 if (item['Ruangan Aset']) {
                     const roomName = String(item['Ruangan Aset']).trim();
-                    room = await prisma.room.findFirst({
-                        where: { name: { contains: roomName } }
-                    });
+                    room = await prisma.room.findFirst({ where: { name: { contains: roomName } } });
                     if (!room) {
                         const baseCode = roomName.substring(0, 3).toUpperCase();
-                        const randomSuffix = Math.floor(Math.random() * 900) + 100;
                         room = await prisma.room.create({
-                            data: {
-                                name: roomName,
-                                code: `${baseCode}-${randomSuffix}`,
-                                floor: '1',
-                                building: 'Utama'
-                            }
+                            data: { name: roomName, code: `${baseCode}-${Math.floor(Math.random() * 900) + 100}`, floor: '1', building: 'Utama' }
                         });
                     }
                 }
 
-                // Generate Asset Code
+                // 4. Vendor Lookup/Create
+                let vendor = null;
+                if (item['Vendor Aset']) {
+                    const vendorName = String(item['Vendor Aset']).trim();
+                    vendor = await prisma.vendor.findFirst({ where: { name: { contains: vendorName } } });
+                    if (!vendor) {
+                        vendor = await prisma.vendor.create({
+                            data: { name: vendorName, code: vendorName.substring(0, 3).toUpperCase(), contact: '-' }
+                        });
+                    }
+                }
+
+                // 5. Generate Asset Code
                 const year = new Date().getFullYear();
-                const count = await prisma.asset.count({
-                    where: { categoryId: category.id }
-                });
+                const count = await prisma.asset.count({ where: { categoryId: category.id } });
                 const sequence = (count + 1).toString().padStart(4, '0');
                 const assetCode = `AST-${category.code}-${year}-${sequence}`;
 
-                // Check if Code already exists to prevent crash
-                const existing = await prisma.asset.findUnique({ where: { code: assetCode } });
-                const finalCode = existing ? `${assetCode}-DUP-${Math.floor(Math.random() * 100)}` : assetCode;
+                // 6. Aggregate "Extra Details" into specification
+                const extraDetails = [
+                    `Jenis Masuk: ${item['Jenis Transaksi Masuk'] || '-'}`,
+                    `Bukti Masuk: ${item['Bukti Transaksi Masuk'] || '-'}`,
+                    `Pihak Kedua (M): ${item['Nama Pihak Kedua (hanya digunakan kalau pihak kedua baru)'] || item['NIK/NIY Pihak Kedua'] || '-'}`,
+                    `Alamat Pihak kedua (M): ${item['Alamat Pihak Kedua (hanya digunakan kalau pihak kedua baru)'] || '-'}`,
+                    `--- DATA KELUAR ---`,
+                    `Tgl Keluar: ${item['Tanggal Transaksi Keluar (yyyy-mm-dd)'] || '-'}`,
+                    `Jenis Keluar: ${item['Jenis Transaksi Keluar'] || '-'}`,
+                    `Bukti Keluar: ${item['Bukti Transaksi Keluar'] || '-'}`,
+                    `Harga Jual: ${item['Harga Jual'] || 0}`,
+                    `Pihak Kedua (K): ${item['Nama Pihak Kedua (hanya digunakan kalau pihak kedua baru)_1'] || item['NIK/NIY Pihak Kedua_1'] || '-'}`
+                ].join(' | ');
 
-                // Create Asset
+                // 7. Create Asset
                 await prisma.asset.create({
                     data: {
-                        code: finalCode,
+                        code: assetCode,
                         name: String(item['Nama Aset'] || 'Tanpa Nama'),
                         brand: String(item['Merek Aset'] || '-'),
                         categoryId: category.id,
                         unitId: unit ? unit.id : null,
                         roomId: room ? room.id : null,
+                        vendorId: vendor ? vendor.id : null,
                         price: parseFloat(String(item['Harga Perolehan'] || 0).replace(/[^\d.-]/g, '')),
                         purchaseDate: item['Tanggal Transaksi Masuk (yyyy-mm-dd)'] ? new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']) : new Date(),
-                        usefulLife: parseInt(item['Umur Manfaat'] || 5),
-                        condition: 'BAIK',
-                        specification: String(item.Spesifikasi || '-'),
-                        sourceOfFunds: String(item['Sumber Dana'] || 'Mandiri'),
+                        usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)'] || 5),
+                        condition: String(item['Kondisi Aset'] || 'BAIK').toUpperCase().includes('RUSAK') ? 'RUSAK_RINGAN' : 'BAIK',
+                        sourceOfFunds: String(item['Sumber Dana Aset'] || 'Mandiri'),
+                        specification: extraDetails,
                         quantity: 1,
                     }
                 });
@@ -232,7 +233,6 @@ exports.batchImportAssets = async (req, res) => {
             }
         }
 
-        console.log(`Import finished. Success: ${results.success}, Failed: ${results.failed}`);
         res.json(results);
     } catch (error) {
         console.error("Batch import primary error:", error);

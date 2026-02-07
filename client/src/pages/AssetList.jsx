@@ -90,8 +90,13 @@ const AssetList = () => {
 
     const handleTemplateDownload = () => {
         const headers = [[
-            'Nama Aset', 'Merek Aset', 'Kategori', 'Unit Aset', 'Ruangan Aset',
-            'Harga Perolehan', 'Tanggal Transaksi Masuk (yyyy-mm-dd)', 'Umur Manfaat', 'Sumber Dana', 'Spesifikasi'
+            'Nama Aset', 'Merek Aset', 'Vendor Aset', 'Umur Ekonomis Aset(hari)', 'Umur Ekonomis Aset(bulan)', 'Umur Ekonomis Aset(tahun)',
+            'Kondisi Aset', 'Sumber Dana Aset', 'Ruangan Aset', 'Unit Aset', 'Kategori', 'Tanggal Transaksi Masuk (yyyy-mm-dd)',
+            'Jenis Transaksi Masuk', 'Bukti Transaksi Masuk', 'Harga Perolehan', 'NIK/NIY Pihak Kedua', 'Apakah Pihak Kedua Karyawan? (ya/tidak)',
+            'Nama Pihak Kedua (hanya digunakan kalau pihak kedua baru)', 'Alamat Pihak Kedua (hanya digunakan kalau pihak kedua baru)',
+            'Tanggal Transaksi Keluar (yyyy-mm-dd)', 'Jenis Transaksi Keluar', 'Bukti Transaksi Keluar', 'Harga Jual',
+            'NIK/NIY Pihak Kedua', 'Apakah Pihak Kedua Karyawan? (ya/tidak)', 'Nama Pihak Kedua (hanya digunakan kalau pihak kedua baru)',
+            'Alamat Pihak Kedua (hanya digunakan kalau pihak kedua baru)'
         ]];
         const ws = XLSX.utils.aoa_to_sheet(headers);
         const wscols = headers[0].map(() => ({ wch: 25 }));
