@@ -1,5 +1,7 @@
-import { Box, DollarSign, AlertTriangle, TrendingDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Box, DollarSign, AlertTriangle, TrendingDown, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import api from '../lib/axios';
 
 const StatCard = ({ title, value, icon: Icon, color, desc }) => (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-start justify-between">
@@ -15,36 +17,46 @@ const StatCard = ({ title, value, icon: Icon, color, desc }) => (
 );
 
 const Dashboard = () => {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const response = await api.get('/dashboard/stats');
+                setData(response.data);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchStats();
+    }, []);
+
+    if (loading) return (
+        <div className="flex h-96 items-center justify-center">
+            <Loader2 className="animate-spin text-blue-600" size={40} />
+        </div>
+    );
+
     const stats = [
-        { title: "Total Aset", value: "1,245", icon: Box, color: "bg-blue-500", desc: "+12 bulan ini" },
-        { title: "Nilai Aset", value: "Rp 12.5M", icon: DollarSign, color: "bg-emerald-500", desc: "Nilai buku saat ini" },
-        { title: "Aset Rusak", value: "23", icon: AlertTriangle, color: "bg-red-500", desc: "Perlu perbaikan" },
-        { title: "Habis Umur", value: "140", icon: TrendingDown, color: "bg-orange-500", desc: "Siap dihapuskan" },
+        { title: "Total Aset", value: data?.stats?.totalAssets?.toLocaleString() || '0', icon: Box, color: "bg-blue-500", desc: "Total item terdaftar" },
+        { title: "Nilai Aset", value: `Rp ${(data?.stats?.totalValue || 0).toLocaleString()}`, icon: DollarSign, color: "bg-emerald-500", desc: "Estimasi nilai perolehan" },
+        { title: "Aset Rusak", value: data?.stats?.damagedAssets?.toLocaleString() || '0', icon: AlertTriangle, color: "bg-red-500", desc: "Perlu perhatian" },
+        { title: "Habis Umur", value: data?.stats?.expiredAssets?.toLocaleString() || '0', icon: TrendingDown, color: "bg-orange-500", desc: "Melewati masa manfaat" },
     ];
 
-    const chartData = [
-        { name: 'Jan', value: 400 },
-        { name: 'Feb', value: 300 },
-        { name: 'Mar', value: 600 },
-        { name: 'Apr', value: 800 },
-        { name: 'May', value: 500 },
-        { name: 'Jun', value: 700 },
-    ];
-
-    const pieData = [
-        { name: 'Elektronik', value: 400 },
-        { name: 'Furniture', value: 300 },
-        { name: 'Kendaraan', value: 300 },
-        { name: 'Mesin', value: 200 },
-    ];
-
-    const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
+    const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 border-4 border-red-500 p-4">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full border border-emerald-200 uppercase tracking-wider">Live Connection</span>
+                    </div>
                     <p className="text-slate-500 text-sm">Ringkasan statistik aset perusahaan</p>
                 </div>
                 <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors shadow-sm">
@@ -67,7 +79,7 @@ const Dashboard = () => {
                     </div>
                     <div className="h-72">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData}>
+                            <BarChart data={data?.chartData || []}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} dy={10} />
                                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
@@ -87,7 +99,7 @@ const Dashboard = () => {
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
-                                    data={pieData}
+                                    data={data?.pieData || []}
                                     cx="50%"
                                     cy="50%"
                                     innerRadius={80}
@@ -96,7 +108,7 @@ const Dashboard = () => {
                                     paddingAngle={5}
                                     dataKey="value"
                                 >
-                                    {pieData.map((entry, index) => (
+                                    {(data?.pieData || []).map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
@@ -105,7 +117,7 @@ const Dashboard = () => {
                         </ResponsiveContainer>
                     </div>
                     <div className="flex justify-center gap-4 mt-4 flex-wrap">
-                        {pieData.map((entry, index) => (
+                        {(data?.pieData || []).map((entry, index) => (
                             <div key={index} className="flex items-center gap-2">
                                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
                                 <span className="text-xs text-slate-500">{entry.name}</span>
