@@ -89,7 +89,23 @@ const AssetList = () => {
     };
 
     const handleExport = () => {
-        const ws = XLSX.utils.json_to_sheet(filteredAssets);
+        const exportData = filteredAssets.map(a => ({
+            'ID': a.id,
+            'Kode Aset': a.code,
+            'Nama Aset': a.name,
+            'Kategori': a.category?.name || '-',
+            'Unit': a.unit?.name || '-',
+            'Ruangan': a.room?.name || '-',
+            'Merek': a.brand || '-',
+            'Spesifikasi': a.specification || '-',
+            'Tanggal Perolehan': a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString('id-ID') : '-',
+            'Harga': a.price,
+            'Jumlah': a.quantity,
+            'Kondisi': a.condition,
+            'Vendor': a.vendor?.name || '-',
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Aset");
         XLSX.writeFile(wb, "Data_Aset_Export.xlsx");
