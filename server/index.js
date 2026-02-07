@@ -20,6 +20,16 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/assets', require('./routes/assetRoutes'));
 app.use('/api/master', require('./routes/masterRoutes'));
 
+// Health Check untuk memastikan API & DB aman
+app.get('/api/health', async (req, res) => {
+    try {
+        await prisma.$queryRaw`SELECT 1`;
+        res.json({ status: 'OK', database: 'Connected' });
+    } catch (error) {
+        res.status(500).json({ status: 'Error', database: 'Disconnected', error: error.message });
+    }
+});
+
 // --- BAGIAN DEPLOYMENT: Melayani File Tampilan (Frontend) ---
 // Pastikan path ke folder 'dist' benar (relatif dari server/index.js)
 const distPath = path.resolve(__dirname, '../client/dist');

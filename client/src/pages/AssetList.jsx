@@ -21,16 +21,16 @@ const AssetList = () => {
         try {
             setLoading(true);
             const [respAssets, respUnits, respRooms] = await Promise.all([
-                api.get('/assets'),
-                api.get('/master/units'),
-                api.get('/master/rooms')
+                api.get('/assets').catch(err => { throw new Error(`Data Aset: ${err.message}`); }),
+                api.get('/master/units').catch(err => { throw new Error(`Data Unit: ${err.message}`); }),
+                api.get('/master/rooms').catch(err => { throw new Error(`Data Ruangan: ${err.message}`); })
             ]);
             setAssets(respAssets.data);
             setUnits(respUnits.data);
             setRooms(respRooms.data);
         } catch (error) {
             console.error('Fetch error:', error);
-            alert('Gagal mengambil data dari server');
+            alert('Gagal mengambil data dari server. Error: ' + error.message);
         } finally {
             setLoading(false);
         }
