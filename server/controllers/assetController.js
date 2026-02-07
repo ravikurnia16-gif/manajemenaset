@@ -6,53 +6,56 @@ exports.createAsset = async (req, res) => {
         const {
             name, categoryId, roomId, unitId,
             price, purchaseDate, condition, brand,
-            usefulLife, vendorId, specification, sourceOfFunds
+            usefulLife, vendorId, specification, sourceOfFunds, quantity
         } = req.body;
 
-        // Generate Code Logic
-        // Format: AST-[CategoryCode]-[Year]-[Sequence]
         const category = await prisma.category.findUnique({ where: { id: parseInt(categoryId) } });
         if (!category) return res.status(404).json({ error: 'Category not found' });
 
         const year = new Date(purchaseDate).getFullYear();
+        const patternPrefix = `AST-${category.code}-${year}-`;
 
-        // Robust sequence generation
-        let sequence = 1;
-        let code = "";
-        let exists = true;
-
-        while (exists) {
-            const seqStr = sequence.toString().padStart(4, '0');
-            code = `AST-${category.code}-${year}-${seqStr}`;
-            const existingAsset = await prisma.asset.findUnique({ where: { code } });
-            if (!existingAsset) {
-                exists = false;
-            } else {
-                sequence++;
-            }
-        }
-
-        const asset = await prisma.asset.create({
-            data: {
-                code,
-                name,
-                categoryId: parseInt(categoryId),
-                roomId: roomId ? parseInt(roomId) : null,
-                unitId: unitId ? parseInt(unitId) : null,
-                vendorId: vendorId ? parseInt(vendorId) : null,
-                price: parseFloat(price),
-                purchaseDate: new Date(purchaseDate),
-                usefulLife: parseInt(usefulLife || 5),
-                condition,
-                brand,
-                specification,
-                sourceOfFunds: sourceOfFunds || "Mandiri",
-                quantity: 1
-            }
+        // Find current max sequence in DB
+        const lastAsset = await prisma.asset.findFirst({
+            where: { code: { startsWith: patternPrefix } },
+            orderBy: { code: 'desc' }
         });
 
-        res.json(asset);
+        let currentSeq = 1;
+        if (lastAsset) {
+            const lastSeqPart = lastAsset.code.split('-').pop();
+            currentSeq = (parseInt(lastSeqPart) || 0) + 1;
+        }
+
+        const assets = [];
+        const numToCreate = parseInt(quantity || 1);
+
+        for (let i = 0; i < numToCreate; i++) {
+            const code = `${patternPrefix}${(currentSeq + i).toString().padStart(4, '0')}`;
+            assets.push(prisma.asset.create({
+                data: {
+                    code,
+                    name,
+                    categoryId: parseInt(categoryId),
+                    roomId: roomId ? parseInt(roomId) : null,
+                    unitId: unitId ? parseInt(unitId) : null,
+                    vendorId: vendorId ? parseInt(vendorId) : null,
+                    price: parseFloat(price),
+                    purchaseDate: new Date(purchaseDate),
+                    usefulLife: parseInt(usefulLife || 5),
+                    condition,
+                    brand,
+                    specification,
+                    sourceOfFunds: sourceOfFunds || "Mandiri",
+                    quantity: 1 // Actual item count is per record
+                }
+            }));
+        }
+
+        const createdAssets = await Promise.all(assets);
+        res.json(createdAssets[0]); // Return the first one for simplicity
     } catch (error) {
+        console.error("Create asset error:", error);
         res.status(500).json({ error: error.message });
     }
 };
@@ -130,17 +133,33 @@ exports.batchImportAssets = async (req, res) => {
         const assetsData = req.body;
         const results = { success: 0, failed: 0, errors: [] };
 
+        // Cache for sequence numbers to avoid redundant DB queries
+        const seqCache = {};
+
         for (const item of assetsData) {
+            // Skip empty rows
+            if (!item['Nama Aset'] && !item['Kategori']) continue;
+
             try {
                 // 1. Category Lookup/Create
+                const catName = String(item.Kategori || 'Umum').trim();
                 let category = await prisma.category.findFirst({
-                    where: { name: { contains: item.Kategori || 'Umum' } }
+                    where: { name: { contains: catName } }
                 });
+
                 if (!category) {
+                    // Robust category code generation
+                    let baseCatCode = catName.substring(0, 2).toUpperCase();
+                    let finalCatCode = baseCatCode;
+                    let cCount = 1;
+                    while (await prisma.category.findUnique({ where: { code: finalCatCode } })) {
+                        finalCatCode = `${baseCatCode}${cCount++}`;
+                    }
+
                     category = await prisma.category.create({
                         data: {
-                            name: item.Kategori || 'Umum',
-                            code: (item.Kategori || 'UM').substring(0, 2).toUpperCase(),
+                            name: catName,
+                            code: finalCatCode,
                             usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)'] || 5),
                             depreciationMethod: 'STRAIGHT_LINE'
                         }
@@ -149,7 +168,7 @@ exports.batchImportAssets = async (req, res) => {
 
                 // 2. Unit Lookup/Create
                 let unit = null;
-                if (item['Unit Aset']) {
+                if (item['Unit Aset'] && String(item['Unit Aset']).trim()) {
                     const unitName = String(item['Unit Aset']).trim();
                     unit = await prisma.unit.findFirst({ where: { name: { contains: unitName } } });
                     if (!unit) {
@@ -162,7 +181,7 @@ exports.batchImportAssets = async (req, res) => {
 
                 // 3. Room Lookup/Create
                 let room = null;
-                if (item['Ruangan Aset']) {
+                if (item['Ruangan Aset'] && String(item['Ruangan Aset']).trim()) {
                     const roomName = String(item['Ruangan Aset']).trim();
                     room = await prisma.room.findFirst({ where: { name: { contains: roomName } } });
                     if (!room) {
@@ -185,22 +204,27 @@ exports.batchImportAssets = async (req, res) => {
                     }
                 }
 
-                // 5. Generate Asset Code (Robust)
+                // 5. Generate Asset Code (Optimized)
                 const yearNow = new Date().getFullYear();
-                let seq = 1;
-                let assetCode = "";
-                let codeExists = true;
+                const patternPrefix = `AST-${category.code}-${yearNow}-`;
 
-                while (codeExists) {
-                    const seqStr = seq.toString().padStart(4, '0');
-                    assetCode = `AST-${category.code}-${yearNow}-${seqStr}`;
-                    const existing = await prisma.asset.findUnique({ where: { code: assetCode } });
-                    if (!existing) {
-                        codeExists = false;
+                if (!seqCache[patternPrefix]) {
+                    // Find the current highest sequence in DB for this pattern
+                    const lastAsset = await prisma.asset.findFirst({
+                        where: { code: { startsWith: patternPrefix } },
+                        orderBy: { code: 'desc' }
+                    });
+
+                    if (lastAsset) {
+                        const lastSeq = parseInt(lastAsset.code.split('-').pop());
+                        seqCache[patternPrefix] = isNaN(lastSeq) ? 0 : lastSeq;
                     } else {
-                        seq++;
+                        seqCache[patternPrefix] = 0;
                     }
                 }
+
+                seqCache[patternPrefix]++;
+                const assetCode = `${patternPrefix}${seqCache[patternPrefix].toString().padStart(4, '0')}`;
 
                 // 6. Aggregate "Extra Details" into specification
                 const extraDetails = [
