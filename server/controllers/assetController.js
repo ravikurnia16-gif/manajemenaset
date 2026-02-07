@@ -128,6 +128,23 @@ exports.deleteAsset = async (req, res) => {
     }
 };
 
+exports.deleteMultipleAssets = async (req, res) => {
+    try {
+        const { ids } = req.body; // Array of IDs
+        if (!ids || !Array.isArray(ids)) {
+            return res.status(400).json({ error: 'IDs must be an array' });
+        }
+
+        await prisma.asset.deleteMany({
+            where: { id: { in: ids.map(id => parseInt(id)) } }
+        });
+
+        res.json({ message: `${ids.length} assets deleted` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.batchImportAssets = async (req, res) => {
     try {
         const assetsData = req.body;
