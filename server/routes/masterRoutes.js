@@ -2,7 +2,8 @@ const express = require('express');
 const {
     getAllUnits, createUnit, deleteUnit,
     getAllRooms, createRoom, deleteRoom,
-    getAllCategories, createCategory, deleteCategory
+    getAllCategories, createCategory, deleteCategory,
+    getAllVendors, createVendor, deleteVendor
 } = require('../controllers/masterController');
 const { verifyToken } = require('../middleware/authMiddleware');
 const router = express.Router();
