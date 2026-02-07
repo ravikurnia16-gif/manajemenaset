@@ -32,5 +32,5 @@ RUN cd server && npx prisma generate
 # Easypanel menggunakan port 3000
 EXPOSE 3000
 
-# Jalankan aplikasi
-CMD ["node", "server/index.js"]
+# Jalankan sinkronisasi database lalu jalankan aplikasi
+CMD ["sh", "-c", "cd server && npx prisma db push --accept-data-loss && node index.js"]
