@@ -23,10 +23,10 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small' }, ref) => {
                         />
                     </div>
                     <div className="flex-1 flex flex-col justify-center overflow-hidden">
-                        <h4 className="font-bold text-xs uppercase leading-tight mb-0.5 truncate">{asset.name}</h4>
-                        <p className="font-mono text-[10px] text-slate-600 mb-1">{asset.code}</p>
+                        <h4 className="font-bold text-xs uppercase leading-tight mb-0.5 truncate">{asset?.name || '-'}</h4>
+                        <p className="font-mono text-[10px] text-slate-600 mb-1">{asset?.code || '-'}</p>
                         <hr className="border-slate-300 w-full my-0.5" />
-                        <p className="text-[9px] text-slate-500 truncate">{asset.unit}</p>
+                        <p className="text-[9px] text-slate-500 truncate">{asset?.unit?.name || asset?.unit || '-'}</p>
                         <p className="text-[8px] text-slate-400 mt-0.5 ml-auto">{new Date().toLocaleDateString('id-ID')}</p>
                     </div>
                 </div>
@@ -43,12 +43,12 @@ export const BatchLabelPrint = React.forwardRef(({ assets }, ref) => {
                     <div style={{ width: '5cm', height: '3cm' }} className="flex flex-col items-center justify-center p-2 border border-slate-800 rounded-sm">
                         <div className="flex w-full gap-2 items-center h-full">
                             <div className="bg-white p-1">
-                                <QRCode value={asset.code} size={64} level="M" />
+                                <QRCode value={asset?.code || '-'} size={64} level="M" />
                             </div>
                             <div className="flex-1 flex flex-col justify-center overflow-hidden text-left">
-                                <h4 className="font-bold text-[10px] uppercase leading-tight mb-0.5 truncate">{asset.name.substring(0, 18)}</h4>
-                                <p className="font-mono text-[9px] text-slate-600 font-bold">{asset.code}</p>
-                                <p className="text-[8px] text-slate-500 truncate w-full">{asset.location || asset.unit}</p>
+                                <h4 className="font-bold text-[10px] uppercase leading-tight mb-0.5 truncate">{(asset?.name || '-').substring(0, 18)}</h4>
+                                <p className="font-mono text-[9px] text-slate-600 font-bold">{asset?.code || '-'}</p>
+                                <p className="text-[8px] text-slate-500 truncate w-full">{asset?.location || asset?.room?.name || asset?.unit?.name || asset?.unit || '-'}</p>
                             </div>
                         </div>
                     </div>

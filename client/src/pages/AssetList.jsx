@@ -61,8 +61,10 @@ const AssetList = () => {
 
     // Filter Logic
     const filteredAssets = assets.filter(a => {
-        const matchesSearch = a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            a.code.toLowerCase().includes(searchTerm.toLowerCase());
+        const name = a.name || '';
+        const code = a.code || '';
+        const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            code.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesUnit = selectedUnit ? a.unitId === parseInt(selectedUnit) : true;
         const matchesRoom = selectedRoom ? a.roomId === parseInt(selectedRoom) : true;
 
