@@ -78,7 +78,7 @@ const AssetList = () => {
     const handleTemplateDownload = () => {
         const headers = [[
             'Nama Aset', 'Merek Aset', 'Kategori', 'Unit Aset', 'Ruangan Aset',
-            'Harga Perolehan', 'Tanggal Transaksi Masuk (yyyy-mm-dd)', 'Spesifikasi'
+            'Harga Perolehan', 'Tanggal Transaksi Masuk (yyyy-mm-dd)', 'Umur Manfaat', 'Spesifikasi'
         ]];
         const ws = XLSX.utils.aoa_to_sheet(headers);
         const wscols = headers[0].map(() => ({ wch: 25 }));
@@ -99,6 +99,7 @@ const AssetList = () => {
             'Merek': a.brand || '-',
             'Spesifikasi': a.specification || '-',
             'Tanggal Perolehan': a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString('id-ID') : '-',
+            'Umur Manfaat': a.usefulLife || '-',
             'Harga': a.price,
             'Jumlah': a.quantity,
             'Kondisi': a.condition,

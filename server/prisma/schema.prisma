@@ -94,6 +94,7 @@ model Asset {
   purchaseDate    DateTime
   price           Float
   quantity        Int      @default(1)
+  usefulLife      Int      @default(5)
   condition       Condition
   
   image           String?

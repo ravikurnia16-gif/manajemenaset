@@ -157,8 +157,8 @@ const AssetForm = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Jumlah Unit</label>
-                                <input type="number" {...register('quantity', { value: 1 })} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" />
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Umur Manfaat (Tahun)</label>
+                                <input type="number" {...register('usefulLife', { value: 5 })} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" />
                             </div>
                         </div>
 

@@ -6,7 +6,7 @@ exports.createAsset = async (req, res) => {
         const {
             name, categoryId, roomId, unitId,
             price, purchaseDate, condition, brand,
-            quantity, vendorId, specification
+            usefulLife, vendorId, specification
         } = req.body;
 
         // Generate Code Logic
@@ -42,10 +42,11 @@ exports.createAsset = async (req, res) => {
                 vendorId: vendorId ? parseInt(vendorId) : null,
                 price: parseFloat(price),
                 purchaseDate: new Date(purchaseDate),
+                usefulLife: parseInt(usefulLife || 5),
                 condition,
                 brand,
                 specification,
-                quantity: parseInt(quantity || 1)
+                quantity: 1
             }
         });
 
@@ -196,8 +197,10 @@ exports.batchImportAssets = async (req, res) => {
                         roomId: room ? room.id : null,
                         price: parseFloat(String(item['Harga Perolehan'] || 0).replace(/[^\d.-]/g, '')),
                         purchaseDate: item['Tanggal Transaksi Masuk (yyyy-mm-dd)'] ? new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']) : new Date(),
+                        usefulLife: parseInt(item['Umur Manfaat'] || 5),
                         condition: 'BAIK',
                         specification: String(item.Spesifikasi || '-'),
+                        quantity: 1,
                     }
                 });
 
