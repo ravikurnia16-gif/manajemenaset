@@ -172,16 +172,25 @@ const AssetList = () => {
             const data = new Uint8Array(event.target.result);
             const workbook = XLSX.read(data, {
                 type: 'array',
-                cellDates: true,
-                cellNF: false,
-                cellText: false
+                cellDates: true
             });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+            let jsonData = [];
+            let sheetUsed = "";
+
+            // Try to find the first sheet that actually has data
+            for (const name of workbook.SheetNames) {
+                const worksheet = workbook.Sheets[name];
+                const temp = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                if (temp.length > 0) {
+                    jsonData = temp;
+                    sheetUsed = name;
+                    break;
+                }
+            }
 
             if (jsonData.length === 0) {
-                alert("File kosong!");
+                alert(`File dianggap kosong! \nJumlah Sheet: ${workbook.SheetNames.length} \nNama Sheet Pertama: ${workbook.SheetNames[0]} \n\nPastikan data Bapak tidak berada di sheet tersembunyi atau sheet kedua.`);
                 return;
             }
 
