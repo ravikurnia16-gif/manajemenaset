@@ -1,16 +1,29 @@
 import { useState, useRef, useEffect } from 'react';
 import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin, Printer, QrCode } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { LabelPrint, BatchLabelPrint } from '../components/LabelPrint';
 import { useReactToPrint } from 'react-to-print';
 import api from '../lib/axios';
 
 const AssetList = () => {
+    const navigate = useNavigate();
     const [units, setUnits] = useState([]);
     const [rooms, setRooms] = useState([]);
     const [assets, setAssets] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    const handleDelete = async (id) => {
+        if (!window.confirm('Apakah Anda yakin ingin menghapus aset ini?')) return;
+        try {
+            await api.delete(`/assets/${id}`);
+            alert('Aset berhasil dihapus');
+            fetchData();
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert('Gagal menghapus aset: ' + (error.response?.data?.error || error.message));
+        }
+    };
 
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedUnit, setSelectedUnit] = useState('');
@@ -293,8 +306,8 @@ const AssetList = () => {
                                     <td className="px-6 py-4 text-center">
                                         <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button onClick={() => openPrintModal(asset)} className="p-1 hover:bg-slate-800 hover:text-white text-slate-500 rounded transition-colors" title="Cetak Label QR"><QrCode size={16} /></button>
-                                            <button className="p-1 hover:bg-blue-50 text-blue-600 rounded" title="Edit"><Edit size={16} /></button>
-                                            <button className="p-1 hover:bg-red-50 text-red-500 rounded" title="Hapus"><Trash2 size={16} /></button>
+                                            <button onClick={() => navigate(`/aset/edit/${asset.id}`)} className="p-1 hover:bg-blue-50 text-blue-600 rounded" title="Edit"><Edit size={16} /></button>
+                                            <button onClick={() => handleDelete(asset.id)} className="p-1 hover:bg-red-50 text-red-500 rounded" title="Hapus"><Trash2 size={16} /></button>
                                         </div>
                                     </td>
                                 </tr>

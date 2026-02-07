@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Box, DollarSign, AlertTriangle, TrendingDown, Loader2, Download } from 'lucide-react';
+import { Box, DollarSign, AlertTriangle, TrendingDown, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import api from '../lib/axios';
-import * as XLSX from 'xlsx';
 
 const StatCard = ({ title, value, icon: Icon, color, desc }) => (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-start justify-between">
@@ -20,7 +19,6 @@ const StatCard = ({ title, value, icon: Icon, color, desc }) => (
 const Dashboard = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [downloading, setDownloading] = useState(false);
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -35,74 +33,6 @@ const Dashboard = () => {
         };
         fetchStats();
     }, []);
-
-    const handleDownloadReport = async () => {
-        try {
-            setDownloading(true);
-            const response = await api.get('/assets');
-            const allAssets = response.data;
-            const now = new Date();
-
-            const exportData = allAssets.map((a, index) => {
-                const purchaseDate = new Date(a.purchaseDate);
-                const monthsElapsed = Math.max(0, (now.getFullYear() - purchaseDate.getFullYear()) * 12 + (now.getMonth() - purchaseDate.getMonth()));
-                const totalMonths = (a.usefulLife || 5) * 12;
-                const monthlyDepreciation = Math.round(a.price / totalMonths);
-                const accumulatedDepreciation = Math.min(a.price, monthlyDepreciation * monthsElapsed);
-                const bookValue = Math.max(0, a.price - accumulatedDepreciation);
-
-                // Days calculation
-                const msPerDay = 24 * 60 * 60 * 1000;
-                const daysElapsed = Math.max(0, Math.floor((now - purchaseDate) / msPerDay));
-
-                return {
-                    'No': index + 1,
-                    'Kode': a.code,
-                    'Nama': a.name,
-                    'Merek': a.brand || '-',
-                    'Vendor': a.vendor?.name || '-',
-                    'Tanggal Perolehan': a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString('id-ID') : '-',
-                    'Status Perolehan': 'Beli Baru',
-                    'Harga Perolehan': a.price,
-                    'Kategori': a.category?.name || '-',
-                    'Sumber Dana': a.sourceOfFunds || 'Mandiri',
-                    'Kondisi': a.condition,
-                    'Nama Ruangan': a.room?.name || '-',
-                    'Lokasi': a.room?.building || '-',
-                    'Nama Unit/Bidang': a.unit?.name || '-',
-                    'Penjual/Penghibah': a.vendor?.name || '-',
-                    'Umur Ekonomis': a.usefulLife + ' Tahun',
-                    'Nilai Penyusutan per Bulan': monthlyDepreciation,
-                    'Jumlah Bulan Penyusutan': Math.min(monthsElapsed, totalMonths),
-                    'Jurnal Penyusutan (Bulanan)': `D: Beban Penyusutan / K: Akum. Penyusutan (${monthlyDepreciation})`,
-                    'Jumlah Nominal Penyusutan Terkini': accumulatedDepreciation,
-                    'Perkiraan Hari Penyusutan Terkini': daysElapsed,
-                    'Jumlah Hari Penyusutan Terkini': daysElapsed,
-                    'Nilai Buku': bookValue,
-                    'Tanggal PHPP': '-',
-                    'Hari Penyusutan Sebelum PHPP': '-',
-                    'Nilai Penyusutan Saat PHPP': '-',
-                    'Nilai Buku Saat PHPP': '-',
-                    'Status PHPP': '-',
-                    'No. Bukti PHPP': '-',
-                    'Nama Penerima/Pembeli': '-',
-                    'Unit Penerima/Pembeli': '-',
-                    'Harga Jual': 0,
-                    'Laba/Rugi Penjualan': 0
-                };
-            });
-
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Laporan Aset Lengkap");
-            XLSX.writeFile(wb, `Laporan_Aset_Menyeluruh_${now.toISOString().split('T')[0]}.xlsx`);
-        } catch (err) {
-            console.error("Gagal mendownload laporan:", err);
-            alert("Gagal mendownload laporan. Silakan coba lagi.");
-        } finally {
-            setDownloading(false);
-        }
-    };
 
     if (loading) return (
         <div className="flex h-96 items-center justify-center">
@@ -126,18 +56,6 @@ const Dashboard = () => {
                     <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
                     <p className="text-slate-500 text-sm">Ringkasan statistik aset perusahaan</p>
                 </div>
-                <button
-                    onClick={handleDownloadReport}
-                    disabled={downloading}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
-                >
-                    {downloading ? (
-                        <Loader2 className="animate-spin" size={18} />
-                    ) : (
-                        <Download size={18} />
-                    )}
-                    {downloading ? "Mengunduh..." : "Download Laporan"}
-                </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

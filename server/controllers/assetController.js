@@ -86,10 +86,28 @@ exports.getAssetById = async (req, res) => {
 exports.updateAsset = async (req, res) => {
     try {
         const { id } = req.params;
-        const data = req.body;
+        const {
+            name, categoryId, roomId, unitId,
+            price, purchaseDate, condition, brand,
+            usefulLife, vendorId, specification, sourceOfFunds
+        } = req.body;
+
         const asset = await prisma.asset.update({
             where: { id: parseInt(id) },
-            data
+            data: {
+                name,
+                categoryId: categoryId ? parseInt(categoryId) : undefined,
+                roomId: roomId ? parseInt(roomId) : null,
+                unitId: unitId ? parseInt(unitId) : null,
+                vendorId: vendorId ? parseInt(vendorId) : null,
+                price: price ? parseFloat(price) : undefined,
+                purchaseDate: purchaseDate ? new Date(purchaseDate) : undefined,
+                condition,
+                brand,
+                specification,
+                sourceOfFunds,
+                usefulLife: usefulLife ? parseInt(usefulLife) : undefined
+            }
         });
         res.json(asset);
     } catch (error) {

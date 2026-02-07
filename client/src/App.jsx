@@ -31,6 +31,7 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="aset" element={<AssetList />} />
           <Route path="aset/input" element={<AssetForm />} />
+          <Route path="aset/edit/:id" element={<AssetForm />} />
           <Route path="master" element={<MasterData />} />
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />
         </Route>

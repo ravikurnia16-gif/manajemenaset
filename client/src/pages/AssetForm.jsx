@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Save, X } from 'lucide-react';
 import api from '../lib/axios';
 
 const AssetForm = () => {
     const navigate = useNavigate();
-    const { register, handleSubmit, watch, formState: { errors } } = useForm({
+    const { id } = useParams();
+    const isEdit = !!id;
+    const { register, handleSubmit, watch, reset, formState: { errors } } = useForm({
         defaultValues: {
             condition: 'BAIK',
-            quantity: 1,
+            usefulLife: 5,
+            sourceOfFunds: 'Mandiri',
             purchaseDate: new Date().toISOString().split('T')[0]
         }
     });
@@ -34,12 +37,22 @@ const AssetForm = () => {
                     rooms: rRooms.data,
                     categories: rCats.data
                 });
+
+                // If editing, fetch asset details
+                if (isEdit) {
+                    const rAsset = await api.get(`/assets/${id}`);
+                    const asset = rAsset.data;
+                    reset({
+                        ...asset,
+                        purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split('T')[0] : ''
+                    });
+                }
             } catch (err) {
-                console.error("Master data fetch error:", err);
+                console.error("Fetch error:", err);
             }
         };
         fetchMaster();
-    }, []);
+    }, [id, isEdit, reset]);
 
     const selectedUnitId = watch("unitId");
     const filteredRooms = selectedUnitId
@@ -49,8 +62,13 @@ const AssetForm = () => {
     const onSubmit = async (data) => {
         try {
             setLoading(true);
-            await api.post('/assets', data);
-            alert('Aset berhasil disimpan!');
+            if (isEdit) {
+                await api.put(`/assets/${id}`, data);
+                alert('Aset berhasil diperbarui!');
+            } else {
+                await api.post('/assets', data);
+                alert('Aset berhasil disimpan!');
+            }
             navigate('/aset');
         } catch (error) {
             console.error('Submit error:', error);
@@ -64,8 +82,8 @@ const AssetForm = () => {
         <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-8 animate-in fade-in zoom-in-95 duration-300">
             <div className="flex justify-between items-center mb-8">
                 <div>
-                    <h2 className="text-xl font-bold text-slate-800">Input Aset Baru</h2>
-                    <p className="text-slate-500 text-sm">Masukkan detail aset dengan lengkap</p>
+                    <h2 className="text-xl font-bold text-slate-800">{isEdit ? 'Edit Aset' : 'Input Aset Baru'}</h2>
+                    <p className="text-slate-500 text-sm">{isEdit ? 'Perbarui informasi aset Anda' : 'Masukkan detail aset dengan lengkap'}</p>
                 </div>
                 <button
                     onClick={() => navigate('/aset')}
