@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Eye, Calendar, Upload, Download, FileSpreadsheet } from 'lucide-react';
 import api from '../lib/axios';
 import * as XLSX from 'xlsx';
@@ -8,21 +9,26 @@ const RKBList = () => {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState({ fiscalYear: new Date().getFullYear(), unitId: '' });
 
+    // Import State
     const [showImportModal, setShowImportModal] = useState(false);
     const [importData, setImportData] = useState([]);
     const [importConfig, setImportConfig] = useState({ fiscalYear: new Date().getFullYear(), unitId: '' });
     const fileInputRef = useRef(null);
 
-    const [units, setUnits] = useState([]); // Need to fetch units for dropdown
+    // Create State
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [newRKB, setNewRKB] = useState({ fiscalYear: new Date().getFullYear(), unitId: '' });
+
+    const [units, setUnits] = useState([]);
 
     useEffect(() => {
         fetchRKBs();
         fetchUnits();
-    }, [filter.fiscalYear, filter.unitId]); // Refetch when filter changes
+    }, [filter.fiscalYear, filter.unitId]);
 
     const fetchUnits = async () => {
         try {
-            const res = await api.get('/master/units'); // Assuming this endpoint exists
+            const res = await api.get('/master/units');
             setUnits(res.data);
         } catch (error) {
             console.error("Failed fetch units", error);
@@ -41,6 +47,19 @@ const RKBList = () => {
         }
     };
 
+    // --- CREATE NEW (MANUAL) ---
+    const handleCreateNew = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('/rkb', newRKB);
+            alert('RKB Berhasil dibuat! Silakan klik "Lihat Detail" untuk menambah item.');
+            setShowCreateModal(false);
+            fetchRKBs();
+        } catch (error) {
+            alert(error.response?.data?.error || 'Gagal membuat RKB');
+        }
+    };
+
     // --- TEMPLATE & EXPORT ---
     const handleDownloadTemplate = () => {
         const template = [
@@ -51,7 +70,8 @@ const RKBList = () => {
                 "Satuan": "Unit",
                 "Estimasi Harga Satuan": 10000000,
                 "Kategori (ASSET/NON_ASSET)": "ASSET",
-                "Prioritas (HIGH/MEDIUM/LOW)": "HIGH"
+                "Prioritas (HIGH/MEDIUM/LOW)": "HIGH",
+                "Bulan Perencanaan (1-12)": 1
             }
         ];
         const ws = XLSX.utils.json_to_sheet(template);
@@ -63,7 +83,6 @@ const RKBList = () => {
     const handleExportData = () => {
         if (rkbs.length === 0) return alert('Tidak ada data untuk diexport');
 
-        // Flatten data for export
         const exportData = [];
         rkbs.forEach(rkb => {
             rkb.items.forEach(item => {
@@ -77,7 +96,8 @@ const RKBList = () => {
                     "Satuan": item.unit,
                     "Harga Satuan": item.estPrice,
                     "Total Estimasi": item.qty * item.estPrice,
-                    "Kategori": item.category
+                    "Kategori": item.category,
+                    "Bulan": item.month || 1
                 });
             });
         });
@@ -101,7 +121,6 @@ const RKBList = () => {
             const ws = wb.Sheets[wsname];
             const data = XLSX.utils.sheet_to_json(ws);
 
-            // Map excel columns to API payload
             const formatted = data.map(row => ({
                 name: row["Nama Barang"],
                 spec: row["Spesifikasi"],
@@ -109,7 +128,8 @@ const RKBList = () => {
                 unit: row["Satuan"],
                 estPrice: row["Estimasi Harga Satuan"],
                 category: row["Kategori (ASSET/NON_ASSET)"],
-                priority: row["Prioritas (HIGH/MEDIUM/LOW)"]
+                priority: row["Prioritas (HIGH/MEDIUM/LOW)"],
+                month: row["Bulan Perencanaan (1-12)"]
             }));
             setImportData(formatted);
         };
@@ -150,7 +170,7 @@ const RKBList = () => {
                     <button onClick={handleExportData} className="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
                         <Download size={18} /> Export Data
                     </button>
-                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
+                    <button onClick={() => setShowCreateModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
                         <Plus size={18} /> Buat Baru
                     </button>
                 </div>
@@ -193,8 +213,11 @@ const RKBList = () => {
                             </div>
                         </div>
 
-                        <button className="w-full py-2 border border-blue-200 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-50 flex justify-center items-center gap-2">
-                            <Eye size={16} /> Lihat Detail
+                        const navigate = useNavigate();
+
+                        // ... (inside return)
+                        <button onClick={() => navigate(`/rkb/${rkb.id}`)} className="w-full py-2 border border-blue-200 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-50 flex justify-center items-center gap-2">
+                            <Eye size={16} /> Lihat Detail/Input Item
                         </button>
                     </div>
                 ))}
@@ -213,7 +236,7 @@ const RKBList = () => {
                                 <p className="font-bold mb-1">Langkah-langkah:</p>
                                 <ol className="list-decimal pl-4 space-y-1">
                                     <li>Download Template Excel terlebih dahulu.</li>
-                                    <li>Isi data barang sesuai kolom.</li>
+                                    <li>Isi data barang sesuai kolom (Termasuk BULAN).</li>
                                     <li>Upload file Excel yang sudah diisi.</li>
                                 </ol>
                                 <button onClick={handleDownloadTemplate} className="mt-3 text-xs bg-white border border-blue-200 px-3 py-1 rounded font-bold hover:bg-blue-100">
@@ -270,6 +293,45 @@ const RKBList = () => {
                                 Proses Import
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Create New (Manual) */}
+            {showCreateModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in">
+                    <div className="bg-white p-6 rounded-xl w-full max-w-sm shadow-2xl">
+                        <h2 className="text-xl font-bold mb-4">Buat RKB Baru</h2>
+                        <form onSubmit={handleCreateNew} className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 block mb-1">Tahun Anggaran</label>
+                                <select
+                                    className="w-full border p-2 rounded text-sm"
+                                    value={newRKB.fiscalYear}
+                                    onChange={e => setNewRKB({ ...newRKB, fiscalYear: e.target.value })}
+                                >
+                                    <option value="2024">2024</option>
+                                    <option value="2025">2025</option>
+                                    <option value="2026">2026</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-500 block mb-1">Unit Tujuan</label>
+                                <select
+                                    className="w-full border p-2 rounded text-sm"
+                                    value={newRKB.unitId}
+                                    onChange={e => setNewRKB({ ...newRKB, unitId: e.target.value })}
+                                    required
+                                >
+                                    <option value="">-- Pilih Unit --</option>
+                                    {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2">
+                                <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-slate-500 font-bold text-sm hover:bg-slate-100 rounded-lg">Batal</button>
+                                <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-bold text-sm rounded-lg hover:bg-blue-700">Simpan</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

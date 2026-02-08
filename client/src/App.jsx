@@ -5,6 +5,7 @@ import AssetList from './pages/AssetList';
 import AssetForm from './pages/AssetForm';
 import MasterData from './pages/MasterData';
 import RKBList from './pages/RKBList';
+import RKBDetail from './pages/RKBDetail';
 import ProcurementList from './pages/ProcurementList';
 import ProcurementForm from './pages/ProcurementForm';
 import ProcurementDetail from './pages/ProcurementDetail';
@@ -39,6 +40,7 @@ function App() {
           <Route path="aset/edit/:id" element={<AssetForm />} />
           <Route path="master" element={<MasterData />} />
           <Route path="rkb" element={<RKBList />} />
+          <Route path="rkb/:id" element={<RKBDetail />} />
           <Route path="procurements" element={<ProcurementList />} />
           <Route path="procurements/new" element={<ProcurementForm />} />
           <Route path="procurements/:id" element={<ProcurementDetail />} />
