@@ -62,26 +62,3 @@ exports.deleteUser = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-
-exports.changePassword = async (req, res) => {
-    try {
-        const { currentPassword, newPassword } = req.body;
-        const userId = req.user.id; // From verifyToken middleware
-
-        const user = await prisma.user.findUnique({ where: { id: userId } });
-        if (!user) return res.status(404).json({ error: 'User not found' });
-
-        const isMatch = await bcrypt.compare(currentPassword, user.password);
-        if (!isMatch) return res.status(400).json({ error: 'Password saat ini salah' });
-
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await prisma.user.update({
-            where: { id: userId },
-            data: { password: hashedPassword }
-        });
-
-        res.json({ message: 'Password berhasil diubah' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};

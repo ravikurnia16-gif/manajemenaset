@@ -32,24 +32,19 @@ exports.updateSettings = async (req, res) => {
     try {
         const {
             orgName, orgAddress, orgPhone, orgEmail,
-            orgLogo, orgHeadName, orgHeadNip, assetCodePrefix,
-            labelWidth, labelHeight
+            orgLogo, orgHeadName, orgHeadNip, assetCodePrefix
         } = req.body;
 
         const settings = await prisma.setting.upsert({
             where: { id: SETTING_ID },
             update: {
                 orgName, orgAddress, orgPhone, orgEmail,
-                orgLogo, orgHeadName, orgHeadNip, assetCodePrefix,
-                labelWidth: labelWidth ? parseFloat(labelWidth) : undefined,
-                labelHeight: labelHeight ? parseFloat(labelHeight) : undefined
+                orgLogo, orgHeadName, orgHeadNip, assetCodePrefix
             },
             create: {
                 id: SETTING_ID,
                 orgName, orgAddress, orgPhone, orgEmail,
-                orgLogo, orgHeadName, orgHeadNip, assetCodePrefix,
-                labelWidth: labelWidth ? parseFloat(labelWidth) : 50,
-                labelHeight: labelHeight ? parseFloat(labelHeight) : 30
+                orgLogo, orgHeadName, orgHeadNip, assetCodePrefix
             }
         });
 
