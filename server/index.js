@@ -21,6 +21,7 @@ app.use('/api/assets', require('./routes/assetRoutes'));
 app.use('/api/master', require('./routes/masterRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/settings', require('./routes/settingRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
 
 // Health Check untuk memastikan API & DB aman
 app.get('/api/health', async (req, res) => {

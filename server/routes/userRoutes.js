@@ -1,0 +1,10 @@
+const express = require('express');
+const router = express.Router();
+const userController = require('../controllers/userController');
+const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
+
+router.get('/', verifyToken, authorizeRole(['SUPER_ADMIN']), userController.getAllUsers);
+router.post('/', verifyToken, authorizeRole(['SUPER_ADMIN']), userController.createUser);
+router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN']), userController.deleteUser);
+
+module.exports = router;

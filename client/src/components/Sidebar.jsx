@@ -19,6 +19,9 @@ const Sidebar = () => {
         isActive(path) ? "bg-blue-600 text-white shadow-lg" : "text-slate-300 hover:bg-slate-800 hover:text-white"
     );
 
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'ADMIN_UNIT'].includes(user.role);
+
     return (
         <div className="w-64 bg-slate-900 text-white min-h-screen flex flex-col shadow-xl">
             <div className="p-6 border-b border-slate-800">
@@ -33,12 +36,19 @@ const Sidebar = () => {
                 <Link to="/mutasi" className={navItemClass('/mutasi')}><ArrowLeftRight size={20} /> Mutasi</Link>
                 <Link to="/penghapusan" className={navItemClass('/penghapusan')}><Trash2 size={20} /> Penghapusan</Link>
                 <Link to="/validasi" className={navItemClass('/validasi')}><FileCheck size={20} /> Validasi</Link>
-                <div className="pt-4 mt-4 border-t border-slate-700">
-                    <h3 className="px-3 text-xs uppercase text-slate-500 mb-2 font-semibold">Reports & Master</h3>
-                    <Link to="/laporan" className={navItemClass('/laporan')}><FileText size={20} /> Laporan</Link>
-                    <Link to="/master" className={navItemClass('/master')}><Database size={20} /> Master Data</Link>
-                    <Link to="/settings" className={navItemClass('/settings')}><Settings size={20} /> Pengaturan</Link>
-                </div>
+
+                {(isAdmin || user.role === 'AUDITOR') && (
+                    <div className="pt-4 mt-4 border-t border-slate-700">
+                        <h3 className="px-3 text-xs uppercase text-slate-500 mb-2 font-semibold">Reports & Master</h3>
+                        <Link to="/laporan" className={navItemClass('/laporan')}><FileText size={20} /> Laporan</Link>
+                        {isAdmin && (
+                            <>
+                                <Link to="/master" className={navItemClass('/master')}><Database size={20} /> Master Data</Link>
+                                <Link to="/settings" className={navItemClass('/settings')}><Settings size={20} /> Pengaturan</Link>
+                            </>
+                        )}
+                    </div>
+                )}
             </nav>
 
             <div className="p-4 border-t border-slate-800">
