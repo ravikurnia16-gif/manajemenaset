@@ -335,7 +335,7 @@ const Settings = () => {
                         <table className="w-full text-sm text-left">
                             <thead className="bg-slate-50 text-slate-600 text-xs uppercase font-bold">
                                 <tr>
-                                    <th className="px-6 py-4">User / NIP</th>
+                                    <th className="px-6 py-4">User / NIY</th>
                                     <th className="px-6 py-4">Unit Kerja</th>
                                     <th className="px-6 py-4">Hak Akses</th>
                                     <th className="px-6 py-4">Email</th>
@@ -353,7 +353,7 @@ const Settings = () => {
                                                 <div>
                                                     <div className="font-bold text-slate-800">{user.username}</div>
                                                     <div className="text-[10px] text-slate-400">
-                                                        {user.nip ? `NIP: ${user.nip}` : ''}
+                                                        {user.nip ? `NIY: ${user.nip}` : ''}
                                                         {user.position ? ` • ${user.position}` : ''}
                                                     </div>
                                                 </div>
@@ -424,7 +424,7 @@ const Settings = () => {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">NIP</label>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">NIY</label>
                                     <input
                                         type="text"
                                         value={newUser.nip}
