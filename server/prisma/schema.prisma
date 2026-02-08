@@ -212,6 +212,7 @@ model RKBItem {
   estPrice    Float
   category    String   // ASSET / NON_ASSET
   priority    String   // HIGH, MEDIUM, LOW
+  month       Int?     // 1-12
 }
 
 model Procurement {

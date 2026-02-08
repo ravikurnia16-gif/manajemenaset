@@ -177,7 +177,8 @@ exports.importRKB = async (req, res) => {
                     unit: item.unit || 'unit',
                     estPrice: parseFloat(item.estPrice),
                     category: item.category || 'NON_ASSET',
-                    priority: item.priority || 'MEDIUM'
+                    priority: item.priority || 'MEDIUM',
+                    month: parseInt(item.month) || 1
                 }
             });
         });
