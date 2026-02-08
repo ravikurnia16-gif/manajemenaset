@@ -153,3 +153,16 @@ model Log {
   details   String?
   timestamp DateTime @default(now())
 }
+
+model Setting {
+  id                Int      @id @default(1)
+  orgName           String   @default("Manajemen Aset")
+  orgAddress        String?  @db.Text
+  orgPhone          String?
+  orgEmail          String?
+  orgLogo           String?  @db.LongText
+  orgHeadName       String?
+  orgHeadNip        String?
+  assetCodePrefix   String   @default("AST")
+  updatedAt         DateTime @updatedAt
+}

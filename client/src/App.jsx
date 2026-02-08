@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import AssetList from './pages/AssetList';
 import AssetForm from './pages/AssetForm';
 import MasterData from './pages/MasterData';
+import Settings from './pages/Settings';
 import LoginPage from './pages/LoginPage';
 
 // Komponen untuk melindungi route yang butuh login
@@ -33,6 +34,7 @@ function App() {
           <Route path="aset/input" element={<AssetForm />} />
           <Route path="aset/edit/:id" element={<AssetForm />} />
           <Route path="master" element={<MasterData />} />
+          <Route path="settings" element={<Settings />} />
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />
         </Route>
       </Routes>
