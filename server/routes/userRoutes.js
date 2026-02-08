@@ -6,5 +6,6 @@ const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 router.get('/', verifyToken, authorizeRole(['SUPER_ADMIN']), userController.getAllUsers);
 router.post('/', verifyToken, authorizeRole(['SUPER_ADMIN']), userController.createUser);
 router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN']), userController.deleteUser);
+router.put('/change-password', verifyToken, userController.changePassword);
 
 module.exports = router;

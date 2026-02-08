@@ -164,5 +164,7 @@ model Setting {
   orgHeadName       String?
   orgHeadNip        String?
   assetCodePrefix   String   @default("AST")
+  labelWidth        Float    @default(50)
+  labelHeight       Float    @default(30)
   updatedAt         DateTime @updatedAt
 }
