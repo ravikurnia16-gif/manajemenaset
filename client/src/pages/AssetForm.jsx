@@ -24,6 +24,8 @@ const AssetForm = () => {
         categories: [],
         vendors: []
     });
+    const [settings, setSettings] = useState({ assetCodePrefix: 'AST' });
+    const [isAutoCode, setIsAutoCode] = useState(true);
     const [loading, setLoading] = useState(false);
 
     const [currentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
@@ -32,11 +34,12 @@ const AssetForm = () => {
     useEffect(() => {
         const fetchMaster = async () => {
             try {
-                const [rUnits, rRooms, rCats, rVendors] = await Promise.all([
+                const [rUnits, rRooms, rCats, rVendors, rSettings] = await Promise.all([
                     api.get('/master/units'),
                     api.get('/master/rooms'),
                     api.get('/master/categories'),
-                    api.get('/master/vendors')
+                    api.get('/master/vendors'),
+                    api.get('/settings').catch(() => ({ data: { assetCodePrefix: 'AST' } }))
                 ]);
                 setMasterData({
                     units: rUnits.data,
@@ -44,6 +47,7 @@ const AssetForm = () => {
                     categories: rCats.data,
                     vendors: rVendors.data
                 });
+                setSettings(rSettings.data);
 
                 // Set unit if not global admin
                 if (!isGlobalAdmin && currentUser.unitId && !isEdit) {
@@ -54,6 +58,7 @@ const AssetForm = () => {
                 if (isEdit) {
                     const rAsset = await api.get(`/assets/${id}`);
                     const asset = rAsset.data;
+                    setIsAutoCode(false); // Manual if editing old asset
                     reset({
                         ...asset,
                         purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split('T')[0] : ''
@@ -66,19 +71,40 @@ const AssetForm = () => {
         fetchMaster();
     }, [id, isEdit, reset, isGlobalAdmin, currentUser.unitId]);
 
-    const selectedUnitId = watch("unitId");
+    const watchedFields = watch(["unitId", "categoryId", "purchaseDate"]);
+    const selectedUnitId = watchedFields[0];
+    const selectedCategoryId = watchedFields[1];
+    const purchaseDate = watchedFields[2];
+
     const filteredRooms = selectedUnitId
         ? masterData.rooms.filter(r => r.unitId === parseInt(selectedUnitId))
         : masterData.rooms;
 
+    // Code Preview Logic
+    const generatePreview = () => {
+        if (!selectedUnitId || !selectedCategoryId) return "Selesaikan pilihan...";
+        const unit = masterData.units.find(u => u.id === parseInt(selectedUnitId));
+        const cat = masterData.categories.find(c => c.id === parseInt(selectedCategoryId));
+        const year = purchaseDate ? new Date(purchaseDate).getFullYear() : 'YYYY';
+
+        return `${settings.assetCodePrefix || 'AST'}.${unit?.code || '???'}.${cat?.code || '???'}.${year}.xxxx`;
+    };
+
     const onSubmit = async (data) => {
         try {
             setLoading(true);
+
+            // If auto code is enabled, don't send the "code" field so backend generates it
+            const payload = { ...data };
+            if (isAutoCode && !isEdit) {
+                delete payload.code;
+            }
+
             if (isEdit) {
-                await api.put(`/assets/${id}`, data);
+                await api.put(`/assets/${id}`, payload);
                 alert('Aset berhasil diperbarui!');
             } else {
-                await api.post('/assets', data);
+                await api.post('/assets', payload);
                 alert('Aset berhasil disimpan!');
             }
             navigate('/aset');
@@ -109,6 +135,33 @@ const AssetForm = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-5">
                         <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wider mb-4 border-b border-blue-100 pb-2">Data Umum</h3>
+
+                        <div>
+                            <div className="flex justify-between items-center mb-1">
+                                <label className="block text-sm font-medium text-slate-700">Kode Aset</label>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsAutoCode(!isAutoCode)}
+                                    className={`text-[10px] font-bold px-2 py-0.5 rounded border transition-colors ${isAutoCode ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300 text-slate-500'}`}
+                                >
+                                    {isAutoCode ? 'OTOMATIS' : 'MANUAL'}
+                                </button>
+                            </div>
+
+                            {isAutoCode ? (
+                                <div className="bg-slate-50 border border-slate-200 border-dashed rounded-lg px-4 py-2.5 flex items-center justify-between group">
+                                    <div className="flex flex-col">
+                                        <span className="text-blue-600 font-mono font-bold tracking-wider">{generatePreview()}</span>
+                                        <span className="text-[10px] text-slate-400">Kode akan digenerate saat simpan</span>
+                                    </div>
+                                    <div className="text-slate-300 group-hover:text-blue-200 transition-colors">
+                                        <Save size={16} />
+                                    </div>
+                                </div>
+                            ) : (
+                                <input {...register('code')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 font-mono focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Contoh: AST.MKT.LPT.24.001" />
+                            )}
+                        </div>
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Nama Aset <span className="text-red-500">*</span></label>

@@ -4,6 +4,7 @@ const prisma = new PrismaClient();
 exports.createAsset = async (req, res) => {
     try {
         const {
+            code: manualCode,
             name, categoryId, roomId, unitId,
             price, purchaseDate, condition, brand,
             usefulLife, vendorId, specification, sourceOfFunds, quantity,
@@ -13,10 +14,15 @@ exports.createAsset = async (req, res) => {
         const category = await prisma.category.findUnique({ where: { id: parseInt(categoryId) } });
         if (!category) return res.status(404).json({ error: 'Category not found' });
 
-        const year = new Date(purchaseDate).getFullYear();
-        const patternPrefix = `AST-${category.code}-${year}-`;
+        const unit = await prisma.unit.findUnique({ where: { id: parseInt(unitId) } });
+        if (!unit) return res.status(404).json({ error: 'Unit not found' });
 
-        // Find current max sequence in DB
+        const settings = await prisma.setting.findUnique({ where: { id: 1 } });
+        const prefix = settings?.assetCodePrefix || 'AST';
+        const year = new Date(purchaseDate).getFullYear();
+        const patternPrefix = `${prefix}.${unit.code}.${category.code}.${year}.`;
+
+        // Find current max sequence in DB for this specific pattern
         const lastAsset = await prisma.asset.findFirst({
             where: { code: { startsWith: patternPrefix } },
             orderBy: { code: 'desc' }
@@ -24,18 +30,25 @@ exports.createAsset = async (req, res) => {
 
         let currentSeq = 1;
         if (lastAsset) {
-            const lastSeqPart = lastAsset.code.split('-').pop();
+            const parts = lastAsset.code.split('.');
+            const lastSeqPart = parts[parts.length - 1];
             currentSeq = (parseInt(lastSeqPart) || 0) + 1;
         }
 
-        const assets = [];
+        const createdAssets = [];
         const numToCreate = parseInt(quantity || 1);
 
         for (let i = 0; i < numToCreate; i++) {
-            const code = `${patternPrefix}${(currentSeq + i).toString().padStart(4, '0')}`;
-            assets.push(prisma.asset.create({
+            let finalCode;
+            if (manualCode && numToCreate === 1) {
+                finalCode = manualCode;
+            } else {
+                finalCode = `${patternPrefix}${(currentSeq + i).toString().padStart(4, '0')}`;
+            }
+
+            createdAssets.push(prisma.asset.create({
                 data: {
-                    code,
+                    code: finalCode,
                     name,
                     categoryId: parseInt(categoryId),
                     roomId: roomId ? parseInt(roomId) : null,
@@ -54,8 +67,8 @@ exports.createAsset = async (req, res) => {
             }));
         }
 
-        const createdAssets = await Promise.all(assets);
-        res.json(createdAssets[0]); // Return the first one for simplicity
+        const result = await Promise.all(createdAssets);
+        res.json(result[0]); // Return the first one for simplicity
     } catch (error) {
         console.error("Create asset error:", error);
         res.status(500).json({ error: error.message });
@@ -101,6 +114,7 @@ exports.updateAsset = async (req, res) => {
     try {
         const { id } = req.params;
         const {
+            code,
             name, categoryId, roomId, unitId,
             price, purchaseDate, condition, brand,
             usefulLife, vendorId, specification, sourceOfFunds,
@@ -110,6 +124,7 @@ exports.updateAsset = async (req, res) => {
         const asset = await prisma.asset.update({
             where: { id: parseInt(id) },
             data: {
+                code,
                 name,
                 categoryId: categoryId ? parseInt(categoryId) : undefined,
                 roomId: roomId ? parseInt(roomId) : null,
@@ -287,14 +302,24 @@ exports.batchImportAssets = async (req, res) => {
 
                 // 5. Code Generation
                 const year = new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']).getFullYear();
-                const patternPrefix = `AST-${category.code}-${year}-`;
+
+                // Fetch prefix from settings (could be optimized with cache if needed, but simple for now)
+                const settings = await tx.setting.findUnique({ where: { id: 1 } });
+                const prefix = settings?.assetCodePrefix || 'AST';
+                const patternPrefix = `${prefix}.${unit.code}.${category.code}.${year}.`;
 
                 if (!seqCache[patternPrefix]) {
                     const lastAsset = await tx.asset.findFirst({
                         where: { code: { startsWith: patternPrefix } },
                         orderBy: { code: 'desc' }
                     });
-                    seqCache[patternPrefix] = lastAsset ? (parseInt(lastAsset.code.split('-').pop()) || 0) : 0;
+                    if (lastAsset) {
+                        const parts = lastAsset.code.split('.');
+                        const lastSeqPart = parts[parts.length - 1];
+                        seqCache[patternPrefix] = parseInt(lastSeqPart) || 0;
+                    } else {
+                        seqCache[patternPrefix] = 0;
+                    }
                 }
                 seqCache[patternPrefix]++;
                 const code = `${patternPrefix}${seqCache[patternPrefix].toString().padStart(4, '0')}`;
