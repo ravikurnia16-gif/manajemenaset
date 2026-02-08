@@ -198,10 +198,6 @@ export const BatchLabelPrint = React.forwardRef(({ assets }, ref) => {
                         <div className="asset-code">{asset?.code || '-'}</div>
                         <div className="asset-name">{asset?.name || 'Unnamed Asset'}</div>
                         <div className="category-badge">{asset?.category?.name || 'Uncategorized'}</div>
-                        <div className="asset-meta">
-                            <div>{asset?.unit?.name || asset?.unit || 'No Unit'}</div>
-                            {asset?.room?.name && <div>📍 {asset.room.name}</div>}
-                        </div>
                     </div>
                 </div>
             ))}
