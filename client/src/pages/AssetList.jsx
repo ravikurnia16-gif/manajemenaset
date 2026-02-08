@@ -219,6 +219,9 @@ const AssetList = () => {
                 console.error("Import error details:", error);
                 const msg = error.response?.data?.error || error.message;
                 alert("Gagal melakukan import data ke server: " + msg);
+            } finally {
+                // Reset file input so user can import the same/another file without refresh
+                e.target.value = '';
             }
         };
         reader.readAsArrayBuffer(file);
