@@ -34,6 +34,10 @@ const AssetList = () => {
     const [selectedRoom, setSelectedRoom] = useState('');
     const [selectedIds, setSelectedIds] = useState([]);
 
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+
     // Fetch Data from Backend
     const fetchData = async () => {
         try {
