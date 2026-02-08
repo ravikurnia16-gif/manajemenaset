@@ -104,7 +104,7 @@ const Settings = () => {
             await api.post('/users', newUser);
             alert('User berhasil ditambahkan!');
             setShowUserModal(false);
-            setNewUser({ username: '', password: '', email: '', nip: '', role: 'USER', unitId: '' });
+            setNewUser({ username: '', password: '', email: '', nip: '', phone: '', position: '', role: 'USER', unitId: '' });
             fetchUsers();
         } catch (error) {
             alert(error.response?.data?.error || 'Gagal menambah user');
@@ -352,7 +352,10 @@ const Settings = () => {
                                                 </div>
                                                 <div>
                                                     <div className="font-bold text-slate-800">{user.username}</div>
-                                                    <div className="text-[10px] text-slate-400">NIP: {user.nip || '-'}</div>
+                                                    <div className="text-[10px] text-slate-400">
+                                                        {user.nip ? `NIP: ${user.nip}` : ''}
+                                                        {user.position ? ` • ${user.position}` : ''}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
@@ -367,7 +370,12 @@ const Settings = () => {
                                                 {user.role}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-slate-500">{user.email || '-'}</td>
+                                        <td className="px-6 py-4 text-slate-500">
+                                            <div className="flex flex-col">
+                                                <span>{user.email || '-'}</span>
+                                                {user.phone && <span className="text-[10px] text-slate-400">📞 {user.phone}</span>}
+                                            </div>
+                                        </td>
                                         <td className="px-6 py-4 text-right">
                                             <button
                                                 onClick={() => handleDeleteUser(user.id)}
@@ -425,19 +433,39 @@ const Settings = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Role</label>
-                                    <select
-                                        value={newUser.role}
-                                        onChange={e => setNewUser({ ...newUser, role: e.target.value })}
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">No. HP / Telepon</label>
+                                    <input
+                                        type="text"
+                                        value={newUser.phone || ''}
+                                        onChange={e => setNewUser({ ...newUser, phone: e.target.value })}
                                         className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                    >
-                                        <option value="SUPER_ADMIN">SUPER_ADMIN (Global)</option>
-                                        <option value="ADMIN_ASET">ADMIN_ASET (Global)</option>
-                                        <option value="ADMIN_UNIT">ADMIN_UNIT (Spesifik Unit)</option>
-                                        <option value="USER">USER (Spesifik Unit)</option>
-                                        <option value="AUDITOR">AUDITOR (Pemeriksa)</option>
-                                    </select>
+                                        placeholder="0812xxxx"
+                                    />
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Jabatan</label>
+                                <input
+                                    type="text"
+                                    value={newUser.position || ''}
+                                    onChange={e => setNewUser({ ...newUser, position: e.target.value })}
+                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="Contoh: Staff Sarpras"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Role</label>
+                                <select
+                                    value={newUser.role}
+                                    onChange={e => setNewUser({ ...newUser, role: e.target.value })}
+                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                    <option value="SUPER_ADMIN">SUPER_ADMIN (Global)</option>
+                                    <option value="ADMIN_ASET">ADMIN_ASET (Global)</option>
+                                    <option value="ADMIN_UNIT">ADMIN_UNIT (Spesifik Unit)</option>
+                                    <option value="USER">USER (Spesifik Unit)</option>
+                                    <option value="AUDITOR">AUDITOR (Pemeriksa)</option>
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unit Kerja Assignment</label>

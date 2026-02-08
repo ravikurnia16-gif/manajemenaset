@@ -1,6 +1,6 @@
 # Ingat: Abaikan folder yang berat dan data rahasia agar build Docker ringan
-node_modules
-dist
+**/node_modules
+**/dist
 .env
 .git
 .gitignore
