@@ -84,7 +84,7 @@ exports.createRKB = async (req, res) => {
 // Add Item to RKB
 exports.addItem = async (req, res) => {
     const { id } = req.params; // RKB ID
-    const { name, qty, estPrice, category, priority } = req.body;
+    const { name, qty, estPrice, category, priority, month } = req.body;
 
     try {
         const item = await prisma.rKBItem.create({
@@ -94,7 +94,8 @@ exports.addItem = async (req, res) => {
                 qty: parseInt(qty),
                 estPrice: parseFloat(estPrice),
                 category,
-                priority
+                priority,
+                month: parseInt(month) || 1
             }
         });
 

@@ -5,6 +5,7 @@ import api from '../lib/axios';
 import * as XLSX from 'xlsx';
 
 const RKBList = () => {
+    const navigate = useNavigate();
     const [rkbs, setRKBs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState({ fiscalYear: new Date().getFullYear(), unitId: '' });
@@ -213,9 +214,6 @@ const RKBList = () => {
                             </div>
                         </div>
 
-                        const navigate = useNavigate();
-
-                        // ... (inside return)
                         <button onClick={() => navigate(`/rkb/${rkb.id}`)} className="w-full py-2 border border-blue-200 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-50 flex justify-center items-center gap-2">
                             <Eye size={16} /> Lihat Detail/Input Item
                         </button>
