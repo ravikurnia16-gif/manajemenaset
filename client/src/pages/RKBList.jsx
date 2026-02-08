@@ -152,7 +152,18 @@ const RKBList = () => {
             setImportData([]);
             fetchRKBs();
         } catch (error) {
-            alert('Gagal Import: ' + (error.response?.data?.error || error.message));
+            console.error(error);
+            const errorMsg = error.response?.data?.error || 'Gagal Import';
+            const details = error.response?.data?.details;
+
+            let message = `${errorMsg}\n`;
+            if (details && Array.isArray(details)) {
+                message += '\nDetail Kesalahan:\n' + details.join('\n');
+            } else if (error.message) {
+                message += error.message;
+            }
+
+            alert(message);
         }
     };
 
@@ -222,31 +233,37 @@ const RKBList = () => {
             </div>
 
             {/* Modal Import */}
+            {/* Modal Import */}
             {showImportModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in">
-                    <div className="bg-white p-6 rounded-xl w-full max-w-lg shadow-2xl">
-                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                            <FileSpreadsheet className="text-green-600" /> Import RKB via Excel
-                        </h2>
+                    <div className="bg-white p-6 rounded-xl w-full max-w-2xl shadow-2xl overflow-y-auto max-h-[90vh]">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <FileSpreadsheet className="text-green-600" /> Import RKB via Excel
+                            </h2>
+                            <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-600"><Plus className="rotate-45" /></button>
+                        </div>
 
                         <div className="space-y-4">
-                            <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800 mb-4">
-                                <p className="font-bold mb-1">Langkah-langkah:</p>
-                                <ol className="list-decimal pl-4 space-y-1">
-                                    <li>Download Template Excel terlebih dahulu.</li>
-                                    <li>Isi data barang sesuai kolom (Termasuk BULAN).</li>
-                                    <li>Upload file Excel yang sudah diisi.</li>
-                                </ol>
-                                <button onClick={handleDownloadTemplate} className="mt-3 text-xs bg-white border border-blue-200 px-3 py-1 rounded font-bold hover:bg-blue-100">
-                                    ⬇️ Download Template
+                            {/* Steps */}
+                            <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800 border border-blue-100">
+                                <p className="font-bold mb-2">Panduan Import:</p>
+                                <ul className="list-disc pl-5 space-y-1">
+                                    <li>Gunakan Template yang disediakan agar format kolom sesuai.</li>
+                                    <li>Pastikan kolom <b>Jumlah</b> dan <b>Estimasi Harga</b> berupa angka (tanpa Rp/Titik).</li>
+                                    <li>Kolom <b>Bulan</b> diisi angka 1-12.</li>
+                                </ul>
+                                <button onClick={handleDownloadTemplate} className="mt-3 flex items-center gap-2 bg-white border border-blue-200 px-3 py-1.5 rounded font-bold hover:bg-blue-100 transition-colors shadow-sm">
+                                    <Download size={14} /> Download Template Excel
                                 </button>
                             </div>
 
+                            {/* Filters */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-xs font-bold text-slate-500 block mb-1">Tahun Anggaran</label>
                                     <select
-                                        className="w-full border p-2 rounded text-sm"
+                                        className="w-full border p-2 rounded text-sm bg-slate-50 font-semibold"
                                         value={importConfig.fiscalYear}
                                         onChange={e => setImportConfig({ ...importConfig, fiscalYear: e.target.value })}
                                     >
@@ -258,7 +275,7 @@ const RKBList = () => {
                                 <div>
                                     <label className="text-xs font-bold text-slate-500 block mb-1">Unit Tujuan</label>
                                     <select
-                                        className="w-full border p-2 rounded text-sm"
+                                        className="w-full border p-2 rounded text-sm bg-slate-50 font-semibold"
                                         value={importConfig.unitId}
                                         onChange={e => setImportConfig({ ...importConfig, unitId: e.target.value })}
                                     >
@@ -268,7 +285,9 @@ const RKBList = () => {
                                 </div>
                             </div>
 
-                            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors">
+                            {/* Wrapper Input File */}
+                            <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${importData.length > 0 ? 'border-green-400 bg-green-50' : 'border-slate-300 hover:bg-slate-50'
+                                }`}>
                                 <input
                                     type="file"
                                     ref={fileInputRef}
@@ -278,17 +297,62 @@ const RKBList = () => {
                                     id="file-upload"
                                 />
                                 <label htmlFor="file-upload" className="cursor-pointer">
-                                    <Upload size={32} className="mx-auto text-slate-400 mb-2" />
-                                    <span className="text-sm font-bold text-slate-600">Klik untuk Upload File Excel</span>
-                                    <p className="text-xs text-slate-400 mt-1">{importData.length > 0 ? `${importData.length} baris data ditemukan` : 'Belum ada file dipilih'}</p>
+                                    {importData.length > 0 ? (
+                                        <>
+                                            <FileSpreadsheet size={48} className="mx-auto text-green-600 mb-2" />
+                                            <span className="text-lg font-bold text-green-700">File Siap!</span>
+                                            <p className="text-sm text-green-600">{importData.length} baris data berhasil dibaca.</p>
+                                            <p className="text-xs text-slate-500 mt-2">(Klik untuk ganti file)</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Upload size={48} className="mx-auto text-slate-300 mb-2" />
+                                            <span className="text-sm font-bold text-slate-600">Klik untuk Upload File Excel</span>
+                                            <p className="text-xs text-slate-400 mt-1">Format: .xlsx atau .xls</p>
+                                        </>
+                                    )}
                                 </label>
                             </div>
+
+                            {/* Preview Table (First 3 items) */}
+                            {importData.length > 0 && (
+                                <div className="border rounded-lg overflow-hidden">
+                                    <div className="bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500 border-b">Preview Data (3 Teratas)</div>
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="bg-slate-50 text-slate-500">
+                                            <tr>
+                                                <th className="p-2">Nama Barang</th>
+                                                <th className="p-2">Qty</th>
+                                                <th className="p-2">Harga</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y">
+                                            {importData.slice(0, 3).map((row, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="p-2">{row.name}</td>
+                                                    <td className="p-2">{row.qty} {row.unit}</td>
+                                                    <td className="p-2">{row.estPrice}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {importData.length > 3 && (
+                                        <div className="p-2 text-center text-xs text-slate-400 bg-slate-50 border-t">
+                                            ...dan {importData.length - 3} baris lainnya
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
-                        <div className="flex justify-end gap-2 mt-6">
-                            <button onClick={() => setShowImportModal(false)} className="px-4 py-2 text-slate-500 font-bold text-sm hover:bg-slate-100 rounded-lg">Batal</button>
-                            <button onClick={submitImport} className="px-4 py-2 bg-green-600 text-white font-bold text-sm rounded-lg hover:bg-green-700 shadow-lg shadow-green-600/20">
-                                Proses Import
+                        <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
+                            <button onClick={() => setShowImportModal(false)} className="px-5 py-2 text-slate-500 font-bold text-sm hover:bg-slate-100 rounded-lg">Batal</button>
+                            <button
+                                onClick={submitImport}
+                                disabled={importData.length === 0}
+                                className="px-5 py-2 bg-green-600 text-white font-bold text-sm rounded-lg hover:bg-green-700 shadow-lg shadow-green-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                <Upload size={16} /> Proses Import
                             </button>
                         </div>
                     </div>

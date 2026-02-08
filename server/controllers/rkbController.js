@@ -139,15 +139,70 @@ exports.updateStatus = async (req, res) => {
     }
 };
 // Import RKB from Excel JSON
+// Import RKB from Excel JSON
 exports.importRKB = async (req, res) => {
     const { fiscalYear, unitId, items } = req.body;
 
+    // 1. Validasi Payload Dasar
     if (!items || !Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({ error: 'Data items kosong atau format salah' });
+        return res.status(400).json({ error: 'Data items kosong atau format salah. Pastikan Anda mengupload file yang berisi data.' });
+    }
+    if (!fiscalYear || !unitId) {
+        return res.status(400).json({ error: 'Tahun Anggaran dan Unit Tujuan wajib dipilih.' });
+    }
+
+    // 2. Validasi Tiap Baris Data
+    const errors = [];
+    const validItems = [];
+
+    items.forEach((item, index) => {
+        const rowNum = index + 1; // Baris Excel (asumsi header baris 1)
+        const name = item.name?.toString().trim();
+        const qty = parseInt(item.qty);
+        const estPrice = parseFloat(item.estPrice);
+        const month = parseInt(item.month);
+
+        if (!name) {
+            errors.push(`Baris ${rowNum}: Nama Barang wajib diisi.`);
+        }
+        if (isNaN(qty) || qty <= 0) {
+            errors.push(`Baris ${rowNum}: Jumlah harus berupa angka lebih dari 0.`);
+        }
+        if (isNaN(estPrice) || estPrice < 0) {
+            errors.push(`Baris ${rowNum}: Estimasi Harga tidak valid.`);
+        }
+        if (month < 1 || month > 12) { // Allow NaN (defaults to 1), but if present must be valid
+            if (item.month && (isNaN(month) || month < 1 || month > 12)) {
+                errors.push(`Baris ${rowNum}: Bulan harus angka 1-12.`);
+            }
+        }
+
+        if (errors.length === 0) {
+            validItems.push({
+                ...item,
+                name,
+                qty,
+                estPrice,
+                month: (month >= 1 && month <= 12) ? month : 1, // Default Jan
+                category: ['ASSET', 'NON_ASSET', 'JASA'].includes(item.category) ? item.category : 'NON_ASSET', // Default fallback
+                priority: ['HIGH', 'MEDIUM', 'LOW'].includes(item.priority) ? item.priority : 'MEDIUM'
+            });
+        }
+    });
+
+    if (errors.length > 0) {
+        // Return 400 dengan semua error (batasi 5 error pertama agar tidak flooding)
+        const shownErrors = errors.slice(0, 5);
+        if (errors.length > 5) shownErrors.push(`...dan ${errors.length - 5} kesalahan lainnya.`);
+
+        return res.status(400).json({
+            error: 'Terdapat kesalahan pada data Excel:',
+            details: shownErrors
+        });
     }
 
     try {
-        // 1. Cek RKB Header
+        // 3. Cek RKB Header
         let rkb = await prisma.rKB.findFirst({
             where: {
                 fiscalYear: parseInt(fiscalYear),
@@ -167,26 +222,26 @@ exports.importRKB = async (req, res) => {
             });
         }
 
-        // 2. Loop Items & Create (Transaction for safety)
-        const createItemPromises = items.map(item => {
+        // 4. Create Items Transaction
+        const createItemPromises = validItems.map(item => {
             return prisma.rKBItem.create({
                 data: {
                     rkbId: rkb.id,
                     name: item.name,
                     spec: item.spec || '-',
-                    qty: parseInt(item.qty),
-                    unit: item.unit || 'unit',
-                    estPrice: parseFloat(item.estPrice),
-                    category: item.category || 'NON_ASSET',
-                    priority: item.priority || 'MEDIUM',
-                    month: parseInt(item.month) || 1
+                    qty: item.qty,
+                    unit: item.unit || 'Unit',
+                    estPrice: item.estPrice,
+                    category: item.category,
+                    priority: item.priority,
+                    month: item.month
                 }
             });
         });
 
         await prisma.$transaction(createItemPromises);
 
-        // 3. Recalculate Total
+        // 5. Recalculate Total
         const allItems = await prisma.rKBItem.findMany({ where: { rkbId: rkb.id } });
         const total = allItems.reduce((sum, item) => sum + (item.qty * item.estPrice), 0);
 
@@ -195,9 +250,10 @@ exports.importRKB = async (req, res) => {
             data: { totalBudget: total }
         });
 
-        res.json({ message: 'Import berhasil!', totalItems: items.length });
+        res.json({ message: `Berhasil mengimport ${validItems.length} item ke RKB Unit.` });
 
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("Import Error:", error);
+        res.status(500).json({ error: 'Terjadi kesalahan sistem saat menyimpan data: ' + error.message });
     }
 };
