@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar } from 'lucide-react';
+import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const Sidebar = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const [openProcurement, setOpenProcurement] = useState(true);
 
     const isActive = (path) => location.pathname.startsWith(path);
 
@@ -32,9 +34,32 @@ const Sidebar = () => {
             <nav className="flex-1 p-4 overflow-y-auto">
                 <Link to="/dashboard" className={navItemClass('/dashboard')}><LayoutDashboard size={20} /> Dashboard</Link>
                 <Link to="/aset" className={navItemClass('/aset')}><Box size={20} /> Data Aset</Link>
-                <Link to="/request" className={navItemClass('/request')}><ShoppingCart size={20} /> Pengadaan</Link>
-                <Link to="/rkb" className={navItemClass('/rkb')}><Calendar size={20} /> Perencanaan (RKB)</Link>
-                <Link to="/procurements" className={navItemClass('/procurements')}><ShoppingCart size={20} /> Pengadaan (Baru)</Link>
+
+                {/* Menu Pengadaan (Collapsible) */}
+                <div>
+                    <button
+                        onClick={() => setOpenProcurement(!openProcurement)}
+                        className="flex items-center justify-between w-full p-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white mb-1"
+                    >
+                        <div className="flex items-center gap-3">
+                            <ShoppingCart size={20} />
+                            <span>Pengadaan</span>
+                        </div>
+                        {openProcurement ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    </button>
+
+                    {openProcurement && (
+                        <div className="ml-4 pl-4 border-l border-slate-700 space-y-1">
+                            <Link to="/rkb" className={navItemClass('/rkb').replace('p-3', 'p-2 text-sm')}>
+                                <Calendar size={16} /> Perencanaan (RKB)
+                            </Link>
+                            <Link to="/procurements" className={navItemClass('/procurements').replace('p-3', 'p-2 text-sm')}>
+                                <ShoppingCart size={16} /> Pengadaan (Baru)
+                            </Link>
+                        </div>
+                    )}
+                </div>
+
                 <Link to="/mutasi" className={navItemClass('/mutasi')}><ArrowLeftRight size={20} /> Mutasi</Link>
                 <Link to="/penghapusan" className={navItemClass('/penghapusan')}><Trash2 size={20} /> Penghapusan</Link>
                 <Link to="/validasi" className={navItemClass('/validasi')}><FileCheck size={20} /> Validasi</Link>
