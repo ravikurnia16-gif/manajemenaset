@@ -137,3 +137,65 @@ exports.updateStatus = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+// Import RKB from Excel JSON
+exports.importRKB = async (req, res) => {
+    const { fiscalYear, unitId, items } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Data items kosong atau format salah' });
+    }
+
+    try {
+        // 1. Cek RKB Header
+        let rkb = await prisma.rKB.findFirst({
+            where: {
+                fiscalYear: parseInt(fiscalYear),
+                unitId: parseInt(unitId)
+            }
+        });
+
+        // Jika belum ada, buat baru
+        if (!rkb) {
+            rkb = await prisma.rKB.create({
+                data: {
+                    fiscalYear: parseInt(fiscalYear),
+                    unitId: parseInt(unitId),
+                    status: 'DRAFT',
+                    totalBudget: 0
+                }
+            });
+        }
+
+        // 2. Loop Items & Create (Transaction for safety)
+        const createItemPromises = items.map(item => {
+            return prisma.rKBItem.create({
+                data: {
+                    rkbId: rkb.id,
+                    name: item.name,
+                    spec: item.spec || '-',
+                    qty: parseInt(item.qty),
+                    unit: item.unit || 'unit',
+                    estPrice: parseFloat(item.estPrice),
+                    category: item.category || 'NON_ASSET',
+                    priority: item.priority || 'MEDIUM'
+                }
+            });
+        });
+
+        await prisma.$transaction(createItemPromises);
+
+        // 3. Recalculate Total
+        const allItems = await prisma.rKBItem.findMany({ where: { rkbId: rkb.id } });
+        const total = allItems.reduce((sum, item) => sum + (item.qty * item.estPrice), 0);
+
+        await prisma.rKB.update({
+            where: { id: rkb.id },
+            data: { totalBudget: total }
+        });
+
+        res.json({ message: 'Import berhasil!', totalItems: items.length });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
