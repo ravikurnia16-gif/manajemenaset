@@ -6,7 +6,8 @@ exports.createAsset = async (req, res) => {
         const {
             name, categoryId, roomId, unitId,
             price, purchaseDate, condition, brand,
-            usefulLife, vendorId, specification, sourceOfFunds, quantity
+            usefulLife, vendorId, specification, sourceOfFunds, quantity,
+            acquisitionStatus
         } = req.body;
 
         const category = await prisma.category.findUnique({ where: { id: parseInt(categoryId) } });
@@ -47,6 +48,7 @@ exports.createAsset = async (req, res) => {
                     brand,
                     specification,
                     sourceOfFunds: sourceOfFunds || "Mandiri",
+                    acquisitionStatus: acquisitionStatus || "Pembelian",
                     quantity: 1 // Actual item count is per record
                 }
             }));
@@ -92,7 +94,8 @@ exports.updateAsset = async (req, res) => {
         const {
             name, categoryId, roomId, unitId,
             price, purchaseDate, condition, brand,
-            usefulLife, vendorId, specification, sourceOfFunds
+            usefulLife, vendorId, specification, sourceOfFunds,
+            acquisitionStatus
         } = req.body;
 
         const asset = await prisma.asset.update({
@@ -109,7 +112,8 @@ exports.updateAsset = async (req, res) => {
                 brand,
                 specification,
                 sourceOfFunds,
-                usefulLife: usefulLife ? parseInt(usefulLife) : undefined
+                usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
+                acquisitionStatus
             }
         });
         res.json(asset);

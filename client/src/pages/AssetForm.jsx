@@ -13,6 +13,7 @@ const AssetForm = () => {
             condition: 'BAIK',
             usefulLife: 5,
             sourceOfFunds: 'Mandiri',
+            acquisitionStatus: 'Pembelian',
             purchaseDate: new Date().toISOString().split('T')[0]
         }
     });
@@ -20,22 +21,25 @@ const AssetForm = () => {
     const [masterData, setMasterData] = useState({
         units: [],
         rooms: [],
-        categories: []
+        categories: [],
+        vendors: []
     });
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         const fetchMaster = async () => {
             try {
-                const [rUnits, rRooms, rCats] = await Promise.all([
+                const [rUnits, rRooms, rCats, rVendors] = await Promise.all([
                     api.get('/master/units'),
                     api.get('/master/rooms'),
-                    api.get('/master/categories')
+                    api.get('/master/categories'),
+                    api.get('/master/vendors')
                 ]);
                 setMasterData({
                     units: rUnits.data,
                     rooms: rRooms.data,
-                    categories: rCats.data
+                    categories: rCats.data,
+                    vendors: rVendors.data
                 });
 
                 // If editing, fetch asset details
@@ -122,6 +126,16 @@ const AssetForm = () => {
                         </div>
 
                         <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Vendor / Toko</label>
+                            <select {...register('vendorId')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                <option value="">Pilih Vendor...</option>
+                                {masterData.vendors.map(v => (
+                                    <option key={v.id} value={v.id}>{v.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Spesifikasi</label>
                             <textarea {...register('specification')} rows={3} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Processor i7, RAM 16GB..."></textarea>
                         </div>
@@ -149,18 +163,20 @@ const AssetForm = () => {
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Sumber Dana</label>
                                 <select {...register('sourceOfFunds')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-blue-700">
                                     <option value="Mandiri">Mandiri</option>
+                                    <option value="BOS">BOS</option>
                                     <option value="Hibah">Hibah</option>
                                     <option value="Pemerintah">Pemerintah</option>
-                                    <option value="BOS">BOS</option>
+                                    <option value="Cashback">Cashback</option>
                                     <option value="Lainnya">Lainnya</option>
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Kondisi</label>
-                                <select {...register('condition')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                                    <option value="BAIK">Baik</option>
-                                    <option value="RUSAK_RINGAN">Rusak Ringan</option>
-                                    <option value="RUSAK_BERAT">Rusak Berat</option>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Status Perolehan</label>
+                                <select {...register('acquisitionStatus')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                    <option value="Pembelian">Pembelian</option>
+                                    <option value="Hibah/Wakaf">Hibah/Wakaf</option>
+                                    <option value="Sewa">Sewa</option>
+                                    <option value="Lainnya">Lainnya</option>
                                 </select>
                             </div>
                         </div>
@@ -189,6 +205,14 @@ const AssetForm = () => {
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Umur Manfaat (Thn)</label>
                                 <input type="number" {...register('usefulLife', { value: 5 })} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Kondisi</label>
+                                <select {...register('condition')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                    <option value="BAIK">Baik</option>
+                                    <option value="RUSAK_RINGAN">Rusak Ringan</option>
+                                    <option value="RUSAK_BERAT">Rusak Berat</option>
+                                </select>
                             </div>
                         </div>
 

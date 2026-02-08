@@ -97,6 +97,7 @@ model Asset {
   usefulLife      Int      @default(5)
   condition       Condition
   sourceOfFunds   String?  @default("Mandiri")
+  acquisitionStatus String? @default("Pembelian")
   
   image           String?
   invoice         String?
