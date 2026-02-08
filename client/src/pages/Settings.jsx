@@ -8,6 +8,7 @@ const Settings = () => {
         orgAddress: '',
         orgPhone: '',
         orgEmail: '',
+        orgLogo: '',
         orgHeadName: '',
         orgHeadNip: '',
         assetCodePrefix: 'AST'
@@ -28,6 +29,21 @@ const Settings = () => {
             console.error("Fetch settings error:", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            if (file.size > 2 * 1024 * 1024) {
+                alert("Ukuran logo terlalu besar! Maksimal 2MB.");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setSettings({ ...settings, orgLogo: reader.result });
+            };
+            reader.readAsDataURL(file);
         }
     };
 
@@ -66,6 +82,28 @@ const Settings = () => {
                         </div>
 
                         <div className="space-y-4">
+                            <div className="flex flex-col md:flex-row gap-6 items-center md:items-start pb-4">
+                                <div className="w-24 h-24 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center bg-slate-50 overflow-hidden relative group">
+                                    {settings.orgLogo ? (
+                                        <img src={settings.orgLogo} alt="Logo" className="w-full h-full object-contain" />
+                                    ) : (
+                                        <Building2 size={32} className="text-slate-300" />
+                                    )}
+                                    <label className="absolute inset-0 bg-black/50 text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                                        Ganti Logo
+                                        <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                                    </label>
+                                </div>
+                                <div className="flex-1 space-y-1 text-center md:text-left">
+                                    <h3 className="text-sm font-semibold text-slate-800">Logo Instansi</h3>
+                                    <p className="text-xs text-slate-500">Format PNG, JPG atau WebP. Maksimal 2MB.</p>
+                                    <label className="inline-block mt-2 px-3 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-50 cursor-pointer">
+                                        Pilih File
+                                        <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                                    </label>
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Nama Instansi / Yayasan</label>
                                 <input
