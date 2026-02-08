@@ -213,7 +213,7 @@ const AssetList = () => {
 
             try {
                 const response = await api.post('/assets/import', jsonData);
-                alert(`Import Berhasil! \nSukses: ${response.data.success} \nGagal: ${response.data.failed}${response.data.errors?.length > 0 ? '\n\nContoh Error: ' + response.data.errors[0] : ''}`);
+                alert(`Import Berhasil! \n${response.data.message}`);
                 fetchData(); // Refresh list
             } catch (error) {
                 console.error("Import error details:", error);

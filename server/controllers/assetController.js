@@ -152,146 +152,170 @@ exports.deleteMultipleAssets = async (req, res) => {
 exports.batchImportAssets = async (req, res) => {
     try {
         const assetsData = req.body;
-        const results = { success: 0, failed: 0, errors: [] };
+        if (!Array.isArray(assetsData) || assetsData.length === 0) {
+            return res.status(400).json({ error: 'Data import kosong' });
+        }
 
-        // Cache for sequence numbers to avoid redundant DB queries
-        const seqCache = {};
+        const requiredColumns = [
+            { key: 'Nama Aset', label: 'Kolom A (Nama Aset)' },
+            { key: 'Merek Aset', label: 'Kolom B (Merek Aset)' },
+            { key: 'Vendor Aset', label: 'Kolom C (Vendor Aset)' },
+            { key: 'Umur Ekonomis Aset(tahun)', label: 'Kolom F (Umur Ekonomis)' },
+            { key: 'Kondisi Aset', label: 'Kolom G (Kondisi Aset)' },
+            { key: 'Sumber Dana Aset', label: 'Kolom H (Sumber Dana)' },
+            { key: 'Ruangan Aset', label: 'Kolom I (Ruangan Aset)' },
+            { key: 'Unit Aset', label: 'Kolom J (Unit Aset)' },
+            { key: 'Kategori', label: 'Kolom K (Kategori)' },
+            { key: 'Tanggal Transaksi Masuk (yyyy-mm-dd)', label: 'Kolom L (Tanggal Transaksi Masuk)' },
+            { key: 'Jenis Transaksi Masuk', label: 'Kolom M (Jenis Transaksi Masuk)' },
+            { key: 'Harga Perolehan', label: 'Kolom O (Harga Perolehan)' }
+        ];
 
-        for (const item of assetsData) {
-            // Skip empty rows
-            if (!item['Nama Aset'] && !item['Kategori']) continue;
+        // --- Step 1: Validation Pass (Strict) ---
+        for (let i = 0; i < assetsData.length; i++) {
+            const item = assetsData[i];
+            const rowNum = i + 1;
 
-            try {
+            // Check required fields
+            for (const col of requiredColumns) {
+                const val = item[col.key];
+                if (val === undefined || val === null || String(val).trim() === '') {
+                    return res.status(400).json({
+                        error: `Data tidak lengkap di baris ${rowNum}: ${col.label} wajib diisi.`
+                    });
+                }
+            }
+
+            // Check numeric formats
+            const price = parseFloat(String(item['Harga Perolehan']).replace(/[^\d.-]/g, ''));
+            if (isNaN(price)) {
+                return res.status(400).json({
+                    error: `Format Harga Perolehan salah di baris ${rowNum}: harus berupa angka.`
+                });
+            }
+
+            const usefulLife = parseInt(item['Umur Ekonomis Aset(tahun)']);
+            if (isNaN(usefulLife)) {
+                return res.status(400).json({
+                    error: `Format Umur Ekonomis salah di baris ${rowNum}: harus berupa angka.`
+                });
+            }
+
+            // Check date format
+            const purchaseDate = new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']);
+            if (isNaN(purchaseDate.getTime())) {
+                return res.status(400).json({
+                    error: `Format Tanggal Transaksi Masuk salah di baris ${rowNum}: gunakan format YYYY-MM-DD.`
+                });
+            }
+        }
+
+        // --- Step 2: Atomic Import (Transaction) ---
+        const result = await prisma.$transaction(async (tx) => {
+            const seqCache = {};
+            let successCount = 0;
+
+            for (const item of assetsData) {
                 // 1. Category Lookup/Create
-                const catName = String(item.Kategori || 'Umum').trim();
-                let category = await prisma.category.findFirst({
-                    where: { name: { contains: catName } }
+                const catName = String(item.Kategori).trim();
+                let category = await tx.category.findFirst({
+                    where: { name: { equals: catName } }
                 });
 
                 if (!category) {
-                    // Robust category code generation
                     let baseCatCode = catName.substring(0, 2).toUpperCase();
                     let finalCatCode = baseCatCode;
                     let cCount = 1;
-                    while (await prisma.category.findUnique({ where: { code: finalCatCode } })) {
+                    while (await tx.category.findUnique({ where: { code: finalCatCode } })) {
                         finalCatCode = `${baseCatCode}${cCount++}`;
                     }
-
-                    category = await prisma.category.create({
+                    category = await tx.category.create({
                         data: {
                             name: catName,
                             code: finalCatCode,
-                            usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)'] || 5),
+                            usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)']),
                             depreciationMethod: 'STRAIGHT_LINE'
                         }
                     });
                 }
 
                 // 2. Unit Lookup/Create
-                let unit = null;
-                if (item['Unit Aset'] && String(item['Unit Aset']).trim()) {
-                    const unitName = String(item['Unit Aset']).trim();
-                    unit = await prisma.unit.findFirst({ where: { name: { contains: unitName } } });
-                    if (!unit) {
-                        const baseCode = unitName.substring(0, 3).toUpperCase();
-                        unit = await prisma.unit.create({
-                            data: { name: unitName, code: `${baseCode}-${Math.floor(Math.random() * 900) + 100}` }
-                        });
-                    }
+                const unitName = String(item['Unit Aset']).trim();
+                let unit = await tx.unit.findFirst({ where: { name: { equals: unitName } } });
+                if (!unit) {
+                    const baseCode = unitName.substring(0, 3).toUpperCase();
+                    unit = await tx.unit.create({
+                        data: { name: unitName, code: `${baseCode}-${Math.floor(Math.random() * 900) + 100}` }
+                    });
                 }
 
                 // 3. Room Lookup/Create
-                let room = null;
-                if (item['Ruangan Aset'] && String(item['Ruangan Aset']).trim()) {
-                    const roomName = String(item['Ruangan Aset']).trim();
-                    room = await prisma.room.findFirst({ where: { name: { contains: roomName } } });
-                    if (!room) {
-                        const baseCode = roomName.substring(0, 3).toUpperCase();
-                        room = await prisma.room.create({
-                            data: { name: roomName, code: `${baseCode}-${Math.floor(Math.random() * 900) + 100}`, floor: '1', building: 'Utama' }
-                        });
-                    }
+                const roomName = String(item['Ruangan Aset']).trim();
+                let room = await tx.room.findFirst({ where: { name: { equals: roomName } } });
+                if (!room) {
+                    const baseCode = roomName.substring(0, 3).toUpperCase();
+                    room = await tx.room.create({
+                        data: { name: roomName, code: `${baseCode}-${Math.floor(Math.random() * 900) + 100}`, floor: '1', building: 'Utama' }
+                    });
                 }
 
                 // 4. Vendor Lookup/Create
-                let vendor = null;
-                if (item['Vendor Aset'] && String(item['Vendor Aset']).trim()) {
-                    const vendorName = String(item['Vendor Aset']).trim();
-                    vendor = await prisma.vendor.findFirst({ where: { name: { contains: vendorName } } });
-                    if (!vendor) {
-                        vendor = await prisma.vendor.create({
-                            data: { name: vendorName, contact: '-' }
-                        });
-                    }
+                const vendorName = String(item['Vendor Aset']).trim();
+                let vendor = await tx.vendor.findFirst({ where: { name: { equals: vendorName } } });
+                if (!vendor) {
+                    vendor = await tx.vendor.create({
+                        data: { name: vendorName, contact: '-' }
+                    });
                 }
 
-                // 5. Generate Asset Code (Optimized)
-                const yearNow = new Date().getFullYear();
-                const patternPrefix = `AST-${category.code}-${yearNow}-`;
+                // 5. Code Generation
+                const year = new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']).getFullYear();
+                const patternPrefix = `AST-${category.code}-${year}-`;
 
                 if (!seqCache[patternPrefix]) {
-                    // Find the current highest sequence in DB for this pattern
-                    const lastAsset = await prisma.asset.findFirst({
+                    const lastAsset = await tx.asset.findFirst({
                         where: { code: { startsWith: patternPrefix } },
                         orderBy: { code: 'desc' }
                     });
-
-                    if (lastAsset) {
-                        const lastSeq = parseInt(lastAsset.code.split('-').pop());
-                        seqCache[patternPrefix] = isNaN(lastSeq) ? 0 : lastSeq;
-                    } else {
-                        seqCache[patternPrefix] = 0;
-                    }
+                    seqCache[patternPrefix] = lastAsset ? (parseInt(lastAsset.code.split('-').pop()) || 0) : 0;
                 }
-
                 seqCache[patternPrefix]++;
-                const assetCode = `${patternPrefix}${seqCache[patternPrefix].toString().padStart(4, '0')}`;
+                const code = `${patternPrefix}${seqCache[patternPrefix].toString().padStart(4, '0')}`;
 
-                // 6. Aggregate "Extra Details" into specification
-                const extraDetails = [
+                // 6. Specification Aggregation
+                const extra = [
                     `Jenis Masuk: ${item['Jenis Transaksi Masuk'] || '-'}`,
                     `Bukti Masuk: ${item['Bukti Transaksi Masuk'] || '-'}`,
-                    `Pihak Kedua (M): ${item['Nama Pihak Kedua (hanya digunakan kalau pihak kedua baru)'] || item['NIK/NIY Pihak Kedua'] || '-'}`,
-                    `Alamat Pihak kedua (M): ${item['Alamat Pihak Kedua (hanya digunakan kalau pihak kedua baru)'] || '-'}`,
-                    `--- DATA KELUAR ---`,
-                    `Tgl Keluar: ${item['Tanggal Transaksi Keluar (yyyy-mm-dd)'] || '-'}`,
-                    `Jenis Keluar: ${item['Jenis Transaksi Keluar'] || '-'}`,
-                    `Bukti Keluar: ${item['Bukti Transaksi Keluar'] || '-'}`,
-                    `Harga Jual: ${item['Harga Jual'] || 0}`,
-                    `Pihak Kedua (K): ${item['Nama Pihak Kedua (hanya digunakan kalau pihak kedua baru)_1'] || item['NIK/NIY Pihak Kedua_1'] || '-'}`
+                    `Harga Jual: ${item['Harga Jual'] || 0}`
                 ].join(' | ');
 
                 // 7. Create Asset
-                await prisma.asset.create({
+                await tx.asset.create({
                     data: {
-                        code: assetCode,
-                        name: String(item['Nama Aset'] || 'Tanpa Nama'),
-                        brand: String(item['Merek Aset'] || '-'),
+                        code,
+                        name: String(item['Nama Aset']),
+                        brand: String(item['Merek Aset']),
                         categoryId: category.id,
-                        unitId: unit ? unit.id : null,
-                        roomId: room ? room.id : null,
-                        vendorId: vendor ? vendor.id : null,
-                        price: parseFloat(String(item['Harga Perolehan'] || 0).replace(/[^\d.-]/g, '')),
-                        purchaseDate: item['Tanggal Transaksi Masuk (yyyy-mm-dd)'] ? new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']) : new Date(),
-                        usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)'] || 5),
-                        condition: String(item['Kondisi Aset'] || 'BAIK').toUpperCase().includes('RUSAK') ? 'RUSAK_RINGAN' : 'BAIK',
-                        sourceOfFunds: String(item['Sumber Dana Aset'] || 'Mandiri'),
-                        specification: extraDetails.substring(0, 5000), // Safety truncation
-                        quantity: 1,
+                        unitId: unit.id,
+                        roomId: room.id,
+                        vendorId: vendor.id,
+                        price: parseFloat(String(item['Harga Perolehan']).replace(/[^\d.-]/g, '')),
+                        purchaseDate: new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']),
+                        usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)']),
+                        condition: String(item['Kondisi Aset']).toUpperCase().includes('RUSAK') ? 'RUSAK_RINGAN' : 'BAIK',
+                        sourceOfFunds: String(item['Sumber Dana Aset']),
+                        specification: extra,
+                        quantity: 1
                     }
                 });
-
-                results.success++;
-            } catch (err) {
-                console.error(`Error importing row for ${item['Nama Aset']}:`, err);
-                results.failed++;
-                results.errors.push(`Gagal pada ${item['Nama Aset']}: ${err.message}`);
+                successCount++;
             }
-        }
+            return successCount;
+        });
 
-        res.json(results);
+        res.json({ success: result, message: `Berhasil mengimport ${result} aset.` });
     } catch (error) {
-        console.error("Batch import primary error:", error);
-        res.status(500).json({ error: error.message });
+        console.error("Atomic Batch Import Error:", error);
+        res.status(500).json({ error: 'Gagal Import: ' + error.message });
     }
 };
