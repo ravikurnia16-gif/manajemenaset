@@ -35,6 +35,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   logs      Log[]
+  procurements Procurement[]
 }
 
 model Unit {
@@ -47,6 +48,8 @@ model Unit {
   rooms     Room[]
   users     User[]
   requests  Request[]
+  rkbs      RKB[]
+  procurements Procurement[]
 }
 
 model Room {
@@ -167,4 +170,96 @@ model Setting {
   orgHeadNip        String?
   assetCodePrefix   String   @default("AST")
   updatedAt         DateTime @updatedAt
+}
+
+// --- MODULE PENGADAAN (PROCUREMENT) ---
+
+enum ProcurementStatus {
+  DRAFT
+  SUBMITTED
+  VALIDATED
+  APPROVED
+  PROCESS
+  COMPLETED
+  REJECTED
+}
+
+enum ProcurementType {
+  ASSET
+  NON_ASSET
+  SERVICE
+}
+
+model RKB {
+  id          Int       @id @default(autoincrement())
+  fiscalYear  Int
+  unitId      Int
+  unit        Unit      @relation(fields: [unitId], references: [id])
+  status      String    @default("DRAFT") // DRAFT, SUBMITTED, APPROVED
+  totalBudget Float     @default(0)
+  items       RKBItem[]
+  procurements Procurement[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model RKBItem {
+  id          Int      @id @default(autoincrement())
+  rkbId       Int
+  rkb         RKB      @relation(fields: [rkbId], references: [id])
+  name        String
+  qty         Int
+  estPrice    Float
+  category    String   // ASSET / NON_ASSET
+  priority    String   // HIGH, MEDIUM, LOW
+}
+
+model Procurement {
+  id          Int       @id @default(autoincrement())
+  code        String    @unique // e.g. REQ/2024/001
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id])
+  unitId      Int
+  unit        Unit      @relation(fields: [unitId], references: [id])
+  
+  type        ProcurementType
+  status      ProcurementStatus @default(DRAFT)
+  
+  rkbId       Int?
+  rkb         RKB?      @relation(fields: [rkbId], references: [id])
+  
+  validationNote String?
+  rejectionReason String?
+  
+  bastDate    DateTime?
+  bastFile    String?
+  
+  items       ProcurementItem[]
+  offers      VendorOffer[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ProcurementItem {
+  id            Int         @id @default(autoincrement())
+  procurementId Int
+  procurement   Procurement @relation(fields: [procurementId], references: [id])
+  name          String
+  spec          String?     @db.Text
+  qty           Int
+  unit          String      // pcs, set, unit
+  estPrice      Float       @default(0)
+}
+
+model VendorOffer {
+  id            Int         @id @default(autoincrement())
+  procurementId Int
+  procurement   Procurement @relation(fields: [procurementId], references: [id])
+  vendorId      Int?        // Optional hyperlink to master Vendor
+  vendorName    String      // Manual name if vendor not in master
+  price         Float
+  isWinner      Boolean     @default(false)
+  quoteFile     String?
+  createdAt     DateTime    @default(now())
 }

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const Sidebar = () => {
@@ -33,6 +33,8 @@ const Sidebar = () => {
                 <Link to="/dashboard" className={navItemClass('/dashboard')}><LayoutDashboard size={20} /> Dashboard</Link>
                 <Link to="/aset" className={navItemClass('/aset')}><Box size={20} /> Data Aset</Link>
                 <Link to="/request" className={navItemClass('/request')}><ShoppingCart size={20} /> Pengadaan</Link>
+                <Link to="/rkb" className={navItemClass('/rkb')}><Calendar size={20} /> Perencanaan (RKB)</Link>
+                <Link to="/procurements" className={navItemClass('/procurements')}><ShoppingCart size={20} /> Pengadaan (Baru)</Link>
                 <Link to="/mutasi" className={navItemClass('/mutasi')}><ArrowLeftRight size={20} /> Mutasi</Link>
                 <Link to="/penghapusan" className={navItemClass('/penghapusan')}><Trash2 size={20} /> Penghapusan</Link>
                 <Link to="/validasi" className={navItemClass('/validasi')}><FileCheck size={20} /> Validasi</Link>
