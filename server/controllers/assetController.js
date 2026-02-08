@@ -64,7 +64,16 @@ exports.createAsset = async (req, res) => {
 
 exports.getAllAssets = async (req, res) => {
     try {
+        const { role, unitId } = req.user;
+        let where = {};
+
+        // Only Super Admin and Admin Aset can see all data
+        if (role !== 'SUPER_ADMIN' && role !== 'ADMIN_ASET') {
+            where.unitId = unitId;
+        }
+
         const assets = await prisma.asset.findMany({
+            where,
             include: { category: true, room: true, unit: true, vendor: true }
         });
         res.json(assets);
@@ -172,6 +181,9 @@ exports.batchImportAssets = async (req, res) => {
         ];
 
         // --- Step 1: Validation Pass (Strict) ---
+        const existingUnits = await prisma.unit.findMany({ select: { name: true } });
+        const unitNames = existingUnits.map(u => u.name.toLowerCase());
+
         for (let i = 0; i < assetsData.length; i++) {
             const item = assetsData[i];
             const rowNum = i + 1;
@@ -184,6 +196,14 @@ exports.batchImportAssets = async (req, res) => {
                         error: `Data tidak lengkap di baris ${rowNum}: ${col.label} wajib diisi.`
                     });
                 }
+            }
+
+            // --- STRICT UNIT VALIDATION ---
+            const unitNameInput = String(item['Unit Aset']).trim().toLowerCase();
+            if (!unitNames.includes(unitNameInput)) {
+                return res.status(400).json({
+                    error: `Unit "${item['Unit Aset']}" di baris ${rowNum} tidak terdaftar di sistem. Silakan hubungi Super Admin.`
+                });
             }
 
             // Check numeric formats
@@ -239,14 +259,11 @@ exports.batchImportAssets = async (req, res) => {
                     });
                 }
 
-                // 2. Unit Lookup/Create
+                // 2. Unit Lookup (STRICT - NO CREATE)
                 const unitName = String(item['Unit Aset']).trim();
                 let unit = await tx.unit.findFirst({ where: { name: { equals: unitName } } });
                 if (!unit) {
-                    const baseCode = unitName.substring(0, 3).toUpperCase();
-                    unit = await tx.unit.create({
-                        data: { name: unitName, code: `${baseCode}-${Math.floor(Math.random() * 900) + 100}` }
-                    });
+                    throw new Error(`Unit "${unitName}" tidak ditemukan di database.`);
                 }
 
                 // 3. Room Lookup/Create

@@ -15,6 +15,7 @@ const Settings = () => {
         assetCodePrefix: 'AST'
     });
     const [users, setUsers] = useState([]);
+    const [unitList, setUnitList] = useState([]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [currentUser, setCurrentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
@@ -26,13 +27,15 @@ const Settings = () => {
         password: '',
         email: '',
         nip: '',
-        role: 'USER'
+        role: 'USER',
+        unitId: ''
     });
 
     useEffect(() => {
         fetchSettings();
         if (currentUser.role === 'SUPER_ADMIN') {
             fetchUsers();
+            fetchUnits();
         }
     }, []);
 
@@ -45,6 +48,15 @@ const Settings = () => {
             console.error("Fetch settings error:", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchUnits = async () => {
+        try {
+            const res = await api.get('/master/units');
+            setUnitList(res.data);
+        } catch (error) {
+            console.error("Fetch units error:", error);
         }
     };
 
@@ -92,7 +104,7 @@ const Settings = () => {
             await api.post('/users', newUser);
             alert('User berhasil ditambahkan!');
             setShowUserModal(false);
-            setNewUser({ username: '', password: '', email: '', nip: '', role: 'USER' });
+            setNewUser({ username: '', password: '', email: '', nip: '', role: 'USER', unitId: '' });
             fetchUsers();
         } catch (error) {
             alert(error.response?.data?.error || 'Gagal menambah user');
@@ -324,6 +336,7 @@ const Settings = () => {
                             <thead className="bg-slate-50 text-slate-600 text-xs uppercase font-bold">
                                 <tr>
                                     <th className="px-6 py-4">User / NIP</th>
+                                    <th className="px-6 py-4">Unit Kerja</th>
                                     <th className="px-6 py-4">Hak Akses</th>
                                     <th className="px-6 py-4">Email</th>
                                     <th className="px-6 py-4 text-right">Aksi</th>
@@ -342,6 +355,9 @@ const Settings = () => {
                                                     <div className="text-[10px] text-slate-400">NIP: {user.nip || '-'}</div>
                                                 </div>
                                             </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="text-xs font-semibold text-slate-700">{user.unit?.name || 'GLOBAL / SEMUA UNIT'}</div>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${user.role === 'SUPER_ADMIN' ? 'bg-purple-100 text-purple-600' :
@@ -415,11 +431,28 @@ const Settings = () => {
                                         onChange={e => setNewUser({ ...newUser, role: e.target.value })}
                                         className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                     >
-                                        <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                                        <option value="ADMIN_ASET">ADMIN_ASET</option>
-                                        <option value="USER">USER</option>
+                                        <option value="SUPER_ADMIN">SUPER_ADMIN (Global)</option>
+                                        <option value="ADMIN_ASET">ADMIN_ASET (Global)</option>
+                                        <option value="ADMIN_UNIT">ADMIN_UNIT (Spesifik Unit)</option>
+                                        <option value="USER">USER (Spesifik Unit)</option>
+                                        <option value="AUDITOR">AUDITOR (Pemeriksa)</option>
                                     </select>
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unit Kerja Assignment</label>
+                                <select
+                                    value={newUser.unitId}
+                                    required={newUser.role === 'ADMIN_UNIT' || newUser.role === 'USER'}
+                                    onChange={e => setNewUser({ ...newUser, unitId: e.target.value })}
+                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-blue-50/30"
+                                >
+                                    <option value="">-- PILIH UNIT KERJA --</option>
+                                    {unitList.map(unit => (
+                                        <option key={unit.id} value={unit.id}>{unit.name} ({unit.code})</option>
+                                    ))}
+                                </select>
+                                <p className="text-[10px] text-slate-400 mt-1 italic">*Wajib diisi untuk ADMIN_UNIT dan USER agar data terfilter.</p>
                             </div>
                             <div className="pt-4 flex gap-2">
                                 <button

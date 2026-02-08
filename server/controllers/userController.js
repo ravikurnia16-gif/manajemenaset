@@ -11,6 +11,8 @@ exports.getAllUsers = async (req, res) => {
                 email: true,
                 nip: true,
                 role: true,
+                unitId: true,
+                unit: { select: { name: true } },
                 createdAt: true
             },
             orderBy: { createdAt: 'desc' }
@@ -22,7 +24,7 @@ exports.getAllUsers = async (req, res) => {
 };
 
 exports.createUser = async (req, res) => {
-    const { username, email, password, role, nip } = req.body;
+    const { username, email, password, role, nip, unitId } = req.body;
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
         const user = await prisma.user.create({
@@ -31,7 +33,8 @@ exports.createUser = async (req, res) => {
                 email,
                 nip,
                 password: hashedPassword,
-                role: role || 'USER'
+                role: role || 'USER',
+                unitId: unitId ? parseInt(unitId) : null
             }
         });
         res.json({ message: 'User created successfully', user: { id: user.id, username: user.username, role: user.role } });

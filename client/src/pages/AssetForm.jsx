@@ -26,6 +26,9 @@ const AssetForm = () => {
     });
     const [loading, setLoading] = useState(false);
 
+    const [currentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
+    const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(currentUser.role);
+
     useEffect(() => {
         const fetchMaster = async () => {
             try {
@@ -42,6 +45,11 @@ const AssetForm = () => {
                     vendors: rVendors.data
                 });
 
+                // Set unit if not global admin
+                if (!isGlobalAdmin && currentUser.unitId && !isEdit) {
+                    reset(prev => ({ ...prev, unitId: currentUser.unitId }));
+                }
+
                 // If editing, fetch asset details
                 if (isEdit) {
                     const rAsset = await api.get(`/assets/${id}`);
@@ -56,7 +64,7 @@ const AssetForm = () => {
             }
         };
         fetchMaster();
-    }, [id, isEdit, reset]);
+    }, [id, isEdit, reset, isGlobalAdmin, currentUser.unitId]);
 
     const selectedUnitId = watch("unitId");
     const filteredRooms = selectedUnitId
@@ -183,12 +191,17 @@ const AssetForm = () => {
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Unit / Divisi</label>
-                            <select {...register('unitId')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                            <select
+                                {...register('unitId')}
+                                disabled={!isGlobalAdmin}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white disabled:bg-slate-50 disabled:text-slate-500"
+                            >
                                 <option value="">Pilih Unit</option>
                                 {masterData.units.map(u => (
                                     <option key={u.id} value={u.id}>{u.name}</option>
                                 ))}
                             </select>
+                            {!isGlobalAdmin && <p className="text-[10px] text-blue-600 mt-1 italic font-semibold">Unit Anda terkunci sesuai pengaturan hak akses.</p>}
                         </div>
 
                         <div>

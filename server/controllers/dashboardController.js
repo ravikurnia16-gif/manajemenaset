@@ -3,10 +3,18 @@ const prisma = new PrismaClient();
 
 exports.getDashboardStats = async (req, res) => {
     try {
+        const { role, unitId } = req.user;
         const now = new Date();
+        let where = {};
+
+        // Only global admins can see all data
+        if (role !== 'SUPER_ADMIN' && role !== 'ADMIN_ASET') {
+            where.unitId = unitId;
+        }
 
         // 1. Fetch assets for value calculation
         const allAssets = await prisma.asset.findMany({
+            where,
             select: { price: true, purchaseDate: true, usefulLife: true }
         });
 
@@ -24,17 +32,16 @@ exports.getDashboardStats = async (req, res) => {
 
         // 2. Fetch other counts
         const [totalAssets, damagedAssets] = await Promise.all([
-            prisma.asset.count(),
+            prisma.asset.count({ where }),
             prisma.asset.count({
                 where: {
+                    ...where,
                     condition: { in: ['RUSAK_RINGAN', 'RUSAK_BERAT'] }
                 }
             })
         ]);
-        const assetsForExpiry = allAssets; // Use already fetched data
 
         // 3. Calculate Expired Assets (Habis Umur)
-        // purchaseDate + usefulLife < now
         const expiredAssetsCount = allAssets.filter(a => {
             const expiryDate = new Date(a.purchaseDate);
             expiryDate.setFullYear(expiryDate.getFullYear() + (a.usefulLife || 5));
@@ -43,11 +50,16 @@ exports.getDashboardStats = async (req, res) => {
 
         // 3. Category Composition (Pie Chart)
         const categories = await prisma.category.findMany({
-            include: { _count: { select: { assets: true } } }
+            include: {
+                assets: {
+                    where,
+                    select: { id: true }
+                }
+            }
         });
         const pieData = categories.map(c => ({
             name: c.name,
-            value: c._count.assets
+            value: c.assets.length
         })).filter(d => d.value > 0);
 
         // 4. Monthly Statistics (Bar Chart - Last 6 Months)
@@ -64,6 +76,7 @@ exports.getDashboardStats = async (req, res) => {
 
             const count = await prisma.asset.count({
                 where: {
+                    ...where,
                     purchaseDate: {
                         gte: startOfMonth,
                         lte: endOfMonth

@@ -5,12 +5,12 @@ const {
     getAllCategories, createCategory, deleteCategory,
     getAllVendors, createVendor, deleteVendor
 } = require('../controllers/masterController');
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 const router = express.Router();
 
 router.get('/units', verifyToken, getAllUnits);
-router.post('/units', verifyToken, createUnit);
-router.delete('/units/:id', verifyToken, deleteUnit);
+router.post('/units', verifyToken, authorizeRole(['SUPER_ADMIN']), createUnit);
+router.delete('/units/:id', verifyToken, authorizeRole(['SUPER_ADMIN']), deleteUnit);
 
 router.get('/rooms', verifyToken, getAllRooms);
 router.post('/rooms', verifyToken, createRoom);

@@ -25,14 +25,14 @@ const AssetList = () => {
         }
     };
 
+    const [currentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
+    const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(currentUser.role);
+
+    // Filter Logic
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedUnit, setSelectedUnit] = useState('');
+    const [selectedUnit, setSelectedUnit] = useState(isGlobalAdmin ? '' : (currentUser.unitId?.toString() || ''));
     const [selectedRoom, setSelectedRoom] = useState('');
     const [selectedIds, setSelectedIds] = useState([]);
-
-    // Pagination State
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     // Fetch Data from Backend
     const fetchData = async () => {
@@ -56,7 +56,11 @@ const AssetList = () => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+        // Force selection if not global admin
+        if (!isGlobalAdmin && currentUser.unitId) {
+            setSelectedUnit(currentUser.unitId.toString());
+        }
+    }, [currentUser]);
 
     // Print Handling
     const [printAsset, setPrintAsset] = useState(null);
@@ -313,13 +317,15 @@ const AssetList = () => {
                     <div className="md:col-span-3 relative">
                         <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><Building2 size={16} /></div>
                         <select
-                            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
+                            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
                             value={selectedUnit}
+                            disabled={!isGlobalAdmin}
                             onChange={e => { setSelectedUnit(e.target.value); setSelectedRoom(''); }}
                         >
                             <option value="">Semua Unit / Divisi</option>
                             {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                         </select>
+                        {!isGlobalAdmin && <div className="text-[10px] text-blue-600 mt-1 font-semibold ml-1">Unit Terkunci (Role-based)</div>}
                     </div>
 
                     <div className="md:col-span-3 relative">
@@ -336,7 +342,7 @@ const AssetList = () => {
                     </div>
 
                     <div className="md:col-span-2">
-                        <button onClick={() => { setSearchTerm(''); setSelectedUnit(''); setSelectedRoom(''); }} className="w-full px-3 py-2 border border-slate-200 bg-white rounded-lg text-slate-600 hover:bg-slate-50 flex justify-center items-center gap-2 text-sm">
+                        <button onClick={() => { setSearchTerm(''); if (isGlobalAdmin) setSelectedUnit(''); setSelectedRoom(''); }} className="w-full px-3 py-2 border border-slate-200 bg-white rounded-lg text-slate-600 hover:bg-slate-50 flex justify-center items-center gap-2 text-sm">
                             <Filter size={16} /> Reset
                         </button>
                     </div>
