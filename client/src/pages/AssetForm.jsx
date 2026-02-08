@@ -256,7 +256,7 @@ const AssetForm = () => {
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Sumber Dana</label>
                                 <select {...register('sourceOfFunds')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-blue-700">
-                                    <option value="Mandiri">Mandiri</option>
+                                    <option value="Yayasan">Yayasan</option>
                                     <option value="BOS">BOS</option>
                                     <option value="Hibah">Hibah</option>
                                     <option value="Pemerintah">Pemerintah</option>
