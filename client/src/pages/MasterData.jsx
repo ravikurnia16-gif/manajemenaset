@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Database, Plus, Trash2, Building2, MapPin, Tag, Save } from 'lucide-react';
+import { Database, Plus, Trash2, Building2, MapPin, Tag, Save, Edit3 } from 'lucide-react';
 import api from '../lib/axios';
 
 const MasterData = () => {
@@ -15,6 +15,7 @@ const MasterData = () => {
     const [newRoom, setNewRoom] = useState({ name: '', code: '', floor: '1', building: '', unitId: '' });
     const [newCategory, setNewCategory] = useState({ name: '', code: '', usefulLife: 5 });
     const [newVendor, setNewVendor] = useState({ name: '', contact: '', address: '' });
+    const [editingItem, setEditingItem] = useState(null); // { type, id, data }
 
     const fetchData = async () => {
         setLoading(true);
@@ -43,7 +44,12 @@ const MasterData = () => {
     const handleAddUnit = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/master/units', newUnit);
+            if (editingItem && editingItem.type === 'units') {
+                await api.put(`/master/units/${editingItem.id}`, newUnit);
+                setEditingItem(null);
+            } else {
+                await api.post('/master/units', newUnit);
+            }
             setNewUnit({ name: '', code: '' });
             fetchData();
         } catch (err) { alert(err.message); }
@@ -52,7 +58,12 @@ const MasterData = () => {
     const handleAddRoom = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/master/rooms', newRoom);
+            if (editingItem && editingItem.type === 'rooms') {
+                await api.put(`/master/rooms/${editingItem.id}`, newRoom);
+                setEditingItem(null);
+            } else {
+                await api.post('/master/rooms', newRoom);
+            }
             setNewRoom({ name: '', code: '', floor: '1', building: '', unitId: '' });
             fetchData();
         } catch (err) { alert(err.message); }
@@ -61,7 +72,12 @@ const MasterData = () => {
     const handleAddCategory = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/master/categories', newCategory);
+            if (editingItem && editingItem.type === 'categories') {
+                await api.put(`/master/categories/${editingItem.id}`, newCategory);
+                setEditingItem(null);
+            } else {
+                await api.post('/master/categories', newCategory);
+            }
             setNewCategory({ name: '', code: '', usefulLife: 5 });
             fetchData();
         } catch (err) { alert(err.message); }
@@ -70,7 +86,12 @@ const MasterData = () => {
     const handleAddVendor = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/master/vendors', newVendor);
+            if (editingItem && editingItem.type === 'vendors') {
+                await api.put(`/master/vendors/${editingItem.id}`, newVendor);
+                setEditingItem(null);
+            } else {
+                await api.post('/master/vendors', newVendor);
+            }
             setNewVendor({ name: '', contact: '', address: '' });
             fetchData();
         } catch (err) { alert(err.message); }
@@ -80,8 +101,26 @@ const MasterData = () => {
         if (!confirm('Hapus data ini?')) return;
         try {
             await api.delete(`/master/${type}/${id}`);
+            if (editingItem && editingItem.id === id) setEditingItem(null);
             fetchData();
         } catch (err) { alert(err.message); }
+    };
+
+    const handleEdit = (type, item) => {
+        setEditingItem({ type, id: item.id });
+        if (type === 'units') setNewUnit({ name: item.name, code: item.code });
+        if (type === 'rooms') setNewRoom({ name: item.name, code: item.code, floor: item.floor, building: item.building, unitId: item.unitId });
+        if (type === 'categories') setNewCategory({ name: item.name, code: item.code, usefulLife: item.usefulLife });
+        if (type === 'vendors') setNewVendor({ name: item.name, contact: item.contact, address: item.address });
+        setActiveTab(type);
+    };
+
+    const cancelEdit = () => {
+        setEditingItem(null);
+        setNewUnit({ name: '', code: '' });
+        setNewRoom({ name: '', code: '', floor: '1', building: '', unitId: '' });
+        setNewCategory({ name: '', code: '', usefulLife: 5 });
+        setNewVendor({ name: '', contact: '', address: '' });
     };
 
     return (
@@ -103,9 +142,14 @@ const MasterData = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Form Section */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-fit">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <Plus className="text-blue-600" size={20} /> Tambah {activeTab === 'units' ? 'Unit' : activeTab === 'rooms' ? 'Ruangan' : activeTab === 'categories' ? 'Kategori' : 'Vendor'}
-                    </h3>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <Plus className="text-blue-600" size={20} /> {editingItem ? 'Edit' : 'Tambah'} {activeTab === 'units' ? 'Unit' : activeTab === 'rooms' ? 'Ruangan' : activeTab === 'categories' ? 'Kategori' : 'Vendor'}
+                        </h3>
+                        {editingItem && (
+                            <button onClick={cancelEdit} className="text-xs text-slate-400 hover:text-slate-600 font-medium">Batal</button>
+                        )}
+                    </div>
 
                     {activeTab === 'units' && (
                         <form onSubmit={handleAddUnit} className="space-y-4">
@@ -118,7 +162,7 @@ const MasterData = () => {
                                 <input required value={newUnit.code} onChange={e => setNewUnit({ ...newUnit, code: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="MKT" />
                             </div>
                             <button className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
-                                <Save size={16} /> Simpan Unit
+                                <Save size={16} /> {editingItem ? 'Perbarui' : 'Simpan'} Unit
                             </button>
                         </form>
                     )}
@@ -147,7 +191,7 @@ const MasterData = () => {
                                 </div>
                             </div>
                             <button className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
-                                <Save size={16} /> Simpan Ruangan
+                                <Save size={16} /> {editingItem ? 'Perbarui' : 'Simpan'} Ruangan
                             </button>
                         </form>
                     )}
@@ -158,18 +202,12 @@ const MasterData = () => {
                                 <label className="block text-xs font-semibold text-slate-500 mb-1">Nama Kategori</label>
                                 <input required value={newCategory.name} onChange={e => setNewCategory({ ...newCategory, name: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Laptop" />
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Kode</label>
-                                    <input required value={newCategory.code} onChange={e => setNewCategory({ ...newCategory, code: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="LPT" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Masa Manfaat (Thn)</label>
-                                    <input type="number" required value={newCategory.usefulLife} onChange={e => setNewCategory({ ...newCategory, usefulLife: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="5" />
-                                </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Kode</label>
+                                <input required value={newCategory.code} onChange={e => setNewCategory({ ...newCategory, code: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="LPT" />
                             </div>
                             <button className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
-                                <Save size={16} /> Simpan Kategori
+                                <Save size={16} /> {editingItem ? 'Perbarui' : 'Simpan'} Kategori
                             </button>
                         </form>
                     )}
@@ -185,7 +223,7 @@ const MasterData = () => {
                                 <input value={newVendor.contact} onChange={e => setNewVendor({ ...newVendor, contact: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="0812..." />
                             </div>
                             <button className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
-                                <Save size={16} /> Simpan Vendor
+                                <Save size={16} /> {editingItem ? 'Perbarui' : 'Simpan'} Vendor
                             </button>
                         </form>
                     )}
@@ -204,7 +242,6 @@ const MasterData = () => {
                                     <th className="px-6 py-3">Nama</th>
                                     {activeTab === 'vendors' ? <th className="px-6 py-3">Kontak</th> : <th className="px-6 py-3">Kode</th>}
                                     {activeTab === 'rooms' && <th className="px-6 py-3">Unit</th>}
-                                    {activeTab === 'categories' && <th className="px-6 py-3">Masa Manfaat</th>}
                                     <th className="px-6 py-3 text-center">Aksi</th>
                                 </tr>
                             </thead>
@@ -214,7 +251,10 @@ const MasterData = () => {
                                         <td className="px-6 py-3 font-medium text-slate-800">{u.name}</td>
                                         <td className="px-6 py-3 text-slate-600 font-mono">{u.code}</td>
                                         <td className="px-6 py-3 text-center">
-                                            <button onClick={() => handleDelete('units', u.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button onClick={() => handleEdit('units', u)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit3 size={16} /></button>
+                                                <button onClick={() => handleDelete('units', u.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -224,7 +264,10 @@ const MasterData = () => {
                                         <td className="px-6 py-3 text-slate-600 font-mono">{r.code}</td>
                                         <td className="px-6 py-3 text-slate-500 text-xs">{r.unit?.name || '-'}</td>
                                         <td className="px-6 py-3 text-center">
-                                            <button onClick={() => handleDelete('rooms', r.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button onClick={() => handleEdit('rooms', r)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit3 size={16} /></button>
+                                                <button onClick={() => handleDelete('rooms', r.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -232,9 +275,11 @@ const MasterData = () => {
                                     <tr key={c.id} className="hover:bg-slate-50/50">
                                         <td className="px-6 py-3 font-medium text-slate-800">{c.name}</td>
                                         <td className="px-6 py-3 text-slate-600 font-mono">{c.code}</td>
-                                        <td className="px-6 py-3 text-slate-500">{c.usefulLife} Tahun</td>
                                         <td className="px-6 py-3 text-center">
-                                            <button onClick={() => handleDelete('categories', c.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button onClick={() => handleEdit('categories', c)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit3 size={16} /></button>
+                                                <button onClick={() => handleDelete('categories', c.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -243,7 +288,10 @@ const MasterData = () => {
                                         <td className="px-6 py-3 font-medium text-slate-800">{v.name}</td>
                                         <td className="px-6 py-3 text-slate-600">{v.contact || '-'}</td>
                                         <td className="px-6 py-3 text-center">
-                                            <button onClick={() => handleDelete('vendors', v.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button onClick={() => handleEdit('vendors', v)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit3 size={16} /></button>
+                                                <button onClick={() => handleDelete('vendors', v.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

@@ -8,67 +8,118 @@ exports.createAsset = async (req, res) => {
             name, categoryId, roomId, unitId,
             price, purchaseDate, condition, brand,
             usefulLife, vendorId, specification, sourceOfFunds, quantity,
-            acquisitionStatus
+            acquisitionStatus,
+            // Additional fields for "Other" options
+            newCategoryName, newCategoryCode,
+            newVendorName, newVendorContact,
+            newRoomName, newRoomCode, newRoomFloor, newRoomBuilding
         } = req.body;
 
-        const category = await prisma.category.findUnique({ where: { id: parseInt(categoryId) } });
-        if (!category) return res.status(404).json({ error: 'Category not found' });
+        const result = await prisma.$transaction(async (tx) => {
+            let finalCategoryId = categoryId;
+            let finalVendorId = vendorId;
+            let finalRoomId = roomId;
 
-        const unit = await prisma.unit.findUnique({ where: { id: parseInt(unitId) } });
-        if (!unit) return res.status(404).json({ error: 'Unit not found' });
-
-        const settings = await prisma.setting.findUnique({ where: { id: 1 } });
-        const prefix = settings?.assetCodePrefix || 'AST';
-        const year = new Date(purchaseDate).getFullYear();
-        const patternPrefix = `${prefix}.${unit.code}.${category.code}.${year}.`;
-
-        // Find current max sequence in DB for this specific pattern
-        const lastAsset = await prisma.asset.findFirst({
-            where: { code: { startsWith: patternPrefix } },
-            orderBy: { code: 'desc' }
-        });
-
-        let currentSeq = 1;
-        if (lastAsset) {
-            const parts = lastAsset.code.split('.');
-            const lastSeqPart = parts[parts.length - 1];
-            currentSeq = (parseInt(lastSeqPart) || 0) + 1;
-        }
-
-        const createdAssets = [];
-        const numToCreate = parseInt(quantity || 1);
-
-        for (let i = 0; i < numToCreate; i++) {
-            let finalCode;
-            if (manualCode && numToCreate === 1) {
-                finalCode = manualCode;
-            } else {
-                finalCode = `${patternPrefix}${(currentSeq + i).toString().padStart(4, '0')}`;
+            // 1. Handle New Category
+            if (categoryId === 'other') {
+                const newCat = await tx.category.create({
+                    data: {
+                        name: newCategoryName,
+                        code: newCategoryCode || newCategoryName.substring(0, 3).toUpperCase(),
+                        usefulLife: parseInt(usefulLife || 5),
+                        depreciationMethod: 'STRAIGHT_LINE'
+                    }
+                });
+                finalCategoryId = newCat.id;
             }
 
-            createdAssets.push(prisma.asset.create({
-                data: {
-                    code: finalCode,
-                    name,
-                    categoryId: parseInt(categoryId),
-                    roomId: roomId ? parseInt(roomId) : null,
-                    unitId: unitId ? parseInt(unitId) : null,
-                    vendorId: vendorId ? parseInt(vendorId) : null,
-                    price: parseFloat(price),
-                    purchaseDate: new Date(purchaseDate),
-                    usefulLife: parseInt(usefulLife || 5),
-                    condition,
-                    brand,
-                    specification,
-                    sourceOfFunds: sourceOfFunds || "Mandiri",
-                    acquisitionStatus: acquisitionStatus || "Pembelian",
-                    quantity: 1 // Actual item count is per record
-                }
-            }));
-        }
+            // 2. Handle New Vendor
+            if (vendorId === 'other') {
+                const newVendor = await tx.vendor.create({
+                    data: {
+                        name: newVendorName,
+                        contact: newVendorContact || '-'
+                    }
+                });
+                finalVendorId = newVendor.id;
+            }
 
-        const result = await Promise.all(createdAssets);
-        res.json(result[0]); // Return the first one for simplicity
+            // 3. Handle New Room
+            if (roomId === 'other') {
+                const newRoom = await tx.room.create({
+                    data: {
+                        name: newRoomName,
+                        code: newRoomCode || newRoomName.substring(0, 3).toUpperCase(),
+                        floor: newRoomFloor || '1',
+                        building: newRoomBuilding || 'Utama',
+                        unitId: unitId ? parseInt(unitId) : null
+                    }
+                });
+                finalRoomId = newRoom.id;
+            }
+
+            // 4. Validation & Setup for Asset Creation
+            const category = await tx.category.findUnique({ where: { id: parseInt(finalCategoryId) } });
+            if (!category) throw new Error('Category not found');
+
+            const unit = await tx.unit.findUnique({ where: { id: parseInt(unitId) } });
+            if (!unit) throw new Error('Unit not found');
+
+            const settings = await tx.setting.findUnique({ where: { id: 1 } });
+            const prefix = settings?.assetCodePrefix || 'AST';
+            const year = purchaseDate ? new Date(purchaseDate).getFullYear() : 'YYYY';
+            const patternPrefix = `${prefix}.${unit.code}.${category.code}.${year}.`;
+
+            // Find current max sequence in DB
+            const lastAsset = await tx.asset.findFirst({
+                where: { code: { startsWith: patternPrefix } },
+                orderBy: { code: 'desc' }
+            });
+
+            let currentSeq = 1;
+            if (lastAsset) {
+                const parts = lastAsset.code.split('.');
+                const lastSeqPart = parts[parts.length - 1];
+                currentSeq = (parseInt(lastSeqPart) || 0) + 1;
+            }
+
+            const createdAssets = [];
+            const numToCreate = parseInt(quantity || 1);
+
+            for (let i = 0; i < numToCreate; i++) {
+                let finalCode;
+                if (manualCode && numToCreate === 1) {
+                    finalCode = manualCode;
+                } else {
+                    finalCode = `${patternPrefix}${(currentSeq + i).toString().padStart(4, '0')}`;
+                }
+
+                createdAssets.push(tx.asset.create({
+                    data: {
+                        code: finalCode,
+                        name,
+                        categoryId: parseInt(finalCategoryId),
+                        roomId: finalRoomId ? parseInt(finalRoomId) : null,
+                        unitId: unitId ? parseInt(unitId) : null,
+                        vendorId: finalVendorId ? parseInt(finalVendorId) : null,
+                        price: parseFloat(price || 0),
+                        purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date(),
+                        usefulLife: parseInt(usefulLife || 5),
+                        condition: condition || 'BAIK',
+                        brand,
+                        specification,
+                        sourceOfFunds: sourceOfFunds || "Mandiri",
+                        acquisitionStatus: acquisitionStatus || "Pembelian",
+                        quantity: 1
+                    }
+                }));
+            }
+
+            const assets = await Promise.all(createdAssets);
+            return assets[0];
+        });
+
+        res.json(result);
     } catch (error) {
         console.error("Create asset error:", error);
         res.status(500).json({ error: error.message });

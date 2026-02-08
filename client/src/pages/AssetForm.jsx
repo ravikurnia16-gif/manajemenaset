@@ -71,10 +71,13 @@ const AssetForm = () => {
         fetchMaster();
     }, [id, isEdit, reset, isGlobalAdmin, currentUser.unitId]);
 
-    const watchedFields = watch(["unitId", "categoryId", "purchaseDate"]);
+    const watchedFields = watch(["unitId", "categoryId", "purchaseDate", "vendorId", "roomId", "newCategoryCode"]);
     const selectedUnitId = watchedFields[0];
     const selectedCategoryId = watchedFields[1];
     const purchaseDate = watchedFields[2];
+    const selectedVendorId = watchedFields[3];
+    const selectedRoomId = watchedFields[4];
+    const newCategoryCode = watchedFields[5];
 
     const filteredRooms = selectedUnitId
         ? masterData.rooms.filter(r => r.unitId === parseInt(selectedUnitId))
@@ -84,10 +87,18 @@ const AssetForm = () => {
     const generatePreview = () => {
         if (!selectedUnitId || !selectedCategoryId) return "Selesaikan pilihan...";
         const unit = masterData.units.find(u => u.id === parseInt(selectedUnitId));
-        const cat = masterData.categories.find(c => c.id === parseInt(selectedCategoryId));
+        let catCode = '???';
+
+        if (selectedCategoryId === 'other') {
+            catCode = newCategoryCode || '???';
+        } else {
+            const cat = masterData.categories.find(c => c.id === parseInt(selectedCategoryId));
+            catCode = cat?.code || '???';
+        }
+
         const year = purchaseDate ? new Date(purchaseDate).getFullYear() : 'YYYY';
 
-        return `${settings.assetCodePrefix || 'AST'}.${unit?.code || '???'}.${cat?.code || '???'}.${year}.xxxx`;
+        return `${settings.assetCodePrefix || 'AST'}.${unit?.code || '???'}.${catCode}.${year}.xxxx`;
     };
 
     const onSubmit = async (data) => {
@@ -177,6 +188,7 @@ const AssetForm = () => {
                                     {masterData.categories.map(c => (
                                         <option key={c.id} value={c.id}>{c.name}</option>
                                     ))}
+                                    <option value="other" className="text-blue-600 font-bold">+ Lainnya (Input Manual)</option>
                                 </select>
                                 {errors.categoryId && <span className="text-red-500 text-xs mt-1">Wajib dipilih</span>}
                             </div>
@@ -186,6 +198,16 @@ const AssetForm = () => {
                             </div>
                         </div>
 
+                        {selectedCategoryId === 'other' && (
+                            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-3 animate-in slide-in-from-top-2 duration-300">
+                                <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Kategori Baru</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input {...register('newCategoryName', { required: selectedCategoryId === 'other' })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Nama Kategori (ex: Drone)" />
+                                    <input {...register('newCategoryCode', { required: selectedCategoryId === 'other' })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono" placeholder="Kode (ex: DRN)" />
+                                </div>
+                            </div>
+                        )}
+
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Vendor / Toko</label>
                             <select {...register('vendorId')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
@@ -193,8 +215,19 @@ const AssetForm = () => {
                                 {masterData.vendors.map(v => (
                                     <option key={v.id} value={v.id}>{v.name}</option>
                                 ))}
+                                <option value="other" className="text-blue-600 font-bold">+ Lainnya (Input Manual)</option>
                             </select>
                         </div>
+
+                        {selectedVendorId === 'other' && (
+                            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-3 animate-in slide-in-from-top-2 duration-300">
+                                <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Vendor Baru</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input {...register('newVendorName', { required: selectedVendorId === 'other' })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Nama Vendor / Toko" />
+                                    <input {...register('newVendorContact')} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Kontak (Opsional)" />
+                                </div>
+                            </div>
+                        )}
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Spesifikasi</label>
@@ -264,8 +297,23 @@ const AssetForm = () => {
                                 {filteredRooms.map(r => (
                                     <option key={r.id} value={r.id}>{r.name}</option>
                                 ))}
+                                <option value="other" className="text-blue-600 font-bold">+ Lainnya (Input Manual)</option>
                             </select>
                         </div>
+
+                        {selectedRoomId === 'other' && (
+                            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-3 animate-in slide-in-from-top-2 duration-300">
+                                <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Ruangan Baru</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input {...register('newRoomName', { required: selectedRoomId === 'other' })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Nama Ruangan" />
+                                    <input {...register('newRoomCode')} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Kode Ruang (ex: R101)" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input {...register('newRoomFloor')} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Lantai (ex: 1)" />
+                                    <input {...register('newRoomBuilding')} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Gedung (ex: Utama)" />
+                                </div>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
