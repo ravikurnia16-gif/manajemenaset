@@ -183,7 +183,10 @@ exports.importRKB = async (req, res) => {
                 name,
                 qty,
                 estPrice,
-                month: (month >= 1 && month <= 12) ? month : 1, // Default Jan
+                month: (month >= 1 && month <= 12) ? month : 1,
+                // Fix: Force String conversion for text fields
+                spec: item.spec ? String(item.spec) : '-',
+                unit: item.unit ? String(item.unit) : 'Unit',
                 category: ['ASSET', 'NON_ASSET', 'JASA'].includes(item.category) ? item.category : 'NON_ASSET', // Default fallback
                 priority: ['HIGH', 'MEDIUM', 'LOW'].includes(item.priority) ? item.priority : 'MEDIUM'
             });
@@ -228,9 +231,9 @@ exports.importRKB = async (req, res) => {
                 data: {
                     rkbId: rkb.id,
                     name: item.name,
-                    spec: item.spec || '-',
+                    spec: item.spec, // Already casted above
                     qty: item.qty,
-                    unit: item.unit || 'Unit',
+                    unit: item.unit, // Already casted above
                     estPrice: item.estPrice,
                     category: item.category,
                     priority: item.priority,
