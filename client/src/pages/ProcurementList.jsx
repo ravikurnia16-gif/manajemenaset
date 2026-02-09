@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Eye, ShoppingCart, Filter, Files, Trash2 } from 'lucide-react';
-import { Plus, Eye, ShoppingCart, Filter, Files, Trash2 } from 'lucide-react';
+
 import api from '../lib/axios';
 
 import * as XLSX from 'xlsx'; // Import XLSX
