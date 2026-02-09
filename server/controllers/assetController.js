@@ -23,18 +23,17 @@ exports.createAsset = async (req, res) => {
             code: manualCode,
             name, categoryId, roomId, unitId,
             price, purchaseDate, condition, brand,
-            usefulLife, vendorId, specification, sourceOfFunds, quantity,
+            usefulLife, vendorName, specification, sourceOfFunds, quantity,
             acquisitionStatus,
             // Additional fields for "Other" options
             newCategoryName, newCategoryCode,
-            newVendorName, newVendorContact,
             newRoomName, newRoomCode, newRoomFloor, newRoomBuilding
         } = req.body;
 
         const result = await prisma.$transaction(async (tx) => {
             let finalCategoryId = categoryId;
-            let finalVendorId = vendorId;
             let finalRoomId = roomId;
+            let finalVendorName = vendorName;
 
             // 1. Handle New Category
             if (categoryId === 'other') {
@@ -49,18 +48,7 @@ exports.createAsset = async (req, res) => {
                 finalCategoryId = newCat.id;
             }
 
-            // 2. Handle New Vendor
-            if (vendorId === 'other') {
-                const newVendor = await tx.vendor.create({
-                    data: {
-                        name: newVendorName,
-                        contact: newVendorContact || '-'
-                    }
-                });
-                finalVendorId = newVendor.id;
-            }
-
-            // 3. Handle New Room
+            // 2. Handle New Room
             if (roomId === 'other') {
                 const newRoom = await tx.room.create({
                     data: {
@@ -117,7 +105,7 @@ exports.createAsset = async (req, res) => {
                         categoryId: parseInt(finalCategoryId),
                         roomId: finalRoomId ? parseInt(finalRoomId) : null,
                         unitId: unitId ? parseInt(unitId) : null,
-                        vendorId: finalVendorId ? parseInt(finalVendorId) : null,
+                        vendorName: finalVendorName || null,
                         price: parseFloat(price || 0),
                         purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date(),
                         usefulLife: parseInt(usefulLife || 5),
@@ -154,7 +142,7 @@ exports.getAllAssets = async (req, res) => {
 
         const assets = await prisma.asset.findMany({
             where,
-            include: { category: true, room: true, unit: true, vendor: true }
+            include: { category: true, room: true, unit: true }
         });
         res.json(assets);
     } catch (error) {
@@ -168,7 +156,7 @@ exports.getAssetById = async (req, res) => {
         const { id } = req.params;
         const asset = await prisma.asset.findUnique({
             where: { id: parseInt(id) },
-            include: { category: true, room: true, unit: true, vendor: true, movements: true, maintenances: true }
+            include: { category: true, room: true, unit: true, movements: true, maintenances: true }
         });
         if (!asset) return res.status(404).json({ error: 'Asset not found' });
         res.json(asset);
@@ -184,7 +172,7 @@ exports.updateAsset = async (req, res) => {
             code,
             name, categoryId, roomId, unitId,
             price, purchaseDate, condition, brand,
-            usefulLife, vendorId, specification, sourceOfFunds,
+            usefulLife, vendorName, specification, sourceOfFunds,
             acquisitionStatus
         } = req.body;
 
@@ -196,7 +184,7 @@ exports.updateAsset = async (req, res) => {
                 categoryId: categoryId ? parseInt(categoryId) : undefined,
                 roomId: roomId ? parseInt(roomId) : null,
                 unitId: unitId ? parseInt(unitId) : null,
-                vendorId: vendorId ? parseInt(vendorId) : null,
+                vendorName: vendorName || null,
                 price: price ? parseFloat(price) : undefined,
                 purchaseDate: purchaseDate ? new Date(purchaseDate) : undefined,
                 condition,
@@ -364,14 +352,8 @@ exports.batchImportAssets = async (req, res) => {
                     });
                 }
 
-                // 4. Vendor Lookup/Create
-                const vendorName = String(item['Vendor Aset']).trim();
-                let vendor = await tx.vendor.findFirst({ where: { name: { equals: vendorName } } });
-                if (!vendor) {
-                    vendor = await tx.vendor.create({
-                        data: { name: vendorName, contact: '-' }
-                    });
-                }
+                // 4. Vendor (String Only)
+                const vendorName = String(item['Vendor Aset'] || '').trim();
 
                 // 5. Code Generation
                 const year = new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']).getFullYear();
@@ -413,7 +395,7 @@ exports.batchImportAssets = async (req, res) => {
                         categoryId: category.id,
                         unitId: unit.id,
                         roomId: room.id,
-                        vendorId: vendor.id,
+                        vendorName: vendorName || '-',
                         price: parseFloat(String(item['Harga Perolehan']).replace(/[^\d.-]/g, '')),
                         purchaseDate: new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']),
                         usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)']),

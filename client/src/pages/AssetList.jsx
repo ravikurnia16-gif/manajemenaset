@@ -150,7 +150,7 @@ const AssetList = () => {
                 'Kode': a.code,
                 'Nama': a.name,
                 'Merek': a.brand || '-',
-                'Vendor': a.vendor?.name || '-',
+                'Vendor': a.vendorName || '-',
                 'Tanggal Perolehan': a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString('id-ID') : '-',
                 'Status Perolehan': 'Beli Baru', // Placeholder
                 'Harga Perolehan': a.price,
@@ -160,7 +160,7 @@ const AssetList = () => {
                 'Nama Ruangan': a.room?.name || '-',
                 'Lokasi': a.room?.building || '-',
                 'Nama Unit/Bidang': a.unit?.name || '-',
-                'Penjual/Penghibah': a.vendor?.name || '-',
+                'Penjual/Penghibah': a.vendorName || '-',
                 'Umur Ekonomis': a.usefulLife + ' Tahun',
                 'Nilai Penyusutan per Bulan': monthlyDepreciation,
                 'Jumlah Bulan Penyusutan': Math.min(monthsElapsed, totalMonths),
