@@ -354,7 +354,13 @@ exports.batchImportAssets = async (req, res) => {
                 if (!room) {
                     const baseCode = roomName.substring(0, 3).toUpperCase();
                     room = await tx.room.create({
-                        data: { name: roomName, code: `${baseCode}-${Math.floor(Math.random() * 900) + 100}`, floor: '1', building: 'Utama' }
+                        data: {
+                            name: roomName,
+                            code: `${baseCode}-${Math.floor(Math.random() * 900) + 100}`,
+                            floor: '1',
+                            building: 'Utama',
+                            unitId: unit.id
+                        }
                     });
                 }
 
@@ -371,7 +377,7 @@ exports.batchImportAssets = async (req, res) => {
                 const year = new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']).getFullYear();
 
                 // Fetch prefix from settings (could be optimized with cache if needed, but simple for now)
-                const settings = await tx.setting.findUnique({ where: { id: 1 } });
+                const settings = await tx.setting.findFirst();
                 const prefix = settings?.assetCodePrefix || 'AST';
                 const patternPrefix = `${prefix}.${unit.code}.${category.code}.${year}.`;
 
