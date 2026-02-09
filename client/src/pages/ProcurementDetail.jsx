@@ -11,13 +11,22 @@ const ProcurementDetail = () => {
     const [bastDate, setBastDate] = useState('');
     const [vendors, setVendors] = useState([]);
 
-    const user = JSON.parse(localStorage.getItem('user'));
-    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
 
     useEffect(() => {
         fetchDetail();
         fetchVendors();
     }, [id]);
+
+    const safeJSONParse = (str) => {
+        try {
+            return str ? JSON.parse(str) : [];
+        } catch (e) {
+            console.error("JSON Parse Error:", e);
+            return [];
+        }
+    };
 
     const fetchVendors = async () => {
         try {
@@ -33,15 +42,18 @@ const ProcurementDetail = () => {
             const res = await api.get(`/procurements/${id}`);
             // Initialize items with defaults if missing
             const data = res.data;
-            data.items = data.items.map(item => ({
-                ...item,
-                brand: item.brand || '',
-                usefulLife: item.usefulLife || (data.type === 'ASSET' ? 4 : 0),
-                finalPrice: item.finalPrice || item.estPrice,
-                fundingSource: item.fundingSource || 'Mandiri',
-                vendorId: item.vendorId || '',
-                comparisonVendors: item.comparisonVendors ? JSON.parse(item.comparisonVendors) : []
-            }));
+            if (data && data.items) {
+                data.items = data.items.map(item => ({
+                    ...item,
+                    brand: item.brand || '',
+                    usefulLife: item.usefulLife || (data.type === 'ASSET' ? 4 : 0),
+                    finalPrice: item.finalPrice || item.estPrice,
+                    fundingSource: item.fundingSource || 'Mandiri',
+                    vendorId: item.vendorId || '',
+                }));
+            } else {
+                data.items = [];
+            }
             setReq(data);
         } catch (error) {
             alert('Gagal mengambil data');
@@ -72,18 +84,30 @@ const ProcurementDetail = () => {
 
     const handleSaveItem = async (item) => {
         try {
+            let payloadVendorId = item.vendorId;
+            let payloadNewVendor = null;
+
+            if (item.vendorId === 'OTHER') {
+                payloadVendorId = null;
+                payloadNewVendor = item.newVendorName;
+            } else if (typeof item.vendorId === 'string' && item.vendorId.startsWith('CV-')) {
+                payloadVendorId = null;
+                payloadNewVendor = item.vendorId.replace('CV-', '');
+            }
+
             await api.put(`/procurements/items/${item.id}`, {
                 fundingSource: item.fundingSource,
                 brand: item.brand,
                 usefulLife: item.usefulLife,
                 finalPrice: item.finalPrice,
-                vendorId: item.vendorId === 'OTHER' ? null : item.vendorId,
-                newVendorName: item.vendorId === 'OTHER' ? item.newVendorName : null
+                vendorId: payloadVendorId,
+                newVendorName: payloadNewVendor
             });
             alert('Data barang berhasil disimpan!');
             fetchDetail();
             fetchVendors(); // Refresh vendor list just in case new one was added
         } catch (error) {
+            console.error(error);
             alert('Gagal menyimpan detail barang');
         }
     };
