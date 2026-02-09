@@ -7,6 +7,9 @@ router.get('/', verifyToken, procurementController.getAllProcurements);
 router.get('/:id', verifyToken, procurementController.getProcurementById);
 router.post('/', verifyToken, procurementController.createProcurement);
 
+// Import
+router.post('/import', verifyToken, procurementController.importProcurement);
+
 // Status Workflow
 router.put('/:id/status', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.updateStatus);
 

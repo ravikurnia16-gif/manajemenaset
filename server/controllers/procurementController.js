@@ -63,7 +63,7 @@ exports.getProcurementById = async (req, res) => {
 
 // Create Request
 exports.createProcurement = async (req, res) => {
-    const { type, items, rkbId } = req.body;
+    const { title, type, items, rkbId } = req.body;
     const user = req.user;
 
     try {
@@ -74,10 +74,11 @@ exports.createProcurement = async (req, res) => {
             const procurement = await prisma.procurement.create({
                 data: {
                     code,
+                    title: title || `Permintaan Pengadaan ${type} - ${new Date().toLocaleDateString('id-ID')}`,
                     userId: user.id,
-                    unitId: user.unitId, // Assumes user has unitId
+                    unitId: user.unitId,
                     type,
-                    status: 'SUBMITTED', // Skip DRAFT for simplicity
+                    status: 'SUBMITTED',
                     rkbId: rkbId ? parseInt(rkbId) : null
                 }
             });
@@ -100,6 +101,53 @@ exports.createProcurement = async (req, res) => {
         });
 
         res.json({ message: 'Request submitted', data: result });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Import Request from Excel
+exports.importProcurement = async (req, res) => {
+    const { title, type, items } = req.body;
+    const user = req.user;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Data items kosong.' });
+    }
+
+    try {
+        const code = await generateCode();
+
+        const result = await prisma.$transaction(async (prisma) => {
+            // 1. Create Header
+            const procurement = await prisma.procurement.create({
+                data: {
+                    code,
+                    title: title || `Import Request ${type} - ${new Date().toLocaleDateString('id-ID')}`,
+                    userId: user.id,
+                    unitId: user.unitId,
+                    type,
+                    status: 'SUBMITTED'
+                }
+            });
+
+            // 2. Create Items
+            // Validation Logic (Simpler than RKB, assuming frontend validated)
+            await prisma.procurementItem.createMany({
+                data: items.map(item => ({
+                    procurementId: procurement.id,
+                    name: item.name,
+                    spec: item.spec ? String(item.spec) : '-',
+                    qty: parseInt(item.qty),
+                    unit: item.unit ? String(item.unit) : 'Unit',
+                    estPrice: parseFloat(item.estPrice || 0)
+                }))
+            });
+
+            return procurement;
+        });
+
+        res.json({ message: 'Import berhasil!', data: result });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

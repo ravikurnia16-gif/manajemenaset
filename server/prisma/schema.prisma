@@ -220,6 +220,7 @@ model RKBItem {
 model Procurement {
   id          Int       @id @default(autoincrement())
   code        String    @unique // e.g. REQ/2024/001
+  title       String?   // Judul Pengajuan (e.g. Pengadaan Laptop Divisi IT)
   userId      Int
   user        User      @relation(fields: [userId], references: [id])
   unitId      Int

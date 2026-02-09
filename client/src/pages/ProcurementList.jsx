@@ -85,9 +85,14 @@ const ProcurementList = () => {
                         ) : (
                             requests.map(req => (
                                 <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4 font-bold text-slate-800 flex items-center gap-2">
-                                        <ShoppingCart size={16} className="text-blue-500" />
-                                        {req.code}
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-slate-800 flex items-center gap-2">
+                                                <ShoppingCart size={16} className="text-blue-500" />
+                                                {req.code}
+                                            </span>
+                                            <span className="text-xs text-slate-500 mt-1 font-medium">{req.title || '-'}</span>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="font-semibold text-slate-700">{req.unit?.name}</div>
@@ -96,7 +101,7 @@ const ProcurementList = () => {
                                     <td className="px-6 py-4">
                                         <span className={`px-2 py-1 rounded text-[10px] font-bold ${req.type === 'ASSET' ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600'
                                             }`}>
-                                            {req.type}
+                                            {req.type === 'NON_ASSET' ? 'NON-ASET' : req.type}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4">

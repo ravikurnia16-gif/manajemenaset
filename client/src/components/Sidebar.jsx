@@ -54,7 +54,7 @@ const Sidebar = () => {
                                 <Calendar size={16} /> Perencanaan (RKB)
                             </Link>
                             <Link to="/procurements" className={navItemClass('/procurements').replace('p-3', 'p-2 text-sm')}>
-                                <ShoppingCart size={16} /> Pengadaan (Baru)
+                                <ShoppingCart size={16} /> Request (Pengajuan)
                             </Link>
                         </div>
                     )}
