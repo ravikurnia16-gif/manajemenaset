@@ -76,9 +76,12 @@ const ProcurementDetail = () => {
                 brand: item.brand,
                 usefulLife: item.usefulLife,
                 finalPrice: item.finalPrice,
-                vendorId: item.vendorId
+                vendorId: item.vendorId === 'OTHER' ? null : item.vendorId,
+                newVendorName: item.vendorId === 'OTHER' ? item.newVendorName : null
             });
             alert('Data barang berhasil disimpan!');
+            fetchDetail();
+            fetchVendors(); // Refresh vendor list just in case new one was added
         } catch (error) {
             alert('Gagal menyimpan detail barang');
         }
@@ -115,7 +118,7 @@ const ProcurementDetail = () => {
                     {/* Step 1: Verifikasi */}
                     <div className={`relative z-10 flex flex-col items-center gap-2 ${['SUBMITTED', 'APPROVED', 'PROCESS', 'COMPLETED', 'REJECTED'].includes(req.status) ? 'opacity-100' : 'opacity-50'}`}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) ? 'bg-green-600 text-white' :
-                                req.status === 'REJECTED' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                            req.status === 'REJECTED' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
                             }`}>
                             1
                         </div>
@@ -125,7 +128,7 @@ const ProcurementDetail = () => {
                     {/* Step 2: Vendor Selection */}
                     <div className={`relative z-10 flex flex-col items-center gap-2 ${['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) ? 'opacity-100' : 'opacity-50'}`}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${req.status === 'COMPLETED' ? 'bg-green-600 text-white' :
-                                ['APPROVED', 'PROCESS'].includes(req.status) ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-200 text-slate-500'
+                            ['APPROVED', 'PROCESS'].includes(req.status) ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-200 text-slate-500'
                             }`}>
                             2
                         </div>
@@ -222,16 +225,28 @@ const ProcurementDetail = () => {
                                             <div className="mb-2">
                                                 <label className="block text-[10px] text-slate-400 mb-1 font-bold">PILIH VENDOR</label>
                                                 {isAdmin && req.status !== 'COMPLETED' ? (
-                                                    <select
-                                                        className="w-full border p-1 rounded mb-1 bg-white focus:ring-2 focus:ring-blue-200 outline-none"
-                                                        value={item.vendorId || ''}
-                                                        onChange={e => handleItemChange(index, 'vendorId', e.target.value)}
-                                                    >
-                                                        <option value="">- Pilih Vendor -</option>
-                                                        {vendors.map(v => (
-                                                            <option key={v.id} value={v.id}>{v.name}</option>
-                                                        ))}
-                                                    </select>
+                                                    <>
+                                                        <select
+                                                            className="w-full border p-1 rounded mb-1 bg-white focus:ring-2 focus:ring-blue-200 outline-none text-xs"
+                                                            value={item.vendorId || ''}
+                                                            onChange={e => handleItemChange(index, 'vendorId', e.target.value)}
+                                                        >
+                                                            <option value="">- Pilih Vendor -</option>
+                                                            {vendors.map(v => (
+                                                                <option key={v.id} value={v.id}>{v.name}</option>
+                                                            ))}
+                                                            <option value="OTHER" className="font-bold text-blue-600 bg-blue-50">+ Lainnya (Input Manual)</option>
+                                                        </select>
+                                                        {item.vendorId === 'OTHER' && (
+                                                            <input
+                                                                className="w-full border p-1 rounded mb-1 bg-yellow-50 focus:ring-2 focus:ring-yellow-200 outline-none text-xs placeholder:text-slate-400 animate-in fade-in"
+                                                                placeholder="Ketik Nama Vendor Baru..."
+                                                                value={item.newVendorName || ''}
+                                                                onChange={e => handleItemChange(index, 'newVendorName', e.target.value)}
+                                                                autoFocus
+                                                            />
+                                                        )}
+                                                    </>
                                                 ) : (
                                                     <span className="font-bold block">{vendors.find(v => v.id === item.vendorId)?.name || '-'}</span>
                                                 )}

@@ -7,7 +7,7 @@ import api from '../lib/axios';
 const ProcurementForm = () => {
     const navigate = useNavigate();
     const [header, setHeader] = useState({ title: '', type: 'ASSET', rkbId: '' });
-    const [fundingSources, setFundingSources] = useState(['Mandiri']);
+    const [fundingSources, setFundingSources] = useState(['Yayasan', 'Hibah', 'Wakaf', 'Mandiri']);
     const [items, setItems] = useState([
         { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Mandiri' }
     ]);
@@ -17,10 +17,13 @@ const ProcurementForm = () => {
     useEffect(() => {
         api.get('/assets/funding-sources')
             .then(res => {
-                if (Array.isArray(res.data) && res.data.length > 0) {
-                    setFundingSources(res.data);
+                if (Array.isArray(res.data)) {
+                    // Merge defaults with API data, convert to Set to remove duplicates
+                    const defaults = ['Yayasan', 'Hibah', 'Wakaf'];
+                    const uniqueSources = [...new Set([...defaults, ...res.data])];
+                    setFundingSources(uniqueSources);
                 } else {
-                    setFundingSources(['Mandiri']);
+                    setFundingSources(['Yayasan', 'Hibah', 'Wakaf', 'Mandiri']);
                 }
             })
             .catch(err => {

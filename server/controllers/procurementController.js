@@ -176,18 +176,37 @@ exports.updateStatus = async (req, res) => {
 };
 
 // Update Item Detail (Vendor, Brand, Specs) - New Function
+// Update Item Detail (Vendor, Brand, Specs)
 exports.updateItemDetail = async (req, res) => {
     const { itemId } = req.params;
-    const { fundingSource, brand, usefulLife, vendorId, finalPrice } = req.body;
+    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName } = req.body;
 
     try {
+        let finalVendorId = vendorId;
+
+        // Create new vendor if requested
+        if (newVendorName) {
+            const existingVendor = await prisma.vendor.findFirst({
+                where: { name: newVendorName }
+            });
+
+            if (existingVendor) {
+                finalVendorId = existingVendor.id;
+            } else {
+                const newVendor = await prisma.vendor.create({
+                    data: { name: newVendorName }
+                });
+                finalVendorId = newVendor.id;
+            }
+        }
+
         const item = await prisma.procurementItem.update({
             where: { id: parseInt(itemId) },
             data: {
                 fundingSource,
                 brand,
                 usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
-                vendorId: vendorId ? parseInt(vendorId) : undefined,
+                vendorId: finalVendorId ? parseInt(finalVendorId) : undefined,
                 finalPrice: finalPrice ? parseFloat(finalPrice) : undefined
             }
         });
