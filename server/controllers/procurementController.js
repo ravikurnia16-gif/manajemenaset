@@ -179,7 +179,7 @@ exports.updateStatus = async (req, res) => {
 // Update Item Detail (Vendor, Brand, Specs)
 exports.updateItemDetail = async (req, res) => {
     const { itemId } = req.params;
-    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName } = req.body;
+    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors } = req.body;
 
     try {
         let finalVendorId = vendorId;
@@ -207,7 +207,8 @@ exports.updateItemDetail = async (req, res) => {
                 brand,
                 usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
                 vendorId: finalVendorId ? parseInt(finalVendorId) : undefined,
-                finalPrice: finalPrice ? parseFloat(finalPrice) : undefined
+                finalPrice: finalPrice ? parseFloat(finalPrice) : undefined,
+                comparisonVendors: comparisonVendors ? JSON.stringify(comparisonVendors) : undefined
             }
         });
         res.json(item);

@@ -118,30 +118,32 @@ const ProcurementDetail = () => {
                     {/* Step 1: Verifikasi */}
                     <div className={`relative z-10 flex flex-col items-center gap-2 ${['SUBMITTED', 'APPROVED', 'PROCESS', 'COMPLETED', 'REJECTED'].includes(req.status) ? 'opacity-100' : 'opacity-50'}`}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) ? 'bg-green-600 text-white' :
-                            req.status === 'REJECTED' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                            }`}>
-                            1
-                        </div>
-                        <span className="text-xs font-bold text-slate-700">Verifikasi Info</span>
+                                req.status === 'REJECTED' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                            }`}>1</div>
+                        <span className="text-[10px] md:text-xs font-bold text-slate-700 text-center">Verifikasi</span>
                     </div>
 
-                    {/* Step 2: Vendor Selection */}
+                    {/* Step 2: Vendor Comparison (NEW) */}
                     <div className={`relative z-10 flex flex-col items-center gap-2 ${['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) ? 'opacity-100' : 'opacity-50'}`}>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${req.status === 'COMPLETED' ? 'bg-green-600 text-white' :
-                            ['APPROVED', 'PROCESS'].includes(req.status) ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-200 text-slate-500'
-                            }`}>
-                            2
-                        </div>
-                        <span className="text-xs font-bold text-slate-700">Pilih Vendor & Harga</span>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${['PROCESS', 'COMPLETED'].includes(req.status) ? 'bg-green-600 text-white' :
+                                req.status === 'APPROVED' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-200 text-slate-500'
+                            }`}>2</div>
+                        <span className="text-[10px] md:text-xs font-bold text-slate-700 text-center">Vendor Pembanding</span>
                     </div>
 
-                    {/* Step 3: BAST */}
+                    {/* Step 3: Final Selection */}
+                    <div className={`relative z-10 flex flex-col items-center gap-2 ${['PROCESS', 'COMPLETED'].includes(req.status) ? 'opacity-100' : 'opacity-50'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${req.status === 'COMPLETED' ? 'bg-green-600 text-white' :
+                                req.status === 'PROCESS' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-200 text-slate-500'
+                            }`}>3</div>
+                        <span className="text-[10px] md:text-xs font-bold text-slate-700 text-center">Finalisasi Harga</span>
+                    </div>
+
+                    {/* Step 4: BAST */}
                     <div className={`relative z-10 flex flex-col items-center gap-2 ${req.status === 'COMPLETED' ? 'opacity-100' : 'opacity-50'}`}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${req.status === 'COMPLETED' ? 'bg-green-600 text-white shadow-lg shadow-green-500/30' : 'bg-slate-200 text-slate-500'
-                            }`}>
-                            3
-                        </div>
-                        <span className="text-xs font-bold text-slate-700">Eksekusi & BAST</span>
+                            }`}>4</div>
+                        <span className="text-[10px] md:text-xs font-bold text-slate-700 text-center">Eksekusi & BAST</span>
                     </div>
                 </div>
             </div>
@@ -186,15 +188,112 @@ const ProcurementDetail = () => {
                 )}
             </div>
 
-            {/* STAGE 2: VENDOR SELECTION & PRICING */}
+            {/* STAGE 2: VENDOR COMPARISON (NEW) */}
             {['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) && (
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 animate-in slide-in-from-bottom-2">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                            <Store size={18} /> Tahap 2: Finalisasi Vendor & Harga
+                            <Store size={18} /> Tahap 2: Pemilihan Vendor Pembanding
                         </h3>
                         {req.status === 'APPROVED' && isAdmin && (
-                            <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded font-bold">Silakan lengkapi vendor & harga per item</span>
+                            <button onClick={() => handleStatus('PROCESS', 'Melanjutkan ke Tahap Finalisasi')} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20">
+                                Lanjut ke Finalisasi &rsaquo;
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="space-y-6">
+                        {req.items.map((item, index) => (
+                            <div key={item.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <div className="flex justify-between items-start mb-3">
+                                    <div>
+                                        <h4 className="font-bold text-slate-800">{item.name}</h4>
+                                        <p className="text-xs text-slate-500">{item.spec} • {item.qty} {item.unit} • Est: Rp {item.estPrice?.toLocaleString('id-ID')}</p>
+                                    </div>
+                                    {isAdmin && req.status === 'APPROVED' && (
+                                        <button onClick={() => {
+                                            const newComparisons = [...(item.comparisonVendors || [])];
+                                            newComparisons.push({ name: '', price: 0, notes: '' });
+                                            handleItemChange(index, 'comparisonVendors', newComparisons);
+                                        }} className="text-xs flex items-center gap-1 bg-white border border-slate-300 px-2 py-1 rounded font-bold hover:bg-slate-100 text-slate-600">
+                                            <Plus size={12} /> Tambah Kandidat
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* List of Comparison Vendors */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {(item.comparisonVendors || []).map((cv, cvIndex) => (
+                                        <div key={cvIndex} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm relative group">
+                                            {isAdmin && req.status === 'APPROVED' && (
+                                                <button onClick={() => {
+                                                    const newComparisons = item.comparisonVendors.filter((_, i) => i !== cvIndex);
+                                                    handleItemChange(index, 'comparisonVendors', newComparisons);
+                                                }} className="absolute top-2 right-2 text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
+                                            )}
+
+                                            <div className="space-y-2 text-xs">
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-slate-400 mb-1">VENDOR KANDIDAT</label>
+                                                    {isAdmin && req.status === 'APPROVED' ? (
+                                                        <input
+                                                            className="w-full border-b border-slate-200 focus:border-blue-500 outline-none pb-1 font-bold text-slate-700"
+                                                            placeholder="Nama Vendor..."
+                                                            value={cv.name}
+                                                            onChange={e => {
+                                                                const newComparisons = [...item.comparisonVendors];
+                                                                newComparisons[cvIndex].name = e.target.value;
+                                                                handleItemChange(index, 'comparisonVendors', newComparisons);
+                                                            }}
+                                                        />
+                                                    ) : <span className="font-bold">{cv.name}</span>}
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-slate-400 mb-1">PENAWARAN HARGA</label>
+                                                    {isAdmin && req.status === 'APPROVED' ? (
+                                                        <input
+                                                            type="number"
+                                                            className="w-full border-b border-slate-200 focus:border-blue-500 outline-none pb-1 font-mono"
+                                                            placeholder="0"
+                                                            value={cv.price}
+                                                            onChange={e => {
+                                                                const newComparisons = [...item.comparisonVendors];
+                                                                newComparisons[cvIndex].price = e.target.value;
+                                                                handleItemChange(index, 'comparisonVendors', newComparisons);
+                                                            }}
+                                                        />
+                                                    ) : <span>Rp {parseFloat(cv.price || 0).toLocaleString('id-ID')}</span>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {(!item.comparisonVendors || item.comparisonVendors.length === 0) && (
+                                        <div className="text-center py-4 text-xs text-slate-400 italic bg-white rounded border border-dashed border-slate-200">
+                                            Belum ada vendor pembanding.
+                                        </div>
+                                    )}
+                                </div>
+
+                                {isAdmin && req.status === 'APPROVED' && (
+                                    <div className="mt-3 text-right">
+                                        <button onClick={() => handleSaveItem(item)} className="text-xs bg-slate-800 text-white px-3 py-1 rounded font-bold hover:bg-slate-900">Simpan Kandidat</button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* STAGE 3: FINAL SELECTION */}
+            {['PROCESS', 'COMPLETED'].includes(req.status) && (
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 animate-in slide-in-from-bottom-2">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                            <CheckCircle size={18} /> Tahap 3: Finalisasi Vendor & Harga
+                        </h3>
+                        {req.status === 'PROCESS' && isAdmin && (
+                            <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded font-bold">Pilih pemenang dari kandidat atau input baru</span>
                         )}
                     </div>
 
@@ -203,10 +302,8 @@ const ProcurementDetail = () => {
                             <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
                                 <tr>
                                     <th className="px-4 py-2 min-w-[200px]">Barang</th>
-                                    <th className="px-4 py-2 min-w-[150px]">Spek & Qty</th>
-                                    <th className="px-4 py-2 min-w-[200px]">Vendor & Merk</th>
-                                    <th className="px-4 py-2 min-w-[100px]">Umur (Thn)</th>
-                                    <th className="px-4 py-2 min-w-[150px]">Dana & Harga Akhir</th>
+                                    <th className="px-4 py-2 min-w-[200px]">Vendor Pemenang</th>
+                                    <th className="px-4 py-2 min-w-[150px]">Harga Akhir</th>
                                     {isAdmin && <th className="px-4 py-2 text-right">Aksi</th>}
                                 </tr>
                             </thead>
@@ -215,15 +312,21 @@ const ProcurementDetail = () => {
                                     <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                                         <td className="px-4 py-3 align-top">
                                             <div className="font-bold text-slate-800">{item.name}</div>
-                                            <div className="text-xs text-slate-500 mt-1">Est: Rp {item.estPrice?.toLocaleString('id-ID')}</div>
-                                        </td>
-                                        <td className="px-4 py-3 align-top">
-                                            <div className="text-xs bg-slate-100 p-1 rounded mb-1">{item.spec || '-'}</div>
-                                            <div className="font-bold">{item.qty} {item.unit}</div>
+                                            {/* Show Comparison Summary */}
+                                            {item.comparisonVendors && item.comparisonVendors.length > 0 && (
+                                                <div className="mt-2 text-[10px] text-slate-500 bg-slate-100 p-2 rounded">
+                                                    <strong>Kandidat:</strong>
+                                                    <ul className="list-disc list-inside mt-1">
+                                                        {item.comparisonVendors.map((cv, i) => (
+                                                            <li key={i}>{cv.name} (Rp {parseFloat(cv.price).toLocaleString('id-ID')})</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 align-top text-xs">
                                             <div className="mb-2">
-                                                <label className="block text-[10px] text-slate-400 mb-1 font-bold">PILIH VENDOR</label>
+                                                <label className="block text-[10px] text-slate-400 mb-1 font-bold">FINAL VENDOR</label>
                                                 {isAdmin && req.status !== 'COMPLETED' ? (
                                                     <>
                                                         <select
@@ -234,6 +337,9 @@ const ProcurementDetail = () => {
                                                             <option value="">- Pilih Vendor -</option>
                                                             {vendors.map(v => (
                                                                 <option key={v.id} value={v.id}>{v.name}</option>
+                                                            ))}
+                                                            {(item.comparisonVendors || []).map((cv, i) => (
+                                                                <option key={`cv-${i}`} value={`CV-${cv.name}`}>{cv.name} (Kandidat)</option>
                                                             ))}
                                                             <option value="OTHER" className="font-bold text-blue-600 bg-blue-50">+ Lainnya (Input Manual)</option>
                                                         </select>
@@ -248,52 +354,26 @@ const ProcurementDetail = () => {
                                                         )}
                                                     </>
                                                 ) : (
-                                                    <span className="font-bold block">{vendors.find(v => v.id === item.vendorId)?.name || '-'}</span>
+                                                    <span className="font-bold block">{vendors.find(v => v.id === item.vendorId)?.name || item.customVendorName || '-'}</span>
                                                 )}
                                             </div>
                                             <div>
-                                                <label className="block text-[10px] text-slate-400 mb-1">Merk/Type</label>
-                                                {req.status === 'COMPLETED' ? (
-                                                    <span>{item.brand || '-'}</span>
-                                                ) : isAdmin ? (
-                                                    <input
-                                                        className="w-full border p-1 rounded"
-                                                        placeholder="Merk/Type"
-                                                        value={item.brand}
-                                                        onChange={e => handleItemChange(index, 'brand', e.target.value)}
-                                                    />
-                                                ) : <span>{item.brand || '-'}</span>}
+                                                <label className="block text-[10px] text-slate-400 mb-1">Merk/Type & Umur</label>
+                                                {isAdmin && req.status !== 'COMPLETED' ? (
+                                                    <div className="flex gap-2">
+                                                        <input className="w-full border p-1 rounded" placeholder="Merk" value={item.brand} onChange={e => handleItemChange(index, 'brand', e.target.value)} />
+                                                        <input type="number" className="w-16 border p-1 rounded" placeholder="Thn" value={item.usefulLife} onChange={e => handleItemChange(index, 'usefulLife', e.target.value)} />
+                                                    </div>
+                                                ) : <span>{item.brand} ({item.usefulLife} Thn)</span>}
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 align-top">
-                                            {req.status === 'COMPLETED' ? (
-                                                <span>{item.usefulLife} Tahun</span>
-                                            ) : isAdmin ? (
-                                                <input
-                                                    type="number"
-                                                    className="w-16 border p-1 rounded text-xs"
-                                                    value={item.usefulLife}
-                                                    onChange={e => handleItemChange(index, 'usefulLife', e.target.value)}
-                                                />
-                                            ) : <span>{item.usefulLife} Tahun</span>}
-                                        </td>
-                                        <td className="px-4 py-3 align-top space-y-1">
                                             <div className="flex items-center gap-1">
-                                                <span className="text-[10px] text-slate-400">Dana:</span>
-                                                {isAdmin && req.status !== 'COMPLETED' ? (
-                                                    <input
-                                                        className="border p-1 rounded text-xs w-24"
-                                                        value={item.fundingSource}
-                                                        onChange={e => handleItemChange(index, 'fundingSource', e.target.value)}
-                                                    />
-                                                ) : <span className="text-xs font-bold">{item.fundingSource}</span>}
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <span className="text-[10px] text-slate-400">Fix Rp:</span>
+                                                <span className="text-[10px] text-slate-400">Harga Deal:</span>
                                                 {isAdmin && req.status !== 'COMPLETED' ? (
                                                     <input
                                                         type="number"
-                                                        className="border p-1 rounded text-xs w-24 font-bold"
+                                                        className="border p-1 rounded text-xs w-32 font-bold"
                                                         value={item.finalPrice}
                                                         onChange={e => handleItemChange(index, 'finalPrice', e.target.value)}
                                                     />
@@ -318,11 +398,11 @@ const ProcurementDetail = () => {
                 </div>
             )}
 
-            {/* STAGE 3: EXECUTION & BAST */}
-            {['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) && (
+            {/* STAGE 4: EXECUTION & BAST */}
+            {['PROCESS', 'COMPLETED'].includes(req.status) && (
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 max-w-2xl animate-in slide-in-from-bottom-4">
                     <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <CheckCircle size={18} /> Tahap 3: Eksekusi & BAST
+                        <CheckCircle size={18} /> Tahap 4: Eksekusi & BAST
                     </h3>
 
                     {req.status === 'COMPLETED' ? (
@@ -336,7 +416,7 @@ const ProcurementDetail = () => {
                         <div className="space-y-4">
                             <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-700 flex items-start gap-2">
                                 <Store size={14} className="mt-0.5" />
-                                <p>Pastikan seluruh data <b>Vendor, Merk, dan Harga Akhir</b> pada Tahap 2 sudah diisi dan disimpan sebelum memproses BAST.</p>
+                                <p>Pastikan Tahap 3 (Finalisasi) sudah selesai sebelum memproses BAST.</p>
                             </div>
                             <div>
                                 <label className="text-xs font-bold text-slate-500">Tanggal Terima Barang (BAST)</label>
@@ -348,7 +428,7 @@ const ProcurementDetail = () => {
                         </div>
                     ) : (
                         <div className="text-center text-slate-500 text-sm py-8 bg-slate-50 rounded border border-slate-100">
-                            <p>Menunggu proses pengadaan oleh Admin & Vendor...</p>
+                            <p>Menunggu proses pengadaan selesai...</p>
                         </div>
                     )}
                 </div>
