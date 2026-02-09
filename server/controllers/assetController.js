@@ -426,6 +426,9 @@ exports.batchImportAssets = async (req, res) => {
                 successCount++;
             }
             return successCount;
+        }, {
+            maxWait: 10000, // 10s wait for lock
+            timeout: 60000  // 60s transaction timeout
         });
 
         res.json({ success: result, message: `Berhasil mengimport ${result} aset.` });
