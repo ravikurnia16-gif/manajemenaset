@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Eye, ShoppingCart, Filter } from 'lucide-react';
+import { Plus, Eye, ShoppingCart, Filter, Files } from 'lucide-react';
 import api from '../lib/axios';
+
+import * as XLSX from 'xlsx'; // Import XLSX
 
 const ProcurementList = () => {
     const navigate = useNavigate();
@@ -25,6 +27,26 @@ const ProcurementList = () => {
         }
     };
 
+    const handleExport = () => {
+        if (requests.length === 0) return alert('Tidak ada data untuk diexport');
+
+        const dataToExport = requests.map(req => ({
+            'Kode Request': req.code,
+            'Judul': req.title,
+            'Unit Kerja': req.unit?.name,
+            'Pemohon': req.user?.username,
+            'Jenis': req.type,
+            'Status': req.status,
+            'Tanggal': new Date(req.createdAt).toLocaleDateString('id-ID'),
+            'Jumlah Item': req._count?.items || 0
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Request Data");
+        XLSX.writeFile(wb, `List_Request_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex justify-between items-center">
@@ -32,12 +54,20 @@ const ProcurementList = () => {
                     <h1 className="text-2xl font-bold text-slate-800">Pengadaan Barang & Jasa</h1>
                     <p className="text-slate-500 text-sm">Daftar permintaan pengadaan aset dan non-aset</p>
                 </div>
-                <button
-                    onClick={() => navigate('/procurements/new')}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
-                >
-                    <Plus size={18} /> Buat Pengajuan
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleExport}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm"
+                    >
+                        <Files size={18} /> Export Excel
+                    </button>
+                    <button
+                        onClick={() => navigate('/procurements/new')}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-lg shadow-blue-600/20"
+                    >
+                        <Plus size={18} /> Buat Pengajuan
+                    </button>
+                </div>
             </div>
 
             {/* Filter Bar */}
