@@ -7,11 +7,18 @@ import api from '../lib/axios';
 const ProcurementForm = () => {
     const navigate = useNavigate();
     const [header, setHeader] = useState({ title: '', type: 'ASSET', rkbId: '' });
+    const [fundingSources, setFundingSources] = useState(['Mandiri']);
     const [items, setItems] = useState([
         { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Mandiri' }
     ]);
     const [loading, setLoading] = useState(false);
     const fileInputRef = useRef(null);
+
+    useEffect(() => {
+        api.get('/assets/funding-sources')
+            .then(res => setFundingSources(res.data.length ? res.data : ['Mandiri']))
+            .catch(() => { });
+    }, []);
 
     const handleItemChange = (index, field, value) => {
         const newItems = [...items];
@@ -222,11 +229,17 @@ const ProcurementForm = () => {
                                             <div className="col-span-1">
                                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Sumber Dana</label>
                                                 <input
-                                                    placeholder="Mandiri/BOS..."
+                                                    list="funding-options"
+                                                    placeholder="Pilih/Ketik..."
                                                     className="border border-slate-300 p-2 rounded text-sm w-full focus:border-blue-500 outline-none"
                                                     value={item.fundingSource}
                                                     onChange={e => handleItemChange(index, 'fundingSource', e.target.value)}
                                                 />
+                                                <datalist id="funding-options">
+                                                    {fundingSources.map((src, i) => (
+                                                        <option key={i} value={src} />
+                                                    ))}
+                                                </datalist>
                                             </div>
                                         </div>
                                     </div>

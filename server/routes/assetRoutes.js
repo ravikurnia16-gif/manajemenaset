@@ -1,8 +1,9 @@
 const express = require('express');
-const { createAsset, getAllAssets, getAssetById, updateAsset, deleteAsset, batchImportAssets, deleteMultipleAssets } = require('../controllers/assetController');
+const { createAsset, getAllAssets, getAssetById, updateAsset, deleteAsset, batchImportAssets, deleteMultipleAssets, getFundingSources } = require('../controllers/assetController');
 const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 const router = express.Router();
 
+router.get('/funding-sources', verifyToken, getFundingSources);
 router.post('/', verifyToken, createAsset);
 router.get('/', verifyToken, getAllAssets);
 router.get('/:id', verifyToken, getAssetById);

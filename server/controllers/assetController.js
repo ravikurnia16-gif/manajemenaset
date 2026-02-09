@@ -1,6 +1,22 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+exports.getFundingSources = async (req, res) => {
+    try {
+        const sources = await prisma.asset.findMany({
+            select: { sourceOfFunds: true },
+            distinct: ['sourceOfFunds']
+        });
+        const uniqueSources = sources
+            .map(s => s.sourceOfFunds)
+            .filter(s => s) // Remove nulls
+            .sort();
+        res.json(uniqueSources);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.createAsset = async (req, res) => {
     try {
         const {

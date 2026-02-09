@@ -9,12 +9,24 @@ const ProcurementDetail = () => {
     const [req, setReq] = useState(null);
     const [loading, setLoading] = useState(true);
     const [bastDate, setBastDate] = useState('');
+    const [vendors, setVendors] = useState([]);
+
     const user = JSON.parse(localStorage.getItem('user'));
     const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
 
     useEffect(() => {
         fetchDetail();
+        fetchVendors();
     }, [id]);
+
+    const fetchVendors = async () => {
+        try {
+            const res = await api.get('/master/vendors');
+            setVendors(res.data);
+        } catch (error) {
+            console.error('Failed to fetch vendors');
+        }
+    };
 
     const fetchDetail = async () => {
         try {
@@ -135,7 +147,7 @@ const ProcurementDetail = () => {
                                 <th className="px-4 py-2 min-w-[150px]">Spek & Qty</th>
                                 {['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) && (
                                     <>
-                                        <th className="px-4 py-2 min-w-[150px]">Merk/Type</th>
+                                        <th className="px-4 py-2 min-w-[150px]">Vendor & Merk</th>
                                         <th className="px-4 py-2 min-w-[100px]">Umur (Thn)</th>
                                         <th className="px-4 py-2 min-w-[150px]">Dana & Harga Akhir</th>
                                         {isAdmin && <th className="px-4 py-2 text-right">Aksi</th>}
@@ -157,17 +169,37 @@ const ProcurementDetail = () => {
 
                                     {['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) ? (
                                         <>
-                                            <td className="px-4 py-3 align-top">
-                                                {req.status === 'COMPLETED' ? (
-                                                    <span>{item.brand || '-'}</span>
-                                                ) : isAdmin ? (
-                                                    <input
-                                                        className="w-full border p-1 rounded text-xs mb-1"
-                                                        placeholder="Merk/Type"
-                                                        value={item.brand}
-                                                        onChange={e => handleItemChange(index, 'brand', e.target.value)}
-                                                    />
-                                                ) : <span>{item.brand || '-'}</span>}
+                                            <td className="px-4 py-3 align-top text-xs">
+                                                <div className="mb-2">
+                                                    <label className="block text-[10px] text-slate-400 mb-1">Vendor</label>
+                                                    {isAdmin && req.status !== 'COMPLETED' ? (
+                                                        <select
+                                                            className="w-full border p-1 rounded mb-1"
+                                                            value={item.vendorId || ''}
+                                                            onChange={e => handleItemChange(index, 'vendorId', e.target.value)}
+                                                        >
+                                                            <option value="">- Pilih Vendor -</option>
+                                                            {vendors.map(v => (
+                                                                <option key={v.id} value={v.id}>{v.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    ) : (
+                                                        <span className="font-bold block">{vendors.find(v => v.id === item.vendorId)?.name || '-'}</span>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] text-slate-400 mb-1">Merk/Type</label>
+                                                    {req.status === 'COMPLETED' ? (
+                                                        <span>{item.brand || '-'}</span>
+                                                    ) : isAdmin ? (
+                                                        <input
+                                                            className="w-full border p-1 rounded"
+                                                            placeholder="Merk/Type"
+                                                            value={item.brand}
+                                                            onChange={e => handleItemChange(index, 'brand', e.target.value)}
+                                                        />
+                                                    ) : <span>{item.brand || '-'}</span>}
+                                                </div>
                                             </td>
                                             <td className="px-4 py-3 align-top">
                                                 {req.status === 'COMPLETED' ? (
