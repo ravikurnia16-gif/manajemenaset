@@ -16,14 +16,23 @@ const ProcurementForm = () => {
 
     useEffect(() => {
         api.get('/assets/funding-sources')
-            .then(res => setFundingSources(res.data.length ? res.data : ['Mandiri']))
-            .catch(() => { });
+            .then(res => {
+                if (Array.isArray(res.data) && res.data.length > 0) {
+                    setFundingSources(res.data);
+                } else {
+                    setFundingSources(['Mandiri']);
+                }
+            })
+            .catch(err => {
+                console.error("Failed to fetch funding sources:", err);
+                setFundingSources(['Mandiri']);
+            });
     }, []);
 
     const handleItemChange = (index, field, value) => {
-        const newItems = [...items];
-        newItems[index][field] = value;
-        setItems(newItems);
+        setItems(prevItems => prevItems.map((item, i) =>
+            i === index ? { ...item, [field]: value } : item
+        ));
     };
 
     const addItem = () => {
@@ -235,11 +244,7 @@ const ProcurementForm = () => {
                                                     value={item.fundingSource}
                                                     onChange={e => handleItemChange(index, 'fundingSource', e.target.value)}
                                                 />
-                                                <datalist id="funding-options">
-                                                    {fundingSources.map((src, i) => (
-                                                        <option key={i} value={src} />
-                                                    ))}
-                                                </datalist>
+                                                {/* Datalist moved outside loop */}
                                             </div>
                                         </div>
                                     </div>
@@ -269,6 +274,12 @@ const ProcurementForm = () => {
                             {loading ? 'Mengirim...' : 'Kirim Request'} <Upload size={18} />
                         </button>
                     </div>
+                    {/* Shared Datalist for Funding Sources */}
+                    <datalist id="funding-options">
+                        {Array.isArray(fundingSources) && fundingSources.map((src, i) => (
+                            <option key={i} value={src} />
+                        ))}
+                    </datalist>
                 </form>
             </div>
         </div>
