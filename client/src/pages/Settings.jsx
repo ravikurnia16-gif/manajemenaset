@@ -430,6 +430,7 @@ const Settings = () => {
                                         value={newUser.nip}
                                         onChange={e => setNewUser({ ...newUser, nip: e.target.value })}
                                         className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="Nomor Induk Yayasan"
                                     />
                                 </div>
                                 <div>
@@ -443,45 +444,79 @@ const Settings = () => {
                                     />
                                 </div>
                             </div>
+
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Jabatan</label>
-                                <input
-                                    type="text"
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Jabatan & Hak Akses</label>
+                                <select
                                     value={newUser.position || ''}
-                                    onChange={e => setNewUser({ ...newUser, position: e.target.value })}
-                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                    placeholder="Contoh: Staff Sarpras"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Role</label>
-                                <select
-                                    value={newUser.role}
-                                    onChange={e => setNewUser({ ...newUser, role: e.target.value })}
-                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    onChange={e => {
+                                        const pos = [
+                                            { label: 'Ketua Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                            { label: 'Sekretaris Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                            { label: 'Bendahara Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                            { label: 'Kepala Bidang Sarana dan Prasarana', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                            { label: 'Staf Bidang Sarana dan Prasarana', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+                                            { label: 'Kepala Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
+                                            { label: 'Bendahara Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
+                                            { label: 'Sarpras Unit', role: 'USER', scope: 'UNIT' }
+                                        ].find(p => p.label === e.target.value);
+
+                                        if (pos) {
+                                            setNewUser({
+                                                ...newUser,
+                                                position: pos.label,
+                                                role: pos.role,
+                                                unitId: pos.scope === 'GLOBAL' ? '' : newUser.unitId
+                                            });
+                                        } else {
+                                            setNewUser({ ...newUser, position: e.target.value });
+                                        }
+                                    }}
+                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-medium text-slate-700"
                                 >
-                                    <option value="SUPER_ADMIN">SUPER_ADMIN (Global)</option>
-                                    <option value="ADMIN_ASET">ADMIN_ASET (Global)</option>
-                                    <option value="ADMIN_UNIT">ADMIN_UNIT (Spesifik Unit)</option>
-                                    <option value="USER">USER (Spesifik Unit)</option>
-                                    <option value="AUDITOR">AUDITOR (Pemeriksa)</option>
+                                    <option value="">-- PILIH JABATAN --</option>
+                                    <optgroup label="Pengurus Yayasan (Global Access)">
+                                        <option value="Ketua Yayasan">Ketua Yayasan</option>
+                                        <option value="Sekretaris Yayasan">Sekretaris Yayasan</option>
+                                        <option value="Bendahara Yayasan">Bendahara Yayasan</option>
+                                    </optgroup>
+                                    <optgroup label="Bidang Sarana Prasarana (Global Access)">
+                                        <option value="Kepala Bidang Sarana dan Prasarana">Kepala Bidang Sarana dan Prasarana</option>
+                                        <option value="Staf Bidang Sarana dan Prasarana">Staf Bidang Sarana dan Prasarana</option>
+                                    </optgroup>
+                                    <optgroup label="Unit Sekolah / Lembaga (Unit Access)">
+                                        <option value="Kepala Unit">Kepala Unit</option>
+                                        <option value="Bendahara Unit">Bendahara Unit</option>
+                                        <option value="Sarpras Unit">Sarpras Unit</option>
+                                    </optgroup>
                                 </select>
+                                <div className="mt-1 text-[10px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
+                                    Role System: <span className="font-bold text-blue-600">{newUser.role || '-'}</span>
+                                    {newUser.role && (
+                                        <span className="ml-1 text-slate-400">
+                                            ({['SUPER_ADMIN', 'ADMIN_ASET'].includes(newUser.role) ? 'Akses Global' : 'Akses Terbatas Unit'})
+                                        </span>
+                                    )}
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unit Kerja Assignment</label>
-                                <select
-                                    value={newUser.unitId}
-                                    required={newUser.role === 'ADMIN_UNIT' || newUser.role === 'USER'}
-                                    onChange={e => setNewUser({ ...newUser, unitId: e.target.value })}
-                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-blue-50/30"
-                                >
-                                    <option value="">-- PILIH UNIT KERJA --</option>
-                                    {unitList.map(unit => (
-                                        <option key={unit.id} value={unit.id}>{unit.name} ({unit.code})</option>
-                                    ))}
-                                </select>
-                                <p className="text-[10px] text-slate-400 mt-1 italic">*Wajib diisi untuk ADMIN_UNIT dan USER agar data terfilter.</p>
-                            </div>
+
+                            {['ADMIN_UNIT', 'USER'].includes(newUser.role) && (
+                                <div className="animate-in slide-in-from-top-2 fade-in">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unit Kerja Assignment</label>
+                                    <select
+                                        value={newUser.unitId}
+                                        required={['ADMIN_UNIT', 'USER'].includes(newUser.role)}
+                                        onChange={e => setNewUser({ ...newUser, unitId: e.target.value })}
+                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-blue-50/30"
+                                    >
+                                        <option value="">-- PILIH UNIT KERJA --</option>
+                                        {unitList.map(unit => (
+                                            <option key={unit.id} value={unit.id}>{unit.name} ({unit.code})</option>
+                                        ))}
+                                    </select>
+                                    <p className="text-[10px] text-slate-400 mt-1 italic">*Wajib diisi untuk Staff Unit agar data terfilter sesuai unitnya.</p>
+                                </div>
+                            )}
                             <div className="pt-4 flex gap-2">
                                 <button
                                     type="button"
