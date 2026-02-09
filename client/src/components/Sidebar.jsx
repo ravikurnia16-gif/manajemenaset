@@ -27,8 +27,8 @@ const Sidebar = () => {
     return (
         <div className="w-64 bg-slate-900 text-white min-h-screen flex flex-col shadow-xl">
             <div className="p-6 border-b border-slate-800">
-                <div className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">AMIS</div>
-                <div className="text-xs text-slate-500 mt-1">Asset Management System</div>
+                <div className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">SARPRAS DEI</div>
+                <div className="text-[10px] text-slate-500 mt-1">Sistem Sarana Prasarana</div>
             </div>
 
             <nav className="flex-1 p-4 overflow-y-auto">

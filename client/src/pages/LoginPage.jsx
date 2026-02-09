@@ -41,8 +41,8 @@ const LoginPage = () => {
                         <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white mb-3 shadow-lg shadow-blue-200">
                             <LayoutDashboard size={24} />
                         </div>
-                        <h2 className="text-2xl font-bold text-slate-800">Welcome Back</h2>
-                        <p className="text-slate-500 text-sm">Masuk untuk mengelola aset anda</p>
+                        <h2 className="text-2xl font-bold text-slate-800">SARPRAS DEI</h2>
+                        <p className="text-slate-500 text-sm">Sistem Manajemen Aset & Pengadaan</p>
                     </div>
 
                     <form onSubmit={handleLogin} className="space-y-5">
