@@ -22,4 +22,8 @@ router.post('/:id/offers', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASE
 // BAST & Completion
 router.post('/:id/bast', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.processBAST);
 
+// Delete
+router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.deleteProcurement);
+router.post('/bulk-delete', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.bulkDeleteProcurements);
+
 module.exports = router;

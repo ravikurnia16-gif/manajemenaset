@@ -13,16 +13,23 @@ const generateCode = async () => {
 
 // Get all procurements
 exports.getAllProcurements = async (req, res) => {
-    const { status, type } = req.query;
+    const { status, type, unitId } = req.query;
     const user = req.user;
 
     try {
         const whereClause = {};
         if (status) whereClause.status = status;
         if (type) whereClause.type = type;
+        if (unitId) whereClause.unitId = parseInt(unitId);
 
-        // Filter by Unit for non-admins
-        if (user.role === 'ADMIN_UNIT' || user.role === 'USER') {
+        // Filter by Unit for non-admins (Restrict to own unit)
+        // Admin Unit also restricted to own unit? Usually yes.
+        // Only Super Admin might see all. Assuming 'ADMIN_UNIT' sees own.
+        // If user is basic USER, also sees own.
+        // If user has role SUPER_ADMIN (if exists) or just check logic.
+        // For now: If user.unitId exists, force it unless we have a specific 'ALL' role.
+        // Let's assume ADMIN_UNIT is bound to unitId.
+        if (['ADMIN_UNIT', 'USER'].includes(user.role)) {
             whereClause.unitId = user.unitId;
         }
 
@@ -37,6 +44,52 @@ exports.getAllProcurements = async (req, res) => {
         });
         res.json(procurements);
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Delete single procurement
+exports.deleteProcurement = async (req, res) => {
+    const { id } = req.params;
+    try {
+        // Optional: Check status before delete? e.g. Can't delete COMPLETED?
+        // For now allow delete but maybe restrict to ADMIN
+
+        // Cascade delete Items, Offers, etc. is handled by Prisma Schema usually 
+        // OR we must delete manually if relation is not set to onDelete: Cascade
+
+        // Let's assume explicit delete for safety
+        await prisma.procurementItem.deleteMany({ where: { procurementId: parseInt(id) } });
+        await prisma.vendorOffer.deleteMany({ where: { procurementId: parseInt(id) } });
+
+        await prisma.procurement.delete({
+            where: { id: parseInt(id) }
+        });
+
+        res.json({ message: 'Request deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Bulk Delete
+exports.bulkDeleteProcurements = async (req, res) => {
+    const { ids } = req.body; // Expect array of IDs
+    if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'Invalid IDs' });
+
+    try {
+        // Delete related items first
+        await prisma.procurementItem.deleteMany({ where: { procurementId: { in: ids.map(id => parseInt(id)) } } });
+        await prisma.vendorOffer.deleteMany({ where: { procurementId: { in: ids.map(id => parseInt(id)) } } });
+
+        const result = await prisma.procurement.deleteMany({
+            where: { id: { in: ids.map(id => parseInt(id)) } }
+        });
+
+        res.json({ message: `${result.count} requests deleted successfully` });
+    } catch (error) {
+        console.error(error);
         res.status(500).json({ error: error.message });
     }
 };
