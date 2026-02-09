@@ -9,7 +9,7 @@ const ProcurementForm = () => {
     const [header, setHeader] = useState({ title: '', type: 'ASSET', rkbId: '' });
     const [fundingSources, setFundingSources] = useState(['Yayasan', 'Hibah', 'Wakaf', 'Mandiri']);
     const [items, setItems] = useState([
-        { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Mandiri' }
+        { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan' }
     ]);
     const [loading, setLoading] = useState(false);
     const fileInputRef = useRef(null);
@@ -39,7 +39,7 @@ const ProcurementForm = () => {
     };
 
     const addItem = () => {
-        setItems([...items, { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Mandiri' }]);
+        setItems([...items, { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan' }]);
     };
 
     const removeItem = (index) => {
@@ -240,13 +240,15 @@ const ProcurementForm = () => {
                                             </div>
                                             <div className="col-span-1">
                                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Sumber Dana</label>
-                                                <input
-                                                    list="funding-options"
-                                                    placeholder="Pilih/Ketik..."
-                                                    className="border border-slate-300 p-2 rounded text-sm w-full focus:border-blue-500 outline-none"
+                                                <select
+                                                    className="border border-slate-300 p-2 rounded text-sm w-full focus:border-blue-500 outline-none bg-white"
                                                     value={item.fundingSource}
                                                     onChange={e => handleItemChange(index, 'fundingSource', e.target.value)}
-                                                />
+                                                >
+                                                    {fundingSources.map((fs, idx) => (
+                                                        <option key={idx} value={fs}>{fs}</option>
+                                                    ))}
+                                                </select>
                                                 {/* Datalist moved outside loop */}
                                             </div>
                                         </div>

@@ -39,7 +39,8 @@ const ProcurementDetail = () => {
                 usefulLife: item.usefulLife || (data.type === 'ASSET' ? 4 : 0),
                 finalPrice: item.finalPrice || item.estPrice,
                 fundingSource: item.fundingSource || 'Mandiri',
-                vendorId: item.vendorId || ''
+                vendorId: item.vendorId || '',
+                comparisonVendors: item.comparisonVendors ? JSON.parse(item.comparisonVendors) : []
             }));
             setReq(data);
         } catch (error) {
@@ -118,7 +119,7 @@ const ProcurementDetail = () => {
                     {/* Step 1: Verifikasi */}
                     <div className={`relative z-10 flex flex-col items-center gap-2 ${['SUBMITTED', 'APPROVED', 'PROCESS', 'COMPLETED', 'REJECTED'].includes(req.status) ? 'opacity-100' : 'opacity-50'}`}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) ? 'bg-green-600 text-white' :
-                                req.status === 'REJECTED' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                            req.status === 'REJECTED' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
                             }`}>1</div>
                         <span className="text-[10px] md:text-xs font-bold text-slate-700 text-center">Verifikasi</span>
                     </div>
@@ -126,7 +127,7 @@ const ProcurementDetail = () => {
                     {/* Step 2: Vendor Comparison (NEW) */}
                     <div className={`relative z-10 flex flex-col items-center gap-2 ${['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) ? 'opacity-100' : 'opacity-50'}`}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${['PROCESS', 'COMPLETED'].includes(req.status) ? 'bg-green-600 text-white' :
-                                req.status === 'APPROVED' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-200 text-slate-500'
+                            req.status === 'APPROVED' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-200 text-slate-500'
                             }`}>2</div>
                         <span className="text-[10px] md:text-xs font-bold text-slate-700 text-center">Vendor Pembanding</span>
                     </div>
@@ -134,7 +135,7 @@ const ProcurementDetail = () => {
                     {/* Step 3: Final Selection */}
                     <div className={`relative z-10 flex flex-col items-center gap-2 ${['PROCESS', 'COMPLETED'].includes(req.status) ? 'opacity-100' : 'opacity-50'}`}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${req.status === 'COMPLETED' ? 'bg-green-600 text-white' :
-                                req.status === 'PROCESS' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-200 text-slate-500'
+                            req.status === 'PROCESS' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-200 text-slate-500'
                             }`}>3</div>
                         <span className="text-[10px] md:text-xs font-bold text-slate-700 text-center">Finalisasi Harga</span>
                     </div>
