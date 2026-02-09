@@ -444,6 +444,16 @@ const Settings = () => {
                                 />
                             </div>
                             <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email <span className="font-normal text-slate-400 normal-case">(Opsional)</span></label>
+                                <input
+                                    type="email"
+                                    value={newUser.email || ''}
+                                    onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="user@example.com"
+                                />
+                            </div>
+                            <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label>
                                 <input
                                     type="password"
