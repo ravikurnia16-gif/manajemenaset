@@ -166,15 +166,27 @@ const ProcurementDetail = () => {
                         Validasi & Pembanding
                     </button>
                     <button
+                        disabled={req.status === 'SUBMITTED'}
                         onClick={() => setActiveTab('FINAL')}
-                        className={`flex-1 py-4 text-sm font-bold flex flex-col items-center gap-1 border-b-2 transition-colors ${activeTab === 'FINAL' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-500 hover:bg-slate-50'}`}
+                        className={`flex-1 py-4 text-sm font-bold flex flex-col items-center gap-1 border-b-2 transition-colors ${activeTab === 'FINAL'
+                            ? 'border-blue-600 text-blue-600 bg-blue-50/50'
+                            : req.status === 'SUBMITTED'
+                                ? 'border-transparent text-slate-300 cursor-not-allowed'
+                                : 'border-transparent text-slate-500 hover:bg-slate-50'
+                            }`}
                     >
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${['PROCESS', 'COMPLETED'].includes(req.status) ? 'bg-green-100 text-green-600' : 'bg-slate-200 text-slate-500'}`}>3</div>
                         Finalisasi
                     </button>
                     <button
+                        disabled={!['PROCESS', 'COMPLETED'].includes(req.status)}
                         onClick={() => setActiveTab('BAST')}
-                        className={`flex-1 py-4 text-sm font-bold flex flex-col items-center gap-1 border-b-2 transition-colors ${activeTab === 'BAST' ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-500 hover:bg-slate-50'}`}
+                        className={`flex-1 py-4 text-sm font-bold flex flex-col items-center gap-1 border-b-2 transition-colors ${activeTab === 'BAST'
+                            ? 'border-blue-600 text-blue-600 bg-blue-50/50'
+                            : !['PROCESS', 'COMPLETED'].includes(req.status)
+                                ? 'border-transparent text-slate-300 cursor-not-allowed'
+                                : 'border-transparent text-slate-500 hover:bg-slate-50'
+                            }`}
                     >
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${req.status === 'COMPLETED' ? 'bg-green-100 text-green-600' : 'bg-slate-200 text-slate-500'}`}>4</div>
                         BAST
@@ -469,6 +481,31 @@ const ProcurementDetail = () => {
                                         </tbody>
                                     </table>
                                 </div>
+                                {isAdmin && req.status === 'PROCESS' && (
+                                    <div className="mt-8 flex justify-end border-t border-slate-100 pt-6">
+                                        <button
+                                            onClick={() => {
+                                                const invalidItems = req.items.filter(item =>
+                                                    !item.vendorId ||
+                                                    (item.vendorId === 'OTHER' && !item.newVendorName) ||
+                                                    !item.finalPrice ||
+                                                    !item.brand ||
+                                                    !item.fundingSource
+                                                );
+
+                                                if (invalidItems.length > 0) {
+                                                    alert(`Masih ada ${invalidItems.length} barang yang belum lengkap datanya (Vendor, Harga, Merk, Sumber Dana). Harap lengkapi semua baris.`);
+                                                    return;
+                                                }
+                                                setActiveTab('BAST');
+                                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                            }}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20"
+                                        >
+                                            Lanjut ke BAST <CheckCircle size={18} />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="bg-yellow-50 p-8 rounded-xl border border-yellow-100 text-center text-yellow-700">
