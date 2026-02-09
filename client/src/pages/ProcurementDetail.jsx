@@ -361,14 +361,13 @@ const ProcurementDetail = () => {
                                                             value={item.vendorId || ''}
                                                             onChange={e => handleItemChange(index, 'vendorId', e.target.value)}
                                                         >
-                                                            <option value="">- Pilih Vendor -</option>
-                                                            {vendors.map(v => (
-                                                                <option key={v.id} value={v.id}>{v.name}</option>
-                                                            ))}
+                                                            <option value="">- Pilih Pemenang dari Kandidat -</option>
                                                             {(item.comparisonVendors || []).map((cv, i) => (
-                                                                <option key={`cv-${i}`} value={`CV-${cv.name}`}>{cv.name} (Kandidat)</option>
+                                                                <option key={`cv-${i}`} value={`CV-${cv.name}`}>{cv.name} (Harga: {parseFloat(cv.price).toLocaleString('id-ID')})</option>
                                                             ))}
-                                                            <option value="OTHER" className="font-bold text-blue-600 bg-blue-50">+ Lainnya (Input Manual)</option>
+                                                            <option disabled>──────────</option>
+                                                            {/* Option to pick from Master Data if really needed, but user requested Candidate focus */}
+                                                            <option value="OTHER" className="font-bold text-blue-600 bg-blue-50">+ Vendor Baru / Lainnya</option>
                                                         </select>
                                                         {item.vendorId === 'OTHER' && (
                                                             <input
