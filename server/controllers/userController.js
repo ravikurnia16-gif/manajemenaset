@@ -50,6 +50,38 @@ exports.createUser = async (req, res) => {
     }
 };
 
+
+exports.updateUser = async (req, res) => {
+    const { id } = req.params;
+    const { username, email, password, role, nip, unitId, phone, position } = req.body;
+    try {
+        const data = {
+            username,
+            email,
+            nip,
+            phone,
+            position,
+            role: role || 'USER',
+            unitId: unitId ? parseInt(unitId) : null
+        };
+
+        if (password) {
+            data.password = await bcrypt.hash(password, 10);
+        }
+
+        const user = await prisma.user.update({
+            where: { id: parseInt(id) },
+            data
+        });
+        res.json({ message: 'User updated successfully', user: { id: user.id, username: user.username, role: user.role } });
+    } catch (error) {
+        if (error.code === 'P2002') {
+            return res.status(400).json({ error: 'Username, Email, atau NIP sudah terdaftar' });
+        }
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.deleteUser = async (req, res) => {
     const { id } = req.params;
     try {

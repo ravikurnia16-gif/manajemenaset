@@ -98,17 +98,39 @@ const Settings = () => {
         }
     };
 
-    const handleCreateUser = async (e) => {
+    const handleSaveUser = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/users', newUser);
-            alert('User berhasil ditambahkan!');
+            if (newUser.id) {
+                // UPDATE logic
+                await api.put(`/users/${newUser.id}`, newUser);
+                alert('User berhasil diperbarui!');
+            } else {
+                // CREATE logic
+                await api.post('/users', newUser);
+                alert('User berhasil ditambahkan!');
+            }
             setShowUserModal(false);
             setNewUser({ username: '', password: '', email: '', nip: '', phone: '', position: '', role: 'USER', unitId: '' });
             fetchUsers();
         } catch (error) {
-            alert(error.response?.data?.error || 'Gagal menambah user');
+            alert(error.response?.data?.error || 'Gagal menyimpan user');
         }
+    };
+
+    const handleEditUser = (user) => {
+        setNewUser({
+            id: user.id,
+            username: user.username,
+            password: '', // Password empty means no change
+            email: user.email || '',
+            nip: user.nip || '',
+            phone: user.phone || '',
+            position: user.position || '',
+            role: user.role,
+            unitId: user.unitId || ''
+        });
+        setShowUserModal(true);
     };
 
     const handleDeleteUser = async (id) => {
@@ -325,7 +347,10 @@ const Settings = () => {
                             <p className="text-slate-500 text-xs">Kelola akses staf dan otorisasi sistem</p>
                         </div>
                         <button
-                            onClick={() => setShowUserModal(true)}
+                            onClick={() => {
+                                setNewUser({ username: '', password: '', email: '', nip: '', phone: '', position: '', role: 'USER', unitId: '' });
+                                setShowUserModal(true);
+                            }}
                             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all"
                         >
                             + Tambah Pengguna
@@ -376,7 +401,13 @@ const Settings = () => {
                                                 {user.phone && <span className="text-[10px] text-slate-400">📞 {user.phone}</span>}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-right">
+                                        <td className="px-6 py-4 text-right space-x-2">
+                                            <button
+                                                onClick={() => handleEditUser(user)}
+                                                className="text-blue-500 hover:text-blue-700 text-xs font-bold"
+                                            >
+                                                Edit
+                                            </button>
                                             <button
                                                 onClick={() => handleDeleteUser(user.id)}
                                                 disabled={user.id === currentUser.id}
@@ -393,15 +424,15 @@ const Settings = () => {
                 </div>
             )}
 
-            {/* Modal Tambah User */}
+            {/* Modal Tambah/Edit User */}
             {showUserModal && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
                         <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-                            <h2 className="font-bold text-slate-800">Tambah Pengguna Baru</h2>
+                            <h2 className="font-bold text-slate-800">{newUser.id ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}</h2>
                             <button onClick={() => setShowUserModal(false)} className="text-slate-400 hover:text-slate-600">&times;</button>
                         </div>
-                        <form onSubmit={handleCreateUser} className="p-6 space-y-4">
+                        <form onSubmit={handleSaveUser} className="p-6 space-y-4">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Username</label>
                                 <input
@@ -416,10 +447,11 @@ const Settings = () => {
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label>
                                 <input
                                     type="password"
-                                    required
+                                    required={!newUser.id}
                                     value={newUser.password}
                                     onChange={e => setNewUser({ ...newUser, password: e.target.value })}
                                     className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder={newUser.id ? "Kosongkan jika tidak ubah password" : "********"}
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -529,7 +561,7 @@ const Settings = () => {
                                     type="submit"
                                     className="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
                                 >
-                                    Tambah User
+                                    {newUser.id ? 'Simpan Perubahan' : 'Tambah User'}
                                 </button>
                             </div>
                         </form>
