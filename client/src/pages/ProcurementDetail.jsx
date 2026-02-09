@@ -106,185 +106,234 @@ const ProcurementDetail = () => {
                 <ArrowLeft size={16} /> Kembali ke List
             </button>
 
-            {/* Header */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex justify-between items-start">
-                <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <h1 className="text-2xl font-bold text-slate-800">{req.code}</h1>
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${req.status === 'COMPLETED' ? 'bg-green-100 text-green-600' :
-                            req.status === 'APPROVED' ? 'bg-blue-100 text-blue-600' :
-                                req.status === 'REJECTED' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-700'
-                            }`}>{req.status}</span>
-                        <span className={`px-2 py-1 rounded text-xs font-bold border ${req.type === 'ASSET' ? 'border-purple-200 text-purple-600 bg-purple-50' : 'border-orange-200 text-orange-600 bg-orange-50'
-                            }`}>{req.type}</span>
+            {/* STEPPERUI */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 mb-6">
+                <div className="flex justify-between relative">
+                    {/* Progress Bar Background */}
+                    <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-100 -z-0 -translate-y-1/2 rounded" />
+
+                    {/* Step 1: Verifikasi */}
+                    <div className={`relative z-10 flex flex-col items-center gap-2 ${['SUBMITTED', 'APPROVED', 'PROCESS', 'COMPLETED', 'REJECTED'].includes(req.status) ? 'opacity-100' : 'opacity-50'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) ? 'bg-green-600 text-white' :
+                                req.status === 'REJECTED' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                            }`}>
+                            1
+                        </div>
+                        <span className="text-xs font-bold text-slate-700">Verifikasi Info</span>
                     </div>
-                    <p className="text-slate-500 text-sm">Unit: <b>{req.unit?.name}</b> • Pemohon: {req.user?.username} • Tgl: {new Date(req.createdAt).toLocaleDateString('id-ID')}</p>
-                    <p className="text-sm font-bold text-slate-700 mt-1">{req.title || '-'}</p>
+
+                    {/* Step 2: Vendor Selection */}
+                    <div className={`relative z-10 flex flex-col items-center gap-2 ${['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) ? 'opacity-100' : 'opacity-50'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${req.status === 'COMPLETED' ? 'bg-green-600 text-white' :
+                                ['APPROVED', 'PROCESS'].includes(req.status) ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-200 text-slate-500'
+                            }`}>
+                            2
+                        </div>
+                        <span className="text-xs font-bold text-slate-700">Pilih Vendor & Harga</span>
+                    </div>
+
+                    {/* Step 3: BAST */}
+                    <div className={`relative z-10 flex flex-col items-center gap-2 ${req.status === 'COMPLETED' ? 'opacity-100' : 'opacity-50'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${req.status === 'COMPLETED' ? 'bg-green-600 text-white shadow-lg shadow-green-500/30' : 'bg-slate-200 text-slate-500'
+                            }`}>
+                            3
+                        </div>
+                        <span className="text-xs font-bold text-slate-700">Eksekusi & BAST</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* STAGE 1: INFO & VALIDATION */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <div className="flex justify-between items-start mb-4">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <FileText size={18} /> Tahap 1: Verifikasi Request
+                    </h3>
+                    {req.status === 'SUBMITTED' && (
+                        <div className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-bold animate-pulse">
+                            Menunggu Persetujuan
+                        </div>
+                    )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                    <div>
+                        <div className="flex items-center gap-3 mb-2">
+                            <h1 className="text-2xl font-bold text-slate-800">{req.code}</h1>
+                            <span className={`px-2 py-1 rounded text-xs font-bold border ${req.type === 'ASSET' ? 'border-purple-200 text-purple-600 bg-purple-50' : 'border-orange-200 text-orange-600 bg-orange-50'
+                                }`}>{req.type}</span>
+                        </div>
+                        <p className="text-slate-500 text-sm">Unit: <b>{req.unit?.name}</b> • Pemohon: {req.user?.username}</p>
+                        <p className="text-sm font-bold text-slate-700 mt-1">{req.title || '-'}</p>
+                    </div>
                 </div>
 
                 {isAdmin && req.status === 'SUBMITTED' && (
-                    <div className="flex gap-2">
+                    <div className="bg-slate-50 p-4 rounded-lg flex gap-3 border border-slate-200 mt-4">
+                        <button onClick={() => handleStatus('APPROVED')} className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 shadow-sm">
+                            <CheckCircle size={16} className="inline mr-2" /> Setujui Request
+                        </button>
                         <button onClick={() => {
                             const reason = prompt('Alasan Penolakan:');
                             if (reason) handleStatus('REJECTED', '', reason);
-                        }} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-bold text-sm">Tolak</button>
-                        <button onClick={() => handleStatus('APPROVED')} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-sm">Validasi & Setujui</button>
+                        }} className="flex-1 bg-red-50 text-red-600 border border-red-200 py-2 rounded-lg font-bold hover:bg-red-100">
+                            <XCircle size={16} className="inline mr-2" /> Tolak
+                        </button>
                     </div>
                 )}
             </div>
 
-            {/* ITEM DETAILS & VENDOR SELECTION */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <FileText size={18} /> Detail Barang & Vendor
-                </h3>
+            {/* STAGE 2: VENDOR SELECTION & PRICING */}
+            {['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) && (
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 animate-in slide-in-from-bottom-2">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                            <Store size={18} /> Tahap 2: Finalisasi Vendor & Harga
+                        </h3>
+                        {req.status === 'APPROVED' && isAdmin && (
+                            <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded font-bold">Silakan lengkapi vendor & harga per item</span>
+                        )}
+                    </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
-                            <tr>
-                                <th className="px-4 py-2 min-w-[200px]">Barang</th>
-                                <th className="px-4 py-2 min-w-[150px]">Spek & Qty</th>
-                                {['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) && (
-                                    <>
-                                        <th className="px-4 py-2 min-w-[150px]">Vendor & Merk</th>
-                                        <th className="px-4 py-2 min-w-[100px]">Umur (Thn)</th>
-                                        <th className="px-4 py-2 min-w-[150px]">Dana & Harga Akhir</th>
-                                        {isAdmin && <th className="px-4 py-2 text-right">Aksi</th>}
-                                    </>
-                                )}
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y text-slate-700">
-                            {req.items.map((item, index) => (
-                                <tr key={item.id}>
-                                    <td className="px-4 py-3 align-top">
-                                        <div className="font-bold text-slate-800">{item.name}</div>
-                                        <div className="text-xs text-slate-500 mt-1">Est: Rp {item.estPrice?.toLocaleString('id-ID')}</div>
-                                    </td>
-                                    <td className="px-4 py-3 align-top">
-                                        <div className="text-xs bg-slate-100 p-1 rounded mb-1">{item.spec || '-'}</div>
-                                        <div className="font-bold">{item.qty} {item.unit}</div>
-                                    </td>
-
-                                    {['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) ? (
-                                        <>
-                                            <td className="px-4 py-3 align-top text-xs">
-                                                <div className="mb-2">
-                                                    <label className="block text-[10px] text-slate-400 mb-1">Vendor</label>
-                                                    {isAdmin && req.status !== 'COMPLETED' ? (
-                                                        <select
-                                                            className="w-full border p-1 rounded mb-1"
-                                                            value={item.vendorId || ''}
-                                                            onChange={e => handleItemChange(index, 'vendorId', e.target.value)}
-                                                        >
-                                                            <option value="">- Pilih Vendor -</option>
-                                                            {vendors.map(v => (
-                                                                <option key={v.id} value={v.id}>{v.name}</option>
-                                                            ))}
-                                                        </select>
-                                                    ) : (
-                                                        <span className="font-bold block">{vendors.find(v => v.id === item.vendorId)?.name || '-'}</span>
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[10px] text-slate-400 mb-1">Merk/Type</label>
-                                                    {req.status === 'COMPLETED' ? (
-                                                        <span>{item.brand || '-'}</span>
-                                                    ) : isAdmin ? (
-                                                        <input
-                                                            className="w-full border p-1 rounded"
-                                                            placeholder="Merk/Type"
-                                                            value={item.brand}
-                                                            onChange={e => handleItemChange(index, 'brand', e.target.value)}
-                                                        />
-                                                    ) : <span>{item.brand || '-'}</span>}
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3 align-top">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
+                                <tr>
+                                    <th className="px-4 py-2 min-w-[200px]">Barang</th>
+                                    <th className="px-4 py-2 min-w-[150px]">Spek & Qty</th>
+                                    <th className="px-4 py-2 min-w-[200px]">Vendor & Merk</th>
+                                    <th className="px-4 py-2 min-w-[100px]">Umur (Thn)</th>
+                                    <th className="px-4 py-2 min-w-[150px]">Dana & Harga Akhir</th>
+                                    {isAdmin && <th className="px-4 py-2 text-right">Aksi</th>}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y text-slate-700">
+                                {req.items.map((item, index) => (
+                                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-4 py-3 align-top">
+                                            <div className="font-bold text-slate-800">{item.name}</div>
+                                            <div className="text-xs text-slate-500 mt-1">Est: Rp {item.estPrice?.toLocaleString('id-ID')}</div>
+                                        </td>
+                                        <td className="px-4 py-3 align-top">
+                                            <div className="text-xs bg-slate-100 p-1 rounded mb-1">{item.spec || '-'}</div>
+                                            <div className="font-bold">{item.qty} {item.unit}</div>
+                                        </td>
+                                        <td className="px-4 py-3 align-top text-xs">
+                                            <div className="mb-2">
+                                                <label className="block text-[10px] text-slate-400 mb-1 font-bold">PILIH VENDOR</label>
+                                                {isAdmin && req.status !== 'COMPLETED' ? (
+                                                    <select
+                                                        className="w-full border p-1 rounded mb-1 bg-white focus:ring-2 focus:ring-blue-200 outline-none"
+                                                        value={item.vendorId || ''}
+                                                        onChange={e => handleItemChange(index, 'vendorId', e.target.value)}
+                                                    >
+                                                        <option value="">- Pilih Vendor -</option>
+                                                        {vendors.map(v => (
+                                                            <option key={v.id} value={v.id}>{v.name}</option>
+                                                        ))}
+                                                    </select>
+                                                ) : (
+                                                    <span className="font-bold block">{vendors.find(v => v.id === item.vendorId)?.name || '-'}</span>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] text-slate-400 mb-1">Merk/Type</label>
                                                 {req.status === 'COMPLETED' ? (
-                                                    <span>{item.usefulLife} Tahun</span>
+                                                    <span>{item.brand || '-'}</span>
                                                 ) : isAdmin ? (
                                                     <input
-                                                        type="number"
-                                                        className="w-16 border p-1 rounded text-xs"
-                                                        value={item.usefulLife}
-                                                        onChange={e => handleItemChange(index, 'usefulLife', e.target.value)}
+                                                        className="w-full border p-1 rounded"
+                                                        placeholder="Merk/Type"
+                                                        value={item.brand}
+                                                        onChange={e => handleItemChange(index, 'brand', e.target.value)}
                                                     />
-                                                ) : <span>{item.usefulLife} Tahun</span>}
+                                                ) : <span>{item.brand || '-'}</span>}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3 align-top">
+                                            {req.status === 'COMPLETED' ? (
+                                                <span>{item.usefulLife} Tahun</span>
+                                            ) : isAdmin ? (
+                                                <input
+                                                    type="number"
+                                                    className="w-16 border p-1 rounded text-xs"
+                                                    value={item.usefulLife}
+                                                    onChange={e => handleItemChange(index, 'usefulLife', e.target.value)}
+                                                />
+                                            ) : <span>{item.usefulLife} Tahun</span>}
+                                        </td>
+                                        <td className="px-4 py-3 align-top space-y-1">
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[10px] text-slate-400">Dana:</span>
+                                                {isAdmin && req.status !== 'COMPLETED' ? (
+                                                    <input
+                                                        className="border p-1 rounded text-xs w-24"
+                                                        value={item.fundingSource}
+                                                        onChange={e => handleItemChange(index, 'fundingSource', e.target.value)}
+                                                    />
+                                                ) : <span className="text-xs font-bold">{item.fundingSource}</span>}
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[10px] text-slate-400">Fix Rp:</span>
+                                                {isAdmin && req.status !== 'COMPLETED' ? (
+                                                    <input
+                                                        type="number"
+                                                        className="border p-1 rounded text-xs w-24 font-bold"
+                                                        value={item.finalPrice}
+                                                        onChange={e => handleItemChange(index, 'finalPrice', e.target.value)}
+                                                    />
+                                                ) : <span className="text-xs font-bold">Rp {item.finalPrice?.toLocaleString('id-ID')}</span>}
+                                            </div>
+                                        </td>
+                                        {isAdmin && req.status !== 'COMPLETED' && (
+                                            <td className="px-4 py-3 text-right align-top">
+                                                <button
+                                                    onClick={() => handleSaveItem(item)}
+                                                    className="bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-slate-900 shadow-lg shadow-slate-200"
+                                                >
+                                                    Simpan
+                                                </button>
                                             </td>
-                                            <td className="px-4 py-3 align-top space-y-1">
-                                                <div className="flex items-center gap-1">
-                                                    <span className="text-[10px] text-slate-400">Dana:</span>
-                                                    {isAdmin && req.status !== 'COMPLETED' ? (
-                                                        <input
-                                                            className="border p-1 rounded text-xs w-24"
-                                                            value={item.fundingSource}
-                                                            onChange={e => handleItemChange(index, 'fundingSource', e.target.value)}
-                                                        />
-                                                    ) : <span className="text-xs font-bold">{item.fundingSource}</span>}
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                    <span className="text-[10px] text-slate-400">Fix:</span>
-                                                    {isAdmin && req.status !== 'COMPLETED' ? (
-                                                        <input
-                                                            type="number"
-                                                            className="border p-1 rounded text-xs w-24"
-                                                            value={item.finalPrice}
-                                                            onChange={e => handleItemChange(index, 'finalPrice', e.target.value)}
-                                                        />
-                                                    ) : <span className="text-xs font-bold">Rp {item.finalPrice?.toLocaleString('id-ID')}</span>}
-                                                </div>
-                                            </td>
-                                            {isAdmin && req.status !== 'COMPLETED' && (
-                                                <td className="px-4 py-3 text-right align-top">
-                                                    <button
-                                                        onClick={() => handleSaveItem(item)}
-                                                        className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-700"
-                                                    >
-                                                        Simpan
-                                                    </button>
-                                                </td>
-                                            )}
-                                        </>
-                                    ) : null}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            {/* BAST & Execution */}
+            {/* STAGE 3: EXECUTION & BAST */}
             {['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) && (
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 max-w-2xl">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 max-w-2xl animate-in slide-in-from-bottom-4">
                     <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <CheckCircle size={18} /> Eksekusi & BAST
+                        <CheckCircle size={18} /> Tahap 3: Eksekusi & BAST
                     </h3>
 
                     {req.status === 'COMPLETED' ? (
-                        <div className="bg-green-50 p-4 rounded-lg text-center">
-                            <CheckCircle size={40} className="mx-auto text-green-500 mb-2" />
-                            <h4 className="font-bold text-green-700">Pengadaan Selesai</h4>
-                            <p className="text-xs text-green-600">BAST Tanggal: {new Date(req.bastDate).toLocaleDateString('id-ID')}</p>
-                            {req.type === 'ASSET' && <p className="text-[10px] mt-2 text-slate-500">(Aset sudah otomatis masuk database dengan detail yang diinput)</p>}
+                        <div className="bg-green-50 p-6 rounded-xl text-center border border-green-100">
+                            <CheckCircle size={48} className="mx-auto text-green-500 mb-3" />
+                            <h4 className="font-bold text-lg text-green-700">Pengadaan Selesai</h4>
+                            <p className="text-sm text-green-600 mb-2">BAST Tanggal: <b>{new Date(req.bastDate).toLocaleDateString('id-ID')}</b></p>
+                            {req.type === 'ASSET' && <p className="text-xs mt-2 text-slate-500 bg-white p-2 rounded border border-green-100 inline-block">✅ Aset telah tercatat otomatis di Database Aset</p>}
                         </div>
                     ) : isAdmin ? (
                         <div className="space-y-4">
-                            <p className="text-xs text-slate-500 leading-relaxed">
-                                Pastikan Anda sudah melengkapi data <b>Merk, Umur Manfaat, dan Harga Akhir</b> di tabel di atas sebelum menyelesaikan proses ini.
-                            </p>
-                            <div>
-                                <label className="text-xs font-bold text-slate-500">Tanggal Terima (BAST)</label>
-                                <input type="date" value={bastDate} onChange={e => setBastDate(e.target.value)} className="w-full border p-2 rounded text-sm mt-1" />
+                            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-700 flex items-start gap-2">
+                                <Store size={14} className="mt-0.5" />
+                                <p>Pastikan seluruh data <b>Vendor, Merk, dan Harga Akhir</b> pada Tahap 2 sudah diisi dan disimpan sebelum memproses BAST.</p>
                             </div>
-                            <button onClick={handleBAST} className="w-full bg-slate-800 hover:bg-slate-900 text-white py-2 rounded-lg font-bold text-sm shadow-lg shadow-blue-900/10">
-                                Selesai & Proses BAST
+                            <div>
+                                <label className="text-xs font-bold text-slate-500">Tanggal Terima Barang (BAST)</label>
+                                <input type="date" value={bastDate} onChange={e => setBastDate(e.target.value)} className="w-full border p-2 rounded text-sm mt-1 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            </div>
+                            <button onClick={handleBAST} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-sm shadow-xl shadow-blue-600/20 transition-all flex justify-center items-center gap-2">
+                                <CheckCircle size={18} /> Selesai & Proses BAST
                             </button>
                         </div>
                     ) : (
-                        <div className="text-center text-slate-500 text-sm py-4 bg-slate-50 rounded">
-                            Menunggu proses admin...
+                        <div className="text-center text-slate-500 text-sm py-8 bg-slate-50 rounded border border-slate-100">
+                            <p>Menunggu proses pengadaan oleh Admin & Vendor...</p>
                         </div>
                     )}
                 </div>
