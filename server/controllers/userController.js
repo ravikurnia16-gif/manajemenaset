@@ -32,8 +32,8 @@ exports.createUser = async (req, res) => {
         const user = await prisma.user.create({
             data: {
                 username,
-                email,
-                nip,
+                email: email || null,
+                nip: nip || null,
                 phone,
                 position,
                 password: hashedPassword,
@@ -57,8 +57,8 @@ exports.updateUser = async (req, res) => {
     try {
         const data = {
             username,
-            email,
-            nip,
+            email: email || null,
+            nip: nip || null,
             phone,
             position,
             role: role || 'USER',
