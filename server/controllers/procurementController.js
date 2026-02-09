@@ -92,7 +92,8 @@ exports.createProcurement = async (req, res) => {
                         spec: item.spec,
                         qty: parseInt(item.qty),
                         unit: item.unit,
-                        estPrice: parseFloat(item.estPrice || 0)
+                        estPrice: parseFloat(item.estPrice || 0),
+                        fundingSource: item.fundingSource || 'Mandiri' // Capture Funding Source
                     }))
                 });
             }
@@ -140,7 +141,8 @@ exports.importProcurement = async (req, res) => {
                     spec: item.spec ? String(item.spec) : '-',
                     qty: parseInt(item.qty),
                     unit: item.unit ? String(item.unit) : 'Unit',
-                    estPrice: parseFloat(item.estPrice || 0)
+                    estPrice: parseFloat(item.estPrice || 0),
+                    fundingSource: item.fundingSource || 'Mandiri'
                 }))
             });
 
@@ -173,7 +175,29 @@ exports.updateStatus = async (req, res) => {
     }
 };
 
-// Add Vendor Offer
+// Update Item Detail (Vendor, Brand, Specs) - New Function
+exports.updateItemDetail = async (req, res) => {
+    const { itemId } = req.params;
+    const { fundingSource, brand, usefulLife, vendorId, finalPrice } = req.body;
+
+    try {
+        const item = await prisma.procurementItem.update({
+            where: { id: parseInt(itemId) },
+            data: {
+                fundingSource,
+                brand,
+                usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
+                vendorId: vendorId ? parseInt(vendorId) : undefined,
+                finalPrice: finalPrice ? parseFloat(finalPrice) : undefined
+            }
+        });
+        res.json(item);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Add Vendor Offer (Legacy / For Comparison only)
 exports.addVendorOffer = async (req, res) => {
     const { id } = req.params;
     const { vendorName, price, isWinner } = req.body;
@@ -206,7 +230,7 @@ exports.addVendorOffer = async (req, res) => {
 // Process BAST & Auto-Asset Creation
 exports.processBAST = async (req, res) => {
     const { id } = req.params;
-    const { bastDate } = req.body; // File handled separately or base64
+    const { bastDate } = req.body;
 
     try {
         const procurement = await prisma.procurement.findUnique({
@@ -231,32 +255,42 @@ exports.processBAST = async (req, res) => {
             if (procurement.type === 'ASSET') {
                 const year = new Date().getFullYear();
 
-                // Get general category (or default 'GENERAL')
+                // Fetch default category (SHOULD BE IMPROVED TO MATCH ITEM TYPE/CATEGORY)
+                // For now, we use a generic default or based on item name logic if needed.
                 const category = await prisma.category.findFirst();
-                const categoryId = category ? category.id : 1; // Fallback
+                const categoryId = category ? category.id : 1;
 
                 for (const item of procurement.items) {
-                    // Generate Asset Code (Simplified logic, real app needs robust sequencer)
-                    const count = await prisma.asset.count();
-                    const seq = (count + 1).toString().padStart(4, '0');
-                    const assetCode = `AST.${procurement.unit.code}.${year}.${seq}`;
+                    // Logic to handle Quantity loop (create N assets)
+                    const qty = item.qty;
 
-                    await prisma.asset.create({
-                        data: {
-                            code: assetCode + (Math.random() * 1000).toFixed(0), // Temp uniqueness
-                            name: item.name,
-                            specification: item.spec,
-                            quantity: item.qty,
-                            price: item.estPrice,
-                            purchaseDate: new Date(bastDate),
-                            condition: 'BAIK',
-                            sourceOfFunds: 'Pengadaan',
-                            acquisitionStatus: 'Baru',
-                            unitId: procurement.unitId,
-                            categoryId: categoryId,
-                            usefulLife: 4 // Default
-                        }
-                    });
+                    for (let i = 0; i < qty; i++) {
+                        // Generate Asset Code Sequence
+                        const count = await prisma.asset.count();
+                        // Note: In high concurrency, this simple count is risky. 
+                        // But for this level of app, it's acceptable or use a dedicated sequence table.
+                        const seq = (count + 1 + i).toString().padStart(4, '0');
+                        const assetCode = `AST.${procurement.unit.code}.${year}.${seq}`;
+
+                        await prisma.asset.create({
+                            data: {
+                                code: assetCode + (Math.random() * 100).toFixed(0), // Temp uniqueness
+                                name: item.name,
+                                specification: item.spec, // Use detailed spec
+                                brand: item.brand, // Use Item Brand
+                                price: item.finalPrice || item.estPrice, // Use Final or Est Price
+                                purchaseDate: new Date(bastDate),
+                                condition: 'BAIK',
+                                sourceOfFunds: item.fundingSource || 'Mandiri', // Use Item Funding
+                                acquisitionStatus: 'Pembelian',
+                                unitId: procurement.unitId,
+                                categoryId: categoryId,
+                                usefulLife: item.usefulLife || 4, // Use Item Useful Life
+                                vendorId: item.vendorId, // Use Item Vendor
+                                quantity: 1 // Individual tracking
+                            }
+                        });
+                    }
                 }
             }
         });

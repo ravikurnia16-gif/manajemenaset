@@ -8,7 +8,7 @@ const ProcurementForm = () => {
     const navigate = useNavigate();
     const [header, setHeader] = useState({ title: '', type: 'ASSET', rkbId: '' });
     const [items, setItems] = useState([
-        { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0 }
+        { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Mandiri' }
     ]);
     const [loading, setLoading] = useState(false);
     const fileInputRef = useRef(null);
@@ -20,7 +20,7 @@ const ProcurementForm = () => {
     };
 
     const addItem = () => {
-        setItems([...items, { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0 }]);
+        setItems([...items, { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Mandiri' }]);
     };
 
     const removeItem = (index) => {
@@ -47,7 +47,8 @@ const ProcurementForm = () => {
                 spec: row['Spesifikasi'] || row['Spec'] || '',
                 qty: parseInt(row['Jumlah'] || row['Qty'] || 1) || 1,
                 unit: row['Satuan'] || row['Unit'] || 'Pcs',
-                estPrice: parseFloat(row['Harga'] || row['Estimasi Harga'] || 0) || 0
+                estPrice: parseFloat(row['Harga'] || row['Estimasi Harga'] || 0) || 0,
+                fundingSource: row['Sumber Dana'] || row['Funding'] || 'Mandiri'
             })).filter(item => item.name); // Filter empty rows
 
             if (importedItems.length > 0) {
@@ -67,7 +68,7 @@ const ProcurementForm = () => {
 
     const handleDownloadTemplate = () => {
         const template = [
-            { "Nama Barang": "Laptop", "Spesifikasi": "RAM 8GB", "Jumlah": 1, "Satuan": "Unit", "Estimasi Harga": 5000000 }
+            { "Nama Barang": "Laptop", "Spesifikasi": "RAM 8GB", "Jumlah": 1, "Satuan": "Unit", "Estimasi Harga": 5000000, "Sumber Dana": "Mandiri" }
         ];
         const ws = XLSX.utils.json_to_sheet(template);
         const wb = XLSX.utils.book_new();
@@ -187,7 +188,7 @@ const ProcurementForm = () => {
                                                 />
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-4 gap-4">
                                             <div className="col-span-1">
                                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Jumlah</label>
                                                 <input
@@ -216,6 +217,15 @@ const ProcurementForm = () => {
                                                     className="border border-slate-300 p-2 rounded text-sm w-full focus:border-blue-500 outline-none"
                                                     value={item.estPrice}
                                                     onChange={e => handleItemChange(index, 'estPrice', e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="col-span-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Sumber Dana</label>
+                                                <input
+                                                    placeholder="Mandiri/BOS..."
+                                                    className="border border-slate-300 p-2 rounded text-sm w-full focus:border-blue-500 outline-none"
+                                                    value={item.fundingSource}
+                                                    onChange={e => handleItemChange(index, 'fundingSource', e.target.value)}
                                                 />
                                             </div>
                                         </div>

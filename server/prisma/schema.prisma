@@ -254,6 +254,16 @@ model ProcurementItem {
   qty           Int
   unit          String      // pcs, set, unit
   estPrice      Float       @default(0)
+  
+  // New Fields for Detailed Processing
+  fundingSource String?     // Sumber Dana per item
+  
+  // Post-Approval Fields
+  vendorId      Int?
+  vendor        Vendor?     @relation(fields: [vendorId], references: [id])
+  brand         String?     // Merk/Type
+  usefulLife    Int?        // Umur Manfaat (Tahun)
+  finalPrice    Float?      // Harga Akhir / Realisasi
 }
 
 model VendorOffer {

@@ -13,7 +13,10 @@ router.post('/import', verifyToken, procurementController.importProcurement);
 // Status Workflow
 router.put('/:id/status', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.updateStatus);
 
-// Vendor Offer
+// Item Level Update (Vendor, Brand, Specs)
+router.put('/items/:itemId', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.updateItemDetail);
+
+// Vendor Offer (Legacy/Optional)
 router.post('/:id/offers', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.addVendorOffer);
 
 // BAST & Completion
