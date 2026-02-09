@@ -65,7 +65,7 @@ const ProcurementDetail = () => {
         }
     };
 
-    const handleSaveItem = async (item) => {
+    const handleSaveItem = async (item, silent = false) => {
         try {
             let payloadVendorId = item.vendorId;
             let payloadNewVendor = null;
@@ -92,12 +92,18 @@ const ProcurementDetail = () => {
                 comparisonVendors: item.comparisonVendors, // IMPORTANT: Send the array!
                 needComparison: item.needComparison
             });
-            alert('Data barang berhasil disimpan!');
-            fetchDetail();
-            fetchVendors();
+
+            if (!silent) {
+                alert('Data barang berhasil disimpan!');
+                fetchDetail();
+                fetchVendors();
+            } else {
+                console.log('Auto-saved item:', item.id);
+                // Optionally verify sync? For now trust local state + backend success
+            }
         } catch (error) {
             console.error(error);
-            alert('Gagal menyimpan detail barang');
+            if (!silent) alert('Gagal menyimpan detail barang');
         }
     };
 
@@ -253,7 +259,11 @@ const ProcurementDetail = () => {
                                                     id={`needComp-${item.id}`}
                                                     className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                                                     checked={item.needComparison}
-                                                    onChange={e => handleItemChange(index, 'needComparison', e.target.checked)}
+                                                    onChange={e => {
+                                                        const newItem = { ...item, needComparison: e.target.checked };
+                                                        handleItemChange(index, 'needComparison', e.target.checked);
+                                                        handleSaveItem(newItem, true); // Auto save toggle
+                                                    }}
                                                 />
                                                 <label htmlFor={`needComp-${item.id}`} className="text-xs font-bold text-slate-600 cursor-pointer">Perlu Perbandingan Harga?</label>
                                             </div>
@@ -264,6 +274,8 @@ const ProcurementDetail = () => {
                                                 const newComparisons = [...(item.comparisonVendors || [])];
                                                 newComparisons.push({ name: '', price: 0, notes: '' });
                                                 handleItemChange(index, 'comparisonVendors', newComparisons);
+                                                const newItem = { ...item, comparisonVendors: newComparisons };
+                                                handleSaveItem(newItem, true); // Auto save add
                                             }} className="text-xs flex items-center gap-1 bg-white border border-slate-300 px-2 py-1 rounded font-bold hover:bg-slate-100 text-slate-600">
                                                 <Plus size={12} /> Tambah Kandidat
                                             </button>
@@ -280,6 +292,10 @@ const ProcurementDetail = () => {
                                                     <button onClick={() => {
                                                         const newComparisons = item.comparisonVendors.filter((_, i) => i !== cvIndex);
                                                         handleItemChange(index, 'comparisonVendors', newComparisons);
+                                                        // Auto save delete? maybe risky. Let user click save or auto-save on next action.
+                                                        // Actually delete is instant, should save.
+                                                        const newItem = { ...item, comparisonVendors: newComparisons };
+                                                        handleSaveItem(newItem, true);
                                                     }} className="absolute top-2 right-2 text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
                                                 )}
 
@@ -296,6 +312,7 @@ const ProcurementDetail = () => {
                                                                     newComparisons[cvIndex].name = e.target.value;
                                                                     handleItemChange(index, 'comparisonVendors', newComparisons);
                                                                 }}
+                                                                onBlur={() => handleSaveItem(item, true)} // Silent Auto Save
                                                             />
                                                         ) : <span className="font-bold">{cv.name}</span>}
                                                     </div>
@@ -312,6 +329,7 @@ const ProcurementDetail = () => {
                                                                     newComparisons[cvIndex].price = e.target.value;
                                                                     handleItemChange(index, 'comparisonVendors', newComparisons);
                                                                 }}
+                                                                onBlur={() => handleSaveItem(item, true)} // Silent Auto Save
                                                             />
                                                         ) : <span>Rp {parseFloat(cv.price || 0).toLocaleString('id-ID')}</span>}
                                                     </div>

@@ -285,41 +285,64 @@ exports.processBAST = async (req, res) => {
 
             // 2. If ASSET type, create Asset records
             if (procurement.type === 'ASSET') {
-                const year = new Date().getFullYear();
+                const year = new Date(bastDate).getFullYear();
+                const settings = await prisma.setting.findUnique({ where: { id: 1 } });
+                const prefix = settings?.assetCodePrefix || 'AST';
 
-                // Fetch default category (SHOULD BE IMPROVED TO MATCH ITEM TYPE/CATEGORY)
-                // For now, we use a generic default or based on item name logic if needed.
-                const category = await prisma.category.findFirst();
-                const categoryId = category ? category.id : 1;
+                // Fetch a default category if none specified (TODO: Add Category to ProcurementItem)
+                const defaultCategory = await prisma.category.findFirst();
+                if (!defaultCategory) throw new Error('No Category found in Master Data. Please create one.');
+                const categoryCode = defaultCategory.code;
 
                 for (const item of procurement.items) {
-                    // Logic to handle Quantity loop (create N assets)
                     const qty = item.qty;
+                    const unitCode = procurement.unit.code;
+
+                    // Generate Base Pattern: PREFIX.UNIT.CAT.YEAR.
+                    const patternPrefix = `${prefix}.${unitCode}.${categoryCode}.${year}.`;
 
                     for (let i = 0; i < qty; i++) {
-                        // Generate Asset Code Sequence
-                        const count = await prisma.asset.count();
-                        // Note: In high concurrency, this simple count is risky. 
-                        // But for this level of app, it's acceptable or use a dedicated sequence table.
-                        const seq = (count + 1 + i).toString().padStart(4, '0');
-                        const assetCode = `AST.${procurement.unit.code}.${year}.${seq}`;
+                        // Find current max sequence in DB
+                        // OPTIMIZATION: We should ideally lock or use a separate counter, 
+                        // but for now we fetch fresh lastAsset for each iteration to minimize collision risk in this transaction loops.
+                        const lastAsset = await prisma.asset.findFirst({
+                            where: { code: { startsWith: patternPrefix } },
+                            orderBy: { code: 'desc' }
+                        });
+
+                        let currentSeq = 1;
+                        if (lastAsset) {
+                            const parts = lastAsset.code.split('.');
+                            const lastSeqPart = parts[parts.length - 1];
+                            currentSeq = (parseInt(lastSeqPart) || 0) + 1;
+                        }
+
+                        // Safety measure: Check if this seq already exists in current loop context if transaction isolation is weak
+                        // But since we query inside the transaction, it should see changes if isolation level supports it.
+                        // However, Prisma atomic transactions don't expose intermediate states to findFirst easily if simpler DBs.
+                        // We'll trust the sequential execution here.
+
+                        const seq = currentSeq.toString().padStart(4, '0');
+                        const assetCode = `${patternPrefix}${seq}`;
+
+                        const fundingSource = item.fundingSource || 'Yayasan'; // Default if null
 
                         await prisma.asset.create({
                             data: {
-                                code: assetCode + (Math.random() * 100).toFixed(0), // Temp uniqueness
+                                code: assetCode,
                                 name: item.name,
-                                specification: item.spec, // Use detailed spec
-                                brand: item.brand, // Use Item Brand
-                                price: item.finalPrice || item.estPrice, // Use Final or Est Price
+                                specification: item.spec,
+                                brand: item.brand,
+                                price: item.finalPrice || item.estPrice,
                                 purchaseDate: new Date(bastDate),
                                 condition: 'BAIK',
-                                sourceOfFunds: item.fundingSource || 'Mandiri', // Use Item Funding
+                                sourceOfFunds: fundingSource,
                                 acquisitionStatus: 'Pembelian',
                                 unitId: procurement.unitId,
-                                categoryId: categoryId,
-                                usefulLife: item.usefulLife || 4, // Use Item Useful Life
-                                vendorId: item.vendorId, // Use Item Vendor
-                                quantity: 1 // Individual tracking
+                                categoryId: defaultCategory.id,
+                                usefulLife: item.usefulLife || 4,
+                                vendorId: item.vendorId, // Nullable
+                                quantity: 1
                             }
                         });
                     }
@@ -327,7 +350,7 @@ exports.processBAST = async (req, res) => {
             }
         });
 
-        res.json({ message: 'BAST processed and Assets created (if applicable)' });
+        res.json({ message: 'BAST processed and Assets created.' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
