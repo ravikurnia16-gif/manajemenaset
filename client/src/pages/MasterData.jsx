@@ -285,6 +285,19 @@ const MasterData = () => {
                         <table className="w-full text-sm text-left">
                             <thead className="bg-slate-50 text-slate-500 font-medium sticky top-0">
                                 <tr>
+                                    <th className="px-6 py-3 w-4">
+                                        <input
+                                            type="checkbox"
+                                            onChange={toggleSelectAll}
+                                            checked={
+                                                (activeTab === 'units' && units.length > 0 && selectedIds.size === units.length) ||
+                                                (activeTab === 'rooms' && rooms.length > 0 && selectedIds.size === rooms.length) ||
+                                                (activeTab === 'categories' && categories.length > 0 && selectedIds.size === categories.length) ||
+                                                (activeTab === 'vendors' && vendors.length > 0 && selectedIds.size === vendors.length)
+                                            }
+                                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                    </th>
                                     <th className="px-6 py-3">Nama</th>
                                     {activeTab === 'vendors' ? <th className="px-6 py-3">Kontak</th> : <th className="px-6 py-3">Kode</th>}
                                     {activeTab === 'rooms' && <th className="px-6 py-3">Unit</th>}
@@ -294,6 +307,14 @@ const MasterData = () => {
                             <tbody className="divide-y divide-slate-100">
                                 {activeTab === 'units' && units.map(u => (
                                     <tr key={u.id} className="hover:bg-slate-50/50">
+                                        <td className="px-6 py-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.has(u.id)}
+                                                onChange={() => toggleSelectItem(u.id)}
+                                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                        </td>
                                         <td className="px-6 py-3 font-medium text-slate-800">{u.name}</td>
                                         <td className="px-6 py-3 text-slate-600 font-mono">{u.code}</td>
                                         <td className="px-6 py-3 text-center">
@@ -306,6 +327,14 @@ const MasterData = () => {
                                 ))}
                                 {activeTab === 'rooms' && rooms.map(r => (
                                     <tr key={r.id} className="hover:bg-slate-50/50">
+                                        <td className="px-6 py-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.has(r.id)}
+                                                onChange={() => toggleSelectItem(r.id)}
+                                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                        </td>
                                         <td className="px-6 py-3 font-medium text-slate-800">{r.name}</td>
                                         <td className="px-6 py-3 text-slate-600 font-mono">{r.code}</td>
                                         <td className="px-6 py-3 text-slate-500 text-xs">{r.unit?.name || '-'}</td>
@@ -319,6 +348,14 @@ const MasterData = () => {
                                 ))}
                                 {activeTab === 'categories' && categories.map(c => (
                                     <tr key={c.id} className="hover:bg-slate-50/50">
+                                        <td className="px-6 py-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.has(c.id)}
+                                                onChange={() => toggleSelectItem(c.id)}
+                                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                        </td>
                                         <td className="px-6 py-3 font-medium text-slate-800">{c.name}</td>
                                         <td className="px-6 py-3 text-slate-600 font-mono">{c.code}</td>
                                         <td className="px-6 py-3 text-center">
@@ -331,6 +368,14 @@ const MasterData = () => {
                                 ))}
                                 {activeTab === 'vendors' && vendors.map(v => (
                                     <tr key={v.id} className="hover:bg-slate-50/50">
+                                        <td className="px-6 py-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.has(v.id)}
+                                                onChange={() => toggleSelectItem(v.id)}
+                                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                        </td>
                                         <td className="px-6 py-3 font-medium text-slate-800">{v.name}</td>
                                         <td className="px-6 py-3 text-slate-600">{v.contact || '-'}</td>
                                         <td className="px-6 py-3 text-center">
