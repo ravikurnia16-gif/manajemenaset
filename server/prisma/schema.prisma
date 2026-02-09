@@ -208,7 +208,9 @@ model RKBItem {
   rkbId       Int
   rkb         RKB      @relation(fields: [rkbId], references: [id])
   name        String
+  spec        String?  // Spesifikasi
   qty         Int
+  unit        String   // Satuan (Unit, Pcs, Box)
   estPrice    Float
   category    String   // ASSET / NON_ASSET
   priority    String   // HIGH, MEDIUM, LOW
