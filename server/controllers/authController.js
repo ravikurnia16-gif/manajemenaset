@@ -82,3 +82,28 @@ exports.login = async (req, res) => {
         res.status(500).json({ error: 'Gagal menghubungi database. Pastikan DATABASE_URL benar.' });
     }
 };
+
+exports.changePassword = async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+    // req.user from authMiddleware
+    const userId = req.user.id;
+
+    try {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) return res.status(404).json({ error: 'User tidak ditemukan' });
+
+        const validPassword = await bcrypt.compare(oldPassword, user.password);
+        if (!validPassword) return res.status(401).json({ error: 'Password lama salah' });
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await prisma.user.update({
+            where: { id: userId },
+            data: { password: hashedPassword }
+        });
+
+        res.json({ message: 'Password berhasil diubah' });
+    } catch (error) {
+        console.error('Change Password error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};

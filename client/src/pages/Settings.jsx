@@ -31,6 +31,34 @@ const Settings = () => {
         unitId: ''
     });
 
+    // Change Password State
+    const [passwords, setPasswords] = useState({
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+    });
+
+    const handleChangePassword = async (e) => {
+        e.preventDefault();
+        if (passwords.newPassword !== passwords.confirmPassword) {
+            alert('Konfirmasi password baru tidak sesuai!');
+            return;
+        }
+        try {
+            setSaving(true);
+            await api.put('/auth/change-password', {
+                oldPassword: passwords.oldPassword,
+                newPassword: passwords.newPassword
+            });
+            alert('Password berhasil diubah!');
+            setPasswords({ oldPassword: '', newPassword: '', confirmPassword: '' });
+        } catch (error) {
+            alert(error.response?.data?.error || 'Gagal mengubah password');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     useEffect(() => {
         fetchSettings();
         if (currentUser.role === 'SUPER_ADMIN') {
@@ -154,26 +182,36 @@ const Settings = () => {
                     <h1 className="text-2xl font-bold text-slate-800">Pengaturan</h1>
                     <p className="text-slate-500 text-sm">Kelola identitas instansi dan hak akses pengguna</p>
                 </div>
-                {isSuperAdmin && (
-                    <div className="flex bg-slate-100 p-1 rounded-lg">
-                        <button
-                            onClick={() => setActiveTab('profile')}
-                            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'profile' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <div className="flex items-center gap-2 uppercase tracking-tight">
-                                <Building2 size={16} /> Profil Instansi
-                            </div>
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('users')}
-                            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'users' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <div className="flex items-center gap-2 uppercase tracking-tight">
-                                <UserCheck size={16} /> Manajemen Pengguna
-                            </div>
-                        </button>
-                    </div>
-                )}
+                <div className="flex bg-slate-100 p-1 rounded-lg ml-auto">
+                    {isSuperAdmin && (
+                        <>
+                            <button
+                                onClick={() => setActiveTab('profile')}
+                                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'profile' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <div className="flex items-center gap-2 uppercase tracking-tight">
+                                    <Building2 size={16} /> Profil
+                                </div>
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('users')}
+                                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'users' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <div className="flex items-center gap-2 uppercase tracking-tight">
+                                    <UserCheck size={16} /> Users
+                                </div>
+                            </button>
+                        </>
+                    )}
+                    <button
+                        onClick={() => setActiveTab('security')}
+                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'security' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <div className="flex items-center gap-2 uppercase tracking-tight">
+                            <ShieldCheck size={16} /> Keamanan
+                        </div>
+                    </button>
+                </div>
             </div>
 
             {activeTab === 'profile' ? (
@@ -420,6 +458,58 @@ const Settings = () => {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'security' && (
+                <div className="max-w-2xl mx-auto">
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                        <div className="p-6 border-b border-slate-50">
+                            <h2 className="font-bold text-slate-800">Keamanan Akun</h2>
+                            <p className="text-slate-500 text-xs">Ganti password akun Anda secara berkala untuk keamanan.</p>
+                        </div>
+                        <form onSubmit={handleChangePassword} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Password Lama</label>
+                                <input
+                                    type="password"
+                                    required
+                                    value={passwords.oldPassword}
+                                    onChange={e => setPasswords({ ...passwords, oldPassword: e.target.value })}
+                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Password Baru</label>
+                                <input
+                                    type="password"
+                                    required
+                                    value={passwords.newPassword}
+                                    onChange={e => setPasswords({ ...passwords, newPassword: e.target.value })}
+                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Konfirmasi Password Baru</label>
+                                <input
+                                    type="password"
+                                    required
+                                    value={passwords.confirmPassword}
+                                    onChange={e => setPasswords({ ...passwords, confirmPassword: e.target.value })}
+                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div className="pt-4">
+                                <button
+                                    type="submit"
+                                    disabled={saving}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg shadow-blue-200 transition-all disabled:opacity-50"
+                                >
+                                    {saving ? 'Menyimpan...' : 'Ganti Password'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
