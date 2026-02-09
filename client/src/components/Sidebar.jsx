@@ -26,9 +26,10 @@ const Sidebar = () => {
 
     return (
         <div className="w-64 bg-slate-900 text-white min-h-screen flex flex-col shadow-xl">
-            <div className="p-6 border-b border-slate-800">
+            <div className="p-6 border-b border-slate-800 flex flex-col items-center">
+                <img src="/logo_sarpras.png" alt="Logo Sarpras" className="w-20 h-20 object-contain mb-2" />
                 <div className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">SARPRAS DEI</div>
-                <div className="text-[10px] text-slate-500 mt-1">Sistem Sarana Prasarana</div>
+                <div className="text-[10px] text-slate-500">Sistem Sarana Prasarana</div>
             </div>
 
             <nav className="flex-1 p-4 overflow-y-auto">
