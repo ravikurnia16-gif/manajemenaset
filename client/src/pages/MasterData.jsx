@@ -16,6 +16,39 @@ const MasterData = () => {
     const [newCategory, setNewCategory] = useState({ name: '', code: '', usefulLife: 5 });
     const [newVendor, setNewVendor] = useState({ name: '', contact: '', address: '' });
     const [editingItem, setEditingItem] = useState(null); // { type, id, data }
+    const [selectedIds, setSelectedIds] = useState(new Set());
+
+
+    const toggleSelectAll = (e) => {
+        if (e.target.checked) {
+            const currentData = activeTab === 'units' ? units : activeTab === 'rooms' ? rooms : activeTab === 'categories' ? categories : vendors;
+            setSelectedIds(new Set(currentData.map(item => item.id)));
+        } else {
+            setSelectedIds(new Set());
+        }
+    };
+
+    const toggleSelectItem = (id) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) newSelected.delete(id);
+        else newSelected.add(id);
+        setSelectedIds(newSelected);
+    };
+
+    const handleBulkDelete = async () => {
+        if (!confirm(`Hapus ${selectedIds.size} data terpilih?`)) return;
+        try {
+            await api.delete(`/master/${activeTab}/bulk`, { data: { ids: Array.from(selectedIds) } });
+            setSelectedIds(new Set());
+            fetchData();
+        } catch (err) { alert(err.message); }
+    };
+
+    const changeTab = (tab) => {
+        setActiveTab(tab);
+        setSelectedIds(new Set());
+        setEditingItem(null);
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -37,8 +70,12 @@ const MasterData = () => {
         }
     };
 
+
+
+
     useEffect(() => {
         fetchData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleAddUnit = async (e) => {
@@ -123,6 +160,8 @@ const MasterData = () => {
         setNewVendor({ name: '', contact: '', address: '' });
     };
 
+
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             <div>
@@ -132,11 +171,18 @@ const MasterData = () => {
                 <p className="text-slate-500 text-sm">Kelola Unit, Ruangan, dan Kategori untuk dropdown formulir aset</p>
             </div>
 
-            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100 w-fit">
-                <button onClick={() => setActiveTab('units')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'units' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Unit / Divisi</button>
-                <button onClick={() => setActiveTab('rooms')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'rooms' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Ruangan</button>
-                <button onClick={() => setActiveTab('categories')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'categories' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Kategori</button>
-                <button onClick={() => setActiveTab('vendors')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'vendors' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Vendor</button>
+            <div className="flex justify-between items-center">
+                <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100 w-fit">
+                    <button onClick={() => changeTab('units')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'units' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Unit / Divisi</button>
+                    <button onClick={() => changeTab('rooms')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'rooms' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Ruangan</button>
+                    <button onClick={() => changeTab('categories')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'categories' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Kategori</button>
+                    <button onClick={() => changeTab('vendors')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'vendors' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Vendor</button>
+                </div>
+                {selectedIds.size > 0 && (
+                    <button onClick={handleBulkDelete} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-red-200 hover:bg-red-700 transition-all flex items-center gap-2 animate-in slide-in-from-right-5 fade-in">
+                        <Trash2 size={16} /> Hapus {selectedIds.size} Terpilih
+                    </button>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -205,3 +205,44 @@ exports.deleteVendor = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+// Bulk Delete Operations
+exports.deleteMultipleUnits = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        await prisma.unit.deleteMany({ where: { id: { in: ids } } });
+        res.json({ message: 'Units deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteMultipleRooms = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        await prisma.room.deleteMany({ where: { id: { in: ids } } });
+        res.json({ message: 'Rooms deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteMultipleCategories = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        await prisma.category.deleteMany({ where: { id: { in: ids } } });
+        res.json({ message: 'Categories deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteMultipleVendors = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        await prisma.vendor.deleteMany({ where: { id: { in: ids } } });
+        res.json({ message: 'Vendors deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
