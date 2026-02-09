@@ -21,7 +21,8 @@ const ProcurementDetail = () => {
 
     const safeJSONParse = (str) => {
         try {
-            return str ? JSON.parse(str) : [];
+            const parsed = str ? JSON.parse(str) : [];
+            return Array.isArray(parsed) ? parsed : [];
         } catch (e) {
             console.error("JSON Parse Error:", e);
             return [];
@@ -50,6 +51,7 @@ const ProcurementDetail = () => {
                     finalPrice: item.finalPrice || item.estPrice,
                     fundingSource: item.fundingSource || 'Mandiri',
                     vendorId: item.vendorId || '',
+                    comparisonVendors: safeJSONParse(item.comparisonVendors)
                 }));
             } else {
                 data.items = [];
