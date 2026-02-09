@@ -179,7 +179,7 @@ exports.updateStatus = async (req, res) => {
 // Update Item Detail (Vendor, Brand, Specs)
 exports.updateItemDetail = async (req, res) => {
     const { itemId } = req.params;
-    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors } = req.body;
+    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison } = req.body;
 
     try {
         let finalVendorId = vendorId;
@@ -200,19 +200,31 @@ exports.updateItemDetail = async (req, res) => {
             }
         }
 
+        const updateData = {
+            fundingSource,
+            brand,
+            usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
+            vendorId: finalVendorId ? parseInt(finalVendorId) : undefined,
+            finalPrice: finalPrice ? parseFloat(finalPrice) : undefined,
+        };
+
+        // Explicitly handle comparisonVendors
+        if (comparisonVendors !== undefined) {
+            updateData.comparisonVendors = JSON.stringify(comparisonVendors);
+        }
+
+        // Explicitly handle needComparison
+        if (needComparison !== undefined) {
+            updateData.needComparison = needComparison;
+        }
+
         const item = await prisma.procurementItem.update({
             where: { id: parseInt(itemId) },
-            data: {
-                fundingSource,
-                brand,
-                usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
-                vendorId: finalVendorId ? parseInt(finalVendorId) : undefined,
-                finalPrice: finalPrice ? parseFloat(finalPrice) : undefined,
-                comparisonVendors: comparisonVendors ? JSON.stringify(comparisonVendors) : undefined
-            }
+            data: updateData
         });
         res.json(item);
     } catch (error) {
+        console.error("Update Item Error:", error);
         res.status(500).json({ error: error.message });
     }
 };

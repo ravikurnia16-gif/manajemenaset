@@ -259,6 +259,7 @@ model ProcurementItem {
   // New Fields for Detailed Processing
   fundingSource String?     // Sumber Dana per item
   comparisonVendors String? @db.Text // JSON String: [{ name, price, notes }, ...]
+  needComparison Boolean @default(true) // Perlu perbandingan harga?
   
   // Post-Approval Fields
   vendorId      Int?
