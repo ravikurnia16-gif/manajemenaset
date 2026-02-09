@@ -166,7 +166,6 @@ const ProcurementDetail = () => {
                         Validasi & Pembanding
                     </button>
                     <button
-                        disabled={req.status === 'SUBMITTED'}
                         onClick={() => setActiveTab('FINAL')}
                         className={`flex-1 py-4 text-sm font-bold flex flex-col items-center gap-1 border-b-2 transition-colors ${activeTab === 'FINAL'
                             ? 'border-blue-600 text-blue-600 bg-blue-50/50'
@@ -174,16 +173,23 @@ const ProcurementDetail = () => {
                                 ? 'border-transparent text-slate-300 cursor-not-allowed'
                                 : 'border-transparent text-slate-500 hover:bg-slate-50'
                             }`}
+                        disabled={req.status === 'SUBMITTED'}
                     >
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${['PROCESS', 'COMPLETED'].includes(req.status) ? 'bg-green-100 text-green-600' : 'bg-slate-200 text-slate-500'}`}>3</div>
                         Finalisasi
                     </button>
                     <button
-                        disabled={!['PROCESS', 'COMPLETED'].includes(req.status)}
+                        disabled={!['PROCESS', 'COMPLETED'].includes(req.status) || (req.status === 'PROCESS' && req.items.some(item =>
+                            !item.vendorId ||
+                            (item.vendorId === 'OTHER' && !item.newVendorName) ||
+                            !item.finalPrice ||
+                            !item.brand ||
+                            !item.fundingSource
+                        ))}
                         onClick={() => setActiveTab('BAST')}
                         className={`flex-1 py-4 text-sm font-bold flex flex-col items-center gap-1 border-b-2 transition-colors ${activeTab === 'BAST'
                             ? 'border-blue-600 text-blue-600 bg-blue-50/50'
-                            : !['PROCESS', 'COMPLETED'].includes(req.status)
+                            : (!['PROCESS', 'COMPLETED'].includes(req.status) || (req.status === 'PROCESS' && req.items.some(item => !item.vendorId || (item.vendorId === 'OTHER' && !item.newVendorName) || !item.finalPrice || !item.brand || !item.fundingSource)))
                                 ? 'border-transparent text-slate-300 cursor-not-allowed'
                                 : 'border-transparent text-slate-500 hover:bg-slate-50'
                             }`}
