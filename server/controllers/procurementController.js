@@ -262,9 +262,68 @@ exports.updateStatus = async (req, res) => {
 
         const procurement = await prisma.procurement.update({
             where: { id: parseInt(id) },
-            data: updateData
+            data: updateData,
+            include: { user: true, items: true }
         });
         res.json(procurement);
+
+        // --- WhatsApp Notification to Submitter (Async) ---
+        (async () => {
+            try {
+                const submitter = await prisma.user.findUnique({
+                    where: { id: procurement.userId },
+                    include: { unit: true }
+                });
+                if (!submitter || !submitter.phone) return;
+
+                const itemList = (procurement.items || []).map((item, i) =>
+                    `${i + 1}. ${item.name} (${item.qty} ${item.unit})`
+                ).join('\n');
+
+                let msg = '';
+                const title = procurement.title || procurement.code;
+
+                if (status === 'VALIDATED') {
+                    msg = `*Info Request Pengadaan*\n\n` +
+                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n` +
+                        `Permintaan Anda *"${title}"* telah *DIVALIDASI* \u2705\n\n` +
+                        `*Rincian:*\n${itemList}\n\n` +
+                        `Permintaan sedang menunggu persetujuan selanjutnya.`;
+                } else if (status === 'APPROVED') {
+                    msg = `*Info Request Pengadaan*\n\n` +
+                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n` +
+                        `Permintaan Anda *"${title}"* telah *DISETUJUI* \u2705\u2705\n\n` +
+                        `*Rincian:*\n${itemList}\n\n` +
+                        `Pesanan sedang dalam proses pengadaan.`;
+                } else if (status === 'REJECTED') {
+                    const reason = rejectionReason || 'Tidak ada keterangan';
+                    msg = `*Info Request Pengadaan*\n\n` +
+                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n` +
+                        `Mohon maaf, permintaan Anda *"${title}"* *DITOLAK* \u274C\n\n` +
+                        `*Alasan:* ${reason}\n\n` +
+                        `Silakan hubungi Bidang Sarpras untuk informasi lebih lanjut.`;
+                } else {
+                    msg = `*Info Request Pengadaan*\n\n` +
+                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n` +
+                        `Status permintaan Anda *"${title}"* telah diubah menjadi: *${status}*`;
+                }
+
+                if (msg) {
+                    // Delay 30 seconds
+                    setTimeout(async () => {
+                        try {
+                            await whatsappService.sendMessage(submitter.phone, msg);
+                            console.log(`[WA] Stage notification sent to ${submitter.username} for status ${status}`);
+                        } catch (e) {
+                            console.error(`[WA] Failed stage notification:`, e);
+                        }
+                    }, 30000);
+                }
+            } catch (err) {
+                console.error('WA Stage Notification Error:', err);
+            }
+        })();
+
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -433,6 +492,39 @@ exports.processBAST = async (req, res) => {
         });
 
         res.json({ message: 'BAST processed and Assets created.' });
+
+        // --- WhatsApp Notification for BAST Completion (Async) ---
+        (async () => {
+            try {
+                const submitter = await prisma.user.findUnique({
+                    where: { id: procurement.userId },
+                    include: { unit: true }
+                });
+                if (!submitter || !submitter.phone) return;
+
+                const itemList = (procurement.items || []).map((item, i) =>
+                    `${i + 1}. ${item.name} (${item.qty} ${item.unit})`
+                ).join('\n');
+
+                const msg = `*Info Request Pengadaan*\n\n` +
+                    `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n` +
+                    `Permintaan Anda *"${procurement.title || procurement.code}"* telah *SELESAI (BAST)* \u2705\u2705\u2705\n\n` +
+                    `*Rincian:*\n${itemList}\n\n` +
+                    `Barang sudah diterima dan tercatat sebagai aset. Terima kasih.`;
+
+                setTimeout(async () => {
+                    try {
+                        await whatsappService.sendMessage(submitter.phone, msg);
+                        console.log(`[WA] BAST notification sent to ${submitter.username}`);
+                    } catch (e) {
+                        console.error('[WA] Failed BAST notification:', e);
+                    }
+                }, 30000);
+            } catch (err) {
+                console.error('WA BAST Notification Error:', err);
+            }
+        })();
+
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
