@@ -167,7 +167,17 @@ exports.createProcurement = async (req, res) => {
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
 
-                // 2. Send to Specific Staff (NIY: 25041676, 26021760)
+                // 2. Send to WhatsApp Group
+                const WA_GROUP_ID = '12036341954292088@g.us';
+                const msgGroup = `*Notifikasi Pengadaan Baru (GRUP)*\n\n` +
+                    `👤 User: *${user.username}* (${user.unit?.name || 'Unit ?'})\n` +
+                    `📝 Judul: *${title}*\n` +
+                    `🔖 Kode: ${code}\n\n` +
+                    `Mohon tim Sarpras segera menindaklanjuti.`;
+
+                await whatsappService.sendMessage(WA_GROUP_ID, msgGroup);
+
+                // 3. Send to Specific Staff (Personal Chat with Delay)
                 const targetNips = ['25041676', '26021760'];
                 const staffUsers = await prisma.user.findMany({
                     where: { nip: { in: targetNips }, phone: { not: null } }

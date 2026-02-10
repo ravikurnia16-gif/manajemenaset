@@ -7,9 +7,14 @@ exports.sendMessage = async (phoneNumber, message) => {
         if (!phoneNumber) return;
 
         // 1. Format Phone Number (08xx -> 628xx, remove non-digits)
-        let formattedPhone = phoneNumber.replace(/\D/g, '');
-        if (formattedPhone.startsWith('0')) {
-            formattedPhone = '62' + formattedPhone.substring(1);
+        // If it's a Group ID (contains @g.us), skip formatting
+        let formattedPhone = phoneNumber;
+
+        if (!phoneNumber.includes('@g.us')) {
+            formattedPhone = phoneNumber.replace(/\D/g, '');
+            if (formattedPhone.startsWith('0')) {
+                formattedPhone = '62' + formattedPhone.substring(1);
+            }
         }
 
         // 2. Send Request
