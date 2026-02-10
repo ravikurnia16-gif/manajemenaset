@@ -145,6 +145,8 @@ exports.createAsset = async (req, res) => {
 exports.getAllAssets = async (req, res) => {
     try {
         const { role, unitId } = req.user;
+        const { validationStatus, unverifiedSince } = req.query; // Filter params
+
         let where = {};
 
         // Only Super Admin and Admin Aset can see all data
@@ -152,9 +154,28 @@ exports.getAllAssets = async (req, res) => {
             where.unitId = unitId;
         }
 
+        // Validation Filter
+        if (validationStatus) {
+            where.validationStatus = validationStatus;
+        }
+
+        // Unverified Since (For Periodical Validation / Opname)
+        // Logic: Show assets where validatedAt is BEFORE the given date, or is NULL
+        if (unverifiedSince) {
+            const dateThreshold = new Date(unverifiedSince);
+            where.OR = [
+                { validatedAt: { lt: dateThreshold } },
+                { validatedAt: null }
+            ];
+            // If user filters for specific status (e.g. VALIDATED) but with unverifiedSince, it means they want to see "what WAS validated but is now old".
+            // But usually this filter is used when validationStatus is not specified or is "ALL".
+            // If they explicitly asked for UNVERIFIED, the date doesn't matter much (it's unverified regardless).
+        }
+
         const assets = await prisma.asset.findMany({
             where,
-            include: { category: true, room: true, unit: true, vendor: true }
+            include: { category: true, room: true, unit: true, vendor: true, validatedBy: { select: { username: true } } },
+            orderBy: { createdAt: 'desc' }
         });
         res.json(assets);
     } catch (error) {
@@ -235,6 +256,73 @@ exports.deleteMultipleAssets = async (req, res) => {
         });
 
         res.json({ message: `${ids.length} assets deleted` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.validateAsset = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, note } = req.body; // status: VALIDATED, NEEDS_UPDATE, REJECTED
+        const userId = req.user.userId;
+
+        const asset = await prisma.asset.update({
+            where: { id: parseInt(id) },
+            data: {
+                validationStatus: status,
+                validatedAt: new Date(),
+                validatedById: userId,
+                validationNote: note
+            }
+        });
+
+        // Log the activity
+        await prisma.log.create({
+            data: {
+                userId: userId,
+                action: 'VALIDATE_ASSET',
+                details: `Asset ${asset.code} status changed to ${status}. Note: ${note || '-'}`
+            }
+        });
+
+        res.json(asset);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.validateMultipleAssets = async (req, res) => {
+    try {
+        const { ids, status, note } = req.body;
+        const userId = req.user.userId;
+
+        if (!ids || !Array.isArray(ids)) {
+            return res.status(400).json({ error: 'IDs must be an array' });
+        }
+
+        const numericIds = ids.map(id => parseInt(id));
+
+        await prisma.asset.updateMany({
+            where: { id: { in: numericIds } },
+            data: {
+                validationStatus: status,
+                validatedAt: new Date(),
+                validatedById: userId,
+                validationNote: note
+            }
+        });
+
+        // Log the activity (Bulk log)
+        await prisma.log.create({
+            data: {
+                userId: userId,
+                action: 'BULK_VALIDATE_ASSET',
+                details: `${ids.length} assets status changed to ${status}. Note: ${note || '-'}`
+            }
+        });
+
+        res.json({ message: `${ids.length} assets validated successfully` });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

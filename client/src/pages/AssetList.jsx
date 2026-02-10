@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin, Printer, QrCode } from 'lucide-react';
+import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin, Printer, QrCode, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { LabelPrint, BatchLabelPrint } from '../components/LabelPrint';
@@ -7,6 +7,18 @@ import { useReactToPrint } from 'react-to-print';
 import api from '../lib/axios';
 
 const AssetList = () => {
+    // ... items ...
+
+    // (Jump to Header replacement)
+    // I can't jump in replace_file_content like that.
+    // I will use Multi-Replace for this specific tool call or just replace the header part in a separate call?
+    // The user instruction "Add bulk validation button" - I'll do this in a separate call to be clean or use multi.
+    // Let's use multi replace to be safe.
+    // Wait, I am already using `replace_file_content`. I should be careful not to overwrite the "imports" changes if I split it.
+    // I will just do imports here as StartLine 1.
+    // And I will try to include the button in the same chunk OR use multi_replace.
+    // I'll use multi_replace instead.
+
     const navigate = useNavigate();
     const [units, setUnits] = useState([]);
     const [rooms, setRooms] = useState([]);
@@ -102,7 +114,13 @@ const AssetList = () => {
         const matchesUnit = selectedUnit ? a.unitId === parseInt(selectedUnit) : true;
         const matchesRoom = selectedRoom ? a.roomId === parseInt(selectedRoom) : true;
 
-        return matchesSearch && matchesUnit && matchesRoom;
+        let matchesValidation = true;
+        if (validationFilter !== 'ALL') {
+            const status = a.validationStatus || 'UNVERIFIED';
+            matchesValidation = status === validationFilter;
+        }
+
+        return matchesSearch && matchesUnit && matchesRoom && matchesValidation;
     });
 
     const getTargetData = () => {
@@ -131,6 +149,49 @@ const AssetList = () => {
             handleBatchPrint();
         }, 500); // Give time for state update and re-render
     };
+
+    // Validation Feature State
+    const [validationFilter, setValidationFilter] = useState('ALL');
+    const [validationModal, setValidationModal] = useState({
+        isOpen: false,
+        assetIds: [],
+        currentStatus: 'VALIDATED', // Default action to Validated
+        note: ''
+    });
+
+    const openValidationModal = (ids = [], status = 'VALIDATED') => {
+        setValidationModal({
+            isOpen: true,
+            assetIds: ids,
+            currentStatus: status,
+            note: ''
+        });
+    };
+
+    const handleValidationSubmit = async () => {
+        try {
+            setLoading(true);
+            const { assetIds, currentStatus, note } = validationModal;
+
+            // Check if single or bulk
+            if (assetIds.length === 1) {
+                await api.post(`/assets/${assetIds[0]}/validate`, { status: currentStatus, note });
+            } else {
+                await api.post(`/assets/validate/bulk`, { ids: assetIds, status: currentStatus, note });
+            }
+
+            alert('Validasi berhasil disimpan!');
+            setValidationModal({ isOpen: false, assetIds: [], currentStatus: 'VALIDATED', note: '' });
+            setSelectedIds([]); // Clear selection if any
+            fetchData();
+        } catch (error) {
+            console.error('Validation error:', error);
+            alert('Gagal menyimpan validasi: ' + (error.response?.data?.error || error.message));
+        } finally {
+            setLoading(false);
+        }
+    };
+
 
     // Pagination Logic
     const totalPages = Math.ceil(filteredAssets.length / itemsPerPage);
@@ -313,12 +374,20 @@ const AssetList = () => {
                     <div className="flex items-center gap-2 mt-1">
                         <p className="text-slate-500 text-sm">Monitor aset per unit dan ruangan</p>
                         {selectedIds.length > 0 && (
-                            <button
-                                onClick={handleBulkDelete}
-                                className="flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold hover:bg-red-100 transition-colors animate-in zoom-in-95 duration-200 border border-red-100"
-                            >
-                                <Trash2 size={12} /> Hapus {selectedIds.length} Item
-                            </button>
+                            <div className="flex gap-2 animate-in zoom-in-95 duration-200">
+                                <button
+                                    onClick={() => openValidationModal(selectedIds, 'VALIDATED')}
+                                    className="flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-600 rounded-full text-xs font-semibold hover:bg-green-100 transition-colors border border-green-100"
+                                >
+                                    <CheckCircle size={12} /> Validasi {selectedIds.length} Item
+                                </button>
+                                <button
+                                    onClick={handleBulkDelete}
+                                    className="flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold hover:bg-red-100 transition-colors border border-red-100"
+                                >
+                                    <Trash2 size={12} /> Hapus {selectedIds.length} Item
+                                </button>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -430,7 +499,8 @@ const AssetList = () => {
                         />
                     </div>
 
-                    <div className="md:col-span-3 relative">
+
+                    <div className="md:col-span-2 relative">
                         <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><Building2 size={16} /></div>
                         <select
                             className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
@@ -438,13 +508,12 @@ const AssetList = () => {
                             disabled={!isGlobalAdmin}
                             onChange={e => { setSelectedUnit(e.target.value); setSelectedRoom(''); }}
                         >
-                            <option value="">Semua Unit / Divisi</option>
+                            <option value="">Semua Unit</option>
                             {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                         </select>
-                        {!isGlobalAdmin && <div className="text-[10px] text-blue-600 mt-1 font-semibold ml-1">Unit Terkunci (Role-based)</div>}
                     </div>
 
-                    <div className="md:col-span-3 relative">
+                    <div className="md:col-span-2 relative">
                         <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><MapPin size={16} /></div>
                         <select
                             className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-400"
@@ -454,6 +523,21 @@ const AssetList = () => {
                         >
                             <option value="">Semua Ruangan</option>
                             {availableRooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        </select>
+                    </div>
+
+                    <div className="md:col-span-2 relative">
+                        {/* Validation Filter */}
+                        <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><CheckCircle size={16} /></div>
+                        <select
+                            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
+                            value={validationFilter}
+                            onChange={e => setValidationFilter(e.target.value)}
+                        >
+                            <option value="ALL">Status Validasi</option>
+                            <option value="UNVERIFIED">Belum Valid (Unverified)</option>
+                            <option value="VALIDATED">Sudah Valid (Validated)</option>
+                            <option value="NEEDS_UPDATE">Perlu Perbaikan</option>
                         </select>
                     </div>
 
@@ -502,7 +586,28 @@ const AssetList = () => {
                                             onChange={() => handleToggleSelect(asset.id)}
                                         />
                                     </td>
-                                    <td className="px-6 py-4 font-medium text-blue-600 font-mono tracking-tight">{asset.code}</td>
+                                    <td className="px-6 py-4 font-medium text-blue-600 font-mono tracking-tight">
+                                        {asset.code}
+                                        <div className="mt-1">
+                                            {asset.validationStatus === 'VALIDATED' ? (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-700 border border-green-200 font-bold uppercase">
+                                                    <CheckCircle size={10} /> Valid
+                                                </span>
+                                            ) : asset.validationStatus === 'NEEDS_UPDATE' ? (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-orange-100 text-orange-700 border border-orange-200 font-bold uppercase">
+                                                    <AlertCircle size={10} /> Cek Fisik
+                                                </span>
+                                            ) : asset.validationStatus === 'REJECTED' ? (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-red-100 text-red-700 border border-red-200 font-bold uppercase">
+                                                    <XCircle size={10} /> Ditolak
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 border border-slate-200 font-bold uppercase">
+                                                    Unverified
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
                                     <td className="px-6 py-4 font-medium text-slate-800">
                                         {asset.name}
                                         <div className="text-xs text-slate-400 font-normal">{asset.category?.name}</div>
@@ -524,6 +629,7 @@ const AssetList = () => {
                                     <td className="px-6 py-4 text-slate-600">Rp {(asset.price || 0).toLocaleString()}</td>
                                     <td className="px-6 py-4 text-center">
                                         <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => openValidationModal([asset.id], asset.validationStatus || 'VALIDATED')} className="p-1 hover:bg-green-50 text-green-600 rounded transition-colors" title="Validasi Aset"><CheckCircle size={16} /></button>
                                             <button onClick={() => openPrintModal(asset)} className="p-1 hover:bg-slate-800 hover:text-white text-slate-500 rounded transition-colors" title="Cetak Label QR"><QrCode size={16} /></button>
                                             <button onClick={() => navigate(`/aset/edit/${asset.id}`)} className="p-1 hover:bg-blue-50 text-blue-600 rounded" title="Edit"><Edit size={16} /></button>
                                             <button onClick={() => handleDelete(asset.id)} className="p-1 hover:bg-red-50 text-red-500 rounded" title="Hapus"><Trash2 size={16} /></button>
