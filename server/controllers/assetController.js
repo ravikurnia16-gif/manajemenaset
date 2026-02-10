@@ -586,3 +586,64 @@ exports.batchImportAssets = async (req, res) => {
         res.status(500).json({ error: 'Gagal Import: ' + error.message });
     }
 };
+
+exports.validateAsset = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, note } = req.body;
+        const userId = req.user.id;
+
+        if (!['UNVERIFIED', 'VALIDATED', 'NEEDS_UPDATE', 'REJECTED'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid validation status' });
+        }
+
+        const asset = await prisma.asset.update({
+            where: { id: parseInt(id) },
+            data: {
+                validationStatus: status,
+                validatedAt: new Date(),
+                validatedById: userId,
+                validationNote: note
+            },
+            include: { validatedBy: { select: { username: true } } }
+        });
+
+        res.json(asset);
+    } catch (error) {
+        console.error('Validate Asset Error:', error);
+        res.status(500).json({ error: 'Failed to validate asset: ' + error.message });
+    }
+};
+
+exports.validateMultipleAssets = async (req, res) => {
+    try {
+        const { ids, status, note } = req.body;
+        const userId = req.user.id; // From verifyToken
+
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'Invalid or empty IDs array' });
+        }
+
+        if (!['UNVERIFIED', 'VALIDATED', 'NEEDS_UPDATE', 'REJECTED'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid validation status' });
+        }
+
+        const result = await prisma.$transaction(async (tx) => {
+            const updateResult = await tx.asset.updateMany({
+                where: { id: { in: ids } },
+                data: {
+                    validationStatus: status,
+                    validatedAt: new Date(),
+                    validatedById: userId,
+                    validationNote: note
+                }
+            });
+            return updateResult;
+        });
+
+        res.json({ message: `Successfully validated ${result.count} assets`, count: result.count });
+    } catch (error) {
+        console.error('Bulk Validate Error:', error);
+        res.status(500).json({ error: 'Failed to validate assets: ' + error.message });
+    }
+};
