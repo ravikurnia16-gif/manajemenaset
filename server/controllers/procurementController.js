@@ -23,13 +23,6 @@ exports.getAllProcurements = async (req, res) => {
         if (type) whereClause.type = type;
         if (unitId) whereClause.unitId = parseInt(unitId);
 
-        // Filter by Unit for non-admins (Restrict to own unit)
-        // Admin Unit also restricted to own unit? Usually yes.
-        // Only Super Admin might see all. Assuming 'ADMIN_UNIT' sees own.
-        // If user is basic USER, also sees own.
-        // If user has role SUPER_ADMIN (if exists) or just check logic.
-        // For now: If user.unitId exists, force it unless we have a specific 'ALL' role.
-        // Let's assume ADMIN_UNIT is bound to unitId.
         if (['ADMIN_UNIT', 'USER'].includes(user.role)) {
             whereClause.unitId = user.unitId;
         }
@@ -53,13 +46,6 @@ exports.getAllProcurements = async (req, res) => {
 exports.deleteProcurement = async (req, res) => {
     const { id } = req.params;
     try {
-        // Optional: Check status before delete? e.g. Can't delete COMPLETED?
-        // For now allow delete but maybe restrict to ADMIN
-
-        // Cascade delete Items, Offers, etc. is handled by Prisma Schema usually 
-        // OR we must delete manually if relation is not set to onDelete: Cascade
-
-        // Let's assume explicit delete for safety
         await prisma.procurementItem.deleteMany({ where: { procurementId: parseInt(id) } });
         await prisma.vendorOffer.deleteMany({ where: { procurementId: parseInt(id) } });
 
@@ -76,11 +62,10 @@ exports.deleteProcurement = async (req, res) => {
 
 // Bulk Delete
 exports.bulkDeleteProcurements = async (req, res) => {
-    const { ids } = req.body; // Expect array of IDs
+    const { ids } = req.body;
     if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'Invalid IDs' });
 
     try {
-        // Delete related items first
         await prisma.procurementItem.deleteMany({ where: { procurementId: { in: ids.map(id => parseInt(id)) } } });
         await prisma.vendorOffer.deleteMany({ where: { procurementId: { in: ids.map(id => parseInt(id)) } } });
 
@@ -147,7 +132,7 @@ exports.createProcurement = async (req, res) => {
                         qty: parseInt(item.qty),
                         unit: item.unit,
                         estPrice: parseFloat(item.estPrice || 0),
-                        fundingSource: item.fundingSource || 'Mandiri' // Capture Funding Source
+                        fundingSource: item.fundingSource || 'Mandiri'
                     }))
                 });
             }
@@ -160,29 +145,53 @@ exports.createProcurement = async (req, res) => {
         // --- WhatsApp Notification (Async) ---
         (async () => {
             try {
-                // 1. Send Confirmation to Submitter
-                const submitter = await prisma.user.findUnique({ where: { id: user.id } });
-                if (submitter?.phone) {
-                    const msgSubmitter = `*Info Pengadaan*\n\nPermintaan Anda dengan judul *"${title}"* berhasil dibuat.\nKode: ${code}\n\nMohon menunggu verifikasi.`;
+                // 1. Fetch Submitter Details (Name, NIP, Unit)
+                const submitter = await prisma.user.findUnique({
+                    where: { id: user.id },
+                    include: { unit: true }
+                });
+
+                if (!submitter) return;
+
+                // Format Item List
+                const itemList = (items || []).map((item, index) =>
+                    `${index + 1}. ${item.name} (${item.qty} ${item.unit})`
+                ).join('\n');
+
+                // 2. Send Confirmation to Submitter
+                if (submitter.phone) {
+                    const msgSubmitter = `*Info Request Pengadaan*\n\n` +
+                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*, permintaan anda telah kami terima dengan rincian:\n\n` +
+                        `${itemList}\n\n` +
+                        `Pesanan Ustadz/Ustadzah akan segera kami proses.`;
+
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
 
-                // 2. Send to WhatsApp Group
-                const WA_GROUP_ID = '12036341954292088@g.us';
-                const msgGroup = `*Notifikasi Pengadaan Baru (GRUP)*\n\n` +
-                    `👤 User: *${user.username}* (${user.unit?.name || 'Unit ?'})\n` +
-                    `📝 Judul: *${title}*\n` +
-                    `🔖 Kode: ${code}\n\n` +
-                    `Mohon tim Sarpras segera menindaklanjuti.`;
+                // 3. Send to Syafrian (NIY: 25041676) with 30s Delay
+                const syafrian = await prisma.user.findFirst({
+                    where: { nip: '25041676', phone: { not: null } }
+                });
 
-                await whatsappService.sendMessage(WA_GROUP_ID, msgGroup);
+                if (syafrian && syafrian.phone) {
+                    const msgSyafrian = `*Info Request Pengadaan*\n\n` +
+                        `Pesanan telah masuk dari:\n` +
+                        `\u{1F464} *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
+                        `\u{1F194} *NIY* : ${submitter.nip || '-'}\n` +
+                        `\u{1F3E2} *Unit* : ${submitter.unit?.name || '-'}\n\n` +
+                        `*Rincian Permintaan:*\n` +
+                        `${itemList}\n\n` +
+                        `Mohon segera di proses.`;
 
-                // 3. Send to Specific Staff (Personal Chat with Delay) - DISABLED
-                // const targetNips = ['25041676', '26021760'];
-                // const staffUsers = await prisma.user.findMany({
-                //     where: { nip: { in: targetNips }, phone: { not: null } }
-                // });
-                // ... (Logic removed as per user request to only use Group)
+                    setTimeout(async () => {
+                        try {
+                            console.log(`Sending WA to Syafrian (${syafrian.phone}) in 30s...`);
+                            await whatsappService.sendMessage(syafrian.phone, msgSyafrian);
+                        } catch (e) {
+                            console.error("Failed sending to Syafrian:", e);
+                        }
+                    }, 30000);
+                }
 
             } catch (err) {
                 console.error("WA Notification Error:", err);
@@ -220,7 +229,6 @@ exports.importProcurement = async (req, res) => {
             });
 
             // 2. Create Items
-            // Validation Logic (Simpler than RKB, assuming frontend validated)
             await prisma.procurementItem.createMany({
                 data: items.map(item => ({
                     procurementId: procurement.id,
@@ -262,7 +270,6 @@ exports.updateStatus = async (req, res) => {
     }
 };
 
-// Update Item Detail (Vendor, Brand, Specs) - New Function
 // Update Item Detail (Vendor, Brand, Specs)
 exports.updateItemDetail = async (req, res) => {
     const { itemId } = req.params;
@@ -320,11 +327,9 @@ exports.updateItemDetail = async (req, res) => {
 exports.addVendorOffer = async (req, res) => {
     const { id } = req.params;
     const { vendorName, price, isWinner } = req.body;
-    // Handle file upload if needed (later)
 
     try {
         if (isWinner) {
-            // Unset other winners if this one is winner
             await prisma.vendorOffer.updateMany({
                 where: { procurementId: parseInt(id) },
                 data: { isWinner: false }
@@ -376,7 +381,6 @@ exports.processBAST = async (req, res) => {
                 const settings = await prisma.setting.findUnique({ where: { id: 1 } });
                 const prefix = settings?.assetCodePrefix || 'AST';
 
-                // Fetch a default category if none specified (TODO: Add Category to ProcurementItem)
                 const defaultCategory = await prisma.category.findFirst();
                 if (!defaultCategory) throw new Error('No Category found in Master Data. Please create one.');
                 const categoryCode = defaultCategory.code;
@@ -385,13 +389,9 @@ exports.processBAST = async (req, res) => {
                     const qty = item.qty;
                     const unitCode = procurement.unit.code;
 
-                    // Generate Base Pattern: PREFIX.UNIT.CAT.YEAR.
                     const patternPrefix = `${prefix}.${unitCode}.${categoryCode}.${year}.`;
 
                     for (let i = 0; i < qty; i++) {
-                        // Find current max sequence in DB
-                        // OPTIMIZATION: We should ideally lock or use a separate counter, 
-                        // but for now we fetch fresh lastAsset for each iteration to minimize collision risk in this transaction loops.
                         const lastAsset = await prisma.asset.findFirst({
                             where: { code: { startsWith: patternPrefix } },
                             orderBy: { code: 'desc' }
@@ -404,15 +404,10 @@ exports.processBAST = async (req, res) => {
                             currentSeq = (parseInt(lastSeqPart) || 0) + 1;
                         }
 
-                        // Safety measure: Check if this seq already exists in current loop context if transaction isolation is weak
-                        // But since we query inside the transaction, it should see changes if isolation level supports it.
-                        // However, Prisma atomic transactions don't expose intermediate states to findFirst easily if simpler DBs.
-                        // We'll trust the sequential execution here.
-
                         const seq = currentSeq.toString().padStart(4, '0');
                         const assetCode = `${patternPrefix}${seq}`;
 
-                        const fundingSource = item.fundingSource || 'Yayasan'; // Default if null
+                        const fundingSource = item.fundingSource || 'Yayasan';
 
                         await prisma.asset.create({
                             data: {
@@ -428,7 +423,7 @@ exports.processBAST = async (req, res) => {
                                 unitId: procurement.unitId,
                                 categoryId: defaultCategory.id,
                                 usefulLife: item.usefulLife || 4,
-                                vendorId: item.vendorId, // Nullable
+                                vendorId: item.vendorId,
                                 quantity: 1
                             }
                         });
