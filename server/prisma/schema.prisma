@@ -24,6 +24,7 @@ enum Condition {
 model User {
   id        Int      @id @default(autoincrement())
   username  String   @unique
+  name      String?  // Nama Lengkap
   email     String?  @unique
   nip       String?  @unique
   password  String
