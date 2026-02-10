@@ -71,12 +71,12 @@ const Sidebar = ({ isOpen = true }) => {
 
     return (
         <div className={cn(
-            "bg-slate-900 text-white min-h-screen flex flex-col shadow-xl z-20 flex-shrink-0 transition-all duration-300 ease-in-out",
-            isOpen ? "w-64" : "w-20"
+            "bg-slate-900 text-white min-h-screen flex flex-col shadow-xl z-20 flex-shrink-0 transition-all duration-300 ease-in-out border-r border-slate-800",
+            isOpen ? "w-64" : "w-0 overflow-hidden border-none"
         )}>
             <div className={cn(
-                "p-5 border-b border-slate-800 bg-slate-900 sticky top-0 z-10 flex items-center transition-all duration-300",
-                isOpen ? "justify-start" : "justify-center p-4"
+                "border-b border-slate-800 bg-slate-900 sticky top-0 z-10 flex items-center transition-all duration-300 overflow-hidden whitespace-nowrap",
+                isOpen ? "p-5 justify-start h-auto opacity-100" : "p-0 h-0 opacity-0"
             )}>
                 <div className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent flex items-center gap-2">
                     <div className="w-8 h-8 rounded bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white shrink-0">S</div>
@@ -88,7 +88,10 @@ const Sidebar = ({ isOpen = true }) => {
                 )}>Sistem Manajemen Aset</div>
             </div>
 
-            <nav className="flex-1 p-3 overflow-y-auto custom-scrollbar space-y-4">
+            <nav className={cn(
+                "flex-1 overflow-y-auto custom-scrollbar space-y-4 transition-all duration-300",
+                isOpen ? "p-3" : "p-0 overflow-hidden"
+            )}>
 
                 {/* 1. Manajemen Aset */}
                 {renderCollapsible('assets', <Box size={18} />, 'Manajemen Aset', (
@@ -177,7 +180,10 @@ const Sidebar = ({ isOpen = true }) => {
                 )}
             </nav>
 
-            <div className="p-4 border-t border-slate-800 bg-slate-900/50">
+            <div className={cn(
+                "border-t border-slate-800 bg-slate-900/50 transition-all duration-300 overflow-hidden whitespace-nowrap",
+                isOpen ? "p-4 opacity-100" : "p-0 h-0 opacity-0"
+            )}>
                 <button
                     onClick={handleLogout}
                     className={cn(
