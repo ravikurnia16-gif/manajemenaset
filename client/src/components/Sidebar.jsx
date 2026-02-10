@@ -1,4 +1,3 @@
-```javascript
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog } from 'lucide-react';
@@ -7,7 +6,7 @@ import { cn } from '../lib/utils';
 const Sidebar = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    
+
     // State for collapsible menus
     const [openMenus, setOpenMenus] = useState({
         assets: true,
@@ -56,7 +55,7 @@ const Sidebar = () => {
                 </div>
                 {openMenus[key] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </button>
-            
+
             <div className={cn(
                 "overflow-hidden transition-all duration-300 ease-in-out",
                 openMenus[key] ? "max-h-[500px] opacity-100 mt-1" : "max-h-0 opacity-0"
@@ -72,14 +71,14 @@ const Sidebar = () => {
         <div className="w-64 bg-slate-900 text-white min-h-screen flex flex-col shadow-xl z-20 flex-shrink-0">
             <div className="p-5 border-b border-slate-800 bg-slate-900 sticky top-0 z-10">
                 <div className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent flex items-center gap-2">
-                   <div className="w-8 h-8 rounded bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white">S</div>
-                   SARPRAS
+                    <div className="w-8 h-8 rounded bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white">S</div>
+                    SARPRAS
                 </div>
                 <div className="text-[10px] text-slate-500 mt-1 tracking-wider uppercase font-semibold pl-1">Sistem Manajemen Aset</div>
             </div>
 
             <nav className="flex-1 p-3 overflow-y-auto custom-scrollbar space-y-4">
-                
+
                 {/* 1. Manajemen Aset */}
                 {renderCollapsible('assets', <Box size={18} />, 'Manajemen Aset', (
                     <>
@@ -90,19 +89,19 @@ const Sidebar = () => {
                             <Box size={16} /> Data Aset
                         </Link>
                         <Link to="/rkb" className={subNavItemClass('/rkb')}>
-                             <Calendar size={16} /> Perencanaan (RKB)
+                            <Calendar size={16} /> Perencanaan (RKB)
                         </Link>
                         <Link to="/procurements" className={subNavItemClass('/procurements')}>
-                             <ShoppingCart size={16} /> Pengadaan
+                            <ShoppingCart size={16} /> Pengadaan
                         </Link>
                         <Link to="/mutasi" className={subNavItemClass('/mutasi')}>
-                             <ArrowLeftRight size={16} /> Mutasi
+                            <ArrowLeftRight size={16} /> Mutasi
                         </Link>
                         <Link to="/validasi" className={subNavItemClass('/validasi')}>
-                             <FileCheck size={16} /> Validasi
+                            <FileCheck size={16} /> Validasi
                         </Link>
-                         <Link to="/penghapusan" className={subNavItemClass('/penghapusan')}>
-                             <Trash2 size={16} /> Penghapusan
+                        <Link to="/penghapusan" className={subNavItemClass('/penghapusan')}>
+                            <Trash2 size={16} /> Penghapusan
                         </Link>
                     </>
                 ))}
@@ -116,7 +115,7 @@ const Sidebar = () => {
                         <Link to="/kendaraan/data" className={subNavItemClass('/kendaraan/data')}>
                             <Truck size={16} /> Data Kendaraan
                         </Link>
-                         <Link to="/kendaraan/peminjaman" className={subNavItemClass('/kendaraan/peminjaman')}>
+                        <Link to="/kendaraan/peminjaman" className={subNavItemClass('/kendaraan/peminjaman')}>
                             <Calendar size={16} /> Peminjaman
                         </Link>
                         <Link to="/kendaraan/pemeliharaan" className={subNavItemClass('/kendaraan/pemeliharaan')}>
@@ -126,7 +125,7 @@ const Sidebar = () => {
                 ))}
 
                 {/* 3. Manajemen Pergudangan */}
-                 {renderCollapsible('warehouse', <Warehouse size={18} />, 'Gudang & Logistik', (
+                {renderCollapsible('warehouse', <Warehouse size={18} />, 'Gudang & Logistik', (
                     <>
                         <Link to="/gudang/dashboard" className={subNavItemClass('/gudang/dashboard')}>
                             <LayoutDashboard size={16} /> Dashboard
@@ -134,16 +133,16 @@ const Sidebar = () => {
                         <Link to="/gudang/stok" className={subNavItemClass('/gudang/stok')}>
                             <Box size={16} /> Stok Barang
                         </Link>
-                         <Link to="/gudang/masuk-keluar" className={subNavItemClass('/gudang/masuk-keluar')}>
+                        <Link to="/gudang/masuk-keluar" className={subNavItemClass('/gudang/masuk-keluar')}>
                             <ArrowLeftRight size={16} /> Masuk / Keluar
                         </Link>
                     </>
                 ))}
 
                 {/* 4. Manajemen Personalia */}
-                 {renderCollapsible('personnel', <Users size={18} />, 'Personalia', (
+                {renderCollapsible('personnel', <Users size={18} />, 'Personalia', (
                     <>
-                         <Link to="/personalia/struktur" className={subNavItemClass('/personalia/struktur')}>
+                        <Link to="/personalia/struktur" className={subNavItemClass('/personalia/struktur')}>
                             <Users size={16} /> Struktur Organisasi
                         </Link>
                         <Link to="/personalia/staf" className={subNavItemClass('/personalia/staf')}>
@@ -152,7 +151,7 @@ const Sidebar = () => {
                     </>
                 ))}
 
-                 {/* System & Settings */}
+                {/* System & Settings */}
                 {(isAdmin || user.role === 'AUDITOR') && (
                     <div className="pt-4 mt-2 border-t border-slate-800">
                         <div className="px-3 text-[10px] uppercase text-slate-500 mb-2 font-bold tracking-wider">System</div>
@@ -179,4 +178,3 @@ const Sidebar = () => {
     );
 };
 export default Sidebar;
-```
