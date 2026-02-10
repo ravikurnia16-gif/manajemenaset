@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const whatsappService = require('../services/whatsappService');
 
 exports.getFundingSources = async (req, res) => {
     try {
@@ -136,6 +137,38 @@ exports.createAsset = async (req, res) => {
         });
 
         res.json(result);
+
+        // --- WhatsApp Notification (Async - Non Blocking) ---
+        (async () => {
+            try {
+                // 1. Get Users with Phone Numbers
+                const users = await prisma.user.findMany({
+                    where: { phone: { not: null } },
+                    select: { phone: true, username: true }
+                });
+
+                if (users.length === 0) return;
+
+                // 2. Prepare Message
+                const asset = result; // The created asset (or the first one if multiple)
+                const message = `*[INFO ASET BARU]*\n\n` +
+                    `Telah ditambahkan aset baru ke dalam sistem:\n\n` +
+                    `📦 *Nama*: ${asset.name}\n` +
+                    `🏷️ *Kode*: ${asset.code}\n` +
+                    `📍 *Lokasi*: ${newRoomName || (asset.roomId ? 'Ruangan ID ' + asset.roomId : '-')}\n` +
+                    `👤 *Input Oleh*: ${req.user ? req.user.username : 'System'}\n\n` +
+                    `_Pesan otomatis dari Sistem Manajemen Aset_`;
+
+                // 3. Send to All Users
+                for (const user of users) {
+                    if (user.phone) {
+                        await whatsappService.sendMessage(user.phone, message);
+                    }
+                }
+            } catch (waError) {
+                console.error("[WhatsApp Notification Error]", waError);
+            }
+        })();
     } catch (error) {
         console.error("Create asset error:", error);
         res.status(500).json({ error: error.message });
