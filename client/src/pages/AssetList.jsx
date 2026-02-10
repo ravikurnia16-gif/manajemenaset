@@ -383,15 +383,15 @@ const AssetList = ({ validationMode = false }) => {
                                 <Plus size={18} /> Tambah Aset
                             </button>
                             <div className="flex gap-2 border-l border-slate-200 pl-3">
-                                <button onClick={() => document.getElementById('importInput').click()} disabled={loading} className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-all" title="Import Excel"><Upload size={18} /></button>
+                                <button onClick={() => document.getElementById('importInput').click()} disabled={loading} className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-all" title="Import Excel"><Upload size={18} /> Import</button>
                                 <input type="file" id="importInput" className="hidden" accept=".xlsx,.xls" onChange={handleImport} />
-                                <button onClick={handleTemplateDownload} className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-all" title="Download Template"><Download size={18} /></button>
+                                <button onClick={handleTemplateDownload} className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-all" title="Download Template"><Download size={18} /> Template</button>
                             </div>
                         </>
                     )}
                     <div className="flex gap-2 border-l border-slate-200 pl-3">
-                        <button onClick={() => setActionModal({ isOpen: true, type: 'export' })} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg shadow-green-200 transition-all hover:scale-105 active:scale-95" title="Export Excel"><Download size={18} /></button>
-                        <button onClick={() => setActionModal({ isOpen: true, type: 'print' })} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg shadow-indigo-200 transition-all hover:scale-105 active:scale-95" title="Cetak Label QR"><QrCode size={18} /></button>
+                        <button onClick={() => setActionModal({ isOpen: true, type: 'export' })} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg shadow-green-200 transition-all hover:scale-105 active:scale-95" title="Export Excel"><Download size={18} /> Export</button>
+                        <button onClick={() => setActionModal({ isOpen: true, type: 'print' })} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg shadow-indigo-200 transition-all hover:scale-105 active:scale-95" title="Cetak Label QR"><QrCode size={18} /> QR Code</button>
                     </div>
                 </div>
             </div>
