@@ -11,6 +11,7 @@ import ProcurementForm from './pages/ProcurementForm';
 import ProcurementDetail from './pages/ProcurementDetail';
 import Settings from './pages/Settings';
 import LoginPage from './pages/LoginPage';
+import ModulePlaceholder from './components/ModulePlaceholder';
 
 // Komponen untuk melindungi route yang butuh login
 const ProtectedRoute = ({ children }) => {
@@ -45,6 +46,23 @@ function App() {
           <Route path="procurements/new" element={<ProcurementForm />} />
           <Route path="procurements/:id" element={<ProcurementDetail />} />
           <Route path="settings" element={<Settings />} />
+
+          {/* Module: Manajemen Kendaraan */}
+          <Route path="kendaraan/dashboard" element={<ModulePlaceholder title="Dashboard Kendaraan" moduleName="Manajemen Kendaraan" />} />
+          <Route path="kendaraan/data" element={<ModulePlaceholder title="Data Kendaraan" moduleName="Manajemen Kendaraan" />} />
+          <Route path="kendaraan/peminjaman" element={<ModulePlaceholder title="Peminjaman Kendaraan" moduleName="Manajemen Kendaraan" />} />
+          <Route path="kendaraan/pemeliharaan" element={<ModulePlaceholder title="Pemeliharaan Kendaraan" moduleName="Manajemen Kendaraan" />} />
+
+          {/* Module: Manajemen Gudang */}
+          <Route path="gudang/dashboard" element={<ModulePlaceholder title="Dashboard Gudang" moduleName="Manajemen Gudang & Logistik" />} />
+          <Route path="gudang/stok" element={<ModulePlaceholder title="Stok Barang" moduleName="Manajemen Gudang & Logistik" />} />
+          <Route path="gudang/masuk-keluar" element={<ModulePlaceholder title="Masuk & Keluar Barang" moduleName="Manajemen Gudang & Logistik" />} />
+
+          {/* Module: Manajemen Personalia */}
+          <Route path="personalia/struktur" element={<ModulePlaceholder title="Struktur Organisasi" moduleName="Manajemen Personalia" />} />
+          <Route path="personalia/staf" element={<ModulePlaceholder title="Data Staf" moduleName="Manajemen Personalia" />} />
+          <Route path="personalia/detail/:id" element={<ModulePlaceholder title="Detail Staf" moduleName="Manajemen Personalia" />} />
+
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />
         </Route>
       </Routes>
