@@ -7,21 +7,10 @@ import { useReactToPrint } from 'react-to-print';
 import api from '../lib/axios';
 
 const AssetList = ({ validationMode = false }) => {
-    // ... items ...
-
-    // (Jump to Header replacement)
-    // I can't jump in replace_file_content like that.
-    // I will use Multi-Replace for this specific tool call or just replace the header part in a separate call?
-    // The user instruction "Add bulk validation button" - I'll do this in a separate call to be clean or use multi.
-    // Let's use multi replace to be safe.
-    // Wait, I am already using `replace_file_content`. I should be careful not to overwrite the "imports" changes if I split it.
-    // I will just do imports here as StartLine 1.
-    // And I will try to include the button in the same chunk OR use multi_replace.
-    // I'll use multi_replace instead.
-
     const navigate = useNavigate();
     const [units, setUnits] = useState([]);
     const [rooms, setRooms] = useState([]);
+
     // Action Modal State
     const [actionModal, setActionModal] = useState({ isOpen: false, type: null }); // type: 'export' | 'print'
     const [targetUnitId, setTargetUnitId] = useState('');
@@ -29,26 +18,24 @@ const AssetList = ({ validationMode = false }) => {
     const [assets, setAssets] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Apakah Anda yakin ingin menghapus aset ini?')) return;
-        try {
-            await api.delete(`/assets/${id}`);
-            alert('Aset berhasil dihapus');
-            fetchData();
-        } catch (error) {
-            console.error('Delete error:', error);
-            alert('Gagal menghapus aset: ' + (error.response?.data?.error || error.message));
-        }
-    };
+    // Filter Logic
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedIds, setSelectedIds] = useState([]);
+
+    // Validation Feature State
+    const [validationFilter, setValidationFilter] = useState(validationMode ? 'UNVERIFIED' : 'ALL'); // ALL, UNVERIFIED, VALIDATED, NEEDS_UPDATE
+    const [validationModal, setValidationModal] = useState({
+        isOpen: false,
+        assetIds: [],
+        currentStatus: 'VALIDATED', // Default action to Validated
+        note: ''
+    });
 
     const [currentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
     const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(currentUser.role);
 
-    // Filter Logic
-    const [searchTerm, setSearchTerm] = useState('');
     const [selectedUnit, setSelectedUnit] = useState(isGlobalAdmin ? '' : (currentUser.unitId?.toString() || ''));
     const [selectedRoom, setSelectedRoom] = useState('');
-    const [selectedIds, setSelectedIds] = useState([]);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -69,7 +56,8 @@ const AssetList = ({ validationMode = false }) => {
         } catch (error) {
             console.error('Fetch error:', error);
             if (!error.message.includes('401') && !error.message.includes('403')) {
-                alert('Gagal mengambil data dari server. Error: ' + error.message);
+                // Suppress alert if it's just a network error during initial dev play
+                console.warn('Gagal mengambil data dari server. Error: ' + error.message);
             }
         } finally {
             setLoading(false);
@@ -150,14 +138,17 @@ const AssetList = ({ validationMode = false }) => {
         }, 500); // Give time for state update and re-render
     };
 
-    // Validation Feature State
-    const [validationFilter, setValidationFilter] = useState(validationMode ? 'UNVERIFIED' : 'ALL'); // ALL, UNVERIFIED, VALIDATED, NEEDS_UPDATE
-    const [validationModal, setValidationModal] = useState({
-        isOpen: false,
-        assetIds: [],
-        currentStatus: 'VALIDATED', // Default action to Validated
-        note: ''
-    });
+    const handleDelete = async (id) => {
+        if (!window.confirm('Apakah Anda yakin ingin menghapus aset ini?')) return;
+        try {
+            await api.delete(`/assets/${id}`);
+            alert('Aset berhasil dihapus');
+            fetchData();
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert('Gagal menghapus aset: ' + (error.response?.data?.error || error.message));
+        }
+    };
 
     const openValidationModal = (ids = [], status = 'VALIDATED') => {
         setValidationModal({
@@ -191,7 +182,6 @@ const AssetList = ({ validationMode = false }) => {
             setLoading(false);
         }
     };
-
 
     // Pagination Logic
     const totalPages = Math.ceil(filteredAssets.length / itemsPerPage);
@@ -305,20 +295,17 @@ const AssetList = ({ validationMode = false }) => {
             setLoading(false);
         }
     };
+
     const handleExport = (dataSource = filteredAssets) => {
         const now = new Date();
         const exportData = dataSource.map((a, index) => {
-            // ... existing mapping logic ...
             const purchaseDate = new Date(a.purchaseDate);
             const monthsElapsed = Math.max(0, (now.getFullYear() - purchaseDate.getFullYear()) * 12 + (now.getMonth() - purchaseDate.getMonth()));
             const totalMonths = (a.usefulLife || 5) * 12;
             const monthlyDepreciation = Math.round(a.price / totalMonths);
             const accumulatedDepreciation = Math.min(a.price, monthlyDepreciation * monthsElapsed);
             const bookValue = Math.max(0, a.price - accumulatedDepreciation);
-
-            // Days calculation (rough estimation for display)
-            const msPerDay = 24 * 60 * 60 * 1000;
-            const daysElapsed = Math.max(0, Math.floor((now - purchaseDate) / msPerDay));
+            const daysElapsed = Math.max(0, Math.floor((now - purchaseDate) / (24 * 60 * 60 * 1000)));
 
             return {
                 'No': index + 1,
@@ -327,7 +314,7 @@ const AssetList = ({ validationMode = false }) => {
                 'Merek': a.brand || '-',
                 'Vendor': a.vendor?.name || '-',
                 'Tanggal Perolehan': a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString('id-ID') : '-',
-                'Status Perolehan': 'Beli Baru', // Placeholder
+                'Status Perolehan': 'Beli Baru',
                 'Harga Perolehan': a.price,
                 'Kategori': a.category?.name || '-',
                 'Sumber Dana': a.sourceOfFunds || 'Mandiri',
@@ -344,10 +331,6 @@ const AssetList = ({ validationMode = false }) => {
                 'Perkiraan Hari Penyusutan Terkini': daysElapsed,
                 'Jumlah Hari Penyusutan Terkini': daysElapsed,
                 'Nilai Buku': bookValue,
-                'Tanggal PHPP': '-',
-                'Hari Penyusutan Sebelum PHPP': '-',
-                'Nilai Penyusutan Saat PHPP': '-',
-                'Nilai Buku Saat PHPP': '-',
                 'Status PHPP': '-',
                 'No. Bukti PHPP': '-',
                 'Nama Penerima/Pembeli': '-',
@@ -363,11 +346,9 @@ const AssetList = ({ validationMode = false }) => {
         XLSX.writeFile(wb, `Laporan_Aset_Unit_${targetUnitId || 'All'}_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
-    // ... imports ...
-
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* ... Header ... */}
+            {/* Header */}
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
@@ -489,6 +470,78 @@ const AssetList = ({ validationMode = false }) => {
                 </div>
             )}
 
+            {/* Validation Modal */}
+            {validationModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+                        <h3 className="text-lg font-bold text-slate-800 mb-1">
+                            Validasi Aset
+                        </h3>
+                        <p className="text-slate-500 text-sm mb-4">
+                            Memproses validasi untuk <span className="font-bold text-blue-600">{validationModal.assetIds.length} aset</span> terpilih.
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Status Validasi</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setValidationModal(prev => ({ ...prev, currentStatus: 'VALIDATED' }))}
+                                        className={`p-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center gap-1 ${validationModal.currentStatus === 'VALIDATED' ? 'bg-green-50 border-green-200 text-green-700 ring-2 ring-green-500 ring-offset-1' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                                    >
+                                        <CheckCircle size={20} className={validationModal.currentStatus === 'VALIDATED' ? 'text-green-600' : 'text-slate-400'} />
+                                        Valid / Sah
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setValidationModal(prev => ({ ...prev, currentStatus: 'NEEDS_UPDATE' }))}
+                                        className={`p-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center gap-1 ${validationModal.currentStatus === 'NEEDS_UPDATE' ? 'bg-orange-50 border-orange-200 text-orange-700 ring-2 ring-orange-500 ring-offset-1' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                                    >
+                                        <AlertCircle size={20} className={validationModal.currentStatus === 'NEEDS_UPDATE' ? 'text-orange-600' : 'text-slate-400'} />
+                                        Perlu Update
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setValidationModal(prev => ({ ...prev, currentStatus: 'REJECTED' }))}
+                                        className={`p-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center gap-1 ${validationModal.currentStatus === 'REJECTED' ? 'bg-red-50 border-red-200 text-red-700 ring-2 ring-red-500 ring-offset-1' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                                    >
+                                        <XCircle size={20} className={validationModal.currentStatus === 'REJECTED' ? 'text-red-600' : 'text-slate-400'} />
+                                        Ditolak
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Catatan Validasi</label>
+                                <textarea
+                                    className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    rows={3}
+                                    placeholder="Tuliskan catatan check fisik atau alasan penolakan..."
+                                    value={validationModal.note}
+                                    onChange={(e) => setValidationModal(prev => ({ ...prev, note: e.target.value }))}
+                                ></textarea>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button
+                                onClick={() => setValidationModal({ isOpen: false, assetIds: [], currentStatus: 'VALIDATED', note: '' })}
+                                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleValidationSubmit}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center gap-2"
+                            >
+                                <CheckCircle size={16} /> Simpan Validasi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                 {/* Advanced Filter Bar */}
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50 grid grid-cols-1 md:grid-cols-12 gap-4">
@@ -502,7 +555,6 @@ const AssetList = ({ validationMode = false }) => {
                             className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                     </div>
-
 
                     <div className="md:col-span-2 relative">
                         <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><Building2 size={16} /></div>
@@ -668,7 +720,25 @@ const AssetList = ({ validationMode = false }) => {
                         <span>Menampilkan {paginatedAssets.length} dari {filteredAssets.length} data</span>
                     </div>
 
-                    {/* ... Pagination Buttons ... */}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                            disabled={currentPage === 1}
+                            className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                        >
+                            Sebelumnya
+                        </button>
+                        <span className="flex items-center px-2 bg-slate-100 rounded text-slate-600 font-medium">
+                            Hal {currentPage} / {totalPages || 1}
+                        </span>
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                            disabled={currentPage === totalPages || totalPages === 0}
+                            className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                        >
+                            Selanjutnya
+                        </button>
+                    </div>
                 </div>
             </div>
 
