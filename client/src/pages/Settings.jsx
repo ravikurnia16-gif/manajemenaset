@@ -599,6 +599,7 @@ const Settings = () => {
                                             { label: 'Sekretaris Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
                                             { label: 'Bendahara Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
                                             { label: 'Kepala Bidang Sarana dan Prasarana', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                            { label: 'Kepala Bidang (Non-super)', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
                                             { label: 'Staf Bidang Sarana dan Prasarana', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                             { label: 'Kepala Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
                                             { label: 'Bendahara Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
@@ -626,6 +627,7 @@ const Settings = () => {
                                     </optgroup>
                                     <optgroup label="Bidang Sarana Prasarana (Global Access)">
                                         <option value="Kepala Bidang Sarana dan Prasarana">Kepala Bidang Sarana dan Prasarana</option>
+                                        <option value="Kepala Bidang (Non-super)">Kepala Bidang (Non-super)</option>
                                         <option value="Staf Bidang Sarana dan Prasarana">Staf Bidang Sarana dan Prasarana</option>
                                     </optgroup>
                                     <optgroup label="Unit Sekolah / Lembaga (Unit Access)">

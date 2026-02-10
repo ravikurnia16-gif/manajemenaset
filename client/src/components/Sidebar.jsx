@@ -38,7 +38,7 @@ const Sidebar = ({ isOpen = true }) => {
     );
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
-    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'ADMIN_UNIT'].includes(user.role);
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_UNIT'].includes(user.role);
 
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">

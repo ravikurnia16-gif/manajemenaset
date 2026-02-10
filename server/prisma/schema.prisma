@@ -10,6 +10,7 @@ datasource db {
 enum Role {
   SUPER_ADMIN
   ADMIN_ASET
+  KEPALA_BIDANG
   ADMIN_UNIT
   AUDITOR
   USER

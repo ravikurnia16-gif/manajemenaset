@@ -194,14 +194,14 @@ exports.getAllAssets = async (req, res) => {
         let where = {};
 
         // 1. Role-based Restriction
-        if (role !== 'SUPER_ADMIN' && role !== 'ADMIN_ASET') {
+        if (role !== 'SUPER_ADMIN' && role !== 'ADMIN_ASET' && role !== 'KEPALA_BIDANG') {
             where.unitId = unitId;
         }
 
         // 2. Explicit Filters (if provided and allowed)
         if (filterUnitId) {
             // If user is restricted, ensure they can only filter their own unit (already handled by line 154 logic usually, but let's be safe)
-            if (role === 'SUPER_ADMIN' || role === 'ADMIN_ASET' || parseInt(filterUnitId) === unitId) {
+            if (role === 'SUPER_ADMIN' || role === 'ADMIN_ASET' || role === 'KEPALA_BIDANG' || parseInt(filterUnitId) === unitId) {
                 where.unitId = parseInt(filterUnitId);
             }
         }
