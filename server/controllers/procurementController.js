@@ -283,29 +283,19 @@ exports.updateStatus = async (req, res) => {
                 let msg = '';
                 const title = procurement.title || procurement.code;
 
-                if (status === 'VALIDATED') {
+                if (status === 'VALIDATED' || status === 'APPROVED') {
                     msg = `*Info Request Pengadaan*\n\n` +
-                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n` +
-                        `Permintaan Anda *"${title}"* telah *DIVALIDASI* \u2705\n\n` +
+                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n\n` +
+                        `Permintaan Anda *"${title}"* telah *Disetujui dan Divalidasi* \u2705\n\n` +
                         `*Rincian:*\n${itemList}\n\n` +
-                        `Permintaan sedang menunggu persetujuan selanjutnya.`;
-                } else if (status === 'APPROVED') {
-                    msg = `*Info Request Pengadaan*\n\n` +
-                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n` +
-                        `Permintaan Anda *"${title}"* telah *DISETUJUI* \u2705\u2705\n\n` +
-                        `*Rincian:*\n${itemList}\n\n` +
-                        `Pesanan sedang dalam proses pengadaan.`;
+                        `Pesanan sedang dalam proses pengadaan. Mohon ditunggu.`;
                 } else if (status === 'REJECTED') {
                     const reason = rejectionReason || 'Tidak ada keterangan';
                     msg = `*Info Request Pengadaan*\n\n` +
-                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n` +
+                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n\n` +
                         `Mohon maaf, permintaan Anda *"${title}"* *DITOLAK* \u274C\n\n` +
                         `*Alasan:* ${reason}\n\n` +
                         `Silakan hubungi Bidang Sarpras untuk informasi lebih lanjut.`;
-                } else {
-                    msg = `*Info Request Pengadaan*\n\n` +
-                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n` +
-                        `Status permintaan Anda *"${title}"* telah diubah menjadi: *${status}*`;
                 }
 
                 if (msg) {
@@ -376,6 +366,54 @@ exports.updateItemDetail = async (req, res) => {
             data: updateData
         });
         res.json(item);
+
+        // --- WhatsApp Notification: Vendor Terpilih (Async) ---
+        if (finalVendorId) {
+            (async () => {
+                try {
+                    // Fetch procurement info via the item
+                    const updatedItem = await prisma.procurementItem.findUnique({
+                        where: { id: parseInt(itemId) },
+                        include: {
+                            procurement: {
+                                include: {
+                                    user: { include: { unit: true } },
+                                    items: true
+                                }
+                            }
+                        }
+                    });
+
+                    if (!updatedItem?.procurement) return;
+                    const proc = updatedItem.procurement;
+                    const submitter = proc.user;
+                    if (!submitter || !submitter.phone) return;
+
+                    // Get vendor name
+                    const vendor = await prisma.vendor.findUnique({ where: { id: parseInt(finalVendorId) } });
+                    const vendorName = vendor?.name || 'Vendor';
+
+                    const msg = `*Info Request Pengadaan*\n\n` +
+                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n\n` +
+                        `Vendor telah terpilih untuk item *"${updatedItem.name}"* pada permintaan *"${proc.title || proc.code}"*:\n\n` +
+                        `\u{1F3EA} *Vendor* : ${vendorName}\n` +
+                        `\u{1F4B0} *Harga* : Rp ${(updatedItem.finalPrice || updatedItem.estPrice || 0).toLocaleString('id-ID')}\n\n` +
+                        `Proses pengadaan sedang berjalan.`;
+
+                    setTimeout(async () => {
+                        try {
+                            await whatsappService.sendMessage(submitter.phone, msg);
+                            console.log(`[WA] Vendor notification sent to ${submitter.username}`);
+                        } catch (e) {
+                            console.error('[WA] Failed vendor notification:', e);
+                        }
+                    }, 30000);
+                } catch (err) {
+                    console.error('WA Vendor Notification Error:', err);
+                }
+            })();
+        }
+
     } catch (error) {
         console.error("Update Item Error:", error);
         res.status(500).json({ error: error.message });
