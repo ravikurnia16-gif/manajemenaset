@@ -200,254 +200,258 @@ exports.createProcurement = async (req, res) => {
                 console.error("WA Notification Error:", err);
             }
         })();
-    };
 
-    // Import Request from Excel
-    exports.importProcurement = async (req, res) => {
-        const { title, type, items } = req.body;
-        const user = req.user;
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
 
-        if (!items || !Array.isArray(items) || items.length === 0) {
-            return res.status(400).json({ error: 'Data items kosong.' });
-        }
+// Import Request from Excel
+exports.importProcurement = async (req, res) => {
+    const { title, type, items } = req.body;
+    const user = req.user;
 
-        try {
-            const code = await generateCode();
+    if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Data items kosong.' });
+    }
 
-            const result = await prisma.$transaction(async (prisma) => {
-                // 1. Create Header
-                const procurement = await prisma.procurement.create({
-                    data: {
-                        code,
-                        title: title || `Import Request ${type} - ${new Date().toLocaleDateString('id-ID')}`,
-                        userId: user.id,
-                        unitId: user.unitId,
-                        type,
-                        status: 'SUBMITTED'
-                    }
-                });
+    try {
+        const code = await generateCode();
 
-                // 2. Create Items
-                // Validation Logic (Simpler than RKB, assuming frontend validated)
-                await prisma.procurementItem.createMany({
-                    data: items.map(item => ({
-                        procurementId: procurement.id,
-                        name: item.name,
-                        spec: item.spec ? String(item.spec) : '-',
-                        qty: parseInt(item.qty),
-                        unit: item.unit ? String(item.unit) : 'Unit',
-                        estPrice: parseFloat(item.estPrice || 0),
-                        fundingSource: item.fundingSource || 'Mandiri'
-                    }))
-                });
-
-                return procurement;
-            });
-
-            res.json({ message: 'Import berhasil!', data: result });
-        } catch (error) {
-            res.status(500).json({ error: error.message });
-        }
-    };
-
-    // Update Status (Validate / Approve / Reject)
-    exports.updateStatus = async (req, res) => {
-        const { id } = req.params;
-        const { status, validationNote, rejectionReason } = req.body;
-
-        try {
-            const updateData = { status };
-            if (validationNote) updateData.validationNote = validationNote;
-            if (rejectionReason) updateData.rejectionReason = rejectionReason;
-
-            const procurement = await prisma.procurement.update({
-                where: { id: parseInt(id) },
-                data: updateData
-            });
-            res.json(procurement);
-        } catch (error) {
-            res.status(500).json({ error: error.message });
-        }
-    };
-
-    // Update Item Detail (Vendor, Brand, Specs) - New Function
-    // Update Item Detail (Vendor, Brand, Specs)
-    exports.updateItemDetail = async (req, res) => {
-        const { itemId } = req.params;
-        const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison } = req.body;
-
-        try {
-            let finalVendorId = vendorId;
-
-            // Create new vendor if requested
-            if (newVendorName) {
-                const existingVendor = await prisma.vendor.findFirst({
-                    where: { name: newVendorName }
-                });
-
-                if (existingVendor) {
-                    finalVendorId = existingVendor.id;
-                } else {
-                    const newVendor = await prisma.vendor.create({
-                        data: { name: newVendorName }
-                    });
-                    finalVendorId = newVendor.id;
-                }
-            }
-
-            const updateData = {
-                fundingSource,
-                brand,
-                usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
-                vendorId: finalVendorId ? parseInt(finalVendorId) : undefined,
-                finalPrice: finalPrice ? parseFloat(finalPrice) : undefined,
-            };
-
-            // Explicitly handle comparisonVendors
-            if (comparisonVendors !== undefined) {
-                updateData.comparisonVendors = JSON.stringify(comparisonVendors);
-            }
-
-            // Explicitly handle needComparison
-            if (needComparison !== undefined) {
-                updateData.needComparison = needComparison;
-            }
-
-            const item = await prisma.procurementItem.update({
-                where: { id: parseInt(itemId) },
-                data: updateData
-            });
-            res.json(item);
-        } catch (error) {
-            console.error("Update Item Error:", error);
-            res.status(500).json({ error: error.message });
-        }
-    };
-
-    // Add Vendor Offer (Legacy / For Comparison only)
-    exports.addVendorOffer = async (req, res) => {
-        const { id } = req.params;
-        const { vendorName, price, isWinner } = req.body;
-        // Handle file upload if needed (later)
-
-        try {
-            if (isWinner) {
-                // Unset other winners if this one is winner
-                await prisma.vendorOffer.updateMany({
-                    where: { procurementId: parseInt(id) },
-                    data: { isWinner: false }
-                });
-            }
-
-            const offer = await prisma.vendorOffer.create({
+        const result = await prisma.$transaction(async (prisma) => {
+            // 1. Create Header
+            const procurement = await prisma.procurement.create({
                 data: {
-                    procurementId: parseInt(id),
-                    vendorName,
-                    price: parseFloat(price),
-                    isWinner: isWinner || false
+                    code,
+                    title: title || `Import Request ${type} - ${new Date().toLocaleDateString('id-ID')}`,
+                    userId: user.id,
+                    unitId: user.unitId,
+                    type,
+                    status: 'SUBMITTED'
                 }
             });
 
-            res.json(offer);
-        } catch (error) {
-            res.status(500).json({ error: error.message });
-        }
-    };
-
-    // Process BAST & Auto-Asset Creation
-    exports.processBAST = async (req, res) => {
-        const { id } = req.params;
-        const { bastDate } = req.body;
-
-        try {
-            const procurement = await prisma.procurement.findUnique({
-                where: { id: parseInt(id) },
-                include: { items: true, unit: true }
+            // 2. Create Items
+            // Validation Logic (Simpler than RKB, assuming frontend validated)
+            await prisma.procurementItem.createMany({
+                data: items.map(item => ({
+                    procurementId: procurement.id,
+                    name: item.name,
+                    spec: item.spec ? String(item.spec) : '-',
+                    qty: parseInt(item.qty),
+                    unit: item.unit ? String(item.unit) : 'Unit',
+                    estPrice: parseFloat(item.estPrice || 0),
+                    fundingSource: item.fundingSource || 'Mandiri'
+                }))
             });
 
-            if (!procurement) return res.status(404).json({ error: 'Request not found' });
-            if (procurement.status === 'COMPLETED') return res.status(400).json({ error: 'Already completed' });
+            return procurement;
+        });
 
-            await prisma.$transaction(async (prisma) => {
-                // 1. Update Procurement Status
-                await prisma.procurement.update({
-                    where: { id: parseInt(id) },
-                    data: {
-                        status: 'COMPLETED',
-                        bastDate: new Date(bastDate),
-                    }
+        res.json({ message: 'Import berhasil!', data: result });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Update Status (Validate / Approve / Reject)
+exports.updateStatus = async (req, res) => {
+    const { id } = req.params;
+    const { status, validationNote, rejectionReason } = req.body;
+
+    try {
+        const updateData = { status };
+        if (validationNote) updateData.validationNote = validationNote;
+        if (rejectionReason) updateData.rejectionReason = rejectionReason;
+
+        const procurement = await prisma.procurement.update({
+            where: { id: parseInt(id) },
+            data: updateData
+        });
+        res.json(procurement);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Update Item Detail (Vendor, Brand, Specs) - New Function
+// Update Item Detail (Vendor, Brand, Specs)
+exports.updateItemDetail = async (req, res) => {
+    const { itemId } = req.params;
+    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison } = req.body;
+
+    try {
+        let finalVendorId = vendorId;
+
+        // Create new vendor if requested
+        if (newVendorName) {
+            const existingVendor = await prisma.vendor.findFirst({
+                where: { name: newVendorName }
+            });
+
+            if (existingVendor) {
+                finalVendorId = existingVendor.id;
+            } else {
+                const newVendor = await prisma.vendor.create({
+                    data: { name: newVendorName }
                 });
+                finalVendorId = newVendor.id;
+            }
+        }
 
-                // 2. If ASSET type, create Asset records
-                if (procurement.type === 'ASSET') {
-                    const year = new Date(bastDate).getFullYear();
-                    const settings = await prisma.setting.findUnique({ where: { id: 1 } });
-                    const prefix = settings?.assetCodePrefix || 'AST';
+        const updateData = {
+            fundingSource,
+            brand,
+            usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
+            vendorId: finalVendorId ? parseInt(finalVendorId) : undefined,
+            finalPrice: finalPrice ? parseFloat(finalPrice) : undefined,
+        };
 
-                    // Fetch a default category if none specified (TODO: Add Category to ProcurementItem)
-                    const defaultCategory = await prisma.category.findFirst();
-                    if (!defaultCategory) throw new Error('No Category found in Master Data. Please create one.');
-                    const categoryCode = defaultCategory.code;
+        // Explicitly handle comparisonVendors
+        if (comparisonVendors !== undefined) {
+            updateData.comparisonVendors = JSON.stringify(comparisonVendors);
+        }
 
-                    for (const item of procurement.items) {
-                        const qty = item.qty;
-                        const unitCode = procurement.unit.code;
+        // Explicitly handle needComparison
+        if (needComparison !== undefined) {
+            updateData.needComparison = needComparison;
+        }
 
-                        // Generate Base Pattern: PREFIX.UNIT.CAT.YEAR.
-                        const patternPrefix = `${prefix}.${unitCode}.${categoryCode}.${year}.`;
+        const item = await prisma.procurementItem.update({
+            where: { id: parseInt(itemId) },
+            data: updateData
+        });
+        res.json(item);
+    } catch (error) {
+        console.error("Update Item Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
 
-                        for (let i = 0; i < qty; i++) {
-                            // Find current max sequence in DB
-                            // OPTIMIZATION: We should ideally lock or use a separate counter, 
-                            // but for now we fetch fresh lastAsset for each iteration to minimize collision risk in this transaction loops.
-                            const lastAsset = await prisma.asset.findFirst({
-                                where: { code: { startsWith: patternPrefix } },
-                                orderBy: { code: 'desc' }
-                            });
+// Add Vendor Offer (Legacy / For Comparison only)
+exports.addVendorOffer = async (req, res) => {
+    const { id } = req.params;
+    const { vendorName, price, isWinner } = req.body;
+    // Handle file upload if needed (later)
 
-                            let currentSeq = 1;
-                            if (lastAsset) {
-                                const parts = lastAsset.code.split('.');
-                                const lastSeqPart = parts[parts.length - 1];
-                                currentSeq = (parseInt(lastSeqPart) || 0) + 1;
-                            }
+    try {
+        if (isWinner) {
+            // Unset other winners if this one is winner
+            await prisma.vendorOffer.updateMany({
+                where: { procurementId: parseInt(id) },
+                data: { isWinner: false }
+            });
+        }
 
-                            // Safety measure: Check if this seq already exists in current loop context if transaction isolation is weak
-                            // But since we query inside the transaction, it should see changes if isolation level supports it.
-                            // However, Prisma atomic transactions don't expose intermediate states to findFirst easily if simpler DBs.
-                            // We'll trust the sequential execution here.
+        const offer = await prisma.vendorOffer.create({
+            data: {
+                procurementId: parseInt(id),
+                vendorName,
+                price: parseFloat(price),
+                isWinner: isWinner || false
+            }
+        });
 
-                            const seq = currentSeq.toString().padStart(4, '0');
-                            const assetCode = `${patternPrefix}${seq}`;
+        res.json(offer);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
 
-                            const fundingSource = item.fundingSource || 'Yayasan'; // Default if null
+// Process BAST & Auto-Asset Creation
+exports.processBAST = async (req, res) => {
+    const { id } = req.params;
+    const { bastDate } = req.body;
 
-                            await prisma.asset.create({
-                                data: {
-                                    code: assetCode,
-                                    name: item.name,
-                                    specification: item.spec,
-                                    brand: item.brand,
-                                    price: item.finalPrice || item.estPrice,
-                                    purchaseDate: new Date(bastDate),
-                                    condition: 'BAIK',
-                                    sourceOfFunds: fundingSource,
-                                    acquisitionStatus: 'Pembelian',
-                                    unitId: procurement.unitId,
-                                    categoryId: defaultCategory.id,
-                                    usefulLife: item.usefulLife || 4,
-                                    vendorId: item.vendorId, // Nullable
-                                    quantity: 1
-                                }
-                            });
-                        }
-                    }
+    try {
+        const procurement = await prisma.procurement.findUnique({
+            where: { id: parseInt(id) },
+            include: { items: true, unit: true }
+        });
+
+        if (!procurement) return res.status(404).json({ error: 'Request not found' });
+        if (procurement.status === 'COMPLETED') return res.status(400).json({ error: 'Already completed' });
+
+        await prisma.$transaction(async (prisma) => {
+            // 1. Update Procurement Status
+            await prisma.procurement.update({
+                where: { id: parseInt(id) },
+                data: {
+                    status: 'COMPLETED',
+                    bastDate: new Date(bastDate),
                 }
             });
 
-            res.json({ message: 'BAST processed and Assets created.' });
-        } catch (error) {
-            console.error(error);
-            res.status(500).json({ error: error.message });
-        }
-    };
+            // 2. If ASSET type, create Asset records
+            if (procurement.type === 'ASSET') {
+                const year = new Date(bastDate).getFullYear();
+                const settings = await prisma.setting.findUnique({ where: { id: 1 } });
+                const prefix = settings?.assetCodePrefix || 'AST';
+
+                // Fetch a default category if none specified (TODO: Add Category to ProcurementItem)
+                const defaultCategory = await prisma.category.findFirst();
+                if (!defaultCategory) throw new Error('No Category found in Master Data. Please create one.');
+                const categoryCode = defaultCategory.code;
+
+                for (const item of procurement.items) {
+                    const qty = item.qty;
+                    const unitCode = procurement.unit.code;
+
+                    // Generate Base Pattern: PREFIX.UNIT.CAT.YEAR.
+                    const patternPrefix = `${prefix}.${unitCode}.${categoryCode}.${year}.`;
+
+                    for (let i = 0; i < qty; i++) {
+                        // Find current max sequence in DB
+                        // OPTIMIZATION: We should ideally lock or use a separate counter, 
+                        // but for now we fetch fresh lastAsset for each iteration to minimize collision risk in this transaction loops.
+                        const lastAsset = await prisma.asset.findFirst({
+                            where: { code: { startsWith: patternPrefix } },
+                            orderBy: { code: 'desc' }
+                        });
+
+                        let currentSeq = 1;
+                        if (lastAsset) {
+                            const parts = lastAsset.code.split('.');
+                            const lastSeqPart = parts[parts.length - 1];
+                            currentSeq = (parseInt(lastSeqPart) || 0) + 1;
+                        }
+
+                        // Safety measure: Check if this seq already exists in current loop context if transaction isolation is weak
+                        // But since we query inside the transaction, it should see changes if isolation level supports it.
+                        // However, Prisma atomic transactions don't expose intermediate states to findFirst easily if simpler DBs.
+                        // We'll trust the sequential execution here.
+
+                        const seq = currentSeq.toString().padStart(4, '0');
+                        const assetCode = `${patternPrefix}${seq}`;
+
+                        const fundingSource = item.fundingSource || 'Yayasan'; // Default if null
+
+                        await prisma.asset.create({
+                            data: {
+                                code: assetCode,
+                                name: item.name,
+                                specification: item.spec,
+                                brand: item.brand,
+                                price: item.finalPrice || item.estPrice,
+                                purchaseDate: new Date(bastDate),
+                                condition: 'BAIK',
+                                sourceOfFunds: fundingSource,
+                                acquisitionStatus: 'Pembelian',
+                                unitId: procurement.unitId,
+                                categoryId: defaultCategory.id,
+                                usefulLife: item.usefulLife || 4,
+                                vendorId: item.vendorId, // Nullable
+                                quantity: 1
+                            }
+                        });
+                    }
+                }
+            }
+        });
+
+        res.json({ message: 'BAST processed and Assets created.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+};
