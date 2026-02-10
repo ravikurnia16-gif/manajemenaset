@@ -46,7 +46,6 @@ function App() {
           <Route path="procurements/new" element={<ProcurementForm />} />
           <Route path="procurements/:id" element={<ProcurementDetail />} />
           <Route path="settings" element={<Settings />} />
-          <Route path="validasi" element={<AssetList validationMode={true} />} />
 
           {/* Module: Manajemen Kendaraan */}
           <Route path="kendaraan/dashboard" element={<ModulePlaceholder title="Dashboard Kendaraan" moduleName="Manajemen Kendaraan" />} />

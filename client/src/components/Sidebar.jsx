@@ -111,9 +111,6 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/mutasi" className={subNavItemClass('/mutasi')}>
                             <ArrowLeftRight size={16} /> Mutasi
                         </Link>
-                        <Link to="/validasi" className={subNavItemClass('/validasi')}>
-                            <FileCheck size={16} /> Validasi
-                        </Link>
                         <Link to="/penghapusan" className={subNavItemClass('/penghapusan')}>
                             <Trash2 size={16} /> Penghapusan
                         </Link>
