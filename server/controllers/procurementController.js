@@ -177,34 +177,12 @@ exports.createProcurement = async (req, res) => {
 
                 await whatsappService.sendMessage(WA_GROUP_ID, msgGroup);
 
-                // 3. Send to Specific Staff (Personal Chat with Delay)
-                const targetNips = ['25041676', '26021760'];
-                const staffUsers = await prisma.user.findMany({
-                    where: { nip: { in: targetNips }, phone: { not: null } }
-                });
-
-                if (staffUsers.length > 0) {
-                    const msgStaff = `*Notifikasi Pengadaan Baru*\n\n` +
-                        `👤 User: *${user.username}* (${user.unit?.name || 'Unit ?'})\n` +
-                        `📝 Judul: *${title}*\n` +
-                        `🔖 Kode: ${code}\n\n` +
-                        `Mohon segera dicek dan diverifikasi.`;
-
-                    // Send with DELAY (30 seconds interval to prevent spam/blocking)
-                    for (let i = 0; i < staffUsers.length; i++) {
-                        const staff = staffUsers[i];
-                        const delay = (i + 1) * 30000; // 30s, 60s, etc.
-
-                        setTimeout(async () => {
-                            try {
-                                console.log(`Sending WA to Staff ${staff.username} (${staff.phone}) in ${delay / 1000}s...`);
-                                await whatsappService.sendMessage(staff.phone, msgStaff);
-                            } catch (e) {
-                                console.error(`Failed sending to staff ${staff.username}:`, e);
-                            }
-                        }, delay);
-                    }
-                }
+                // 3. Send to Specific Staff (Personal Chat with Delay) - DISABLED
+                // const targetNips = ['25041676', '26021760'];
+                // const staffUsers = await prisma.user.findMany({
+                //     where: { nip: { in: targetNips }, phone: { not: null } }
+                // });
+                // ... (Logic removed as per user request to only use Group)
 
             } catch (err) {
                 console.error("WA Notification Error:", err);
