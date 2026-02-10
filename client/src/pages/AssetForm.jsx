@@ -3,12 +3,13 @@ import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Save, X } from 'lucide-react';
 import api from '../lib/axios';
+import SearchableSelect from '../components/SearchableSelect';
 
 const AssetForm = () => {
     const navigate = useNavigate();
     const { id } = useParams();
     const isEdit = !!id;
-    const { register, handleSubmit, watch, reset, formState: { errors } } = useForm({
+    const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm({
         defaultValues: {
             condition: 'BAIK',
             usefulLife: 5,
@@ -213,13 +214,14 @@ const AssetForm = () => {
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Vendor / Toko</label>
-                            <select {...register('vendorId')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                                <option value="">Pilih Vendor...</option>
-                                {masterData.vendors.map(v => (
-                                    <option key={v.id} value={v.id}>{v.name}</option>
-                                ))}
-                                <option value="other" className="text-blue-600 font-bold">+ Lainnya (Input Manual)</option>
-                            </select>
+                            <SearchableSelect
+                                options={masterData.vendors}
+                                value={selectedVendorId}
+                                onChange={(val) => setValue('vendorId', val)}
+                                placeholder="Pilih Vendor atau Ketik..."
+                            />
+                            {/* Hidden input for form registration if needed, though setValue handles state */}
+                            <input type="hidden" {...register('vendorId')} />
                         </div>
 
                         {selectedVendorId === 'other' && (
