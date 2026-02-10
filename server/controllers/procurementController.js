@@ -177,7 +177,7 @@ exports.createProcurement = async (req, res) => {
                     const msgSyafrian = `*Info Request Pengadaan*\n\n` +
                         `Pesanan telah masuk dari:\n` +
                         `\u{1F464} *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
-                        `\u{1F194} *NIY* : ${submitter.nip || '-'}\n` +
+                        `\u{1F194} *NIY* : ${submitter.username || '-'}\n` +
                         `\u{1F3E2} *Unit* : ${submitter.unit?.name || '-'}\n\n` +
                         `*Rincian Permintaan:*\n` +
                         `${itemList}\n\n` +
