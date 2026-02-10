@@ -6,7 +6,7 @@ import { LabelPrint, BatchLabelPrint } from '../components/LabelPrint';
 import { useReactToPrint } from 'react-to-print';
 import api from '../lib/axios';
 
-const AssetList = () => {
+const AssetList = ({ validationMode = false }) => {
     // ... items ...
 
     // (Jump to Header replacement)
@@ -151,7 +151,7 @@ const AssetList = () => {
     };
 
     // Validation Feature State
-    const [validationFilter, setValidationFilter] = useState('ALL');
+    const [validationFilter, setValidationFilter] = useState(validationMode ? 'UNVERIFIED' : 'ALL'); // ALL, UNVERIFIED, VALIDATED, NEEDS_UPDATE
     const [validationModal, setValidationModal] = useState({
         isOpen: false,
         assetIds: [],
@@ -370,9 +370,13 @@ const AssetList = () => {
             {/* ... Header ... */}
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Daftar Aset</h1>
+                    <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+                        {validationMode ? 'Validasi Aset' : 'Daftar Aset'}
+                    </h1>
                     <div className="flex items-center gap-2 mt-1">
-                        <p className="text-slate-500 text-sm">Monitor aset per unit dan ruangan</p>
+                        <p className="text-slate-500 text-sm">
+                            {validationMode ? 'Verifikasi dan validasi data aset' : 'Monitor aset per unit dan ruangan'}
+                        </p>
                         {selectedIds.length > 0 && (
                             <div className="flex gap-2 animate-in zoom-in-95 duration-200">
                                 <button
@@ -391,23 +395,23 @@ const AssetList = () => {
                         )}
                     </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                    <button onClick={() => setActionModal({ isOpen: true, type: 'print' })} className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 flex items-center gap-2 shadow-sm">
-                        <Printer size={16} /> Batch Print QR
-                    </button>
-                    <button onClick={handleTemplateDownload} className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg text-sm font-medium transition-colors">
-                        Download Template
-                    </button>
-                    <button onClick={() => setActionModal({ isOpen: true, type: 'export' })} className="px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 flex items-center gap-2">
-                        <Download size={16} /> Export
-                    </button>
-                    <label className="px-4 py-2 border border-slate-200 bg-white text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 flex items-center gap-2 cursor-pointer">
-                        <Upload size={16} /> Import
-                        <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImport} />
-                    </label>
-                    <Link to="/aset/input" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-200">
-                        <Plus size={16} /> Tambah Item
-                    </Link>
+                <div className="flex gap-3">
+                    {!validationMode && (
+                        <>
+                            <button onClick={() => navigate('/aset/input')} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg shadow-blue-200 transition-all hover:scale-105 active:scale-95">
+                                <Plus size={18} /> Tambah Aset
+                            </button>
+                            <div className="flex gap-2 border-l border-slate-200 pl-3">
+                                <button onClick={() => document.getElementById('importInput').click()} disabled={loading} className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-all" title="Import Excel"><Upload size={18} /></button>
+                                <input type="file" id="importInput" className="hidden" accept=".xlsx,.xls" onChange={handleImport} />
+                                <button onClick={handleTemplateDownload} className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-all" title="Download Template"><Download size={18} /></button>
+                            </div>
+                        </>
+                    )}
+                    <div className="flex gap-2 border-l border-slate-200 pl-3">
+                        <button onClick={() => setActionModal({ isOpen: true, type: 'export' })} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg shadow-green-200 transition-all hover:scale-105 active:scale-95" title="Export Excel"><Download size={18} /></button>
+                        <button onClick={() => setActionModal({ isOpen: true, type: 'print' })} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg shadow-indigo-200 transition-all hover:scale-105 active:scale-95" title="Cetak Label QR"><QrCode size={18} /></button>
+                    </div>
                 </div>
             </div>
 
