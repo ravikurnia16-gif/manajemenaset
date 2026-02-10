@@ -41,22 +41,44 @@ const AssetList = ({ validationMode = false }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
 
+    const [totalItems, setTotalItems] = useState(0);
+
     // Fetch Data from Backend
     const fetchData = async () => {
         try {
             setLoading(true);
+
+            // Build Query Params
+            const params = {
+                page: currentPage,
+                limit: itemsPerPage,
+                search: searchTerm,
+                validationStatus: validationFilter,
+                unitId: selectedUnit,
+                roomId: selectedRoom
+            };
+
             const [respAssets, respUnits, respRooms] = await Promise.all([
-                api.get('/assets').catch(err => { throw new Error(`Data Aset: ${err.message}`); }),
+                api.get('/assets', { params }).catch(err => { throw new Error(`Data Aset: ${err.message}`); }),
                 api.get('/master/units').catch(err => { throw new Error(`Data Unit: ${err.message}`); }),
                 api.get('/master/rooms').catch(err => { throw new Error(`Data Ruangan: ${err.message}`); })
             ]);
-            setAssets(respAssets.data);
+
+            // Handle new response structure (data + pagination)
+            if (respAssets.data.pagination) {
+                setAssets(respAssets.data.data);
+                setTotalItems(respAssets.data.pagination.total);
+            } else {
+                // Fallback for old API style (just in case)
+                setAssets(respAssets.data);
+                setTotalItems(respAssets.data.length);
+            }
+
             setUnits(respUnits.data);
             setRooms(respRooms.data);
         } catch (error) {
             console.error('Fetch error:', error);
             if (!error.message.includes('401') && !error.message.includes('403')) {
-                // Suppress alert if it's just a network error during initial dev play
                 console.warn('Gagal mengambil data dari server. Error: ' + error.message);
             }
         } finally {
@@ -64,17 +86,27 @@ const AssetList = ({ validationMode = false }) => {
         }
     };
 
+    // Debounce Search
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setCurrentPage(1); // Reset to page 1 on search change
+            fetchData();
+        }, 500); // 500ms debounce
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+    // Triggers for filters/pagination
     useEffect(() => {
         fetchData();
         // Force selection if not global admin
         if (!isGlobalAdmin && currentUser.unitId) {
             setSelectedUnit(currentUser.unitId.toString());
         }
-    }, [currentUser]);
+    }, [currentPage, itemsPerPage, validationFilter, selectedUnit, selectedRoom, currentUser]);
 
-    // Print Handling
+    // Ref for Print
     const [printAsset, setPrintAsset] = useState(null);
-    const [batchPrintAssets, setBatchPrintAssets] = useState([]); // State for targeted batch print
+    const [batchPrintAssets, setBatchPrintAssets] = useState([]);
     const printRef = useRef();
     const batchPrintRef = useRef();
 
@@ -85,7 +117,7 @@ const AssetList = ({ validationMode = false }) => {
 
     const handleBatchPrint = useReactToPrint({
         contentRef: batchPrintRef,
-        onAfterPrint: () => setBatchPrintAssets([]), // Reset after print
+        onAfterPrint: () => setBatchPrintAssets([]),
     });
 
     const openPrintModal = (asset) => {
@@ -93,39 +125,41 @@ const AssetList = ({ validationMode = false }) => {
         setTimeout(() => handlePrintSingle(), 100);
     };
 
-    // Filter Logic
-    const filteredAssets = assets.filter(a => {
-        const name = a.name || '';
-        const code = a.code || '';
-        const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            code.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesUnit = selectedUnit ? a.unitId === parseInt(selectedUnit) : true;
-        const matchesRoom = selectedRoom ? a.roomId === parseInt(selectedRoom) : true;
+    // -- REMOVED CLIENT-SIDE FILTERING LOGIC --
+    // The 'assets' state now holds the CURRENT PAGE data only.
+    const filteredAssets = assets; // Alias for compatibility with render
 
-        let matchesValidation = true;
-        if (validationFilter !== 'ALL') {
-            const status = a.validationStatus || 'UNVERIFIED';
-            matchesValidation = status === validationFilter;
+    const getTargetData = async () => {
+        // For export/print purposes, we need to fetch ALL matching data, not just current page.
+        // This is a simplified approach: fetch all with huge limit if needed, or handle specific export endpoint.
+        // For now, let's just warn or try to fetch all.
+        try {
+            const params = {
+                page: 1,
+                limit: 10000, // Large limit for export
+                search: searchTerm,
+                validationStatus: validationFilter,
+                unitId: targetUnitId || selectedUnit,
+                roomId: selectedRoom
+            };
+            const response = await api.get('/assets', { params });
+            return response.data.data || response.data;
+        } catch (e) {
+            console.error("Failed to fetch target data for export", e);
+            alert("Gagal mengambil data lengkap untuk export via API.");
+            return [];
         }
-
-        return matchesSearch && matchesUnit && matchesRoom && matchesValidation;
-    });
-
-    const getTargetData = () => {
-        if (!targetUnitId) return filteredAssets;
-        return assets.filter(a => a.unitId === parseInt(targetUnitId));
     };
 
-    const handleActionConfirmation = () => {
-        const data = getTargetData();
-        if (data.length === 0) {
-            alert('Tidak ada data aset untuk unit yang dipilih.');
-            return;
-        }
-
+    const handleActionConfirmation = async () => {
         if (actionModal.type === 'export') {
+            // Need to fetch data asynchronously now
+            const data = await getTargetData();
+            if (data.length === 0) { alert('Tidak ada data.'); return; }
             handleExport(data);
         } else if (actionModal.type === 'print') {
+            const data = await getTargetData(); // Or just use selectedIds if available
+            if (data.length === 0) { alert('Tidak ada data.'); return; }
             performBatchPrint(data);
         }
         setActionModal({ isOpen: false, type: null });
@@ -183,17 +217,11 @@ const AssetList = ({ validationMode = false }) => {
         }
     };
 
-    // Pagination Logic
-    const totalPages = Math.ceil(filteredAssets.length / itemsPerPage);
-    const paginatedAssets = filteredAssets.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    // Pagination Logic (Server Side)
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const paginatedAssets = assets; // Assets are already paginated from server
 
-    // Reset to page 1 when filters change
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm, selectedUnit, selectedRoom, itemsPerPage]);
+    // Reset to page 1 logic is handled in useEffect now
 
     const availableRooms = selectedUnit
         ? rooms.filter(r => r.unitId === parseInt(selectedUnit))
@@ -717,7 +745,7 @@ const AssetList = ({ validationMode = false }) => {
                                 ))}
                             </select>
                         </div>
-                        <span>Menampilkan {paginatedAssets.length} dari {filteredAssets.length} data</span>
+                        <span>Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, totalItems)} dari {totalItems} data</span>
                     </div>
 
                     <div className="flex gap-2">

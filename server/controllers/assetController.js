@@ -145,39 +145,89 @@ exports.createAsset = async (req, res) => {
 exports.getAllAssets = async (req, res) => {
     try {
         const { role, unitId } = req.user;
-        const { validationStatus, unverifiedSince } = req.query; // Filter params
+        const {
+            validationStatus,
+            unverifiedSince,
+            page = 1,
+            limit = 10,
+            search = '',
+            unitId: filterUnitId,
+            roomId: filterRoomId
+        } = req.query;
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const take = parseInt(limit);
 
         let where = {};
 
-        // Only Super Admin and Admin Aset can see all data
+        // 1. Role-based Restriction
         if (role !== 'SUPER_ADMIN' && role !== 'ADMIN_ASET') {
             where.unitId = unitId;
         }
 
-        // Validation Filter
-        if (validationStatus) {
+        // 2. Explicit Filters (if provided and allowed)
+        if (filterUnitId) {
+            // If user is restricted, ensure they can only filter their own unit (already handled by line 154 logic usually, but let's be safe)
+            if (role === 'SUPER_ADMIN' || role === 'ADMIN_ASET' || parseInt(filterUnitId) === unitId) {
+                where.unitId = parseInt(filterUnitId);
+            }
+        }
+        if (filterRoomId) {
+            where.roomId = parseInt(filterRoomId);
+        }
+
+        // 3. Validation Filter
+        if (validationStatus && validationStatus !== 'ALL') {
             where.validationStatus = validationStatus;
         }
 
-        // Unverified Since (For Periodical Validation / Opname)
-        // Logic: Show assets where validatedAt is BEFORE the given date, or is NULL
-        if (unverifiedSince) {
-            const dateThreshold = new Date(unverifiedSince);
+        // 4. Search (Name or Code)
+        if (search) {
             where.OR = [
-                { validatedAt: { lt: dateThreshold } },
-                { validatedAt: null }
+                { name: { contains: search } }, // Case insensitive usually depends on DB collation
+                { code: { contains: search } }
             ];
-            // If user filters for specific status (e.g. VALIDATED) but with unverifiedSince, it means they want to see "what WAS validated but is now old".
-            // But usually this filter is used when validationStatus is not specified or is "ALL".
-            // If they explicitly asked for UNVERIFIED, the date doesn't matter much (it's unverified regardless).
         }
 
-        const assets = await prisma.asset.findMany({
-            where,
-            include: { category: true, room: true, unit: true, vendor: true, validatedBy: { select: { username: true } } },
-            orderBy: { createdAt: 'desc' }
+        // 5. Unverified Since (For Periodical Validation)
+        if (unverifiedSince) {
+            const dateThreshold = new Date(unverifiedSince);
+            // We need to use AND if we already have OR from search
+            const dateCondition = {
+                OR: [
+                    { validatedAt: { lt: dateThreshold } },
+                    { validatedAt: null }
+                ]
+            };
+
+            if (where.OR) {
+                where.AND = [dateCondition];
+            } else {
+                where.OR = dateCondition.OR;
+            }
+        }
+
+        // 6. Execute Queries (Transaction for consistency or just parallel)
+        const [total, assets] = await prisma.$transaction([
+            prisma.asset.count({ where }),
+            prisma.asset.findMany({
+                where,
+                skip,
+                take,
+                include: { category: true, room: true, unit: true, vendor: true, validatedBy: { select: { username: true } } },
+                orderBy: { createdAt: 'desc' }
+            })
+        ]);
+
+        res.json({
+            data: assets,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / take)
+            }
         });
-        res.json(assets);
     } catch (error) {
         console.error('GetAssets Error:', error);
         res.status(500).json({ error: 'Database Error (Aset): ' + error.message });
