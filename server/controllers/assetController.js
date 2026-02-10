@@ -546,12 +546,8 @@ exports.batchImportAssets = async (req, res) => {
                 seqCache[patternPrefix]++;
                 const code = `${patternPrefix}${seqCache[patternPrefix].toString().padStart(4, '0')}`;
 
-                // 6. Specification Aggregation
-                const extra = [
-                    `Jenis Masuk: ${item['Jenis Transaksi Masuk'] || '-'}`,
-                    `Bukti Masuk: ${item['Bukti Transaksi Masuk'] || '-'}`,
-                    `Harga Jual: ${item['Harga Jual'] || 0}`
-                ].join(' | ');
+                // 6. Specification Aggregation (DISABLED per request)
+                // const extra = ... 
 
                 // 7. Create Asset
                 await tx.asset.create({
@@ -568,7 +564,7 @@ exports.batchImportAssets = async (req, res) => {
                         usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)']),
                         condition: String(item['Kondisi Aset']).toUpperCase().includes('RUSAK') ? 'RUSAK_RINGAN' : 'BAIK',
                         sourceOfFunds: String(item['Sumber Dana Aset']),
-                        specification: extra,
+                        specification: null, // Kosongkan saat import
                         quantity: 1
                     }
                 });
