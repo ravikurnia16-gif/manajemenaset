@@ -21,7 +21,8 @@ const AssetForm = () => {
     const [masterData, setMasterData] = useState({
         units: [],
         rooms: [],
-        categories: []
+        categories: [],
+        vendors: []
     });
     const [settings, setSettings] = useState({ assetCodePrefix: 'AST' });
     const [isAutoCode, setIsAutoCode] = useState(true);
@@ -33,16 +34,18 @@ const AssetForm = () => {
     useEffect(() => {
         const fetchMaster = async () => {
             try {
-                const [rUnits, rRooms, rCats, rSettings] = await Promise.all([
+                const [rUnits, rRooms, rCats, rVendors, rSettings] = await Promise.all([
                     api.get('/master/units'),
                     api.get('/master/rooms'),
                     api.get('/master/categories'),
+                    api.get('/master/vendors'),
                     api.get('/settings').catch(() => ({ data: { assetCodePrefix: 'AST' } }))
                 ]);
                 setMasterData({
                     units: rUnits.data,
                     rooms: rRooms.data,
-                    categories: rCats.data
+                    categories: rCats.data,
+                    vendors: rVendors.data
                 });
                 setSettings(rSettings.data);
 
@@ -63,17 +66,21 @@ const AssetForm = () => {
                 }
             } catch (err) {
                 console.error("Fetch error:", err);
+                if (err.response?.status !== 401 && err.response?.status !== 403) {
+                    alert("Gagal memuat data master.");
+                }
             }
         };
         fetchMaster();
     }, [id, isEdit, reset, isGlobalAdmin, currentUser.unitId]);
 
-    const watchedFields = watch(["unitId", "categoryId", "purchaseDate", "roomId", "newCategoryCode"]);
+    const watchedFields = watch(["unitId", "categoryId", "purchaseDate", "vendorId", "roomId", "newCategoryCode"]);
     const selectedUnitId = watchedFields[0];
     const selectedCategoryId = watchedFields[1];
     const purchaseDate = watchedFields[2];
-    const selectedRoomId = watchedFields[3];
-    const newCategoryCode = watchedFields[4];
+    const selectedVendorId = watchedFields[3];
+    const selectedRoomId = watchedFields[4];
+    const newCategoryCode = watchedFields[5];
 
     const filteredRooms = selectedUnitId
         ? masterData.rooms.filter(r => r.unitId === parseInt(selectedUnitId))
@@ -206,8 +213,24 @@ const AssetForm = () => {
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Vendor / Toko</label>
-                            <input {...register('vendorName')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Masukkan nama vendor / toko..." />
+                            <select {...register('vendorId')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                <option value="">Pilih Vendor...</option>
+                                {masterData.vendors.map(v => (
+                                    <option key={v.id} value={v.id}>{v.name}</option>
+                                ))}
+                                <option value="other" className="text-blue-600 font-bold">+ Lainnya (Input Manual)</option>
+                            </select>
                         </div>
+
+                        {selectedVendorId === 'other' && (
+                            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-3 animate-in slide-in-from-top-2 duration-300">
+                                <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Vendor Baru</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input {...register('newVendorName', { required: selectedVendorId === 'other' })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Nama Vendor / Toko" />
+                                    <input {...register('newVendorContact')} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Kontak (Opsional)" />
+                                </div>
+                            </div>
+                        )}
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Spesifikasi</label>

@@ -52,7 +52,9 @@ const AssetList = () => {
             setRooms(respRooms.data);
         } catch (error) {
             console.error('Fetch error:', error);
-            alert('Gagal mengambil data dari server. Error: ' + error.message);
+            if (!error.message.includes('401') && !error.message.includes('403')) {
+                alert('Gagal mengambil data dari server. Error: ' + error.message);
+            }
         } finally {
             setLoading(false);
         }
@@ -150,7 +152,7 @@ const AssetList = () => {
                 'Kode': a.code,
                 'Nama': a.name,
                 'Merek': a.brand || '-',
-                'Vendor': a.vendorName || '-',
+                'Vendor': a.vendor?.name || '-',
                 'Tanggal Perolehan': a.purchaseDate ? new Date(a.purchaseDate).toLocaleDateString('id-ID') : '-',
                 'Status Perolehan': 'Beli Baru', // Placeholder
                 'Harga Perolehan': a.price,
@@ -160,7 +162,7 @@ const AssetList = () => {
                 'Nama Ruangan': a.room?.name || '-',
                 'Lokasi': a.room?.building || '-',
                 'Nama Unit/Bidang': a.unit?.name || '-',
-                'Penjual/Penghibah': a.vendorName || '-',
+                'Penjual/Penghibah': a.vendor?.name || '-',
                 'Umur Ekonomis': a.usefulLife + ' Tahun',
                 'Nilai Penyusutan per Bulan': monthlyDepreciation,
                 'Jumlah Bulan Penyusutan': Math.min(monthsElapsed, totalMonths),

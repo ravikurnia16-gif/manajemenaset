@@ -94,6 +94,9 @@ const Settings = () => {
             setUsers(res.data);
         } catch (error) {
             console.error("Fetch users error:", error);
+            if (error.response?.status !== 401 && error.response?.status !== 403) {
+                alert("Gagal memuat data pengguna.");
+            }
         }
     };
 
