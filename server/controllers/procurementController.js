@@ -2,6 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const fs = require('fs');
 const path = require('path');
+const whatsappService = require('../services/whatsappService');
 
 // Helper to generate Request Code
 const generateCode = async () => {
@@ -155,257 +156,298 @@ exports.createProcurement = async (req, res) => {
         });
 
         res.json({ message: 'Request submitted', data: result });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
 
-// Import Request from Excel
-exports.importProcurement = async (req, res) => {
-    const { title, type, items } = req.body;
-    const user = req.user;
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({ error: 'Data items kosong.' });
-    }
-
-    try {
-        const code = await generateCode();
-
-        const result = await prisma.$transaction(async (prisma) => {
-            // 1. Create Header
-            const procurement = await prisma.procurement.create({
-                data: {
-                    code,
-                    title: title || `Import Request ${type} - ${new Date().toLocaleDateString('id-ID')}`,
-                    userId: user.id,
-                    unitId: user.unitId,
-                    type,
-                    status: 'SUBMITTED'
+        // --- WhatsApp Notification (Async) ---
+        (async () => {
+            try {
+                // 1. Send Confirmation to Submitter
+                const submitter = await prisma.user.findUnique({ where: { id: user.id } });
+                if (submitter?.phone) {
+                    const msgSubmitter = `*Info Pengadaan*\n\nPermintaan Anda dengan judul *"${title}"* berhasil dibuat.\nKode: ${code}\n\nMohon menunggu verifikasi.`;
+                    await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
-            });
 
-            // 2. Create Items
-            // Validation Logic (Simpler than RKB, assuming frontend validated)
-            await prisma.procurementItem.createMany({
-                data: items.map(item => ({
-                    procurementId: procurement.id,
-                    name: item.name,
-                    spec: item.spec ? String(item.spec) : '-',
-                    qty: parseInt(item.qty),
-                    unit: item.unit ? String(item.unit) : 'Unit',
-                    estPrice: parseFloat(item.estPrice || 0),
-                    fundingSource: item.fundingSource || 'Mandiri'
-                }))
-            });
-
-            return procurement;
-        });
-
-        res.json({ message: 'Import berhasil!', data: result });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
-
-// Update Status (Validate / Approve / Reject)
-exports.updateStatus = async (req, res) => {
-    const { id } = req.params;
-    const { status, validationNote, rejectionReason } = req.body;
-
-    try {
-        const updateData = { status };
-        if (validationNote) updateData.validationNote = validationNote;
-        if (rejectionReason) updateData.rejectionReason = rejectionReason;
-
-        const procurement = await prisma.procurement.update({
-            where: { id: parseInt(id) },
-            data: updateData
-        });
-        res.json(procurement);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
-
-// Update Item Detail (Vendor, Brand, Specs) - New Function
-// Update Item Detail (Vendor, Brand, Specs)
-exports.updateItemDetail = async (req, res) => {
-    const { itemId } = req.params;
-    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison } = req.body;
-
-    try {
-        let finalVendorId = vendorId;
-
-        // Create new vendor if requested
-        if (newVendorName) {
-            const existingVendor = await prisma.vendor.findFirst({
-                where: { name: newVendorName }
-            });
-
-            if (existingVendor) {
-                finalVendorId = existingVendor.id;
-            } else {
-                const newVendor = await prisma.vendor.create({
-                    data: { name: newVendorName }
+                // 2. Send to Specific Staff (NIY: 25041676, 26021760)
+                const targetNips = ['25041676', '26021760'];
+                const staffUsers = await prisma.user.findMany({
+                    where: { nip: { in: targetNips }, phone: { not: null } }
                 });
-                finalVendorId = newVendor.id;
-            }
-        }
 
-        const updateData = {
-            fundingSource,
-            brand,
-            usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
-            vendorId: finalVendorId ? parseInt(finalVendorId) : undefined,
-            finalPrice: finalPrice ? parseFloat(finalPrice) : undefined,
-        };
+                if (staffUsers.length > 0) {
+                    const msgStaff = `*Notifikasi Pengadaan Baru*\n\n` +
+                        `👤 User: *${user.username}* (${user.unit?.name || 'Unit ?'})\n` +
+                        `📝 Judul: *${title}*\n` +
+                        `🔖 Kode: ${code}\n\n` +
+                        `Mohon segera dicek dan diverifikasi.`;
 
-        // Explicitly handle comparisonVendors
-        if (comparisonVendors !== undefined) {
-            updateData.comparisonVendors = JSON.stringify(comparisonVendors);
-        }
+                    // Send with DELAY (30 seconds interval to prevent spam/blocking)
+                    for (let i = 0; i < staffUsers.length; i++) {
+                        const staff = staffUsers[i];
+                        const delay = (i + 1) * 30000; // 30s, 60s, etc.
 
-        // Explicitly handle needComparison
-        if (needComparison !== undefined) {
-            updateData.needComparison = needComparison;
-        }
-
-        const item = await prisma.procurementItem.update({
-            where: { id: parseInt(itemId) },
-            data: updateData
-        });
-        res.json(item);
-    } catch (error) {
-        console.error("Update Item Error:", error);
-        res.status(500).json({ error: error.message });
-    }
-};
-
-// Add Vendor Offer (Legacy / For Comparison only)
-exports.addVendorOffer = async (req, res) => {
-    const { id } = req.params;
-    const { vendorName, price, isWinner } = req.body;
-    // Handle file upload if needed (later)
-
-    try {
-        if (isWinner) {
-            // Unset other winners if this one is winner
-            await prisma.vendorOffer.updateMany({
-                where: { procurementId: parseInt(id) },
-                data: { isWinner: false }
-            });
-        }
-
-        const offer = await prisma.vendorOffer.create({
-            data: {
-                procurementId: parseInt(id),
-                vendorName,
-                price: parseFloat(price),
-                isWinner: isWinner || false
-            }
-        });
-
-        res.json(offer);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
-
-// Process BAST & Auto-Asset Creation
-exports.processBAST = async (req, res) => {
-    const { id } = req.params;
-    const { bastDate } = req.body;
-
-    try {
-        const procurement = await prisma.procurement.findUnique({
-            where: { id: parseInt(id) },
-            include: { items: true, unit: true }
-        });
-
-        if (!procurement) return res.status(404).json({ error: 'Request not found' });
-        if (procurement.status === 'COMPLETED') return res.status(400).json({ error: 'Already completed' });
-
-        await prisma.$transaction(async (prisma) => {
-            // 1. Update Procurement Status
-            await prisma.procurement.update({
-                where: { id: parseInt(id) },
-                data: {
-                    status: 'COMPLETED',
-                    bastDate: new Date(bastDate),
-                }
-            });
-
-            // 2. If ASSET type, create Asset records
-            if (procurement.type === 'ASSET') {
-                const year = new Date(bastDate).getFullYear();
-                const settings = await prisma.setting.findUnique({ where: { id: 1 } });
-                const prefix = settings?.assetCodePrefix || 'AST';
-
-                // Fetch a default category if none specified (TODO: Add Category to ProcurementItem)
-                const defaultCategory = await prisma.category.findFirst();
-                if (!defaultCategory) throw new Error('No Category found in Master Data. Please create one.');
-                const categoryCode = defaultCategory.code;
-
-                for (const item of procurement.items) {
-                    const qty = item.qty;
-                    const unitCode = procurement.unit.code;
-
-                    // Generate Base Pattern: PREFIX.UNIT.CAT.YEAR.
-                    const patternPrefix = `${prefix}.${unitCode}.${categoryCode}.${year}.`;
-
-                    for (let i = 0; i < qty; i++) {
-                        // Find current max sequence in DB
-                        // OPTIMIZATION: We should ideally lock or use a separate counter, 
-                        // but for now we fetch fresh lastAsset for each iteration to minimize collision risk in this transaction loops.
-                        const lastAsset = await prisma.asset.findFirst({
-                            where: { code: { startsWith: patternPrefix } },
-                            orderBy: { code: 'desc' }
-                        });
-
-                        let currentSeq = 1;
-                        if (lastAsset) {
-                            const parts = lastAsset.code.split('.');
-                            const lastSeqPart = parts[parts.length - 1];
-                            currentSeq = (parseInt(lastSeqPart) || 0) + 1;
-                        }
-
-                        // Safety measure: Check if this seq already exists in current loop context if transaction isolation is weak
-                        // But since we query inside the transaction, it should see changes if isolation level supports it.
-                        // However, Prisma atomic transactions don't expose intermediate states to findFirst easily if simpler DBs.
-                        // We'll trust the sequential execution here.
-
-                        const seq = currentSeq.toString().padStart(4, '0');
-                        const assetCode = `${patternPrefix}${seq}`;
-
-                        const fundingSource = item.fundingSource || 'Yayasan'; // Default if null
-
-                        await prisma.asset.create({
-                            data: {
-                                code: assetCode,
-                                name: item.name,
-                                specification: item.spec,
-                                brand: item.brand,
-                                price: item.finalPrice || item.estPrice,
-                                purchaseDate: new Date(bastDate),
-                                condition: 'BAIK',
-                                sourceOfFunds: fundingSource,
-                                acquisitionStatus: 'Pembelian',
-                                unitId: procurement.unitId,
-                                categoryId: defaultCategory.id,
-                                usefulLife: item.usefulLife || 4,
-                                vendorId: item.vendorId, // Nullable
-                                quantity: 1
+                        setTimeout(async () => {
+                            try {
+                                console.log(`Sending WA to Staff ${staff.username} (${staff.phone}) in ${delay / 1000}s...`);
+                                await whatsappService.sendMessage(staff.phone, msgStaff);
+                            } catch (e) {
+                                console.error(`Failed sending to staff ${staff.username}:`, e);
                             }
-                        });
+                        }, delay);
                     }
                 }
-            }
-        });
 
-        res.json({ message: 'BAST processed and Assets created.' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
-    }
-};
+            } catch (err) {
+                console.error("WA Notification Error:", err);
+            }
+        })();
+    };
+
+    // Import Request from Excel
+    exports.importProcurement = async (req, res) => {
+        const { title, type, items } = req.body;
+        const user = req.user;
+
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ error: 'Data items kosong.' });
+        }
+
+        try {
+            const code = await generateCode();
+
+            const result = await prisma.$transaction(async (prisma) => {
+                // 1. Create Header
+                const procurement = await prisma.procurement.create({
+                    data: {
+                        code,
+                        title: title || `Import Request ${type} - ${new Date().toLocaleDateString('id-ID')}`,
+                        userId: user.id,
+                        unitId: user.unitId,
+                        type,
+                        status: 'SUBMITTED'
+                    }
+                });
+
+                // 2. Create Items
+                // Validation Logic (Simpler than RKB, assuming frontend validated)
+                await prisma.procurementItem.createMany({
+                    data: items.map(item => ({
+                        procurementId: procurement.id,
+                        name: item.name,
+                        spec: item.spec ? String(item.spec) : '-',
+                        qty: parseInt(item.qty),
+                        unit: item.unit ? String(item.unit) : 'Unit',
+                        estPrice: parseFloat(item.estPrice || 0),
+                        fundingSource: item.fundingSource || 'Mandiri'
+                    }))
+                });
+
+                return procurement;
+            });
+
+            res.json({ message: 'Import berhasil!', data: result });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    // Update Status (Validate / Approve / Reject)
+    exports.updateStatus = async (req, res) => {
+        const { id } = req.params;
+        const { status, validationNote, rejectionReason } = req.body;
+
+        try {
+            const updateData = { status };
+            if (validationNote) updateData.validationNote = validationNote;
+            if (rejectionReason) updateData.rejectionReason = rejectionReason;
+
+            const procurement = await prisma.procurement.update({
+                where: { id: parseInt(id) },
+                data: updateData
+            });
+            res.json(procurement);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    // Update Item Detail (Vendor, Brand, Specs) - New Function
+    // Update Item Detail (Vendor, Brand, Specs)
+    exports.updateItemDetail = async (req, res) => {
+        const { itemId } = req.params;
+        const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison } = req.body;
+
+        try {
+            let finalVendorId = vendorId;
+
+            // Create new vendor if requested
+            if (newVendorName) {
+                const existingVendor = await prisma.vendor.findFirst({
+                    where: { name: newVendorName }
+                });
+
+                if (existingVendor) {
+                    finalVendorId = existingVendor.id;
+                } else {
+                    const newVendor = await prisma.vendor.create({
+                        data: { name: newVendorName }
+                    });
+                    finalVendorId = newVendor.id;
+                }
+            }
+
+            const updateData = {
+                fundingSource,
+                brand,
+                usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
+                vendorId: finalVendorId ? parseInt(finalVendorId) : undefined,
+                finalPrice: finalPrice ? parseFloat(finalPrice) : undefined,
+            };
+
+            // Explicitly handle comparisonVendors
+            if (comparisonVendors !== undefined) {
+                updateData.comparisonVendors = JSON.stringify(comparisonVendors);
+            }
+
+            // Explicitly handle needComparison
+            if (needComparison !== undefined) {
+                updateData.needComparison = needComparison;
+            }
+
+            const item = await prisma.procurementItem.update({
+                where: { id: parseInt(itemId) },
+                data: updateData
+            });
+            res.json(item);
+        } catch (error) {
+            console.error("Update Item Error:", error);
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    // Add Vendor Offer (Legacy / For Comparison only)
+    exports.addVendorOffer = async (req, res) => {
+        const { id } = req.params;
+        const { vendorName, price, isWinner } = req.body;
+        // Handle file upload if needed (later)
+
+        try {
+            if (isWinner) {
+                // Unset other winners if this one is winner
+                await prisma.vendorOffer.updateMany({
+                    where: { procurementId: parseInt(id) },
+                    data: { isWinner: false }
+                });
+            }
+
+            const offer = await prisma.vendorOffer.create({
+                data: {
+                    procurementId: parseInt(id),
+                    vendorName,
+                    price: parseFloat(price),
+                    isWinner: isWinner || false
+                }
+            });
+
+            res.json(offer);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    // Process BAST & Auto-Asset Creation
+    exports.processBAST = async (req, res) => {
+        const { id } = req.params;
+        const { bastDate } = req.body;
+
+        try {
+            const procurement = await prisma.procurement.findUnique({
+                where: { id: parseInt(id) },
+                include: { items: true, unit: true }
+            });
+
+            if (!procurement) return res.status(404).json({ error: 'Request not found' });
+            if (procurement.status === 'COMPLETED') return res.status(400).json({ error: 'Already completed' });
+
+            await prisma.$transaction(async (prisma) => {
+                // 1. Update Procurement Status
+                await prisma.procurement.update({
+                    where: { id: parseInt(id) },
+                    data: {
+                        status: 'COMPLETED',
+                        bastDate: new Date(bastDate),
+                    }
+                });
+
+                // 2. If ASSET type, create Asset records
+                if (procurement.type === 'ASSET') {
+                    const year = new Date(bastDate).getFullYear();
+                    const settings = await prisma.setting.findUnique({ where: { id: 1 } });
+                    const prefix = settings?.assetCodePrefix || 'AST';
+
+                    // Fetch a default category if none specified (TODO: Add Category to ProcurementItem)
+                    const defaultCategory = await prisma.category.findFirst();
+                    if (!defaultCategory) throw new Error('No Category found in Master Data. Please create one.');
+                    const categoryCode = defaultCategory.code;
+
+                    for (const item of procurement.items) {
+                        const qty = item.qty;
+                        const unitCode = procurement.unit.code;
+
+                        // Generate Base Pattern: PREFIX.UNIT.CAT.YEAR.
+                        const patternPrefix = `${prefix}.${unitCode}.${categoryCode}.${year}.`;
+
+                        for (let i = 0; i < qty; i++) {
+                            // Find current max sequence in DB
+                            // OPTIMIZATION: We should ideally lock or use a separate counter, 
+                            // but for now we fetch fresh lastAsset for each iteration to minimize collision risk in this transaction loops.
+                            const lastAsset = await prisma.asset.findFirst({
+                                where: { code: { startsWith: patternPrefix } },
+                                orderBy: { code: 'desc' }
+                            });
+
+                            let currentSeq = 1;
+                            if (lastAsset) {
+                                const parts = lastAsset.code.split('.');
+                                const lastSeqPart = parts[parts.length - 1];
+                                currentSeq = (parseInt(lastSeqPart) || 0) + 1;
+                            }
+
+                            // Safety measure: Check if this seq already exists in current loop context if transaction isolation is weak
+                            // But since we query inside the transaction, it should see changes if isolation level supports it.
+                            // However, Prisma atomic transactions don't expose intermediate states to findFirst easily if simpler DBs.
+                            // We'll trust the sequential execution here.
+
+                            const seq = currentSeq.toString().padStart(4, '0');
+                            const assetCode = `${patternPrefix}${seq}`;
+
+                            const fundingSource = item.fundingSource || 'Yayasan'; // Default if null
+
+                            await prisma.asset.create({
+                                data: {
+                                    code: assetCode,
+                                    name: item.name,
+                                    specification: item.spec,
+                                    brand: item.brand,
+                                    price: item.finalPrice || item.estPrice,
+                                    purchaseDate: new Date(bastDate),
+                                    condition: 'BAIK',
+                                    sourceOfFunds: fundingSource,
+                                    acquisitionStatus: 'Pembelian',
+                                    unitId: procurement.unitId,
+                                    categoryId: defaultCategory.id,
+                                    usefulLife: item.usefulLife || 4,
+                                    vendorId: item.vendorId, // Nullable
+                                    quantity: 1
+                                }
+                            });
+                        }
+                    }
+                }
+            });
+
+            res.json({ message: 'BAST processed and Assets created.' });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ error: error.message });
+        }
+    };
