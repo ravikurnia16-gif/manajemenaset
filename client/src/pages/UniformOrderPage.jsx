@@ -1,19 +1,21 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ShoppingBag, Search, Plus, Trash2, Save, Loader2, Check, User } from 'lucide-react';
+import { ShoppingBag, Search, Plus, Trash2, Save, Loader2, Check, User, Shirt, CircleUserRound } from 'lucide-react';
 
 const USERS_UNITS = ['TK', 'TAUD', 'SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'MIT', 'Yayasan'];
 
-// Configuration based on User Request
-const GROUPS = ['Nasional', 'Pramuka', 'Muslim', 'Batik', 'Jubah', 'Olahraga', 'Lainnya'];
-const SUB_TYPES = [
+// --- CONFIGURATION V2 ---
+const UNIFORM_GROUPS = ['Nasional', 'Muslim', 'Olahraga', 'Batik', 'Pramuka', 'Jubah'];
+
+const UNIFORM_TYPES = [
     'Baju',
     'Celana',
-    'Rok',
     'Jilbab',
-    'Stel (Baju & Celana/Rok)',
-    'Jubah Putih',
+    'Rok Celana',
+    'Baju dan Celana', // Stel
+    'Baju dan Jilbab', // Stel
+    'Baju, Rok Celana dan Jilbab', // Set Olahraga Akhwat
     'Jubah Hitam',
-    'Set Olahraga Akhwat (Baju+Rok+Jilbab)'
+    'Jubah Putih'
 ];
 
 const SIZES_STD = ['SS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
@@ -21,53 +23,53 @@ const SIZES_JUBAH = ['38', '40', '42', '44', '46', '48', '50/20', '50/22', '50/2
 const SIZES_PECI = ['20', '20.5', '21', '21.5', '22', '22.5', '23', '23.5', '24'];
 
 const UniformOrderPage = () => {
-    // 1. Unit & Items
-    const [selectedUnit, setSelectedUnit] = useState('');
-    const [items, setItems] = useState([]);
+    // --- STATE ---
 
-    // 2. Data Pemesan
-    const [form, setForm] = useState({
+    // 1. Identity
+    const [identity, setIdentity] = useState({
         studentName: '',
-        customerPhone: '',
-        customerName: '', // Ortu
-        studentClass: '',
-        note: ''
+        gender: '', // 'Ikhwan' / 'Akhwat' (Mapped to L/P internally if needed)
+        phone: '',
+        unit: ''
     });
 
-    // 3. Filters / Item Selection
-    const [gender, setGender] = useState('L'); // Default L (Ikhwan) as per common use
-    const [mainType, setMainType] = useState('Seragam'); // 'Seragam' or 'Peci'
-
-    // Seragam Specific
-    const [selectedGroup, setSelectedGroup] = useState('');
-    const [selectedSubType, setSelectedSubType] = useState('');
-    const [selectedSize, setSelectedSize] = useState('');
-
-    const [inputQty, setInputQty] = useState(1);
+    // 2. Data & Cart
+    const [items, setItems] = useState([]);
     const [cart, setCart] = useState([]);
-
-    // System State
     const [loading, setLoading] = useState(false);
+
+    // 3. Item Selection State
+    const [activeTab, setActiveTab] = useState('Seragam'); // 'Seragam' | 'Peci'
+
+    // Seragam State
+    const [seragamGroup, setSeragamGroup] = useState('');
+    const [seragamType, setSeragamType] = useState('');
+    const [seragamSize, setSeragamSize] = useState('');
+    const [seragamQty, setSeragamQty] = useState(1);
+
+    // Peci State
+    const [peciSize, setPeciSize] = useState('');
+    const [peciQty, setPeciQty] = useState(1);
+
+    // System
     const [orderResult, setOrderResult] = useState(null);
     const [checkCode, setCheckCode] = useState('');
     const [checkPhone, setCheckPhone] = useState('');
     const [checkResult, setCheckResult] = useState(null);
     const [showCheck, setShowCheck] = useState(false);
 
-    // Manual Override State
-    const [manualItemId, setManualItemId] = useState(null);
-
     const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:5000' : '';
 
-    // Fetch items
+    // --- FETCH ITEMS ---
     useEffect(() => {
-        if (selectedUnit) {
+        if (identity.unit) {
             setLoading(true);
-            fetch(`${API_BASE}/api/uniform-order/items?unit=${encodeURIComponent(selectedUnit)}`)
+            fetch(`${API_BASE}/api/uniform-order/items?unit=${encodeURIComponent(identity.unit)}`)
                 .then(r => r.json())
                 .then(d => {
                     setItems(d.items || []);
-                    setCart([]);
+                    // Clear cart when unit changes? Maybe safer to keep but warn.
+                    // setCart([]); 
                 })
                 .catch(err => {
                     console.error("Fetch error:", err);
@@ -77,127 +79,125 @@ const UniformOrderPage = () => {
         } else {
             setItems([]);
         }
-    }, [selectedUnit]);
+    }, [identity.unit]);
 
-    // Matching Logic to find the specific Item
+    // --- MATCHING LOGIC ---
     const matchedItem = useMemo(() => {
-        if (!selectedUnit) return null;
+        if (!identity.unit) return null;
+        const normalize = s => s ? s.toLowerCase().trim() : '';
+        const selectedGender = identity.gender === 'Ikhwan' ? 'l' : (identity.gender === 'Akhwat' ? 'p' : '');
 
-        const normalize = (s) => s ? s.toLowerCase().trim() : '';
-
-        // PECI LOGIC
-        if (mainType === 'Peci') {
-            if (!selectedSize) return null;
+        if (activeTab === 'Peci') {
+            if (!peciSize) return null;
             return items.find(i => {
                 const name = normalize(i.name);
-                const isPeci = name.includes('peci') || name.includes('songkok') || normalize(i.category?.name).includes('peci');
-                return isPeci && i.size === selectedSize;
+                const cat = normalize(i.category?.name);
+                const isPeci = name.includes('peci') || name.includes('songkok') || cat.includes('peci');
+                return isPeci && i.size === peciSize;
             });
         }
 
-        // SERAGAM LOGIC
-        if (!selectedGroup || !selectedSubType || !selectedSize) return null;
+        if (activeTab === 'Seragam') {
+            if (!seragamGroup || !seragamType || !seragamSize) return null;
 
-        return items.find(i => {
-            const name = normalize(i.name);
-            const dbGender = normalize(i.gender);
-            const selGender = normalize(gender);
+            return items.find(i => {
+                const name = normalize(i.name);
+                const dbGroup = normalize(i.uniformGroup);
+                const dbType = normalize(i.type);
+                const dbGender = normalize(i.gender);
 
-            // 1. Gender: Match exact, OR if DB is null (unisex), OR if item name implies gender
-            let genderMatch = !dbGender || dbGender === selGender;
-            if (!genderMatch) {
-                // Double check name context
-                if (selGender === 'l' && (name.includes('putra') || name.includes('ikhwan'))) genderMatch = true;
-                if (selGender === 'p' && (name.includes('putri') || name.includes('akhwat') || name.includes('jilbab') || name.includes('rok'))) genderMatch = true;
-            }
+                // 1. Gender check (Loose)
+                // If item is generic (no gender) or matches selected gender
+                const genderMatch = !dbGender || dbGender === selectedGender;
+                // Double check name if dbGender is missing
+                if (!dbGender && selectedGender === 'l' && (name.includes('putri') || name.includes('akhwat'))) return false;
+                if (!dbGender && selectedGender === 'p' && (name.includes('putra') || name.includes('ikhwan'))) return false;
 
-            // 2. Group
-            const dbGroup = normalize(i.uniformGroup);
-            const selGroup = normalize(selectedGroup);
-            const groupMatch = (dbGroup && dbGroup.includes(selGroup)) || name.includes(selGroup);
+                // 2. Group check
+                const selGroup = normalize(seragamGroup);
+                const groupMatch = dbGroup.includes(selGroup) || name.includes(selGroup);
 
-            // 3. Type
-            const dbType = normalize(i.type);
-            const selType = normalize(selectedSubType);
-            let typeMatch = false;
+                // 3. Type check
+                const selType = normalize(seragamType);
+                let typeMatch = false;
 
-            if (selType.includes('jubah putih')) typeMatch = name.includes('putih') && (name.includes('jubah') || dbType.includes('jubah'));
-            else if (selType.includes('jubah hitam')) typeMatch = name.includes('hitam') && (name.includes('jubah') || dbType.includes('jubah'));
-            else if (selType.includes('set') && selType.includes('olahraga')) typeMatch = name.includes('olahraga') && (name.includes('set') || name.includes('stel'));
-            else if (selType.includes('stel')) typeMatch = name.includes('stel') || (name.includes('baju') && name.includes('celana'));
-            else if (selType.includes('baju')) typeMatch = name.includes('baju') || name.includes('kemeja') || dbType === 'baju';
-            else if (selType.includes('celana')) typeMatch = name.includes('celana') || dbType === 'celana';
-            else if (selType.includes('rok')) typeMatch = name.includes('rok') || dbType === 'rok';
-            else if (selType.includes('jilbab')) typeMatch = name.includes('jilbab') || name.includes('kerudung') || dbType === 'jilbab';
-            else if (selType.includes('peci')) typeMatch = name.includes('peci') || name.includes('songkok');
-            else typeMatch = name.includes(selType);
+                if (selType === 'baju') typeMatch = name.includes('baju') || name.includes('kemeja') || dbType === 'baju';
+                else if (selType === 'celana') typeMatch = name.includes('celana') || dbType === 'celana';
+                else if (selType === 'jilbab') typeMatch = name.includes('jilbab') || name.includes('kerudung');
+                else if (selType === 'rok celana') typeMatch = name.includes('rok') && name.includes('celana');
+                else if (selType === 'baju dan celana') typeMatch = name.includes('stel') || (name.includes('baju') && name.includes('celana')); // Stel
+                else if (selType === 'baju dan jilbab') typeMatch = name.includes('set') && name.includes('jilbab'); // Rare case?
+                else if (selType.includes('baju, rok celana dan jilbab')) typeMatch = name.includes('set') && name.includes('olahraga'); // Set Olahraga Akhwat
+                else if (selType === 'jubah hitam') typeMatch = name.includes('jubah') && name.includes('hitam');
+                else if (selType === 'jubah putih') typeMatch = name.includes('jubah') && name.includes('putih');
+                else typeMatch = name.includes(selType);
 
-            // 4. Size
-            const sizeMatch = normalize(i.size) === normalize(selectedSize);
+                // 4. Size check
+                const sizeMatch = normalize(i.size) === normalize(seragamSize);
 
-            return genderMatch && groupMatch && typeMatch && sizeMatch;
-        });
-    }, [items, mainType, gender, selectedGroup, selectedSubType, selectedSize, selectedUnit]);
+                return genderMatch && groupMatch && typeMatch && sizeMatch;
+            });
+        }
+    }, [items, activeTab, identity, seragamGroup, seragamType, seragamSize, peciSize]);
 
+
+    // --- HANDLERS ---
     const handleAddItem = () => {
-        // Priority: Manual ID -> Matched Item
-        let targetItem = null;
+        if (!matchedItem) return alert('Item tidak ditemukan. Pastikan Unit dan Filter sudah benar.');
 
-        if (manualItemId) {
-            targetItem = items.find(i => i.id == manualItemId);
-        } else {
-            targetItem = matchedItem;
-        }
+        const qty = activeTab === 'Seragam' ? seragamQty : peciQty;
 
-        if (!targetItem) {
-            return alert('Item tidak ditemukan. Harap pilih item dari filter atau cari manual.');
-        }
+        setCart(prev => {
+            const existing = prev.find(c => c.itemId === matchedItem.id);
+            if (existing) {
+                return prev.map(c => c.itemId === matchedItem.id ? { ...c, quantity: c.quantity + qty } : c);
+            }
+            return [...prev, { itemId: matchedItem.id, quantity: qty, item: matchedItem }];
+        });
 
-        const existing = cart.find(c => c.itemId === targetItem.id);
-        if (existing) {
-            setCart(cart.map(c => c.itemId === targetItem.id ? { ...c, quantity: c.quantity + inputQty } : c));
-        } else {
-            setCart([...cart, { itemId: targetItem.id, quantity: inputQty, item: targetItem }]);
-        }
-
-        // Reset manual
-        setManualItemId(null);
+        // Optional: Reset selection?
     };
 
-    const handleRemoveItem = (itemId) => {
-        setCart(cart.filter(c => c.itemId !== itemId));
-    };
+    const handleRemoveItem = (id) => setCart(prev => prev.filter(c => c.itemId !== id));
 
     const handleSubmit = async () => {
-        if (!selectedUnit) return alert('Pilih Unit Sekolah');
-        if (!form.studentName || !form.customerPhone) return alert('Nama Anak dan No HP wajib diisi');
-        if (cart.length === 0) return alert('Belum ada pesanan');
+        // Validation
+        if (!identity.studentName) return alert('Nama Anak wajib diisi');
+        if (!identity.gender) return alert('Jenis Kelamin wajib dipilih');
+        if (!identity.phone) return alert('Nomor HP wajib diisi');
+        if (!identity.unit) return alert('Unit Sekolah wajib dipilih');
+        if (cart.length === 0) return alert('Keranjang pesanan kosong');
 
-        if (!confirm('Kirim pesanan ini?')) return;
+        if (!confirm('Apakah data sudah benar? Kirim pesanan sekarang?')) return;
 
         setLoading(true);
         try {
+            const payload = {
+                studentName: identity.studentName,
+                customerPhone: identity.phone,
+                customerUnit: identity.unit,
+                customerName: '', // Optional parent name not in V2 spec, sending empty
+                items: cart.map(c => ({ itemId: c.itemId, quantity: c.quantity })),
+                note: `Gender: ${identity.gender}` // Interact as note or extra field
+            };
+
             const res = await fetch(`${API_BASE}/api/uniform-order`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...form, customerUnit: selectedUnit, items: cart.map(c => ({ itemId: c.itemId, quantity: c.quantity })) })
+                body: JSON.stringify(payload)
             });
+
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
+            if (!res.ok) throw new Error(data.error || 'Gagal mengirim pesanan');
             setOrderResult(data.order);
-        } catch (e) { alert(e.message); } finally { setLoading(false); }
+        } catch (e) {
+            alert(e.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const handleCheckOrder = async () => {
-        if (!checkCode) return alert('Masukkan kode');
-        try {
-            const res = await fetch(`${API_BASE}/api/uniform-order/check/${checkCode}?phone=${checkPhone}`);
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-            setCheckResult(data);
-        } catch (e) { alert(e.message); }
-    };
-
+    // --- RENDER SUCCESS ---
     if (orderResult) {
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -208,236 +208,260 @@ const UniformOrderPage = () => {
                         <div className="text-sm text-slate-500">Kode Pesanan</div>
                         <div className="text-3xl font-mono font-bold text-slate-800">{orderResult.code}</div>
                     </div>
+                    <p className="text-slate-600">Simpan kode ini atau screenshot halaman ini sebagai bukti pemesanan.</p>
                     <button onClick={() => window.location.reload()} className="bg-indigo-600 text-white w-full py-3 rounded-lg font-bold">Buat Pesanan Baru</button>
                 </div>
             </div>
         );
     }
 
+    // --- RENDER MAIN FORM ---
     return (
-        <div className="min-h-screen bg-slate-50 pb-20">
+        <div className="min-h-screen bg-slate-50 pb-24">
             {/* Header */}
-            <div className="bg-indigo-600 text-white p-4 sticky top-0 z-50 shadow-md flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                    <ShoppingBag size={24} />
-                    <div>
-                        <h1 className="font-bold text-lg leading-tight">Form Pesan Seragam</h1>
-                        <p className="text-xs text-indigo-200">Input Data & Pilih Barang</p>
-                    </div>
+            <div className="bg-white border-b sticky top-0 z-50 px-4 py-3 shadow-sm flex justify-between items-center text-slate-800">
+                <div className="flex items-center gap-2">
+                    <ShoppingBag className="text-indigo-600" />
+                    <h1 className="font-bold text-lg">Form Seragam</h1>
                 </div>
-                <button onClick={() => setShowCheck(!showCheck)} className="text-xs bg-white/20 px-3 py-1.5 rounded flex items-center gap-1 hover:bg-white/30 transition">
-                    <Search size={14} /> Cek Status
+                {/* Optional Status Check Trigger */}
+                <button onClick={() => setShowCheck(!showCheck)} className="text-xs font-bold text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-50">
+                    Cek Pesanan
                 </button>
             </div>
 
             {/* Check Modal */}
             {showCheck && (
-                <div className="p-4 bg-white border-b-4 border-indigo-100 space-y-3 animate-in fade-in">
-                    <h3 className="font-bold text-sm text-slate-700">Cek Status Pesanan</h3>
-                    <div className="flex gap-2">
-                        <input value={checkCode} onChange={e => setCheckCode(e.target.value.toUpperCase())} placeholder="Kode (ORD/...)" className="border p-2 rounded w-1/2 text-sm" />
-                        <input value={checkPhone} onChange={e => setCheckPhone(e.target.value)} placeholder="No HP" className="border p-2 rounded w-1/2 text-sm" />
+                <div className="p-4 bg-indigo-50 border-b border-indigo-200 animate-in slide-in-from-top-2">
+                    <div className="flex gap-2 mb-2">
+                        <input value={checkCode} onChange={e => setCheckCode(e.target.value.toUpperCase())} placeholder="Kode Pesanan" className="border p-2 rounded w-full text-sm" />
+                        <button onClick={async () => {
+                            if (!checkCode) return alert('Isi kode');
+                            try {
+                                const res = await fetch(`${API_BASE}/api/uniform-order/check/${checkCode}`);
+                                const d = await res.json();
+                                if (!res.ok) throw new Error(d.error);
+                                setCheckResult(d);
+                            } catch (e) { alert(e.message); }
+                        }} className="bg-indigo-600 text-white px-4 rounded text-sm font-bold">Cari</button>
                     </div>
-                    <button onClick={handleCheckOrder} className="bg-slate-800 text-white w-full py-2 rounded text-sm font-bold">Cek Status</button>
                     {checkResult && (
-                        <div className="bg-slate-100 p-3 rounded text-sm mt-2 border border-slate-200">
-                            <div className="flex justify-between font-bold text-slate-800">
-                                <span>{checkResult.code}</span>
-                                <span className="bg-white px-2 rounded text-xs border border-slate-300">{checkResult.status}</span>
-                            </div>
-                            <div className="text-slate-600 mt-1">{checkResult.studentName}</div>
-                            <ul className="list-disc pl-4 mt-2 text-xs text-slate-500">
-                                {checkResult.items?.map((i, idx) => <li key={idx}>{i.item.name} x{i.quantity}</li>)}
-                            </ul>
+                        <div className="bg-white p-3 rounded border text-sm">
+                            <div className="font-bold">{checkResult.studentName}</div>
+                            <div className="text-slate-500">Status: {checkResult.status}</div>
                         </div>
                     )}
                 </div>
             )}
 
-            <div className="max-w-3xl mx-auto p-4 space-y-6">
+            <div className="max-w-xl mx-auto p-4 space-y-6">
 
-                {/* 1. Unit & Data Diri */}
-                <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                    <h2 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><User size={18} /> Data Pemesan</h2>
+                {/* 1. DATA DIRI (The new order: Name -> Gender -> Phone -> Unit) */}
+                <div className="bg-white p-5 rounded-xl shadow-sm space-y-4">
+                    <h2 className="font-bold border-b pb-2 flex items-center gap-2 text-slate-700"><User size={20} /> Identitas Pemesan</h2>
 
-                    <div className="space-y-4">
-                        {/* Unit */}
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">1. Unit Sekolah *</label>
-                            <div className="flex flex-wrap gap-2">
-                                {USERS_UNITS.map(u => (
-                                    <button key={u} onClick={() => setSelectedUnit(u)}
-                                        className={`px-3 py-2 text-sm rounded border transition ${selectedUnit === u ? 'bg-indigo-600 text-white border-indigo-600 font-bold' : 'bg-white text-slate-600 border-slate-300'}`}>
-                                        {u}
-                                    </button>
-                                ))}
-                            </div>
+                    {/* 1. Nama Anak */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">1. Nama Anak</label>
+                        <input
+                            className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                            placeholder="Nama Lengkap Siswa"
+                            value={identity.studentName}
+                            onChange={e => setIdentity({ ...identity, studentName: e.target.value })}
+                        />
+                    </div>
+
+                    {/* 2. Jenis Kelamin */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">2. Jenis Kelamin</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            {['Ikhwan', 'Akhwat'].map(g => (
+                                <button
+                                    key={g}
+                                    onClick={() => setIdentity({ ...identity, gender: g })}
+                                    className={`py-2.5 rounded-lg font-bold border transition relative overflow-hidden ${identity.gender === g ?
+                                        (g === 'Ikhwan' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-pink-600 text-white border-pink-600')
+                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                                >
+                                    {g}
+                                    {identity.gender === g && <div className="absolute top-1 right-1"><Check size={12} /></div>}
+                                </button>
+                            ))}
                         </div>
+                    </div>
 
-                        {/* Inputs */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">2. Nama Anak *</label>
-                                <input className="w-full border p-2 rounded text-sm" value={form.studentName} onChange={e => setForm({ ...form, studentName: e.target.value })} placeholder="Nama Lengkap Siswa" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">3. No HP (WA) *</label>
-                                <input className="w-full border p-2 rounded text-sm" value={form.customerPhone} onChange={e => setForm({ ...form, customerPhone: e.target.value })} placeholder="08xxxxxxxx" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nama Orang Tua</label>
-                                <input className="w-full border p-2 rounded text-sm" value={form.customerName} onChange={e => setForm({ ...form, customerName: e.target.value })} placeholder="Opsional" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Kelas</label>
-                                <input className="w-full border p-2 rounded text-sm" value={form.studentClass} onChange={e => setForm({ ...form, studentClass: e.target.value })} placeholder="Contoh: 1A" />
-                            </div>
-                        </div>
+                    {/* 3. Nomor HP */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">3. Nomor HP (WA)</label>
+                        <input
+                            className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                            placeholder="08xxxxxxxxxxx"
+                            type="tel"
+                            value={identity.phone}
+                            onChange={e => setIdentity({ ...identity, phone: e.target.value })}
+                        />
+                    </div>
 
-                        {/* Gender */}
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">4. Jenis Kelamin *</label>
-                            <div className="flex gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer border p-3 rounded-lg w-full md:w-auto hover:bg-slate-50">
-                                    <input type="radio" name="gender" checked={gender === 'L'} onChange={() => setGender('L')} className="w-4 h-4 text-indigo-600" />
-                                    <span className="font-bold text-slate-700">Ikhwan (Laki-laki)</span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer border p-3 rounded-lg w-full md:w-auto hover:bg-slate-50">
-                                    <input type="radio" name="gender" checked={gender === 'P'} onChange={() => setGender('P')} className="w-4 h-4 text-pink-600" />
-                                    <span className="font-bold text-slate-700">Akhwat (Perempuan)</span>
-                                </label>
-                            </div>
-                        </div>
+                    {/* 4. Unit Sekolah */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">4. Unit Sekolah</label>
+                        <select
+                            className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                            value={identity.unit}
+                            onChange={e => setIdentity({ ...identity, unit: e.target.value })}
+                        >
+                            <option value="">-- Pilih Unit --</option>
+                            {USERS_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                        </select>
                     </div>
                 </div>
 
-                {/* 2. Pilih Produk */}
-                <div className={`bg-white p-5 rounded-xl shadow-sm border border-slate-200 transition-opacity ${!selectedUnit ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <h2 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><Plus size={18} /> Pilih Seragam / Peci</h2>
-
-                    {/* 5. Jenis (Seragam / Peci) */}
-                    <div className="mb-4">
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">5. Jenis Item</label>
-                        <div className="flex gap-2">
-                            <button onClick={() => setMainType('Seragam')} className={`flex-1 py-2 text-sm rounded border font-bold ${mainType === 'Seragam' ? 'bg-slate-800 text-white border-slate-800' : 'text-slate-600 border-slate-300'}`}>
-                                Seragam
-                            </button>
-                            <button onClick={() => setMainType('Peci')} className={`flex-1 py-2 text-sm rounded border font-bold ${mainType === 'Peci' ? 'bg-slate-800 text-white border-slate-800' : 'text-slate-600 border-slate-300'}`}>
-                                Peci
-                            </button>
+                {/* 5. ITEM ORDER SECTION */}
+                <div className={`transition duration-300 ${!identity.unit ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
+                    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <div className="bg-slate-800 text-white p-3 font-bold flex items-center gap-2">
+                            <Shirt size={20} /> 5. Input Pesanan
                         </div>
-                    </div>
 
-                    {/* Cascading Dropdowns */}
-                    <div className="bg-slate-50 p-4 rounded-lg space-y-4">
-                        {mainType === 'Seragam' && (
-                            <>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">Kategori Seragam</label>
-                                    <select className="w-full border p-2 rounded text-sm" value={selectedGroup} onChange={e => setSelectedGroup(e.target.value)}>
-                                        <option value="">-- Pilih Kategori --</option>
-                                        {GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">Tipe / Model</label>
-                                    <select className="w-full border p-2 rounded text-sm" value={selectedSubType} onChange={e => setSelectedSubType(e.target.value)}>
-                                        <option value="">-- Pilih Tipe --</option>
-                                        {SUB_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">Ukuran</label>
-                                    <select className="w-full border p-2 rounded text-sm" value={selectedSize} onChange={e => setSelectedSize(e.target.value)}>
-                                        <option value="">-- Pilih Ukuran --</option>
-                                        {(selectedGroup === 'Jubah' ? SIZES_JUBAH : SIZES_STD).map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                </div>
-                            </>
-                        )}
-
-                        {mainType === 'Peci' && (
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Ukuran Peci</label>
-                                <select className="w-full border p-2 rounded text-sm" value={selectedSize} onChange={e => setSelectedSize(e.target.value)}>
-                                    <option value="">-- Pilih Ukuran --</option>
-                                    {SIZES_PECI.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-                        )}
-
-                        <div className="flex items-end gap-3 mt-4 pt-4 border-t border-slate-200">
-                            <div className="w-24">
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Jumlah</label>
-                                <input type="number" min="1" className="w-full border p-2 rounded text-sm text-center font-bold" value={inputQty} onChange={e => setInputQty(parseInt(e.target.value) || 1)} />
-                            </div>
-                            <div className="flex-1">
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Status Ketersediaan</label>
-                                <div className={`p-2 rounded text-sm font-bold border ${matchedItem ? (matchedItem.stock > 0 ? 'bg-green-50 text-green-700 border-green-200' : 'bg-orange-50 text-orange-700 border-orange-200') : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
-                                    {matchedItem ? (matchedItem.stock > 0 ? `Ready (Stok: ${matchedItem.stock})` : 'Pre-Order (Stok Habis)') : 'Item tidak ditemukan / Filter belum lengkap'}
-                                </div>
-                            </div>
+                        {/* TABS */}
+                        <div className="flex border-b">
+                            {['Seragam', 'Peci'].map(tab => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`flex-1 py-3 font-bold text-sm transition ${activeTab === tab ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' : 'text-slate-500 hover:bg-slate-50'}`}
+                                >
+                                    {tab}
+                                </button>
+                            ))}
                         </div>
-                        {matchedItem && (
-                            <div className="text-right text-sm font-bold text-indigo-600">
-                                Harga: Rp {(matchedItem.purchasePrice || 0).toLocaleString('id-ID')}
-                            </div>
-                        )}
-                        <button onClick={handleAddItem} className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition flex items-center justify-center gap-2 mt-2">
-                            <Plus size={18} /> {manualItemId ? 'Tambahkan Item Manual' : 'Tambahkan ke Pesanan'}
-                        </button>
 
-                        {/* Always allow Manual Search Override */}
-                        <div className="mt-4 pt-4 border-t border-slate-200">
-                            <div className="flex justify-between items-center mb-2">
-                                <p className="text-xs text-slate-500 font-bold uppercase">Cari Manual (Abaikan Filter)</p>
-                                {manualItemId && <button onClick={() => setManualItemId(null)} className="text-xs text-red-500 border border-red-200 px-2 py-1 rounded hover:bg-red-50">Batal Manual</button>}
-                            </div>
-                            <select
-                                className={`w-full border p-2 rounded text-sm transition ${manualItemId ? 'ring-2 ring-indigo-500 border-indigo-500 bg-indigo-50' : 'bg-white'}`}
-                                value={manualItemId || ''}
-                                onChange={e => setManualItemId(e.target.value ? parseInt(e.target.value) : null)}
-                            >
-                                <option value="">-- Cari Nama Barang --</option>
-                                {(items || []).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(i => (
-                                    <option key={i.id} value={i.id}>
-                                        {i.name} ({i.size || '-'}) {i.stock > 0 ? '✅' : '⏳'}
-                                    </option>
-                                ))}
-                            </select>
-                            {manualItemId && <p className="text-xs text-indigo-600 mt-1 font-bold">Item manual dipilih. Klik tombol 'Tambahkan' di atas.</p>}
-                        </div>
-                    </div>
-                </div>
-
-                {/* 3. List Cart */}
-                {cart.length > 0 && (
-                    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                        <h2 className="font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2"><ShoppingBag size={18} /> Daftar Pesanan</h2>
-                        <ul className="space-y-3 mb-4">
-                            {cart.map((c, i) => (
-                                <li key={i} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        {/* CONTENT */}
+                        <div className="p-5 space-y-4">
+                            {activeTab === 'Seragam' ? (
+                                <>
+                                    {/* a1. Jenis Seragam (Group) */}
                                     <div>
-                                        <div className="font-bold text-slate-700 text-sm">{c.item.name}</div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">a1. Jenis Seragam</label>
+                                        <select className="w-full border p-2 rounded" value={seragamGroup} onChange={e => setSeragamGroup(e.target.value)}>
+                                            <option value="">-- Pilih Jenis --</option>
+                                            {UNIFORM_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
+                                        </select>
+                                    </div>
+
+                                    {/* a2. Tipe */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">a2. Tipe</label>
+                                        <select className="w-full border p-2 rounded" value={seragamType} onChange={e => setSeragamType(e.target.value)}>
+                                            <option value="">-- Pilih Tipe --</option>
+                                            {UNIFORM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                                        </select>
+                                    </div>
+
+                                    {/* a3. Ukuran */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">a3. Ukuran</label>
+                                        <select className="w-full border p-2 rounded" value={seragamSize} onChange={e => setSeragamSize(e.target.value)}>
+                                            <option value="">-- Pilih Ukuran --</option>
+                                            {(seragamGroup.includes('Jubah') || seragamType.includes('Jubah') ? SIZES_JUBAH : SIZES_STD).map(s => (
+                                                <option key={s} value={s}>{s}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* a4. Jumlah */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">a4. Jumlah</label>
+                                        <input type="number" min="1" className="w-24 border p-2 rounded text-center font-bold" value={seragamQty} onChange={e => setSeragamQty(parseInt(e.target.value) || 1)} />
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    {/* Peci - Ukuran */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Ukuran Peci</label>
+                                        <select className="w-full border p-2 rounded" value={peciSize} onChange={e => setPeciSize(e.target.value)}>
+                                            <option value="">-- Pilih Ukuran --</option>
+                                            {SIZES_PECI.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                    {/* Peci - Jumlah */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Jumlah</label>
+                                        <input type="number" min="1" className="w-24 border p-2 rounded text-center font-bold" value={peciQty} onChange={e => setPeciQty(parseInt(e.target.value) || 1)} />
+                                    </div>
+                                </>
+                            )}
+
+                            {/* ADD BUTTON */}
+                            <div className="pt-2">
+                                <button
+                                    onClick={handleAddItem}
+                                    className="w-full bg-slate-800 text-white py-3 rounded-lg font-bold hover:bg-slate-900 transition flex justify-center items-center gap-2"
+                                >
+                                    <Plus size={18} /> Tambahkan Pesanan
+                                </button>
+                                {/* Status Preview */}
+                                {matchedItem && (
+                                    <div className="mt-2 text-xs text-center">
+                                        <span className={matchedItem.stock > 0 ? "text-green-600 font-bold" : "text-orange-600 font-bold"}>
+                                            {matchedItem.stock > 0 ? "✅ Ready Stock" : "⏳ Pre-Order (Stok Habis)"}
+                                        </span>
+                                        <span className="text-slate-400 mx-1">•</span>
+                                        <span>Rp {matchedItem.purchasePrice?.toLocaleString('id-ID')}</span>
+                                    </div>
+                                )}
+                                {!matchedItem && identity.unit && (activeTab === 'Seragam' ? seragamType : peciSize) && (
+                                    <div className="mt-2 text-xs text-center text-red-500 font-bold">
+                                        ❌ Item tidak ditemukan di database
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* CART LIST */}
+                {cart.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                        <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2"><ShoppingBag size={18} /> Daftar Pesanan ({cart.length})</h3>
+                        <div className="space-y-3">
+                            {cart.map((c, i) => (
+                                <div key={i} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                    <div>
+                                        <div className="font-bold text-sm text-slate-800">{c.item.name}</div>
                                         <div className="text-xs text-slate-500">Ukuran: {c.item.size} • Qty: {c.quantity}</div>
                                     </div>
-                                    <div className="flex items-center gap-4">
-                                        <span className="font-bold text-slate-600 text-sm">Rp {((c.item.purchasePrice || 0) * c.quantity).toLocaleString('id-ID')}</span>
-                                        <button onClick={() => setCart(cart.filter(x => x.itemId !== c.itemId))} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs font-bold text-slate-600">Rp {(c.item.purchasePrice * c.quantity).toLocaleString('id-ID')}</span>
+                                        <button onClick={() => handleRemoveItem(c.itemId)} className="text-red-500 p-1 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
                                     </div>
-                                </li>
+                                </div>
                             ))}
-                        </ul>
-                        <div className="flex justify-between items-center bg-indigo-50 p-3 rounded-lg border border-indigo-100 mb-4">
-                            <span className="font-bold text-indigo-800">Total Estimasi</span>
-                            <span className="font-bold text-xl text-indigo-700">Rp {cart.reduce((s, c) => s + ((c.item.purchasePrice || 0) * c.quantity), 0).toLocaleString('id-ID')}</span>
                         </div>
-                        <button onClick={handleSubmit} disabled={loading} className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold shadow-lg flex justify-center items-center gap-2">
-                            {loading ? <Loader2 className="animate-spin" /> : <Save />} Kirim Pesanan
-                        </button>
+                        <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-100">
+                            <span className="font-bold text-slate-600">Total Estimasi</span>
+                            <span className="font-bold text-xl text-indigo-700">Rp {cart.reduce((s, c) => s + (c.item.purchasePrice * c.quantity), 0).toLocaleString('id-ID')}</span>
+                        </div>
                     </div>
                 )}
+
             </div>
+
+            {/* FLOATING SUBMIT BUTTON */}
+            {cart.length > 0 && (
+                <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-lg z-50">
+                    <div className="max-w-xl mx-auto">
+                        <button
+                            onClick={handleSubmit}
+                            disabled={loading}
+                            className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold shadow-green-200 shadow-lg flex justify-center items-center gap-2 text-lg transform transition active:scale-95"
+                        >
+                            {loading ? <Loader2 className="animate-spin" /> : <Save />} KIRIM PESANAN
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
