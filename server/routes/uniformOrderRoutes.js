@@ -65,7 +65,10 @@ const createOrder = async (req, res) => {
         for (const item of items) {
             const warehouseItem = await prisma.warehouseItem.findUnique({ where: { id: parseInt(item.itemId) } });
             if (!warehouseItem) return res.status(400).json({ error: `Item ID ${item.itemId} tidak ditemukan` });
-            // Allow backorder (stock < qty is OK)
+            // VERIFIED RULE: Stock is NOT deducted here.
+            // Orders are recorded regardless of stock.
+            // Stock management is handled manually or at a later stage (e.g. Pickup).
+            // Do NOT uncomment the stock check/deduction logic below unless requested.
             // if (warehouseItem.stock < parseInt(item.quantity)) { ... }
 
             item.price = warehouseItem.purchasePrice || 0;
