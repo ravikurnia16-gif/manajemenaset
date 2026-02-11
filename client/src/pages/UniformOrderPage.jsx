@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ShoppingBag, Search, Plus, Trash2, Save, Loader2, Check, User } from 'lucide-react';
+// import SearchableSelect from '../components/SearchableSelect'; // Disable to debug white screen
 
 const USERS_UNITS = ['TK', 'TAUD', 'SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'MIT', 'Yayasan'];
 
@@ -66,7 +67,10 @@ const UniformOrderPage = () => {
                     setItems(d.items || []);
                     setCart([]);
                 })
-                .catch(() => setItems([]))
+                .catch(err => {
+                    console.error("Fetch error:", err);
+                    setItems([]);
+                })
                 .finally(() => setLoading(false));
         } else {
             setItems([]);
@@ -382,16 +386,22 @@ const UniformOrderPage = () => {
                             <Plus size={18} /> Tambahkan ke Pesanan
                         </button>
 
-                        {/* Fallback Manual Search */}
+                        {/* Fallback Manual Search - REPLACED WITH SIMPLE SELECT */}
                         {!matchedItem && (
                             <div className="mt-4 pt-4 border-t border-slate-200">
                                 <p className="text-xs text-red-500 mb-2 font-bold italic">Item tidak ditemukan otomatis? Cari manual di sini:</p>
-                                <SearchableSelect
-                                    options={items.map(i => ({ id: i.id, name: `${i.name} (${i.size || '-'})` }))}
-                                    value={manualItemId}
-                                    onChange={setManualItemId}
-                                    placeholder="Ketik nama manual..."
-                                />
+                                <select
+                                    className="w-full border p-2 rounded text-sm"
+                                    value={manualItemId || ''}
+                                    onChange={e => setManualItemId(e.target.value ? parseInt(e.target.value) : null)}
+                                >
+                                    <option value="">-- Pilih Manual dari Daftar --</option>
+                                    {(items || []).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(i => (
+                                        <option key={i.id} value={i.id}>
+                                            {i.name} ({i.size || '-'})
+                                        </option>
+                                    ))}
+                                </select>
                                 {manualItemId && <p className="text-xs text-green-600 mt-1">Item manual dipilih. Klik tombol 'Tambahkan' di atas lagi.</p>}
                             </div>
                         )}
