@@ -244,6 +244,50 @@ const ProcurementDetail = () => {
                             )}
                         </div>
 
+                        {/* RINGKASAN PENGAJUAN - Detail barang yang diajukan */}
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <ShoppingCart size={18} /> Detail Barang yang Diajukan
+                            </h3>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-xs">
+                                        <tr>
+                                            <th className="p-3 rounded-l-lg w-10 text-center">No</th>
+                                            <th className="p-3">Nama Barang</th>
+                                            <th className="p-3">Spesifikasi</th>
+                                            <th className="p-3 text-center">Jumlah</th>
+                                            <th className="p-3">Satuan</th>
+                                            <th className="p-3 text-right">Est. Harga</th>
+                                            <th className="p-3 text-right rounded-r-lg">Subtotal</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {req.items.map((item, i) => (
+                                            <tr key={item.id} className="hover:bg-slate-50">
+                                                <td className="p-3 text-center text-slate-400 font-mono">{i + 1}</td>
+                                                <td className="p-3 font-bold text-slate-800">{item.name}</td>
+                                                <td className="p-3 text-slate-600 text-xs">{item.spec || '-'}</td>
+                                                <td className="p-3 text-center font-bold">{item.qty}</td>
+                                                <td className="p-3 text-slate-600">{item.unit}</td>
+                                                <td className="p-3 text-right font-mono">Rp {(item.estPrice || 0).toLocaleString('id-ID')}</td>
+                                                <td className="p-3 text-right font-mono font-bold">Rp {((item.qty || 0) * (item.estPrice || 0)).toLocaleString('id-ID')}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot className="bg-slate-50 font-bold">
+                                        <tr>
+                                            <td colSpan={5} className="p-3 text-right text-slate-600">Total Item: {req.items.length}</td>
+                                            <td className="p-3 text-right text-slate-600">Total Estimasi:</td>
+                                            <td className="p-3 text-right font-mono text-indigo-700">
+                                                Rp {req.items.reduce((sum, item) => sum + (item.qty || 0) * (item.estPrice || 0), 0).toLocaleString('id-ID')}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+
                         {/* STAGE 2: VENDOR COMPARISON */}
                         {['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status) ? (
                             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
