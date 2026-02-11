@@ -12,6 +12,11 @@ import ProcurementDetail from './pages/ProcurementDetail';
 import MaintenanceList from './pages/MaintenanceList';
 import MaintenanceForm from './pages/MaintenanceForm';
 import MaintenanceDetail from './pages/MaintenanceDetail';
+import WarehouseDashboard from './pages/WarehouseDashboard';
+import WarehouseStock from './pages/WarehouseStock';
+import WarehouseStockForm from './pages/WarehouseStockForm';
+import WarehouseTransactions from './pages/WarehouseTransactions';
+import WarehouseTransactionForm from './pages/WarehouseTransactionForm';
 import Settings from './pages/Settings';
 import LoginPage from './pages/LoginPage';
 import ModulePlaceholder from './components/ModulePlaceholder';
@@ -60,9 +65,12 @@ function App() {
           <Route path="kendaraan/pemeliharaan" element={<ModulePlaceholder title="Pemeliharaan Kendaraan" moduleName="Manajemen Kendaraan" />} />
 
           {/* Module: Manajemen Gudang */}
-          <Route path="gudang/dashboard" element={<ModulePlaceholder title="Dashboard Gudang" moduleName="Manajemen Gudang & Logistik" />} />
-          <Route path="gudang/stok" element={<ModulePlaceholder title="Stok Barang" moduleName="Manajemen Gudang & Logistik" />} />
-          <Route path="gudang/masuk-keluar" element={<ModulePlaceholder title="Masuk & Keluar Barang" moduleName="Manajemen Gudang & Logistik" />} />
+          <Route path="gudang/dashboard" element={<WarehouseDashboard />} />
+          <Route path="gudang/stok" element={<WarehouseStock />} />
+          <Route path="gudang/stok/input" element={<WarehouseStockForm />} />
+          <Route path="gudang/stok/edit/:id" element={<WarehouseStockForm />} />
+          <Route path="gudang/transaksi" element={<WarehouseTransactions />} />
+          <Route path="gudang/transaksi/input" element={<WarehouseTransactionForm />} />
 
           {/* Module: Manajemen Personalia */}
           <Route path="personalia/struktur" element={<ModulePlaceholder title="Struktur Organisasi" moduleName="Manajemen Personalia" />} />

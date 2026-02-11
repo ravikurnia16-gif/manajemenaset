@@ -147,8 +147,8 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/gudang/stok" className={subNavItemClass('/gudang/stok')}>
                             <Box size={16} /> Stok Barang
                         </Link>
-                        <Link to="/gudang/masuk-keluar" className={subNavItemClass('/gudang/masuk-keluar')}>
-                            <ArrowLeftRight size={16} /> Masuk / Keluar
+                        <Link to="/gudang/transaksi" className={subNavItemClass('/gudang/transaksi')}>
+                            <ArrowLeftRight size={16} /> Transaksi
                         </Link>
                     </>
                 ))}

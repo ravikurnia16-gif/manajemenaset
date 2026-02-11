@@ -41,6 +41,7 @@ model User {
   validatedAssets Asset[] @relation("AssetValidator")
   vehicleBookings VehicleBooking[]
   maintenances    Maintenance[]
+  warehouseTransactions WarehouseTransaction[]
 }
 
 model Unit {
@@ -394,4 +395,61 @@ model VehicleFuelLog {
   proofFile   String?
   
   createdAt   DateTime @default(now())
+}
+
+// --- MANAJEMEN GUDANG & LOGISTIK ---
+
+model WarehouseCategory {
+  id    Int    @id @default(autoincrement())
+  name  String @unique // "Seragam", "Perlengkapan Sekolah"
+  items WarehouseItem[]
+}
+
+model WarehouseItem {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique // GD/SRG/001
+  name          String   // "Baju Putih", "Buku Tulis"
+  categoryId    Int
+  category      WarehouseCategory @relation(fields: [categoryId], references: [id])
+  
+  type          String?  // BAJU, CELANA, JILBAB (seragam only)
+  gender        String?  // L, P (seragam only)
+  size          String?  // S, M, L, XL, XXL (seragam only)
+  purchaseYear  Int?     // Tahun pembuatan/pembelian batch (wajib utk seragam)
+  
+  stock         Int      @default(0)
+  minStock      Int      @default(5)
+  purchasePrice Float?   // Harga beli per unit
+  supplier      String?  // Pemasok
+  location      String?  // Rak / lokasi gudang
+  
+  transactionItems WarehouseTransactionItem[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model WarehouseTransaction {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique // TRX/2026/001
+  type        String   // "IN" or "OUT"
+  date        DateTime
+  note        String?
+  createdById Int
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  
+  items       WarehouseTransactionItem[]
+  
+  createdAt   DateTime @default(now())
+}
+
+model WarehouseTransactionItem {
+  id              Int      @id @default(autoincrement())
+  transactionId   Int
+  transaction     WarehouseTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  itemId          Int
+  item            WarehouseItem @relation(fields: [itemId], references: [id])
+  quantity        Int
+  recipientName   String?  // Penerima (for OUT)
+  recipientUnit   String?  // Unit penerima
 }

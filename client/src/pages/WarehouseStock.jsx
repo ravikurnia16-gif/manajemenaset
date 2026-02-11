@@ -1,0 +1,190 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Package, Plus, Search, Download, Upload, Trash2, Eye, Edit } from 'lucide-react';
+import api from '../lib/axios';
+
+const WarehouseStock = () => {
+    const [items, setItems] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('');
+    const [genderFilter, setGenderFilter] = useState('');
+    const [sizeFilter, setSizeFilter] = useState('');
+    const [yearFilter, setYearFilter] = useState('');
+    const navigate = useNavigate();
+
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const params = {};
+            if (categoryFilter) params.categoryId = categoryFilter;
+            if (genderFilter) params.gender = genderFilter;
+            if (sizeFilter) params.size = sizeFilter;
+            if (yearFilter) params.purchaseYear = yearFilter;
+            if (search) params.search = search;
+            const [itemsRes, catsRes] = await Promise.all([
+                api.get('/warehouse/items', { params }),
+                api.get('/warehouse/categories')
+            ]);
+            setItems(itemsRes.data);
+            setCategories(catsRes.data);
+        } catch (e) { console.error(e); } finally { setLoading(false); }
+    };
+
+    useEffect(() => { fetchData(); }, [categoryFilter, genderFilter, sizeFilter, yearFilter]);
+
+    const filtered = items.filter(i =>
+        !search || (i.name?.toLowerCase() || '').includes(search.toLowerCase()) || (i.code?.toLowerCase() || '').includes(search.toLowerCase())
+    );
+
+    const handleDelete = async (id) => {
+        if (!confirm('Hapus item ini?')) return;
+        try { await api.delete(`/warehouse/items/${id}`); fetchData(); } catch (e) { alert('Gagal menghapus'); }
+    };
+
+    // Template download
+    const handleTemplate = () => {
+        const headers = ['Nama', 'Kategori ID', 'Tipe (BAJU/CELANA/JILBAB)', 'Gender (L/P)', 'Ukuran', 'Tahun Pembelian', 'Stok', 'Stok Min', 'Harga Beli', 'Supplier', 'Lokasi'];
+        const csv = headers.join(',') + '\nBaju Putih,1,BAJU,P,M,2025,50,5,75000,CV Maju,Rak A1';
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'template_gudang.csv'; a.click();
+    };
+
+    // Export
+    const handleExport = async () => {
+        try {
+            const res = await api.get('/warehouse/items/export');
+            const data = res.data;
+            const headers = ['Kode', 'Nama', 'Kategori', 'Tipe', 'Gender', 'Ukuran', 'Tahun', 'Stok', 'Stok Min', 'Harga', 'Supplier', 'Lokasi'];
+            const rows = data.map(i => [i.code, i.name, i.category?.name, i.type || '', i.gender || '', i.size || '', i.purchaseYear || '', i.stock, i.minStock, i.purchasePrice || '', i.supplier || '', i.location || '']);
+            const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `stok_gudang_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+        } catch (e) { alert('Gagal export'); }
+    };
+
+    // Import
+    const handleImport = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            const lines = ev.target.result.split('\n').slice(1).filter(l => l.trim());
+            const items = lines.map(l => {
+                const cols = l.split(',');
+                return {
+                    name: cols[0]?.trim(), categoryId: cols[1]?.trim(), type: cols[2]?.trim() || null,
+                    gender: cols[3]?.trim() || null, size: cols[4]?.trim() || null,
+                    purchaseYear: cols[5]?.trim() || null, stock: cols[6]?.trim() || '0',
+                    minStock: cols[7]?.trim() || '5', purchasePrice: cols[8]?.trim() || null,
+                    supplier: cols[9]?.trim() || null, location: cols[10]?.trim() || null
+                };
+            });
+            try {
+                const res = await api.post('/warehouse/items/import', { items });
+                alert(res.data.message);
+                fetchData();
+            } catch (err) { alert('Gagal import'); }
+            e.target.value = '';
+        };
+        reader.readAsText(file);
+    };
+
+    // Unique years for filter
+    const years = [...new Set(items.map(i => i.purchaseYear).filter(Boolean))].sort((a, b) => b - a);
+
+    return (
+        <div className="p-4 md:p-6 space-y-6">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Package className="text-indigo-600" /> Data Stok Gudang</h1>
+                    <p className="text-sm text-slate-500 mt-1">Kelola stok barang gudang</p>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                    <button onClick={handleTemplate} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50"><Download size={14} /> Template</button>
+                    <label className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer">
+                        <Upload size={14} /> Import
+                        <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
+                    </label>
+                    <button onClick={handleExport} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50"><Download size={14} /> Export</button>
+                    <button onClick={() => navigate('/gudang/stok/input')} className="flex items-center gap-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl"><Plus size={16} /> Tambah</button>
+                </div>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col md:flex-row gap-3">
+                <div className="relative flex-1">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input type="text" placeholder="Cari kode/nama..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
+                </div>
+                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                    <option value="">Semua Kategori</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <select value={genderFilter} onChange={e => setGenderFilter(e.target.value)} className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                    <option value="">Semua Gender</option>
+                    <option value="L">Laki-laki</option>
+                    <option value="P">Perempuan</option>
+                </select>
+                <select value={sizeFilter} onChange={e => setSizeFilter(e.target.value)} className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                    <option value="">Semua Ukuran</option>
+                    {['S', 'M', 'L', 'XL', 'XXL'].map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                {years.length > 0 && (
+                    <select value={yearFilter} onChange={e => setYearFilter(e.target.value)} className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                        <option value="">Semua Tahun</option>
+                        {years.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                )}
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                {loading ? <div className="p-10 text-center text-slate-400">Memuat...</div> : filtered.length === 0 ? (
+                    <div className="p-10 text-center text-slate-400"><Package size={40} className="mx-auto mb-2 text-slate-300" />Belum ada data stok</div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                            <thead><tr className="bg-slate-50 border-b">
+                                <th className="text-left p-3 font-semibold text-slate-600">Kode</th>
+                                <th className="text-left p-3 font-semibold text-slate-600">Nama</th>
+                                <th className="text-left p-3 font-semibold text-slate-600">Kategori</th>
+                                <th className="text-left p-3 font-semibold text-slate-600">Tipe</th>
+                                <th className="text-center p-3 font-semibold text-slate-600">Gender</th>
+                                <th className="text-center p-3 font-semibold text-slate-600">Ukuran</th>
+                                <th className="text-center p-3 font-semibold text-slate-600">Tahun</th>
+                                <th className="text-center p-3 font-semibold text-slate-600">Stok</th>
+                                <th className="text-center p-3 font-semibold text-slate-600">Aksi</th>
+                            </tr></thead>
+                            <tbody>
+                                {filtered.map(item => (
+                                    <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+                                        <td className="p-3 font-mono text-xs">{item.code}</td>
+                                        <td className="p-3 font-medium">{item.name}</td>
+                                        <td className="p-3"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">{item.category?.name}</span></td>
+                                        <td className="p-3 text-xs">{item.type || '-'}</td>
+                                        <td className="p-3 text-center">{item.gender === 'L' ? '👦' : item.gender === 'P' ? '👧' : '-'}</td>
+                                        <td className="p-3 text-center font-semibold">{item.size || '-'}</td>
+                                        <td className="p-3 text-center text-slate-500">{item.purchaseYear || '-'}</td>
+                                        <td className="p-3 text-center">
+                                            <span className={`font-bold ${item.stock <= item.minStock ? 'text-red-600' : 'text-green-600'}`}>{item.stock}</span>
+                                        </td>
+                                        <td className="p-3 text-center flex items-center justify-center gap-1">
+                                            <button onClick={() => navigate(`/gudang/stok/edit/${item.id}`)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="Edit"><Edit size={15} /></button>
+                                            <button onClick={() => handleDelete(item.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Hapus"><Trash2 size={15} /></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default WarehouseStock;
