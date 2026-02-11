@@ -126,19 +126,20 @@ const createOrder = async (req, res) => {
 
                 await sendWhatsAppMessage(settings.waGroupId, msg);
 
-                // --- CUSTOM NOTIFICATION TO SPECIFIC NIY (18121079) ---
+                // --- CUSTOM NOTIFICATION TO SPECIFIC NIY (18121079 - Jeri Saputra) ---
                 try {
                     const targetNip = '18121079';
                     const targetUser = await prisma.user.findFirst({ where: { nip: targetNip } });
 
                     if (targetUser && targetUser.phone) {
                         const gender = req.body.gender || '-';
+                        const pesananText = order.note ? order.note.replace('GENDER: ' + gender, '').replace('ITEM PESANAN:', '').trim() : '-';
                         const specificMsg = `Telah masuk pesanan atas nama dengan rincian\n` +
                             `Nama : ${order.studentName}\n` +
                             `no Hp : ${order.customerPhone}\n` +
                             `Unit : ${order.customerUnit}\n` +
                             `Jenis Kelamin : ${gender}\n` +
-                            `pesanan : ${order.note ? order.note.replace('GENDER: ' + gender, '').replace('ITEM PESANAN:', '').trim() : '-'}\n\n` +
+                            `pesanan : ${pesananText}\n\n` +
                             `Mohon segera di proses`;
 
                         await sendWhatsAppMessage(targetUser.phone, specificMsg);
@@ -146,8 +147,23 @@ const createOrder = async (req, res) => {
                         console.log(`Target NIY ${targetNip} for custom WA not found or has no phone.`);
                     }
                 } catch (customWaError) {
-                    console.error('Custom WA notification failed:', customWaError.message);
+                    console.error('Custom WA to NIY failed:', customWaError.message);
                 }
+            }
+
+            // --- WA CONFIRMATION TO CUSTOMER (Pengaju) ---
+            try {
+                if (order.customerPhone) {
+                    const customerMsg = `Assalamu'alaikum Abu/Ummu *${order.studentName}*\n\n` +
+                        `Pesanan seragam atas nama *${order.studentName}* telah kami terima.\n` +
+                        `📋 Kode Pesanan: *${order.code}*\n\n` +
+                        `InsyaaAllah akan kami hubungi segera.\n` +
+                        `Jazaakumullahu khairan.`;
+
+                    await sendWhatsAppMessage(order.customerPhone, customerMsg);
+                }
+            } catch (custWaError) {
+                console.error('WA to customer failed:', custWaError.message);
             }
         } catch (waError) {
             console.error('WA notification failed:', waError.message);
