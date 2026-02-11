@@ -1,19 +1,24 @@
+const express = require('express');
+const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+// Using standard require, assuming middleware exists.
+// If not, I'll mock it or catch error.
+const { authMiddleware } = require('../middleware/authMiddleware');
 
-// Helper: generate order code
+// ======================== HELPERS ========================
+
 const generateOrderCode = async () => {
     const year = new Date().getFullYear();
     const count = await prisma.uniformOrder.count();
     return `ORD/${year}/${(count + 1).toString().padStart(3, '0')}`;
 };
 
-// ======================== PUBLIC ENDPOINTS ========================
+// ======================== CONTROLLER LOGIC ========================
 
-// GET available uniforms (grouped by unit)
-exports.getAvailableUniforms = async (req, res) => {
-    const { unit } = req.query;
+const getAvailableUniforms = async (req, res) => {
     try {
+        const { unit } = req.query;
         const where = {
             category: { name: { contains: 'seragam' } },
             stock: { gt: 0 }
@@ -26,7 +31,6 @@ exports.getAvailableUniforms = async (req, res) => {
             orderBy: [{ itemUnit: 'asc' }, { type: 'asc' }, { gender: 'asc' }, { size: 'asc' }]
         });
 
-        // Group by unit
         const grouped = {};
         items.forEach(item => {
             const u = item.itemUnit || 'Lainnya';
@@ -38,18 +42,16 @@ exports.getAvailableUniforms = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
-// POST create order
-exports.createOrder = async (req, res) => {
-    const { customerName, customerPhone, customerUnit, studentName, studentClass, note, items } = req.body;
-
-    if (!customerName || !customerPhone || !customerUnit || !studentName || !items?.length) {
-        return res.status(400).json({ error: 'Data tidak lengkap' });
-    }
-
+const createOrder = async (req, res) => {
     try {
+        const { customerName, customerPhone, customerUnit, studentName, studentClass, note, items } = req.body;
+
+        if (!customerName || !customerPhone || !customerUnit || !studentName || !items?.length) {
+            return res.status(400).json({ error: 'Data tidak lengkap' });
+        }
+
         const code = await generateOrderCode();
 
-        // Calculate total and validate stock
         let totalAmount = 0;
         for (const item of items) {
             const warehouseItem = await prisma.warehouseItem.findUnique({ where: { id: parseInt(item.itemId) } });
@@ -82,7 +84,7 @@ exports.createOrder = async (req, res) => {
             include: { items: { include: { item: true } } }
         });
 
-        // Send WhatsApp notification to admin
+        // Send WhatsApp notification
         try {
             const { sendWhatsAppMessage } = require('../services/whatsappService');
             const settings = await prisma.setting.findFirst();
@@ -111,11 +113,10 @@ exports.createOrder = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
-// GET check order status
-exports.checkOrder = async (req, res) => {
-    const { code } = req.params;
-    const { phone } = req.query;
+const checkOrder = async (req, res) => {
     try {
+        const { code } = req.params;
+        const { phone } = req.query;
         const order = await prisma.uniformOrder.findUnique({
             where: { code },
             include: { items: { include: { item: { select: { name: true, size: true, gender: true, type: true } } } } }
@@ -128,11 +129,9 @@ exports.checkOrder = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
-// ======================== ADMIN ENDPOINTS ========================
-
-exports.getAllOrders = async (req, res) => {
-    const { status, unit, startDate, endDate } = req.query;
+const getAllOrders = async (req, res) => {
     try {
+        const { status, unit, startDate, endDate } = req.query;
         const where = {};
         if (status) where.status = status;
         if (unit) where.customerUnit = unit;
@@ -151,9 +150,9 @@ exports.getAllOrders = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
-exports.updateOrderStatus = async (req, res) => {
-    const { status } = req.body;
+const updateOrderStatus = async (req, res) => {
     try {
+        const { status } = req.body;
         const order = await prisma.uniformOrder.update({
             where: { id: parseInt(req.params.id) },
             data: { status }
@@ -162,9 +161,23 @@ exports.updateOrderStatus = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
-exports.deleteOrder = async (req, res) => {
+const deleteOrder = async (req, res) => {
     try {
         await prisma.uniformOrder.delete({ where: { id: parseInt(req.params.id) } });
         res.json({ message: 'Pesanan dihapus' });
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
+
+// ======================== ROUTES ========================
+
+// Public routes
+router.get('/items', getAvailableUniforms);
+router.post('/', createOrder);
+router.get('/check/:code', checkOrder);
+
+// Admin routes
+router.get('/admin/orders', authMiddleware, getAllOrders);
+router.put('/admin/:id', authMiddleware, updateOrderStatus);
+router.delete('/admin/:id', authMiddleware, deleteOrder);
+
+module.exports = router;
