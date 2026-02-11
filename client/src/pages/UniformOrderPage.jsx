@@ -198,10 +198,14 @@ const UniformOrderPage = () => {
                             </div>
                         </div>
 
-                        {/* Items Table/List */}
-                        <div className="space-y-2">
+                        {/* Items List */}
+                        <div className="space-y-3 animate-in fade-in">
+                            <h3 className="font-bold text-slate-800 text-sm ml-1">Daftar Seragam ({filteredItems.length} item)</h3>
                             {filteredItems.length === 0 ? (
-                                <div className="text-center py-8 text-slate-400 text-sm">Tidak ada item sesuai filter</div>
+                                <div className="bg-slate-50 rounded-xl p-8 text-center text-slate-400 text-sm">
+                                    Tidak ada item yang sesuai filter. <br />
+                                    <button onClick={() => { setFilterGender(''); setFilterGroup(''); }} className="text-indigo-600 font-bold mt-2 underline">Reset Filter</button>
+                                </div>
                             ) : (
                                 filteredItems.map(item => {
                                     const inCart = cart.find(c => c.itemId === item.id);
