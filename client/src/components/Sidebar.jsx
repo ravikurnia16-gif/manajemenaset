@@ -150,6 +150,9 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/gudang/transaksi" className={subNavItemClass('/gudang/transaksi')}>
                             <ArrowLeftRight size={16} /> Transaksi
                         </Link>
+                        <Link to="/gudang/pesanan" className={subNavItemClass('/gudang/pesanan')}>
+                            <ShoppingCart size={16} /> Pesanan Seragam
+                        </Link>
                     </>
                 ))}
 
@@ -178,7 +181,7 @@ const Sidebar = ({ isOpen = true }) => {
                         )}
                     </div>
                 )}
-            </nav>
+            </nav >
 
             <div className={cn(
                 "border-t border-slate-800 bg-slate-900/50 transition-all duration-300 overflow-hidden whitespace-nowrap",

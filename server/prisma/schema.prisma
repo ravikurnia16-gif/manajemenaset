@@ -425,6 +425,7 @@ model WarehouseItem {
   location      String?  // Rak / lokasi gudang
   
   transactionItems WarehouseTransactionItem[]
+  orderItems       UniformOrderItem[]
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -453,4 +454,32 @@ model WarehouseTransactionItem {
   quantity        Int
   recipientName   String?  // Penerima (for OUT)
   recipientUnit   String?  // Unit penerima
+}
+
+// --- PESANAN SERAGAM PUBLIK ---
+
+model UniformOrder {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique  // ORD/2026/001
+  customerName  String             // Nama pemesan (ortu/wali)
+  customerPhone String             // No HP pemesan
+  customerUnit  String             // Unit: TK, SD, SMP, dll
+  studentName   String             // Nama siswa
+  studentClass  String?            // Kelas
+  note          String?
+  status        String   @default("PENDING") // PENDING, CONFIRMED, READY, PICKED_UP, CANCELLED
+  totalAmount   Float    @default(0)
+  items         UniformOrderItem[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model UniformOrderItem {
+  id          Int      @id @default(autoincrement())
+  orderId     Int
+  order       UniformOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemId      Int
+  item        WarehouseItem @relation(fields: [itemId], references: [id])
+  quantity    Int
+  price       Float    // Harga saat pesan
 }

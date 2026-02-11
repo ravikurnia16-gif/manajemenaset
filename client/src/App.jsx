@@ -18,6 +18,8 @@ import WarehouseStockForm from './pages/WarehouseStockForm';
 import WarehouseTransactions from './pages/WarehouseTransactions';
 import WarehouseTransactionForm from './pages/WarehouseTransactionForm';
 import Settings from './pages/Settings';
+import UniformOrderPage from './pages/UniformOrderPage';
+import UniformOrderAdmin from './pages/UniformOrderAdmin';
 import LoginPage from './pages/LoginPage';
 import ModulePlaceholder from './components/ModulePlaceholder';
 
@@ -35,6 +37,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/pesan-seragam" element={<UniformOrderPage />} />
 
         {/* Semua route di dalam sini diproteksi */}
         <Route path="/" element={
@@ -71,6 +74,7 @@ function App() {
           <Route path="gudang/stok/edit/:id" element={<WarehouseStockForm />} />
           <Route path="gudang/transaksi" element={<WarehouseTransactions />} />
           <Route path="gudang/transaksi/input" element={<WarehouseTransactionForm />} />
+          <Route path="gudang/pesanan" element={<UniformOrderAdmin />} />
 
           {/* Module: Manajemen Personalia */}
           <Route path="personalia/struktur" element={<ModulePlaceholder title="Struktur Organisasi" moduleName="Manajemen Personalia" />} />
