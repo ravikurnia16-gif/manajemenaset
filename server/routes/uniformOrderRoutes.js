@@ -175,79 +175,80 @@ const createOrder = async (req, res) => {
                 } catch (customWaError) {
                     console.error('Custom WA to NIY failed:', customWaError.message);
                 }
-            } catch (waError) {
-                console.error('WA notification failed:', waError.message);
             }
+        } catch (waError) {
+            console.error('WA notification failed:', waError.message);
+        }
 
-            res.json({ message: 'Pesanan berhasil dibuat!', order });
-        } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
-    };
+        res.json({ message: 'Pesanan berhasil dibuat!', order });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+};
 
-    const checkOrder = async (req, res) => {
-        try {
-            const { code } = req.params;
-            const { phone } = req.query;
-            const order = await prisma.uniformOrder.findUnique({
-                where: { code },
-                include: { items: { include: { item: { select: { name: true, size: true, gender: true, type: true } } } } }
-            });
-            if (!order) return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
-            if (phone && order.customerPhone !== phone) {
-                return res.status(403).json({ error: 'No HP tidak cocok' });
-            }
-            res.json(order);
-        } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
-    };
+const checkOrder = async (req, res) => {
+    try {
+        const { code } = req.params;
+        const { phone } = req.query;
+        const order = await prisma.uniformOrder.findUnique({
+            where: { code },
+            include: { items: { include: { item: { select: { name: true, size: true, gender: true, type: true } } } } }
+        });
+        if (!order) return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
+        if (phone && order.customerPhone !== phone) {
+            return res.status(403).json({ error: 'No HP tidak cocok' });
+        }
+        res.json(order);
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+};
 
-    const getAllOrders = async (req, res) => {
-        try {
-            const { status, unit, startDate, endDate } = req.query;
-            const where = {};
-            if (status) where.status = status;
-            if (unit) where.customerUnit = unit;
-            if (startDate || endDate) {
-                where.createdAt = {};
-                if (startDate) where.createdAt.gte = new Date(startDate);
-                if (endDate) where.createdAt.lte = new Date(endDate);
-            }
+const getAllOrders = async (req, res) => {
+    try {
+        const { status, unit, startDate, endDate } = req.query;
+        const where = {};
+        if (status) where.status = status;
+        if (unit) where.customerUnit = unit;
+        if (startDate || endDate) {
+            where.createdAt = {};
+            if (startDate) where.createdAt.gte = new Date(startDate);
+            if (endDate) where.createdAt.lte = new Date(endDate);
+        }
 
-            const orders = await prisma.uniformOrder.findMany({
-                where,
-                include: { items: { include: { item: { select: { name: true, size: true, gender: true, type: true, code: true } } } } },
-                orderBy: { createdAt: 'desc' }
-            });
-            res.json(orders);
-        } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
-    };
+        const orders = await prisma.uniformOrder.findMany({
+            where,
+            include: { items: { include: { item: { select: { name: true, size: true, gender: true, type: true, code: true } } } } },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(orders);
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+};
 
-    const updateOrderStatus = async (req, res) => {
-        try {
-            const { status } = req.body;
-            const order = await prisma.uniformOrder.update({
-                where: { id: parseInt(req.params.id) },
-                data: { status }
-            });
-            res.json({ message: 'Status diperbarui', order });
-        } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
-    };
+const updateOrderStatus = async (req, res) => {
+    try {
+        const { status } = req.body;
+        const order = await prisma.uniformOrder.update({
+            where: { id: parseInt(req.params.id) },
+            data: { status }
+        });
+        res.json({ message: 'Status diperbarui', order });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+};
 
-    const deleteOrder = async (req, res) => {
-        try {
-            await prisma.uniformOrder.delete({ where: { id: parseInt(req.params.id) } });
-            res.json({ message: 'Pesanan dihapus' });
-        } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
-    };
+const deleteOrder = async (req, res) => {
+    try {
+        await prisma.uniformOrder.delete({ where: { id: parseInt(req.params.id) } });
+        res.json({ message: 'Pesanan dihapus' });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+};
 
-    // ======================== ROUTES ========================
+// ======================== ROUTES ========================
 
-    // Public routes
-    router.get('/items', getAvailableUniforms);
-    router.post('/', createOrder);
-    router.get('/check/:code', checkOrder);
+// Public routes
+router.get('/items', getAvailableUniforms);
+router.post('/', createOrder);
+router.get('/check/:code', checkOrder);
 
-    // Admin routes
-    router.get('/admin/orders', authMiddleware, getAllOrders);
-    router.put('/admin/:id', authMiddleware, updateOrderStatus);
-    router.delete('/admin/:id', authMiddleware, deleteOrder);
+// Admin routes
+router.get('/admin/orders', authMiddleware, getAllOrders);
+router.put('/admin/:id', authMiddleware, updateOrderStatus);
+router.delete('/admin/:id', authMiddleware, deleteOrder);
 
-    module.exports = router;
+module.exports = router;
