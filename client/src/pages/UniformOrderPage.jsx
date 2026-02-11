@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { ShoppingBag, Search, Plus, Trash2, Save, Loader2, Check, User, Shirt, CircleUserRound } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ShoppingBag, Plus, Trash2, Save, Loader2, Check, User, Shirt } from 'lucide-react';
 
 const USERS_UNITS = ['TK', 'TAUD', 'SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'MIT', 'Yayasan'];
 
@@ -34,7 +34,7 @@ const UniformOrderPage = () => {
     });
 
     // 2. Data & Cart
-    const [items, setItems] = useState([]);
+    // Note: Items are NO LONGER fetched from DB. We generate them locally.
     const [cart, setCart] = useState([]);
     const [loading, setLoading] = useState(false);
 
@@ -54,111 +54,44 @@ const UniformOrderPage = () => {
     // System
     const [orderResult, setOrderResult] = useState(null);
     const [checkCode, setCheckCode] = useState('');
-    const [checkPhone, setCheckPhone] = useState('');
     const [checkResult, setCheckResult] = useState(null);
     const [showCheck, setShowCheck] = useState(false);
 
     const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:5000' : '';
 
-    // --- FETCH ITEMS ---
-    useEffect(() => {
-        if (identity.unit) {
-            setLoading(true);
-            fetch(`${API_BASE}/api/uniform-order/items?unit=${encodeURIComponent(identity.unit)}`)
-                .then(r => r.json())
-                .then(d => {
-                    setItems(d.items || []);
-                    // Clear cart when unit changes? Maybe safer to keep but warn.
-                    // setCart([]); 
-                })
-                .catch(err => {
-                    console.error("Fetch error:", err);
-                    setItems([]);
-                })
-                .finally(() => setLoading(false));
-        } else {
-            setItems([]);
-        }
-    }, [identity.unit]);
-
-    // --- MATCHING LOGIC ---
-    const matchedItem = useMemo(() => {
-        if (!identity.unit) return null;
-        const normalize = s => s ? s.toLowerCase().trim() : '';
-        const selectedGender = identity.gender === 'Ikhwan' ? 'l' : (identity.gender === 'Akhwat' ? 'p' : '');
-
-        if (activeTab === 'Peci') {
-            if (!peciSize) return null;
-            return items.find(i => {
-                const name = normalize(i.name);
-                const cat = normalize(i.category?.name);
-                const isPeci = name.includes('peci') || name.includes('songkok') || cat.includes('peci');
-                return isPeci && i.size === peciSize;
-            });
-        }
-
-        if (activeTab === 'Seragam') {
-            if (!seragamGroup || !seragamType || !seragamSize) return null;
-
-            return items.find(i => {
-                const name = normalize(i.name);
-                const dbGroup = normalize(i.uniformGroup);
-                const dbType = normalize(i.type);
-                const dbGender = normalize(i.gender);
-
-                // 1. Gender check (Loose)
-                // If item is generic (no gender) or matches selected gender
-                const genderMatch = !dbGender || dbGender === selectedGender;
-                // Double check name if dbGender is missing
-                if (!dbGender && selectedGender === 'l' && (name.includes('putri') || name.includes('akhwat'))) return false;
-                if (!dbGender && selectedGender === 'p' && (name.includes('putra') || name.includes('ikhwan'))) return false;
-
-                // 2. Group check
-                const selGroup = normalize(seragamGroup);
-                const groupMatch = dbGroup.includes(selGroup) || name.includes(selGroup);
-
-                // 3. Type check
-                const selType = normalize(seragamType);
-                let typeMatch = false;
-
-                if (selType === 'baju') typeMatch = name.includes('baju') || name.includes('kemeja') || dbType === 'baju';
-                else if (selType === 'celana') typeMatch = name.includes('celana') || dbType === 'celana';
-                else if (selType === 'jilbab') typeMatch = name.includes('jilbab') || name.includes('kerudung');
-                else if (selType === 'rok celana') typeMatch = name.includes('rok') && name.includes('celana');
-                else if (selType === 'baju dan celana') typeMatch = name.includes('stel') || (name.includes('baju') && name.includes('celana')); // Stel
-                else if (selType === 'baju dan jilbab') typeMatch = name.includes('set') && name.includes('jilbab'); // Rare case?
-                else if (selType.includes('baju, rok celana dan jilbab')) typeMatch = name.includes('set') && name.includes('olahraga'); // Set Olahraga Akhwat
-                else if (selType === 'jubah hitam') typeMatch = name.includes('jubah') && name.includes('hitam');
-                else if (selType === 'jubah putih') typeMatch = name.includes('jubah') && name.includes('putih');
-                else typeMatch = name.includes(selType);
-
-                // 4. Size check
-                const sizeMatch = normalize(i.size) === normalize(seragamSize);
-
-                return genderMatch && groupMatch && typeMatch && sizeMatch;
-            });
-        }
-    }, [items, activeTab, identity, seragamGroup, seragamType, seragamSize, peciSize]);
-
-
     // --- HANDLERS ---
     const handleAddItem = () => {
-        if (!matchedItem) return alert('Item tidak ditemukan. Pastikan Unit dan Filter sudah benar.');
+        let newItem = null;
 
-        const qty = activeTab === 'Seragam' ? seragamQty : peciQty;
+        if (activeTab === 'Seragam') {
+            if (!seragamGroup || !seragamType || !seragamSize) return alert('Lengkapi data seragam (Jenis, Tipe, Ukuran)');
 
-        setCart(prev => {
-            const existing = prev.find(c => c.itemId === matchedItem.id);
-            if (existing) {
-                return prev.map(c => c.itemId === matchedItem.id ? { ...c, quantity: c.quantity + qty } : c);
-            }
-            return [...prev, { itemId: matchedItem.id, quantity: qty, item: matchedItem }];
-        });
+            newItem = {
+                id: Date.now(), // Temporary ID
+                name: `Seragam ${seragamGroup} - ${seragamType}`,
+                size: seragamSize,
+                quantity: seragamQty,
+                type: 'Seragam'
+            };
+        } else {
+            if (!peciSize) return alert('Pilih ukuran Peci');
 
-        // Optional: Reset selection?
+            newItem = {
+                id: Date.now(),
+                name: `Peci / Songkok`,
+                size: peciSize,
+                quantity: peciQty,
+                type: 'Peci'
+            };
+        }
+
+        setCart(prev => [...prev, newItem]);
+
+        // Reset inputs for convenience?
+        // setSeragamSize(''); setPeciSize('');
     };
 
-    const handleRemoveItem = (id) => setCart(prev => prev.filter(c => c.itemId !== id));
+    const handleRemoveItem = (id) => setCart(prev => prev.filter(c => c.id !== id));
 
     const handleSubmit = async () => {
         // Validation
@@ -172,13 +105,17 @@ const UniformOrderPage = () => {
 
         setLoading(true);
         try {
+            // Format Items into a String Note
+            const itemNote = cart.map((c, i) => `${i + 1}. ${c.name} (${c.size}) x${c.quantity}`).join('\n');
+            const fullNote = `GENDER: ${identity.gender}\n\nITEM PESANAN:\n${itemNote}`;
+
             const payload = {
                 studentName: identity.studentName,
                 customerPhone: identity.phone,
                 customerUnit: identity.unit,
-                customerName: '', // Optional parent name not in V2 spec, sending empty
-                items: cart.map(c => ({ itemId: c.itemId, quantity: c.quantity })),
-                note: `Gender: ${identity.gender}` // Interact as note or extra field
+                customerName: '', // Optional
+                items: [], // EMPTY ITEMS ARRAY -> Decoupled from DB
+                note: fullNote
             };
 
             const res = await fetch(`${API_BASE}/api/uniform-order`, {
@@ -208,7 +145,7 @@ const UniformOrderPage = () => {
                         <div className="text-sm text-slate-500">Kode Pesanan</div>
                         <div className="text-3xl font-mono font-bold text-slate-800">{orderResult.code}</div>
                     </div>
-                    <p className="text-slate-600">Simpan kode ini atau screenshot halaman ini sebagai bukti pemesanan.</p>
+                    <p className="text-slate-600">Simpan kode ini sebagai bukti pemesanan.</p>
                     <button onClick={() => window.location.reload()} className="bg-indigo-600 text-white w-full py-3 rounded-lg font-bold">Buat Pesanan Baru</button>
                 </div>
             </div>
@@ -224,7 +161,6 @@ const UniformOrderPage = () => {
                     <ShoppingBag className="text-indigo-600" />
                     <h1 className="font-bold text-lg">Form Seragam</h1>
                 </div>
-                {/* Optional Status Check Trigger */}
                 <button onClick={() => setShowCheck(!showCheck)} className="text-xs font-bold text-indigo-600 border border-indigo-200 px-3 py-1.5 rounded hover:bg-indigo-50">
                     Cek Pesanan
                 </button>
@@ -249,6 +185,10 @@ const UniformOrderPage = () => {
                         <div className="bg-white p-3 rounded border text-sm">
                             <div className="font-bold">{checkResult.studentName}</div>
                             <div className="text-slate-500">Status: {checkResult.status}</div>
+                            {/* Display Note for decoupled orders */}
+                            <div className="mt-2 text-xs bg-slate-100 p-2 rounded whitespace-pre-wrap font-mono">
+                                {checkResult.note || 'Tidak ada detail item (Decoupled Mode)'}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -256,7 +196,7 @@ const UniformOrderPage = () => {
 
             <div className="max-w-xl mx-auto p-4 space-y-6">
 
-                {/* 1. DATA DIRI (The new order: Name -> Gender -> Phone -> Unit) */}
+                {/* 1. DATA DIRI */}
                 <div className="bg-white p-5 rounded-xl shadow-sm space-y-4">
                     <h2 className="font-bold border-b pb-2 flex items-center gap-2 text-slate-700"><User size={20} /> Identitas Pemesan</h2>
 
@@ -401,21 +341,9 @@ const UniformOrderPage = () => {
                                 >
                                     <Plus size={18} /> Tambahkan Pesanan
                                 </button>
-                                {/* Status Preview */}
-                                {matchedItem && (
-                                    <div className="mt-2 text-xs text-center">
-                                        <span className={matchedItem.stock > 0 ? "text-green-600 font-bold" : "text-orange-600 font-bold"}>
-                                            {matchedItem.stock > 0 ? "✅ Ready Stock" : "⏳ Pre-Order (Stok Habis)"}
-                                        </span>
-                                        <span className="text-slate-400 mx-1">•</span>
-                                        <span>Rp {matchedItem.purchasePrice?.toLocaleString('id-ID')}</span>
-                                    </div>
-                                )}
-                                {!matchedItem && identity.unit && (activeTab === 'Seragam' ? seragamType : peciSize) && (
-                                    <div className="mt-2 text-xs text-center text-red-500 font-bold">
-                                        ❌ Item tidak ditemukan di database
-                                    </div>
-                                )}
+                                <p className="text-xs text-center mt-2 text-slate-400 italic">
+                                    Item akan ditambahkan manual (tanpa pengecekan stok).
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -429,19 +357,14 @@ const UniformOrderPage = () => {
                             {cart.map((c, i) => (
                                 <div key={i} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
                                     <div>
-                                        <div className="font-bold text-sm text-slate-800">{c.item.name}</div>
-                                        <div className="text-xs text-slate-500">Ukuran: {c.item.size} • Qty: {c.quantity}</div>
+                                        <div className="font-bold text-sm text-slate-800">{c.name}</div>
+                                        <div className="text-xs text-slate-500">Ukuran: {c.size} • Qty: {c.quantity}</div>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <span className="text-xs font-bold text-slate-600">Rp {(c.item.purchasePrice * c.quantity).toLocaleString('id-ID')}</span>
-                                        <button onClick={() => handleRemoveItem(c.itemId)} className="text-red-500 p-1 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
+                                        <button onClick={() => handleRemoveItem(c.id)} className="text-red-500 p-1 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
                                     </div>
                                 </div>
                             ))}
-                        </div>
-                        <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-100">
-                            <span className="font-bold text-slate-600">Total Estimasi</span>
-                            <span className="font-bold text-xl text-indigo-700">Rp {cart.reduce((s, c) => s + (c.item.purchasePrice * c.quantity), 0).toLocaleString('id-ID')}</span>
                         </div>
                     </div>
                 )}
