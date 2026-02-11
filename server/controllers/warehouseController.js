@@ -111,7 +111,7 @@ const generateItemCode = async (categoryName) => {
 };
 
 exports.createItem = async (req, res) => {
-    const { name, categoryId, type, gender, size, purchaseYear, stock, minStock, purchasePrice, supplier, location } = req.body;
+    const { name, categoryId, type, gender, size, purchaseYear, itemUnit, stock, minStock, purchasePrice, supplier, location } = req.body;
     try {
         const category = await prisma.warehouseCategory.findUnique({ where: { id: parseInt(categoryId) } });
         const code = await generateItemCode(category?.name);
@@ -124,6 +124,7 @@ exports.createItem = async (req, res) => {
                 gender: gender || null,
                 size: size || null,
                 purchaseYear: purchaseYear ? parseInt(purchaseYear) : null,
+                itemUnit: itemUnit || null,
                 stock: parseInt(stock) || 0,
                 minStock: parseInt(minStock) || 5,
                 purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
@@ -136,7 +137,7 @@ exports.createItem = async (req, res) => {
 };
 
 exports.updateItem = async (req, res) => {
-    const { name, categoryId, type, gender, size, purchaseYear, stock, minStock, purchasePrice, supplier, location } = req.body;
+    const { name, categoryId, type, gender, size, purchaseYear, itemUnit, stock, minStock, purchasePrice, supplier, location } = req.body;
     try {
         const item = await prisma.warehouseItem.update({
             where: { id: parseInt(req.params.id) },
@@ -144,6 +145,7 @@ exports.updateItem = async (req, res) => {
                 name, categoryId: categoryId ? parseInt(categoryId) : undefined,
                 type, gender, size,
                 purchaseYear: purchaseYear ? parseInt(purchaseYear) : undefined,
+                itemUnit,
                 stock: stock !== undefined ? parseInt(stock) : undefined,
                 minStock: minStock !== undefined ? parseInt(minStock) : undefined,
                 purchasePrice: purchasePrice !== undefined ? parseFloat(purchasePrice) : undefined,
@@ -178,6 +180,7 @@ exports.importItems = async (req, res) => {
                     gender: row.gender || null,
                     size: row.size || null,
                     purchaseYear: row.purchaseYear ? parseInt(row.purchaseYear) : null,
+                    itemUnit: row.itemUnit || null,
                     stock: parseInt(row.stock) || 0,
                     minStock: parseInt(row.minStock) || 5,
                     purchasePrice: row.purchasePrice ? parseFloat(row.purchasePrice) : null,

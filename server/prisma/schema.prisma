@@ -416,6 +416,7 @@ model WarehouseItem {
   gender        String?  // L, P (seragam only)
   size          String?  // S, M, L, XL, XXL (seragam only)
   purchaseYear  Int?     // Tahun pembuatan/pembelian batch (wajib utk seragam)
+  itemUnit      String?  // Unit seragam: TK, TAUD, SD, SMP, SMA, dll
   
   stock         Int      @default(0)
   minStock      Int      @default(5)
