@@ -46,7 +46,8 @@ const createOrder = async (req, res) => {
     try {
         const { customerName, customerPhone, customerUnit, studentName, studentClass, note, items } = req.body;
 
-        if (!customerName || !customerPhone || !customerUnit || !studentName || !items?.length) {
+        // Relaxed validation for Decoupled Mode
+        if (!customerPhone || !customerUnit || !studentName) {
             return res.status(400).json({ error: 'Data tidak lengkap' });
         }
 

@@ -55,24 +55,26 @@ const createOrder = async (req, res) => {
     try {
         const { customerName, customerPhone, customerUnit, studentName, studentClass, note, items } = req.body;
 
-        if (!customerName || !customerPhone || !customerUnit || !studentName || !items?.length) {
+        // ALLOW EMPTY ITEMS (Decoupled Mode)
+        // customerName is optional (Parent name)
+        if (!customerPhone || !customerUnit || !studentName) {
             return res.status(400).json({ error: 'Data tidak lengkap' });
         }
 
         const code = await generateOrderCode();
 
         let totalAmount = 0;
-        for (const item of items) {
-            const warehouseItem = await prisma.warehouseItem.findUnique({ where: { id: parseInt(item.itemId) } });
-            if (!warehouseItem) return res.status(400).json({ error: `Item ID ${item.itemId} tidak ditemukan` });
-            // VERIFIED RULE: Stock is NOT deducted here.
-            // Orders are recorded regardless of stock.
-            // Stock management is handled manually or at a later stage (e.g. Pickup).
-            // Do NOT uncomment the stock check/deduction logic below unless requested.
-            // if (warehouseItem.stock < parseInt(item.quantity)) { ... }
 
-            item.price = warehouseItem.purchasePrice || 0;
-            totalAmount += item.price * parseInt(item.quantity);
+        // Only process items if they exist (Coupled Mode)
+        if (items && items.length > 0) {
+            for (const item of items) {
+                const warehouseItem = await prisma.warehouseItem.findUnique({ where: { id: parseInt(item.itemId) } });
+                if (!warehouseItem) return res.status(400).json({ error: `Item ID ${item.itemId} tidak ditemukan` });
+
+                // Stock check is disabled per previous logic, but price calc remains
+                item.price = warehouseItem.purchasePrice || 0;
+                totalAmount += item.price * parseInt(item.quantity);
+            }
         }
 
         const order = await prisma.uniformOrder.create({
@@ -86,7 +88,7 @@ const createOrder = async (req, res) => {
                 note: note || null,
                 totalAmount,
                 items: {
-                    create: items.map(item => ({
+                    create: (items || []).map(item => ({
                         itemId: parseInt(item.itemId),
                         quantity: parseInt(item.quantity),
                         price: item.price
@@ -101,9 +103,16 @@ const createOrder = async (req, res) => {
             const { sendWhatsAppMessage } = require('../services/whatsappService');
             const settings = await prisma.setting.findFirst();
             if (settings?.waGroupId) {
-                const itemList = order.items.map((oi, i) =>
-                    `${i + 1}. ${oi.item.name} (${oi.item.size || '-'}) x${oi.quantity}`
-                ).join('\n');
+                let itemList = '';
+
+                if (order.items && order.items.length > 0) {
+                    itemList = order.items.map((oi, i) =>
+                        `${i + 1}. ${oi.item.name} (${oi.item.size || '-'}) x${oi.quantity}`
+                    ).join('\n');
+                } else {
+                    // Fallback to Note for Decoupled Mode
+                    itemList = `_Item tercantum dalam catatan_`;
+                }
 
                 const msg = `🛒 *PESANAN SERAGAM BARU*\n\n` +
                     `📋 Kode: *${order.code}*\n` +
@@ -113,7 +122,7 @@ const createOrder = async (req, res) => {
                     `👨‍🎓 Siswa: ${order.studentName}${order.studentClass ? ` (${order.studentClass})` : ''}\n\n` +
                     `📦 *Item:*\n${itemList}\n\n` +
                     `💰 Total: Rp ${order.totalAmount.toLocaleString('id-ID')}\n` +
-                    `📝 Catatan: ${order.note || '-'}`;
+                    `📝 Catatan:\n${order.note || '-'}`;
 
                 await sendWhatsAppMessage(settings.waGroupId, msg);
             }
