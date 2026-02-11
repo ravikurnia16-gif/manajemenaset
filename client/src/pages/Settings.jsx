@@ -137,6 +137,8 @@ const Settings = () => {
                 // UPDATE logic
                 await api.put(`/users/${newUser.id}`, newUser);
                 alert('User berhasil diperbarui!');
+            } else {
+                // CREATE logic
                 await api.post('/users', newUser);
                 alert('User berhasil ditambahkan!');
             }
