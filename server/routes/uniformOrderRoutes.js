@@ -29,8 +29,8 @@ const getAvailableUniforms = async (req, res) => {
     try {
         const { unit } = req.query;
         const where = {
-            category: { name: { contains: 'seragam' } },
-            stock: { gt: 0 }
+            category: { name: { contains: 'seragam' } }
+            // stock: { gt: 0 } // Backorder allowed
         };
         if (unit) where.itemUnit = unit;
 
@@ -65,9 +65,9 @@ const createOrder = async (req, res) => {
         for (const item of items) {
             const warehouseItem = await prisma.warehouseItem.findUnique({ where: { id: parseInt(item.itemId) } });
             if (!warehouseItem) return res.status(400).json({ error: `Item ID ${item.itemId} tidak ditemukan` });
-            if (warehouseItem.stock < parseInt(item.quantity)) {
-                return res.status(400).json({ error: `Stok ${warehouseItem.name} tidak mencukupi (sisa: ${warehouseItem.stock})` });
-            }
+            // Allow backorder (stock < qty is OK)
+            // if (warehouseItem.stock < parseInt(item.quantity)) { ... }
+
             item.price = warehouseItem.purchasePrice || 0;
             totalAmount += item.price * parseInt(item.quantity);
         }

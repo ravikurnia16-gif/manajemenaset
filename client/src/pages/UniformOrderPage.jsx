@@ -41,7 +41,7 @@ const UniformOrderPage = () => {
             if (c.itemId === itemId) {
                 const newQty = c.quantity + delta;
                 if (newQty <= 0) return null;
-                if (newQty > c.item.stock) return c;
+                // if (newQty > c.item.stock) return c; // Removed cap for backorder
                 return { ...c, quantity: newQty };
             }
             return c;
@@ -208,7 +208,9 @@ const UniformOrderPage = () => {
                                                     {item.size && <span className="font-bold">{item.size}</span>}
                                                 </div>
                                                 <div className="text-xs text-slate-400 mt-1">
-                                                    Stok: <span className={item.stock <= 5 ? 'text-red-500 font-bold' : 'text-green-600'}>{item.stock}</span>
+                                                    Stok: <span className={item.stock <= 0 ? 'text-orange-500 font-bold' : (item.stock <= 5 ? 'text-red-500 font-bold' : 'text-green-600')}>
+                                                        {item.stock <= 0 ? 'Pre-Order / Pesan Stok' : item.stock}
+                                                    </span>
                                                     {item.purchasePrice > 0 && <span className="ml-2">• Rp {item.purchasePrice.toLocaleString('id-ID')}</span>}
                                                 </div>
                                             </div>
