@@ -259,7 +259,8 @@ const ProcurementDetail = () => {
                                             <th className="p-3 text-center">Jumlah</th>
                                             <th className="p-3">Satuan</th>
                                             <th className="p-3 text-right">Est. Harga</th>
-                                            <th className="p-3 text-right rounded-r-lg">Subtotal</th>
+                                            <th className="p-3 text-right">Subtotal</th>
+                                            <th className="p-3 rounded-r-lg">Sumber Dana</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
@@ -272,12 +273,13 @@ const ProcurementDetail = () => {
                                                 <td className="p-3 text-slate-600">{item.unit}</td>
                                                 <td className="p-3 text-right font-mono">Rp {(item.estPrice || 0).toLocaleString('id-ID')}</td>
                                                 <td className="p-3 text-right font-mono font-bold">Rp {((item.qty || 0) * (item.estPrice || 0)).toLocaleString('id-ID')}</td>
+                                                <td className="p-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">{item.fundingSource || '-'}</span></td>
                                             </tr>
                                         ))}
                                     </tbody>
                                     <tfoot className="bg-slate-50 font-bold">
                                         <tr>
-                                            <td colSpan={5} className="p-3 text-right text-slate-600">Total Item: {req.items.length}</td>
+                                            <td colSpan={6} className="p-3 text-right text-slate-600">Total Item: {req.items.length}</td>
                                             <td className="p-3 text-right text-slate-600">Total Estimasi:</td>
                                             <td className="p-3 text-right font-mono text-indigo-700">
                                                 Rp {req.items.reduce((sum, item) => sum + (item.qty || 0) * (item.estPrice || 0), 0).toLocaleString('id-ID')}
