@@ -417,6 +417,7 @@ model WarehouseItem {
   size          String?  // S, M, L, XL, XXL (seragam only)
   purchaseYear  Int?     // Tahun pembuatan/pembelian batch (wajib utk seragam)
   itemUnit      String?  // Unit seragam: TK, TAUD, SD, SMP, SMA, dll
+  uniformGroup  String?  // Nasional, Batik, Muslim, Pramuka, Olahraga, Jubah Hitam, Jubah Putih
   
   stock         Int      @default(0)
   minStock      Int      @default(5)
