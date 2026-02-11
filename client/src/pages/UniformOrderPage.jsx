@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ShoppingBag, Search, Plus, Trash2, Save, Loader2, Check, User } from 'lucide-react';
-// import SearchableSelect from '../components/SearchableSelect'; // Disable to debug white screen
 
 const USERS_UNITS = ['TK', 'TAUD', 'SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'MIT', 'Yayasan'];
 
@@ -54,6 +53,9 @@ const UniformOrderPage = () => {
     const [checkPhone, setCheckPhone] = useState('');
     const [checkResult, setCheckResult] = useState(null);
     const [showCheck, setShowCheck] = useState(false);
+
+    // Manual Override State
+    const [manualItemId, setManualItemId] = useState(null);
 
     const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:5000' : '';
 
@@ -137,19 +139,18 @@ const UniformOrderPage = () => {
         });
     }, [items, mainType, gender, selectedGroup, selectedSubType, selectedSize, selectedUnit]);
 
-    // Manual Override State
-    const [manualItemId, setManualItemId] = useState(null);
-
     const handleAddItem = () => {
-        // Priority: Matched Item -> Manual ID
-        let targetItem = matchedItem;
+        // Priority: Manual ID -> Matched Item
+        let targetItem = null;
 
-        if (!targetItem && manualItemId) {
+        if (manualItemId) {
             targetItem = items.find(i => i.id == manualItemId);
+        } else {
+            targetItem = matchedItem;
         }
 
         if (!targetItem) {
-            return alert('Item tidak ditemukan. Pastikan filter lengkap atau gunakan pencarian manual di bawah tombol.');
+            return alert('Item tidak ditemukan. Harap pilih item dari filter atau cari manual.');
         }
 
         const existing = cart.find(c => c.itemId === targetItem.id);
@@ -383,28 +384,29 @@ const UniformOrderPage = () => {
                             </div>
                         )}
                         <button onClick={handleAddItem} className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition flex items-center justify-center gap-2 mt-2">
-                            <Plus size={18} /> Tambahkan ke Pesanan
+                            <Plus size={18} /> {manualItemId ? 'Tambahkan Item Manual' : 'Tambahkan ke Pesanan'}
                         </button>
 
-                        {/* Fallback Manual Search - REPLACED WITH SIMPLE SELECT */}
-                        {!matchedItem && (
-                            <div className="mt-4 pt-4 border-t border-slate-200">
-                                <p className="text-xs text-red-500 mb-2 font-bold italic">Item tidak ditemukan otomatis? Cari manual di sini:</p>
-                                <select
-                                    className="w-full border p-2 rounded text-sm"
-                                    value={manualItemId || ''}
-                                    onChange={e => setManualItemId(e.target.value ? parseInt(e.target.value) : null)}
-                                >
-                                    <option value="">-- Pilih Manual dari Daftar --</option>
-                                    {(items || []).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(i => (
-                                        <option key={i.id} value={i.id}>
-                                            {i.name} ({i.size || '-'})
-                                        </option>
-                                    ))}
-                                </select>
-                                {manualItemId && <p className="text-xs text-green-600 mt-1">Item manual dipilih. Klik tombol 'Tambahkan' di atas lagi.</p>}
+                        {/* Always allow Manual Search Override */}
+                        <div className="mt-4 pt-4 border-t border-slate-200">
+                            <div className="flex justify-between items-center mb-2">
+                                <p className="text-xs text-slate-500 font-bold uppercase">Cari Manual (Abaikan Filter)</p>
+                                {manualItemId && <button onClick={() => setManualItemId(null)} className="text-xs text-red-500 border border-red-200 px-2 py-1 rounded hover:bg-red-50">Batal Manual</button>}
                             </div>
-                        )}
+                            <select
+                                className={`w-full border p-2 rounded text-sm transition ${manualItemId ? 'ring-2 ring-indigo-500 border-indigo-500 bg-indigo-50' : 'bg-white'}`}
+                                value={manualItemId || ''}
+                                onChange={e => setManualItemId(e.target.value ? parseInt(e.target.value) : null)}
+                            >
+                                <option value="">-- Cari Nama Barang --</option>
+                                {(items || []).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(i => (
+                                    <option key={i.id} value={i.id}>
+                                        {i.name} ({i.size || '-'}) {i.stock > 0 ? '✅' : '⏳'}
+                                    </option>
+                                ))}
+                            </select>
+                            {manualItemId && <p className="text-xs text-indigo-600 mt-1 font-bold">Item manual dipilih. Klik tombol 'Tambahkan' di atas.</p>}
+                        </div>
                     </div>
                 </div>
 
