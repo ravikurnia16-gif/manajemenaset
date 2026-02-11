@@ -98,10 +98,26 @@ const createOrder = async (req, res) => {
             include: { items: { include: { item: true } } }
         });
 
-        // Send WhatsApp notification
+        // Send WhatsApp notifications
         try {
             const { sendWhatsAppMessage } = require('../services/whatsappService');
             const settings = await prisma.setting.findFirst();
+
+            // --- WA CONFIRMATION TO CUSTOMER (Pengaju) ---
+            try {
+                if (order.customerPhone) {
+                    const customerMsg = `Assalamu'alaikum Abu/Ummu *${order.studentName}*\n\n` +
+                        `Pesanan seragam atas nama *${order.studentName}* telah kami terima.\n` +
+                        `📋 Kode Pesanan: *${order.code}*\n\n` +
+                        `InsyaaAllah akan kami hubungi segera.\n` +
+                        `Jazaakumullahu khairan.`;
+
+                    await sendWhatsAppMessage(order.customerPhone, customerMsg);
+                }
+            } catch (custWaError) {
+                console.error('WA to customer failed:', custWaError.message);
+            }
+
             if (settings?.waGroupId) {
                 let itemList = '';
 
@@ -149,21 +165,6 @@ const createOrder = async (req, res) => {
                 } catch (customWaError) {
                     console.error('Custom WA to NIY failed:', customWaError.message);
                 }
-            }
-
-            // --- WA CONFIRMATION TO CUSTOMER (Pengaju) ---
-            try {
-                if (order.customerPhone) {
-                    const customerMsg = `Assalamu'alaikum Abu/Ummu *${order.studentName}*\n\n` +
-                        `Pesanan seragam atas nama *${order.studentName}* telah kami terima.\n` +
-                        `📋 Kode Pesanan: *${order.code}*\n\n` +
-                        `InsyaaAllah akan kami hubungi segera.\n` +
-                        `Jazaakumullahu khairan.`;
-
-                    await sendWhatsAppMessage(order.customerPhone, customerMsg);
-                }
-            } catch (custWaError) {
-                console.error('WA to customer failed:', custWaError.message);
             }
         } catch (waError) {
             console.error('WA notification failed:', waError.message);
