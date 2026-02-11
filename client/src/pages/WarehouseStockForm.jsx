@@ -14,7 +14,7 @@ const WarehouseStockForm = () => {
 
     const [form, setForm] = useState({
         name: '', categoryId: '', type: '', gender: '', size: '',
-        purchaseYear: '', stock: '0', minStock: '5', purchasePrice: '', supplier: '', location: ''
+        purchaseYear: '', itemUnit: '', stock: '0', minStock: '5', purchasePrice: '', supplier: '', location: ''
     });
 
     useEffect(() => {
@@ -25,8 +25,9 @@ const WarehouseStockForm = () => {
                 setForm({
                     name: d.name || '', categoryId: d.categoryId?.toString() || '',
                     type: d.type || '', gender: d.gender || '', size: d.size || '',
-                    purchaseYear: d.purchaseYear?.toString() || '', stock: d.stock?.toString() || '0',
-                    minStock: d.minStock?.toString() || '5', purchasePrice: d.purchasePrice?.toString() || '',
+                    purchaseYear: d.purchaseYear?.toString() || '', itemUnit: d.itemUnit || '',
+                    stock: d.stock?.toString() || '0', minStock: d.minStock?.toString() || '5',
+                    purchasePrice: d.purchasePrice?.toString() || '',
                     supplier: d.supplier || '', location: d.location || ''
                 });
                 setIsSeragam(d.category?.name?.toLowerCase().includes('seragam'));
@@ -130,6 +131,13 @@ const WarehouseStockForm = () => {
                             <div>
                                 <label className="block text-xs font-semibold text-slate-600 mb-1">Tahun Pembuatan *</label>
                                 <input type="number" value={form.purchaseYear} onChange={e => setForm(prev => ({ ...prev, purchaseYear: e.target.value }))} placeholder="2025" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Unit Seragam</label>
+                                <select value={form.itemUnit} onChange={e => setForm(prev => ({ ...prev, itemUnit: e.target.value }))} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm">
+                                    <option value="">Pilih Unit</option>
+                                    {['TK', 'TAUD', 'SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'MIT', 'Yayasan'].map(u => <option key={u} value={u}>{u}</option>)}
+                                </select>
                             </div>
                         </div>
                     </div>

@@ -45,9 +45,9 @@ const WarehouseStock = () => {
 
     // Template download
     const handleTemplate = () => {
-        const headers = ['Nama', 'KategoriID', 'Tipe', 'Gender', 'Ukuran', 'TahunPembelian', 'Stok', 'StokMin', 'HargaBeli', 'Supplier', 'Lokasi'];
-        const example = ['Baju Putih', '1', 'BAJU', 'P', 'M', '2025', '50', '5', '75000', 'CV Maju', 'Rak A1'];
-        const note = ['# Tipe: BAJU / CELANA / JILBAB (kosongkan jika bukan seragam)', '', '', '', '', '', '', '', '', '', ''];
+        const headers = ['Nama', 'KategoriID', 'Tipe', 'Gender', 'Ukuran', 'TahunPembelian', 'Unit', 'Stok', 'StokMin', 'HargaBeli', 'Supplier', 'Lokasi'];
+        const example = ['Baju Putih', '1', 'BAJU', 'P', 'M', '2025', 'SD', '50', '5', '75000', 'CV Maju', 'Rak A1'];
+        const note = ['# Tipe: BAJU/CELANA/JILBAB | Unit: TK/TAUD/SD/SMP/SMA/Pondok Putra/Pondok Putri/MIT/Yayasan', '', '', '', '', '', '', '', '', '', '', ''];
         const csv = '\uFEFF' + [headers.join(';'), note.join(';'), example.join(';')].join('\n');
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
@@ -59,8 +59,8 @@ const WarehouseStock = () => {
         try {
             const res = await api.get('/warehouse/items/export');
             const data = res.data;
-            const headers = ['Kode', 'Nama', 'Kategori', 'Tipe', 'Gender', 'Ukuran', 'Tahun', 'Stok', 'Stok Min', 'Harga', 'Supplier', 'Lokasi'];
-            const rows = data.map(i => [i.code, i.name, i.category?.name, i.type || '', i.gender || '', i.size || '', i.purchaseYear || '', i.stock, i.minStock, i.purchasePrice || '', i.supplier || '', i.location || '']);
+            const headers = ['Kode', 'Nama', 'Kategori', 'Tipe', 'Gender', 'Ukuran', 'Tahun', 'Unit', 'Stok', 'Stok Min', 'Harga', 'Supplier', 'Lokasi'];
+            const rows = data.map(i => [i.code, i.name, i.category?.name, i.type || '', i.gender || '', i.size || '', i.purchaseYear || '', i.itemUnit || '', i.stock, i.minStock, i.purchasePrice || '', i.supplier || '', i.location || '']);
             const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
             const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
             const url = URL.createObjectURL(blob);
@@ -80,9 +80,10 @@ const WarehouseStock = () => {
                 return {
                     name: cols[0]?.trim(), categoryId: cols[1]?.trim(), type: cols[2]?.trim() || null,
                     gender: cols[3]?.trim() || null, size: cols[4]?.trim() || null,
-                    purchaseYear: cols[5]?.trim() || null, stock: cols[6]?.trim() || '0',
-                    minStock: cols[7]?.trim() || '5', purchasePrice: cols[8]?.trim() || null,
-                    supplier: cols[9]?.trim() || null, location: cols[10]?.trim() || null
+                    purchaseYear: cols[5]?.trim() || null, itemUnit: cols[6]?.trim() || null,
+                    stock: cols[7]?.trim() || '0', minStock: cols[8]?.trim() || '5',
+                    purchasePrice: cols[9]?.trim() || null, supplier: cols[10]?.trim() || null,
+                    location: cols[11]?.trim() || null
                 };
             });
             try {
@@ -158,6 +159,7 @@ const WarehouseStock = () => {
                                 <th className="text-center p-3 font-semibold text-slate-600">Gender</th>
                                 <th className="text-center p-3 font-semibold text-slate-600">Ukuran</th>
                                 <th className="text-center p-3 font-semibold text-slate-600">Tahun</th>
+                                <th className="text-left p-3 font-semibold text-slate-600">Unit</th>
                                 <th className="text-center p-3 font-semibold text-slate-600">Stok</th>
                                 <th className="text-center p-3 font-semibold text-slate-600">Aksi</th>
                             </tr></thead>
@@ -171,6 +173,7 @@ const WarehouseStock = () => {
                                         <td className="p-3 text-center text-xs">{item.gender === 'L' ? 'Ikhwan' : item.gender === 'P' ? 'Akhwat' : '-'}</td>
                                         <td className="p-3 text-center font-semibold">{item.size || '-'}</td>
                                         <td className="p-3 text-center text-slate-500">{item.purchaseYear || '-'}</td>
+                                        <td className="p-3 text-xs">{item.itemUnit || '-'}</td>
                                         <td className="p-3 text-center">
                                             <span className={`font-bold ${item.stock <= item.minStock ? 'text-red-600' : 'text-green-600'}`}>{item.stock}</span>
                                         </td>
