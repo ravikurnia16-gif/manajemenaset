@@ -128,8 +128,8 @@ const WarehouseStock = () => {
                 </select>
                 <select value={genderFilter} onChange={e => setGenderFilter(e.target.value)} className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm">
                     <option value="">Semua Gender</option>
-                    <option value="L">Laki-laki</option>
-                    <option value="P">Perempuan</option>
+                    <option value="L">Ikhwan</option>
+                    <option value="P">Akhwat</option>
                 </select>
                 <select value={sizeFilter} onChange={e => setSizeFilter(e.target.value)} className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm">
                     <option value="">Semua Ukuran</option>
@@ -168,7 +168,7 @@ const WarehouseStock = () => {
                                         <td className="p-3 font-medium">{item.name}</td>
                                         <td className="p-3"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">{item.category?.name}</span></td>
                                         <td className="p-3 text-xs">{item.type || '-'}</td>
-                                        <td className="p-3 text-center">{item.gender === 'L' ? '👦' : item.gender === 'P' ? '👧' : '-'}</td>
+                                        <td className="p-3 text-center text-xs">{item.gender === 'L' ? 'Ikhwan' : item.gender === 'P' ? 'Akhwat' : '-'}</td>
                                         <td className="p-3 text-center font-semibold">{item.size || '-'}</td>
                                         <td className="p-3 text-center text-slate-500">{item.purchaseYear || '-'}</td>
                                         <td className="p-3 text-center">
