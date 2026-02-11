@@ -106,6 +106,10 @@ exports.createProcurement = async (req, res) => {
     const user = req.user;
 
     try {
+        if (!user.unitId) {
+            return res.status(400).json({ error: 'Akun Anda belum terdaftar di Unit manapun. Harap hubungi Admin untuk setting Unit.' });
+        }
+
         const code = await generateCode();
 
         const result = await prisma.$transaction(async (prisma) => {
