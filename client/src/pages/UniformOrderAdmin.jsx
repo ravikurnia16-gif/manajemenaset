@@ -5,7 +5,7 @@ import api from '../lib/axios';
 const UNITS = ['TK', 'TAUD', 'SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'MIT', 'Yayasan'];
 
 const statusFlow = ['PENDING', 'CONFIRMED', 'READY', 'PICKED_UP'];
-const statusLabel = { PENDING: 'Menunggu', CONFIRMED: 'Dikonfirmasi', READY: 'Siap Diambil', PICKED_UP: 'Diambil', CANCELLED: 'Dibatalkan' };
+const statusLabel = { PENDING: 'Menunggu', CONFIRMED: 'Dikonfirmasi', READY: 'Siap', PICKED_UP: 'Diambil', CANCELLED: 'Batal' };
 const statusColor = {
     PENDING: 'bg-yellow-100 text-yellow-700 border-yellow-200',
     CONFIRMED: 'bg-blue-100 text-blue-700 border-blue-200',
@@ -49,12 +49,29 @@ const UniformOrderAdmin = () => {
         } catch (e) { alert('Gagal menghapus'); }
     };
 
+    // Helper to extract displayable order content
+    const getOrderDisplay = (order) => {
+        // 1. Decoupled Mode: Check for "ITEM PESANAN:" marker in Note
+        if (order.note && order.note.includes('ITEM PESANAN:')) {
+            return order.note.split('ITEM PESANAN:')[1].trim();
+        }
+
+        // 2. Legacy/Standard Mode: Check items array
+        if (order.items && order.items.length > 0) {
+            return order.items.map(oi =>
+                `${oi.item?.name || 'Item'} (${oi.item?.size || '-'}) x${oi.quantity}`
+            ).join('\n');
+        }
+
+        // 3. Fallback: Raw Note
+        return order.note || '-';
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><ClipboardList className="text-indigo-600" /> Pesanan Seragam</h1>
-                    <p className="text-sm text-slate-500">Kelola pesanan seragam dari halaman publik</p>
                 </div>
                 <a href="/pesan-seragam" target="_blank" className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-bold border border-indigo-200 hover:bg-indigo-100 transition">
                     Buka Halaman Publik ↗
@@ -80,14 +97,14 @@ const UniformOrderAdmin = () => {
                 <table className="w-full text-sm text-left">
                     <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-xs">
                         <tr>
-                            <th className="p-4">Kode</th>
-                            <th className="p-4">Pemesan</th>
-                            <th className="p-4">Siswa</th>
-                            <th className="p-4 text-center">Unit</th>
-                            <th className="p-4 text-right">Total</th>
-                            <th className="p-4 text-center">Status</th>
-                            <th className="p-4 text-center">Tanggal</th>
-                            <th className="p-4 text-center">Aksi</th>
+                            <th className="p-4 w-[10%]">Kode</th>
+                            <th className="p-4 w-[15%]">Pemesan</th>
+                            <th className="p-4 w-[15%]">Siswa</th>
+                            <th className="p-4 w-[10%] text-center">Unit</th>
+                            <th className="p-4 w-[25%]">Pesanan</th>
+                            <th className="p-4 w-[10%] text-center">Status</th>
+                            <th className="p-4 w-[10%] text-center">Tanggal</th>
+                            <th className="p-4 w-[5%] text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -96,66 +113,76 @@ const UniformOrderAdmin = () => {
                         ) : orders.length === 0 ? (
                             <tr><td colSpan={8} className="p-8 text-center text-slate-400">Belum ada pesanan.</td></tr>
                         ) : orders.map(order => (
-                            <>
-                                <tr key={order.id} className="hover:bg-slate-50 transition cursor-pointer" onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}>
-                                    <td className="p-4 font-mono font-bold text-indigo-600">{order.code}</td>
-                                    <td className="p-4">
-                                        <div className="font-bold text-slate-800">{order.customerName}</div>
-                                        <div className="text-xs text-slate-400">{order.customerPhone}</div>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="font-bold">{order.studentName}</div>
-                                        {order.studentClass && <div className="text-xs text-slate-400">Kelas {order.studentClass}</div>}
-                                    </td>
-                                    <td className="p-4 text-center"><span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600">{order.customerUnit}</span></td>
-                                    <td className="p-4 text-right font-mono font-bold">Rp {order.totalAmount?.toLocaleString('id-ID')}</td>
-                                    <td className="p-4 text-center">
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusColor[order.status]}`}>
-                                            {statusLabel[order.status]}
-                                        </span>
-                                    </td>
-                                    <td className="p-4 text-center text-xs text-slate-500">
-                                        {new Date(order.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                    </td>
-                                    <td className="p-4 text-center" onClick={e => e.stopPropagation()}>
-                                        <div className="flex items-center justify-center gap-1">
-                                            {order.status !== 'PICKED_UP' && order.status !== 'CANCELLED' && (
-                                                <select
-                                                    value=""
-                                                    onChange={e => { if (e.target.value) handleStatusChange(order.id, e.target.value); }}
-                                                    className="text-xs border rounded px-1 py-1 bg-white"
-                                                >
-                                                    <option value="">Ubah →</option>
-                                                    {statusFlow.filter(s => s !== order.status).map(s => (
-                                                        <option key={s} value={s}>{statusLabel[s]}</option>
-                                                    ))}
-                                                    <option value="CANCELLED">Batalkan</option>
-                                                </select>
-                                            )}
-                                            <button onClick={() => handleDelete(order.id)} className="p-1.5 text-slate-300 hover:text-red-500 rounded transition" title="Hapus">
-                                                <Trash2 size={14} />
-                                            </button>
-                                            {expandedId === order.id ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+                            <tr key={order.id} className="hover:bg-slate-50 transition">
+                                {/* 1. Kode */}
+                                <td className="p-4 font-mono font-bold text-indigo-600 align-top">{order.code}</td>
+
+                                {/* 2. Pemesan */}
+                                <td className="p-4 align-top">
+                                    <div className="font-bold text-slate-800">{order.customerName || '-'}</div>
+                                    <div className="text-xs text-slate-500 flex items-center gap-1">
+                                        📱 {order.customerPhone}
+                                    </div>
+                                </td>
+
+                                {/* 3. Siswa */}
+                                <td className="p-4 align-top">
+                                    <div className="font-bold">{order.studentName}</div>
+                                    {order.studentClass && <div className="text-xs text-slate-400">Kelas {order.studentClass}</div>}
+                                </td>
+
+                                {/* 4. Unit */}
+                                <td className="p-4 text-center align-top">
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600">{order.customerUnit}</span>
+                                </td>
+
+                                {/* 5. Pesanan */}
+                                <td className="p-4 align-top">
+                                    <div className="text-xs font-mono bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap">
+                                        {getOrderDisplay(order)}
+                                    </div>
+                                    {/* Show extra note if exists and differs from displayed content */}
+                                    {order.note && !order.note.includes('ITEM PESANAN:') && (
+                                        <div className="text-[10px] text-slate-400 mt-1 italic">
+                                            Catatan: {order.note}
                                         </div>
-                                    </td>
-                                </tr>
-                                {expandedId === order.id && (
-                                    <tr key={`detail-${order.id}`}>
-                                        <td colSpan={8} className="bg-slate-50 p-4">
-                                            <div className="text-xs space-y-1">
-                                                <div className="font-bold text-slate-600 mb-2">Detail Item:</div>
-                                                {order.items?.map((oi, i) => (
-                                                    <div key={i} className="flex justify-between bg-white p-2 rounded border border-slate-100">
-                                                        <span>{oi.item?.code} — <b>{oi.item?.name}</b> ({oi.item?.size}, {oi.item?.gender === 'L' ? 'Ikhwan' : 'Akhwat'})</span>
-                                                        <span>x{oi.quantity} • Rp {(oi.price * oi.quantity).toLocaleString('id-ID')}</span>
-                                                    </div>
+                                    )}
+                                </td>
+
+                                {/* 6. Status */}
+                                <td className="p-4 text-center align-top">
+                                    <span className={`px-2 py-1 rounded-lg text-[10px] font-bold border ${statusColor[order.status]}`}>
+                                        {statusLabel[order.status]}
+                                    </span>
+                                </td>
+
+                                {/* 7. Tanggal */}
+                                <td className="p-4 text-center text-xs text-slate-500 align-top">
+                                    {new Date(order.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                </td>
+
+                                {/* 8. Aksi */}
+                                <td className="p-4 text-center align-top">
+                                    <div className="flex flex-col gap-2 items-center">
+                                        {order.status !== 'PICKED_UP' && order.status !== 'CANCELLED' && (
+                                            <select
+                                                value=""
+                                                onChange={e => { if (e.target.value) handleStatusChange(order.id, e.target.value); }}
+                                                className="text-[10px] border rounded px-1 py-1 bg-white w-full"
+                                            >
+                                                <option value="">Ubah Status</option>
+                                                {statusFlow.filter(s => s !== order.status).map(s => (
+                                                    <option key={s} value={s}>{statusLabel[s]}</option>
                                                 ))}
-                                                {order.note && <div className="text-slate-400 mt-2">Catatan: {order.note}</div>}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )}
-                            </>
+                                                <option value="CANCELLED">Batalkan</option>
+                                            </select>
+                                        )}
+                                        <button onClick={() => handleDelete(order.id)} className="text-slate-300 hover:text-red-500 transition" title="Hapus">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
                         ))}
                     </tbody>
                 </table>
