@@ -115,7 +115,8 @@ const UniformOrderPage = () => {
                 customerUnit: identity.unit,
                 customerName: '', // Optional
                 items: [], // EMPTY ITEMS ARRAY -> Decoupled from DB
-                note: fullNote
+                note: fullNote,
+                gender: identity.gender // Add Gender for WA
             };
 
             const res = await fetch(`${API_BASE}/api/uniform-order`, {
@@ -126,6 +127,10 @@ const UniformOrderPage = () => {
 
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Gagal mengirim pesanan');
+
+            // Custom Success Message
+            alert(`Abu/Ummu ${identity.studentName} pesanannya telah kami terima. InsyaaAllah akan kami hubungi segera`);
+
             setOrderResult(data.order);
         } catch (e) {
             alert(e.message);

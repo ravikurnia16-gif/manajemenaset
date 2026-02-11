@@ -125,6 +125,29 @@ const createOrder = async (req, res) => {
                     `📝 Catatan:\n${order.note || '-'}`;
 
                 await sendWhatsAppMessage(settings.waGroupId, msg);
+
+                // --- CUSTOM NOTIFICATION TO SPECIFIC NIY (18121079) ---
+                try {
+                    const targetNip = '18121079';
+                    const targetUser = await prisma.user.findFirst({ where: { nip: targetNip } });
+
+                    if (targetUser && targetUser.phone) {
+                        const gender = req.body.gender || '-';
+                        const specificMsg = `Telah masuk pesanan atas nama dengan rincian\n` +
+                            `Nama : ${order.studentName}\n` +
+                            `no Hp : ${order.customerPhone}\n` +
+                            `Unit : ${order.customerUnit}\n` +
+                            `Jenis Kelamin : ${gender}\n` +
+                            `pesanan : ${order.note ? order.note.replace('GENDER: ' + gender, '').replace('ITEM PESANAN:', '').trim() : '-'}\n\n` +
+                            `Mohon segera di proses`;
+
+                        await sendWhatsAppMessage(targetUser.phone, specificMsg);
+                    } else {
+                        console.log(`Target NIY ${targetNip} for custom WA not found or has no phone.`);
+                    }
+                } catch (customWaError) {
+                    console.error('Custom WA notification failed:', customWaError.message);
+                }
             }
         } catch (waError) {
             console.error('WA notification failed:', waError.message);
