@@ -8,7 +8,6 @@ const statusSteps = [
     { key: 'APPROVED', label: 'Disetujui', icon: '✅', color: 'cyan' },
     { key: 'VALIDATED', label: 'Tervalidasi', icon: '🔍', color: 'indigo' },
     { key: 'ASSIGNED', label: 'Ditugaskan', icon: '👷', color: 'yellow' },
-    { key: 'IN_PROGRESS', label: 'Dikerjakan', icon: '🔧', color: 'orange' },
     { key: 'COMPLETED', label: 'Selesai', icon: '🎉', color: 'green' },
 ];
 
@@ -83,8 +82,7 @@ const MaintenanceDetail = () => {
             'SUBMITTED': { label: 'Setujui', nextStatus: 'APPROVED', type: 'approval', rejectLabel: 'Tolak' },
             'APPROVED': { label: 'Validasi', nextStatus: 'VALIDATED', type: 'validation' },
             'VALIDATED': { label: 'Tugaskan Teknisi', nextStatus: 'ASSIGNED', type: 'assignment' },
-            'ASSIGNED': { label: 'Mulai Pengerjaan', nextStatus: 'IN_PROGRESS', type: 'start' },
-            'IN_PROGRESS': { label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion' },
+            'ASSIGNED': { label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion' },
         };
         return transitions[report.status] || null;
     };

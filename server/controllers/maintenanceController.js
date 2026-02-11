@@ -175,7 +175,6 @@ exports.updateStatus = async (req, res) => {
                     'APPROVED': 'Disetujui \u2705',
                     'VALIDATED': 'Tervalidasi \u2705\u2705',
                     'ASSIGNED': `Ditugaskan ke Teknisi: ${technician || '-'} \u{1F6E0}`,
-                    'IN_PROGRESS': 'Sedang Dikerjakan \u{1F527}',
                     'COMPLETED': 'Selesai \u2705\u2705\u2705',
                     'REJECTED': 'Ditolak \u274C'
                 };

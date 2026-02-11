@@ -8,7 +8,6 @@ const statusColors = {
     APPROVED: 'bg-cyan-100 text-cyan-700',
     VALIDATED: 'bg-indigo-100 text-indigo-700',
     ASSIGNED: 'bg-yellow-100 text-yellow-700',
-    IN_PROGRESS: 'bg-orange-100 text-orange-700',
     COMPLETED: 'bg-green-100 text-green-700',
     REJECTED: 'bg-red-100 text-red-700'
 };
@@ -18,7 +17,6 @@ const statusLabels = {
     APPROVED: 'Disetujui',
     VALIDATED: 'Tervalidasi',
     ASSIGNED: 'Ditugaskan',
-    IN_PROGRESS: 'Dikerjakan',
     COMPLETED: 'Selesai',
     REJECTED: 'Ditolak'
 };
