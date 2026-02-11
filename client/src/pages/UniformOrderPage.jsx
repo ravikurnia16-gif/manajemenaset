@@ -76,49 +76,87 @@ const UniformOrderPage = () => {
     // Matching Logic to find the specific Item
     const matchedItem = useMemo(() => {
         if (!selectedUnit) return null;
+
+        const normalize = (s) => s ? s.toLowerCase().trim() : '';
+
+        // PECI LOGIC
         if (mainType === 'Peci') {
             if (!selectedSize) return null;
-            // Find item with "Peci" and Size
-            return items.find(i =>
-                (i.name.toLowerCase().includes('peci') || i.name.toLowerCase().includes('songkok') || i.category?.name?.toLowerCase().includes('peci')) &&
-                i.size === selectedSize
-            );
-        } else {
-            // Seragam
-            if (!selectedGroup || !selectedSubType || !selectedSize) return null;
-
             return items.find(i => {
-                const name = i.name.toLowerCase();
-                const genderMatch = i.gender === gender; // Strict gender match?
-                // Group Match
-                const groupMatch = name.includes(selectedGroup.toLowerCase()) || (i.uniformGroup && i.uniformGroup === selectedGroup);
-                // Type Match
-                let typeMatch = false;
-                if (selectedSubType === 'Jubah Putih') typeMatch = name.includes('putih');
-                else if (selectedSubType === 'Jubah Hitam') typeMatch = name.includes('hitam');
-                else if (selectedSubType.includes('Set Olahraga')) typeMatch = name.includes('set') && name.includes('olahraga');
-                else if (selectedSubType === 'Stel') typeMatch = name.includes('stel') || (name.includes('baju') && name.includes('celana'));
-                else typeMatch = name.includes(selectedSubType.toLowerCase());
-
-                // Size Match
-                const sizeMatch = i.size === selectedSize;
-
-                return genderMatch && groupMatch && typeMatch && sizeMatch;
+                const name = normalize(i.name);
+                const isPeci = name.includes('peci') || name.includes('songkok') || normalize(i.category?.name).includes('peci');
+                return isPeci && i.size === selectedSize;
             });
         }
+
+        // SERAGAM LOGIC
+        if (!selectedGroup || !selectedSubType || !selectedSize) return null;
+
+        return items.find(i => {
+            const name = normalize(i.name);
+            const dbGender = normalize(i.gender);
+            const selGender = normalize(gender);
+
+            // 1. Gender: Match exact, OR if DB is null (unisex), OR if item name implies gender
+            let genderMatch = !dbGender || dbGender === selGender;
+            if (!genderMatch) {
+                // Double check name context
+                if (selGender === 'l' && (name.includes('putra') || name.includes('ikhwan'))) genderMatch = true;
+                if (selGender === 'p' && (name.includes('putri') || name.includes('akhwat') || name.includes('jilbab') || name.includes('rok'))) genderMatch = true;
+            }
+
+            // 2. Group
+            const dbGroup = normalize(i.uniformGroup);
+            const selGroup = normalize(selectedGroup);
+            const groupMatch = (dbGroup && dbGroup.includes(selGroup)) || name.includes(selGroup);
+
+            // 3. Type
+            const dbType = normalize(i.type);
+            const selType = normalize(selectedSubType);
+            let typeMatch = false;
+
+            if (selType.includes('jubah putih')) typeMatch = name.includes('putih') && (name.includes('jubah') || dbType.includes('jubah'));
+            else if (selType.includes('jubah hitam')) typeMatch = name.includes('hitam') && (name.includes('jubah') || dbType.includes('jubah'));
+            else if (selType.includes('set') && selType.includes('olahraga')) typeMatch = name.includes('olahraga') && (name.includes('set') || name.includes('stel'));
+            else if (selType.includes('stel')) typeMatch = name.includes('stel') || (name.includes('baju') && name.includes('celana'));
+            else if (selType.includes('baju')) typeMatch = name.includes('baju') || name.includes('kemeja') || dbType === 'baju';
+            else if (selType.includes('celana')) typeMatch = name.includes('celana') || dbType === 'celana';
+            else if (selType.includes('rok')) typeMatch = name.includes('rok') || dbType === 'rok';
+            else if (selType.includes('jilbab')) typeMatch = name.includes('jilbab') || name.includes('kerudung') || dbType === 'jilbab';
+            else if (selType.includes('peci')) typeMatch = name.includes('peci') || name.includes('songkok');
+            else typeMatch = name.includes(selType);
+
+            // 4. Size
+            const sizeMatch = normalize(i.size) === normalize(selectedSize);
+
+            return genderMatch && groupMatch && typeMatch && sizeMatch;
+        });
     }, [items, mainType, gender, selectedGroup, selectedSubType, selectedSize, selectedUnit]);
 
+    // Manual Override State
+    const [manualItemId, setManualItemId] = useState(null);
+
     const handleAddItem = () => {
-        if (!matchedItem) {
-            return alert('Item tidak ditemukan di database untuk kombinasi ini. Coba cek kembali filter Anda.');
+        // Priority: Matched Item -> Manual ID
+        let targetItem = matchedItem;
+
+        if (!targetItem && manualItemId) {
+            targetItem = items.find(i => i.id == manualItemId);
         }
 
-        const existing = cart.find(c => c.itemId === matchedItem.id);
-        if (existing) {
-            setCart(cart.map(c => c.itemId === matchedItem.id ? { ...c, quantity: c.quantity + inputQty } : c));
-        } else {
-            setCart([...cart, { itemId: matchedItem.id, quantity: inputQty, item: matchedItem }]);
+        if (!targetItem) {
+            return alert('Item tidak ditemukan. Pastikan filter lengkap atau gunakan pencarian manual di bawah tombol.');
         }
+
+        const existing = cart.find(c => c.itemId === targetItem.id);
+        if (existing) {
+            setCart(cart.map(c => c.itemId === targetItem.id ? { ...c, quantity: c.quantity + inputQty } : c));
+        } else {
+            setCart([...cart, { itemId: targetItem.id, quantity: inputQty, item: targetItem }]);
+        }
+
+        // Reset manual
+        setManualItemId(null);
     };
 
     const handleRemoveItem = (itemId) => {
@@ -343,6 +381,20 @@ const UniformOrderPage = () => {
                         <button onClick={handleAddItem} className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition flex items-center justify-center gap-2 mt-2">
                             <Plus size={18} /> Tambahkan ke Pesanan
                         </button>
+
+                        {/* Fallback Manual Search */}
+                        {!matchedItem && (
+                            <div className="mt-4 pt-4 border-t border-slate-200">
+                                <p className="text-xs text-red-500 mb-2 font-bold italic">Item tidak ditemukan otomatis? Cari manual di sini:</p>
+                                <SearchableSelect
+                                    options={items.map(i => ({ id: i.id, name: `${i.name} (${i.size || '-'})` }))}
+                                    value={manualItemId}
+                                    onChange={setManualItemId}
+                                    placeholder="Ketik nama manual..."
+                                />
+                                {manualItemId && <p className="text-xs text-green-600 mt-1">Item manual dipilih. Klik tombol 'Tambahkan' di atas lagi.</p>}
+                            </div>
+                        )}
                     </div>
                 </div>
 
