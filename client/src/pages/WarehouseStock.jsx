@@ -45,9 +45,11 @@ const WarehouseStock = () => {
 
     // Template download
     const handleTemplate = () => {
-        const headers = ['Nama', 'Kategori ID', 'Tipe (BAJU/CELANA/JILBAB)', 'Gender (L/P)', 'Ukuran', 'Tahun Pembelian', 'Stok', 'Stok Min', 'Harga Beli', 'Supplier', 'Lokasi'];
-        const csv = headers.join(',') + '\nBaju Putih,1,BAJU,P,M,2025,50,5,75000,CV Maju,Rak A1';
-        const blob = new Blob([csv], { type: 'text/csv' });
+        const headers = ['Nama', 'KategoriID', 'Tipe', 'Gender', 'Ukuran', 'TahunPembelian', 'Stok', 'StokMin', 'HargaBeli', 'Supplier', 'Lokasi'];
+        const example = ['Baju Putih', '1', 'BAJU', 'P', 'M', '2025', '50', '5', '75000', 'CV Maju', 'Rak A1'];
+        const note = ['# Tipe: BAJU / CELANA / JILBAB (kosongkan jika bukan seragam)', '', '', '', '', '', '', '', '', '', ''];
+        const csv = '\uFEFF' + [headers.join(';'), note.join(';'), example.join(';')].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = 'template_gudang.csv'; a.click();
     };
@@ -72,9 +74,9 @@ const WarehouseStock = () => {
         if (!file) return;
         const reader = new FileReader();
         reader.onload = async (ev) => {
-            const lines = ev.target.result.split('\n').slice(1).filter(l => l.trim());
+            const lines = ev.target.result.split('\n').slice(1).filter(l => l.trim() && !l.startsWith('#'));
             const items = lines.map(l => {
-                const cols = l.split(',');
+                const cols = l.split(';');
                 return {
                     name: cols[0]?.trim(), categoryId: cols[1]?.trim(), type: cols[2]?.trim() || null,
                     gender: cols[3]?.trim() || null, size: cols[4]?.trim() || null,
