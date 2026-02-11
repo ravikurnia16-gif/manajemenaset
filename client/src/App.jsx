@@ -9,6 +9,9 @@ import RKBDetail from './pages/RKBDetail';
 import ProcurementList from './pages/ProcurementList';
 import ProcurementForm from './pages/ProcurementForm';
 import ProcurementDetail from './pages/ProcurementDetail';
+import MaintenanceList from './pages/MaintenanceList';
+import MaintenanceForm from './pages/MaintenanceForm';
+import MaintenanceDetail from './pages/MaintenanceDetail';
 import Settings from './pages/Settings';
 import LoginPage from './pages/LoginPage';
 import ModulePlaceholder from './components/ModulePlaceholder';
@@ -45,6 +48,9 @@ function App() {
           <Route path="procurements" element={<ProcurementList />} />
           <Route path="procurements/new" element={<ProcurementForm />} />
           <Route path="procurements/:id" element={<ProcurementDetail />} />
+          <Route path="pemeliharaan" element={<MaintenanceList />} />
+          <Route path="pemeliharaan/input" element={<MaintenanceForm />} />
+          <Route path="pemeliharaan/:id" element={<MaintenanceDetail />} />
           <Route path="settings" element={<Settings />} />
 
           {/* Module: Manajemen Kendaraan */}

@@ -40,6 +40,7 @@ model User {
   procurements Procurement[]
   validatedAssets Asset[] @relation("AssetValidator")
   vehicleBookings VehicleBooking[]
+  maintenances    Maintenance[]
 }
 
 model Unit {
@@ -54,6 +55,7 @@ model Unit {
   requests  Request[]
   rkbs      RKB[]
   procurements Procurement[]
+  maintenances Maintenance[]
 }
 
 model Room {
@@ -159,14 +161,37 @@ model Movement {
 }
 
 model Maintenance {
-  id          Int      @id @default(autoincrement())
-  assetId     Int
-  asset       Asset    @relation(fields: [assetId], references: [id])
-  date        DateTime
-  description String
-  cost        Float
-  status      String
-  createdAt   DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  code          String   @unique // e.g. MT/2026/001
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  unitId        Int
+  unit          Unit     @relation(fields: [unitId], references: [id])
+  
+  type          String   // "ASSET" or "NON_ASSET"
+  assetId       Int?     // Only if type=ASSET
+  asset         Asset?   @relation(fields: [assetId], references: [id])
+  
+  title         String   // Judul Ringkas
+  description   String   @db.Text // Keluhan / Masalah
+  location      String?  // Lokasi (for non-asset)
+  photo         String?  @db.LongText // Foto bukti kerusakan (Base64)
+  
+  status        String   @default("SUBMITTED")
+  // SUBMITTED -> APPROVED -> VALIDATED -> ASSIGNED -> IN_PROGRESS -> COMPLETED / REJECTED
+  
+  // Workflow Fields
+  approvalNote    String?
+  validationNote  String?
+  rejectionReason String?
+  technician      String?  // Nama Teknisi / Vendor
+  actionTaken     String?  @db.Text // Tindakan Perbaikan
+  completionNote  String?  @db.Text
+  completionDate  DateTime?
+  cost            Float    @default(0)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Log {
