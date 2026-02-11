@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, FileText, Upload, DollarSign, Store, ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, Upload, DollarSign, Store, ArrowLeft, Plus, Trash2, ShoppingCart } from 'lucide-react';
 import api from '../lib/axios';
 
 const ProcurementDetail = () => {
