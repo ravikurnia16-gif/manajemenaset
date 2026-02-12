@@ -163,28 +163,30 @@ const Sidebar = ({ isOpen = true }) => {
                     </>
                 ))}
 
-                {/* 4. Manajemen Personalia */}
-                {renderCollapsible('personnel', <Users size={18} />, 'Personalia', (
-                    <>
-                        <Link to="/personalia/staf" className={subNavItemClass('/personalia/staf')}>
-                            <UserCog size={16} /> Data Staf
-                        </Link>
-                        {/* Only Sarpras can see active reports & assignments, or SUPER_ADMIN */}
-                        {(user.role === 'SUPER_ADMIN' || user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) && (
-                            <>
-                                <Link to="/personalia/laporan" className={subNavItemClass('/personalia/laporan')}>
-                                    <FileText size={16} /> Laporan Harian/Mingguan
-                                </Link>
-                                <Link to="/personalia/penugasan" className={subNavItemClass('/personalia/penugasan')}>
-                                    <FileCheck size={16} /> Penugasan
-                                </Link>
-                            </>
-                        )}
-                        <Link to="/personalia/struktur" className={subNavItemClass('/personalia/struktur')}>
-                            <Users size={16} /> Struktur Organisasi
-                        </Link>
-                    </>
-                ))}
+                {/* 4. Manajemen Personalia - Restricted to Global Access or Sarpras Unit */}
+                {(['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(user.role) ||
+                    user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) &&
+                    renderCollapsible('personnel', <Users size={18} />, 'Personalia', (
+                        <>
+                            <Link to="/personalia/staf" className={subNavItemClass('/personalia/staf')}>
+                                <UserCog size={16} /> Data Staf
+                            </Link>
+                            {/* Only Sarpras or SUPER_ADMIN can see active reports & assignments */}
+                            {(user.role === 'SUPER_ADMIN' || user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) && (
+                                <>
+                                    <Link to="/personalia/laporan" className={subNavItemClass('/personalia/laporan')}>
+                                        <FileText size={16} /> Laporan Harian/Mingguan
+                                    </Link>
+                                    <Link to="/personalia/penugasan" className={subNavItemClass('/personalia/penugasan')}>
+                                        <FileCheck size={16} /> Penugasan
+                                    </Link>
+                                </>
+                            )}
+                            <Link to="/personalia/struktur" className={subNavItemClass('/personalia/struktur')}>
+                                <Users size={16} /> Struktur Organisasi
+                            </Link>
+                        </>
+                    ))}
 
                 {/* System & Settings */}
                 {(isAdmin || user.role === 'AUDITOR') && (
