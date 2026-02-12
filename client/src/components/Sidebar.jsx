@@ -114,21 +114,9 @@ const Sidebar = ({ isOpen = true }) => {
                             <ShoppingCart size={16} /> Pengadaan
                         </Link>
 
-                        {/* Sub-menu Pemeliharaan */}
-                        <div className="ml-3 border-l-2 border-slate-700">
-                            <div className="flex items-center gap-3 p-2 text-sm text-slate-400 font-bold mb-1 pl-4">
-                                <FileCheck size={16} /> Pemeliharaan
-                            </div>
-                            <Link to="/pemeliharaan/input" className={subNavItemClass('/pemeliharaan/input')}>
-                                <Plus size={14} /> Pengajuan Baru
-                            </Link>
-                            <Link to="/pemeliharaan?category=ROUTINE" className={subNavItemClass('/pemeliharaan?category=ROUTINE')}>
-                                📅 Rutin
-                            </Link>
-                            <Link to="/pemeliharaan?category=INCIDENTAL" className={subNavItemClass('/pemeliharaan?category=INCIDENTAL')}>
-                                🚨 Insidentil
-                            </Link>
-                        </div>
+                        <Link to="/pemeliharaan" className={subNavItemClass('/pemeliharaan')}>
+                            <FileCheck size={16} /> Pemeliharaan
+                        </Link>
 
                         <Link to="/mutasi" className={subNavItemClass('/mutasi')}>
                             <ArrowLeftRight size={16} /> Mutasi

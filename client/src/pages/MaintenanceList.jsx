@@ -63,11 +63,23 @@ const MaintenanceList = () => {
         }
     };
 
-    const filtered = Array.isArray(reports) ? reports.filter(r =>
-        (r.title?.toLowerCase() || '').includes(search.toLowerCase()) ||
-        (r.code?.toLowerCase() || '').includes(search.toLowerCase()) ||
-        (r.user?.name?.toLowerCase() || '').includes(search.toLowerCase())
-    ) : [];
+    const filtered = Array.isArray(reports) ? reports.filter(r => {
+        const searchLower = search.toLowerCase();
+
+        // Match code, title, or username
+        const basicMatch =
+            (r.title?.toLowerCase() || '').includes(searchLower) ||
+            (r.code?.toLowerCase() || '').includes(searchLower) ||
+            (r.user?.name?.toLowerCase() || '').includes(searchLower);
+
+        // Match within assets array (code or name)
+        const assetMatch = r.assets?.some(asset =>
+            (asset.name?.toLowerCase() || '').includes(searchLower) ||
+            (asset.code?.toLowerCase() || '').includes(searchLower)
+        );
+
+        return basicMatch || assetMatch;
+    }) : [];
 
     return (
         <div className="p-4 md:p-6 space-y-6">
@@ -75,16 +87,10 @@ const MaintenanceList = () => {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                        {categoryFromUrl === 'ROUTINE' ? (
-                            <><Calendar className="text-blue-600" /> Pemeliharaan Rutin</>
-                        ) : categoryFromUrl === 'INCIDENTAL' ? (
-                            <><AlertCircle className="text-amber-600" /> Pemeliharaan Insidentil</>
-                        ) : (
-                            <><Wrench className="text-blue-600" /> Pemeliharaan</>
-                        )}
+                        <Wrench className="text-blue-600" /> Pemeliharaan
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        {categoryFromUrl === 'ROUTINE' ? 'Data pemeliharaan berkala terjadwal' : 'Laporan perbaikan kerusakan mendadak'}
+                        Daftar seluruh laporan pemeliharaan aset dan umum
                     </p>
                 </div>
                 <button
@@ -107,6 +113,18 @@ const MaintenanceList = () => {
                         className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                 </div>
+                <select
+                    value={categoryFromUrl || ''}
+                    onChange={e => {
+                        const val = e.target.value;
+                        navigate(val ? `/pemeliharaan?category=${val}` : '/pemeliharaan');
+                    }}
+                    className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm min-w-[140px]"
+                >
+                    <option value="">Semua Kategori</option>
+                    <option value="ROUTINE">📅 Rutin</option>
+                    <option value="INCIDENTAL">🚨 Insidentil</option>
+                </select>
                 <select
                     value={statusFilter}
                     onChange={e => setStatusFilter(e.target.value)}
