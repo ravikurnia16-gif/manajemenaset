@@ -66,11 +66,16 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`   - Interface: 0.0.0.0`);
     console.log(`   - Frontend Path: ${distPath}`);
 
-    // Run vehicle maintenance notification check on start
+    // Run vehicle notifications on start
     try {
         const { checkMaintenanceNotifications } = require('./controllers/vehicleMaintenanceController');
-        setTimeout(checkMaintenanceNotifications, 10000); // Wait 10s after start
+        const { checkTaxNotifications } = require('./controllers/vehicleController');
+
+        setTimeout(() => {
+            checkMaintenanceNotifications();
+            checkTaxNotifications();
+        }, 10000); // Wait 10s after start
     } catch (e) {
-        console.error('Failed to load maintenance notification checker:', e.message);
+        console.error('Failed to load vehicle notification checkers:', e.message);
     }
 });

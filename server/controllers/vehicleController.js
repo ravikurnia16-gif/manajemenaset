@@ -31,8 +31,11 @@ exports.createVehicle = async (req, res) => {
     try {
         const {
             name, brand, model, type, plateNumber,
-            fuelType, capacity, color, odometer, photo, status
+            fuelType, capacity, color, odometer, photo, status,
+            taxDueDate, stnkDueDate
         } = req.body;
+
+        console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate });
 
         const vehicle = await prisma.vehicle.create({
             data: {
@@ -46,7 +49,9 @@ exports.createVehicle = async (req, res) => {
                 color,
                 odometer: parseInt(odometer) || 0,
                 photo,
-                status: status || 'ACTIVE'
+                status: status || 'ACTIVE',
+                taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
+                stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null
             }
         });
         res.status(201).json(vehicle);
@@ -63,8 +68,11 @@ exports.updateVehicle = async (req, res) => {
     try {
         const {
             name, brand, model, type, plateNumber,
-            fuelType, capacity, color, odometer, photo, status
+            fuelType, capacity, color, odometer, photo, status,
+            taxDueDate, stnkDueDate
         } = req.body;
+
+        console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber, taxDueDate, stnkDueDate });
 
         const vehicle = await prisma.vehicle.update({
             where: { id: parseInt(req.params.id) },
@@ -79,12 +87,75 @@ exports.updateVehicle = async (req, res) => {
                 color,
                 odometer: parseInt(odometer) || 0,
                 photo,
-                status
+                status,
+                taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
+                stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null
             }
         });
         res.json(vehicle);
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * Checker for Vehicle Tax Notifications (25 days before)
+ */
+const { sendMessage } = require('../services/whatsappService');
+
+exports.checkTaxNotifications = async () => {
+    try {
+        console.log('Checking for vehicle tax notifications (25 days)...');
+
+        const targetDate = new Date();
+        targetDate.setDate(targetDate.getDate() + 25);
+
+        const startOfTarget = new Date(targetDate.setHours(0, 0, 0, 0));
+        const endOfTarget = new Date(targetDate.setHours(23, 59, 59, 999));
+
+        const vehicles = await prisma.vehicle.findMany({
+            where: {
+                status: 'ACTIVE',
+                OR: [
+                    { taxDueDate: { gte: startOfTarget, lte: endOfTarget } },
+                    { stnkDueDate: { gte: startOfTarget, lte: endOfTarget } }
+                ]
+            }
+        });
+
+        if (vehicles.length === 0) return;
+
+        const kabid = await prisma.user.findFirst({
+            where: { role: 'KEPALA_BIDANG' }
+        });
+
+        if (!kabid || !kabid.phone) {
+            console.log('Kabid Sarpras not found or has no phone for tax notification.');
+            return;
+        }
+
+        for (const vehicle of vehicles) {
+            let taxType = "";
+            let dueDate = null;
+
+            if (vehicle.taxDueDate >= startOfTarget && vehicle.taxDueDate <= endOfTarget) {
+                taxType = "Pajak Tahunan";
+                dueDate = vehicle.taxDueDate;
+            } else {
+                taxType = "Pajak 5 Tahunan (STNK)";
+                dueDate = vehicle.stnkDueDate;
+            }
+
+            const message = `📢 *PENGINGAT PAJAK KENDARAAN*\n\n` +
+                `Kendaraan *${vehicle.name} (${vehicle.plateNumber})* akan jatuh tempo *${taxType}* dalam 25 hari.\n\n` +
+                `Tanggal Jatuh Tempo: ${new Date(dueDate).toLocaleDateString('id-ID')}\n` +
+                `Mohon segera diproses pembayarannya.`;
+
+            await sendMessage(kabid.phone, message);
+            console.log(`Tax notification sent for ${vehicle.name} to ${kabid.phone}`);
+        }
+    } catch (error) {
+        console.error('Failed to check tax notifications:', error.message);
     }
 };
 
