@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Car, Plus, Search, MapPin, Fuel, Gauge, Trash2, Edit, Calendar } from 'lucide-react';
+import { Car, Plus, Search, MapPin, Fuel, Gauge, Trash2, Edit, Calendar, FileText } from 'lucide-react';
 import api from '../lib/axios';
 
 const VehicleList = () => {
@@ -120,21 +120,21 @@ const VehicleList = () => {
                                         <span>{v.color || '-'}</span>
                                     </div>
                                     {v.taxDueDate && (
-                                        <div className={`col-span-2 flex items-center gap-2 text-xs font-bold py-1 px-3 rounded-lg ${new Date(v.taxDueDate) <= new Date(new Date().setDate(new Date().getDate() + 25))
+                                        <div className={`col-span-2 flex items-center gap-2 text-[10px] font-bold py-1 px-3 rounded-lg ${new Date(v.taxDueDate) <= new Date(new Date().setDate(new Date().getDate() + 25))
                                             ? 'bg-orange-50 text-orange-600 animate-pulse'
                                             : 'bg-slate-50 text-slate-500'
                                             }`}>
                                             <Calendar size={12} />
-                                            Pajak: {new Date(v.taxDueDate).toLocaleDateString('id-ID')}
+                                            Pajak Tahunan: {new Date(v.taxDueDate).toLocaleDateString('id-ID')}
                                         </div>
                                     )}
                                     {v.stnkDueDate && (
-                                        <div className={`col-span-2 flex items-center gap-2 text-xs font-bold py-1 px-3 rounded-lg ${new Date(v.stnkDueDate) <= new Date(new Date().setDate(new Date().getDate() + 25))
+                                        <div className={`col-span-2 flex items-center gap-2 text-[10px] font-bold py-1 px-3 rounded-lg ${new Date(v.stnkDueDate) <= new Date(new Date().setDate(new Date().getDate() + 25))
                                             ? 'bg-red-50 text-red-600 animate-pulse'
                                             : 'bg-slate-50 text-slate-500'
                                             }`}>
-                                            <Calendar size={12} />
-                                            STNK: {new Date(v.stnkDueDate).toLocaleDateString('id-ID')}
+                                            <FileText size={12} />
+                                            STNK (5 Thn): {new Date(v.stnkDueDate).toLocaleDateString('id-ID')}
                                         </div>
                                     )}
                                 </div>
