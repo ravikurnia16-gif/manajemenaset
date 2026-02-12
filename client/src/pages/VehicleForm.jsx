@@ -19,7 +19,9 @@ const VehicleForm = () => {
         color: '',
         odometer: 0,
         photo: '',
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        taxDueDate: '',
+        stnkDueDate: ''
     });
     const [loading, setLoading] = useState(false);
 
@@ -32,7 +34,12 @@ const VehicleForm = () => {
     const fetchVehicle = async () => {
         try {
             const res = await api.get(`/vehicles/${id}`);
-            setForm(res.data);
+            const data = res.data;
+            setForm({
+                ...data,
+                taxDueDate: data.taxDueDate ? new Date(data.taxDueDate).toISOString().split('T')[0] : '',
+                stnkDueDate: data.stnkDueDate ? new Date(data.stnkDueDate).toISOString().split('T')[0] : ''
+            });
         } catch (error) {
             console.error('Failed to fetch vehicle:', error);
             alert('Gagal mengambil data kendaraan');
@@ -221,6 +228,28 @@ const VehicleForm = () => {
                                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 font-bold"
                                 value={form.odometer}
                                 onChange={e => setForm({ ...form, odometer: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase mb-2">
+                                <Calendar size={14} className="text-orange-600" /> Jatuh Tempo Pajak
+                            </label>
+                            <input
+                                type="date"
+                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 font-mono"
+                                value={form.taxDueDate}
+                                onChange={e => setForm({ ...form, taxDueDate: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase mb-2">
+                                <Calendar size={14} className="text-red-600" /> Jatuh Tempo STNK (5 Thn)
+                            </label>
+                            <input
+                                type="date"
+                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 font-mono"
+                                value={form.stnkDueDate}
+                                onChange={e => setForm({ ...form, stnkDueDate: e.target.value })}
                             />
                         </div>
                         <div>

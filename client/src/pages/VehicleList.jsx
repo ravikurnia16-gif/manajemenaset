@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Car, Plus, Search, MapPin, Fuel, Gauge, Trash2, Edit } from 'lucide-react';
+import { Car, Plus, Search, MapPin, Fuel, Gauge, Trash2, Edit, Calendar } from 'lucide-react';
 import api from '../lib/axios';
 
 const VehicleList = () => {
@@ -119,6 +119,24 @@ const VehicleList = () => {
                                         <div className="w-3 h-3 rounded-full border border-slate-200" style={{ backgroundColor: v.color }}></div>
                                         <span>{v.color || '-'}</span>
                                     </div>
+                                    {v.taxDueDate && (
+                                        <div className={`col-span-2 flex items-center gap-2 text-xs font-bold py-1 px-3 rounded-lg ${new Date(v.taxDueDate) <= new Date(new Date().setDate(new Date().getDate() + 25))
+                                            ? 'bg-orange-50 text-orange-600 animate-pulse'
+                                            : 'bg-slate-50 text-slate-500'
+                                            }`}>
+                                            <Calendar size={12} />
+                                            Pajak: {new Date(v.taxDueDate).toLocaleDateString('id-ID')}
+                                        </div>
+                                    )}
+                                    {v.stnkDueDate && (
+                                        <div className={`col-span-2 flex items-center gap-2 text-xs font-bold py-1 px-3 rounded-lg ${new Date(v.stnkDueDate) <= new Date(new Date().setDate(new Date().getDate() + 25))
+                                            ? 'bg-red-50 text-red-600 animate-pulse'
+                                            : 'bg-slate-50 text-slate-500'
+                                            }`}>
+                                            <Calendar size={12} />
+                                            STNK: {new Date(v.stnkDueDate).toLocaleDateString('id-ID')}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex gap-2 pt-4 border-t border-slate-50">
