@@ -103,7 +103,7 @@ const MutationList = () => {
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-100">
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Aset Info</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Mutasi (Dari $\rightarrow$ Ke)</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Jenis & Lokasi Mutasi</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Tanggal & Alasan</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Status</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">Aksi</th>
@@ -128,10 +128,27 @@ const MutationList = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2 text-xs font-medium">
-                                            <span className="text-slate-500">{m.fromLocation}</span>
-                                            <ArrowLeftRight size={10} className="text-blue-400" />
-                                            <span className="text-blue-600 font-bold">{m.toLocation}</span>
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                {m.type === 'EXTERNAL' ? (
+                                                    <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-bold rounded uppercase border border-orange-200">Antar Unit</span>
+                                                ) : (
+                                                    <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded uppercase border border-purple-200">Internal</span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-3 text-xs">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Asal</span>
+                                                    <span className="font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{m.fromLocation}</span>
+                                                </div>
+                                                <div className="pt-3">
+                                                    <ArrowLeftRight size={14} className="text-blue-400" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] text-blue-400 uppercase font-bold tracking-tighter">Tujuan</span>
+                                                    <span className="font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded-md border border-blue-100">{m.toLocation}</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
