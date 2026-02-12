@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Car, Camera, Save, MapPin, Fuel, Gauge, Palette } from 'lucide-react';
+import { ArrowLeft, Car, Camera, Save, MapPin, Fuel, Gauge, Palette, Calendar } from 'lucide-react';
 import api from '../lib/axios';
 
 const VehicleForm = () => {
