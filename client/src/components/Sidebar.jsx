@@ -37,8 +37,13 @@ const Sidebar = ({ isOpen = true }) => {
         isActive(path) ? "border-blue-500 text-blue-400 bg-slate-800/50" : "border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-500"
     );
 
-    const user = JSON.parse(localStorage.getItem('user')) || {};
-    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_UNIT'].includes(user.role);
+    let user = {};
+    try {
+        user = JSON.parse(localStorage.getItem('user')) || {};
+    } catch (e) {
+        console.error("Failed to parse user from localStorage", e);
+    }
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_UNIT'].includes(user?.role);
 
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">

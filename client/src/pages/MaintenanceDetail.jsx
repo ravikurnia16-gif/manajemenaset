@@ -6,7 +6,6 @@ import api from '../lib/axios';
 const statusSteps = [
     { key: 'SUBMITTED', label: 'Diajukan', icon: '📋', color: 'blue' },
     { key: 'APPROVED', label: 'Disetujui', icon: '✅', color: 'cyan' },
-    { key: 'VALIDATED', label: 'Tervalidasi', icon: '🔍', color: 'indigo' },
     { key: 'ASSIGNED', label: 'Ditugaskan', icon: '👷', color: 'yellow' },
     { key: 'COMPLETED', label: 'Selesai', icon: '🎉', color: 'green' },
 ];
@@ -80,8 +79,7 @@ const MaintenanceDetail = () => {
         if (!isAdmin) return null;
         const transitions = {
             'SUBMITTED': { label: 'Setujui', nextStatus: 'APPROVED', type: 'approval', rejectLabel: 'Tolak' },
-            'APPROVED': { label: 'Validasi', nextStatus: 'VALIDATED', type: 'validation' },
-            'VALIDATED': { label: 'Tugaskan Teknisi', nextStatus: 'ASSIGNED', type: 'assignment' },
+            'APPROVED': { label: 'Tugaskan Teknisi', nextStatus: 'ASSIGNED', type: 'assignment' },
             'ASSIGNED': { label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion' },
         };
         return transitions[report.status] || null;

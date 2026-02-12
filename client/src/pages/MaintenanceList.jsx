@@ -15,7 +15,6 @@ const statusColors = {
 const statusLabels = {
     SUBMITTED: 'Diajukan',
     APPROVED: 'Disetujui',
-    VALIDATED: 'Tervalidasi',
     ASSIGNED: 'Ditugaskan',
     COMPLETED: 'Selesai',
     REJECTED: 'Ditolak'
@@ -184,7 +183,9 @@ const MaintenanceList = () => {
                                                 {statusLabels[r.status] || r.status}
                                             </span>
                                         </td>
-                                        <td className="p-3 text-slate-500 text-xs">{new Date(r.createdAt).toLocaleDateString('id-ID')}</td>
+                                        <td className="p-3 text-slate-500 text-xs">
+                                            {r.createdAt ? new Date(r.createdAt).toLocaleDateString('id-ID') : '-'}
+                                        </td>
                                         <td className="p-3 text-center flex items-center justify-center gap-1">
                                             <button onClick={() => navigate(`/pemeliharaan/${r.id}`)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="Detail">
                                                 <Eye size={16} />
