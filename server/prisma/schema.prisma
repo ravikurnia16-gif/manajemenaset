@@ -42,6 +42,8 @@ model User {
   vehicleBookings VehicleBooking[]
   maintenances    Maintenance[]
   warehouseTransactions WarehouseTransaction[]
+  requestedMovements Movement[]    @relation("RequestedMovements")
+  approvedMovements  Movement[]    @relation("ApprovedMovements")
 }
 
 model Unit {
@@ -151,14 +153,22 @@ model Request {
 }
 
 model Movement {
-  id          Int      @id @default(autoincrement())
-  assetId     Int
-  asset       Asset    @relation(fields: [assetId], references: [id])
+  id           Int       @id @default(autoincrement())
+  assetId      Int
+  asset        Asset     @relation(fields: [assetId], references: [id])
   fromLocation String
-  toLocation  String
-  date        DateTime @default(now())
-  reason      String?
-  type        String   // MUTATION, DISPOSAL
+  toLocation   String
+  toRoomId     Int?
+  date         DateTime  @default(now())
+  reason       String?
+  type         String    @default("MUTATION") // MUTATION, DISPOSAL
+  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  requesterId  Int
+  requester    User      @relation("RequestedMovements", fields: [requesterId], references: [id])
+  approverId   Int?
+  approver     User?     @relation("ApprovedMovements", fields: [approverId], references: [id])
+  approvalDate DateTime?
+  approvalNote String?
 }
 
 model Maintenance {

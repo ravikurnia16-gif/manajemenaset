@@ -1,11 +1,27 @@
 const express = require('express');
-const { createAsset, getAllAssets, getAssetById, updateAsset, deleteAsset, batchImportAssets, deleteMultipleAssets, getFundingSources, validateAsset, validateMultipleAssets } = require('../controllers/assetController');
+const {
+    createAsset, getAllAssets, getAssetById, updateAsset, deleteAsset,
+    batchImportAssets, deleteMultipleAssets, getFundingSources,
+    validateAsset, validateMultipleAssets
+} = require('../controllers/assetController');
+const {
+    requestMutation, approveMutation, rejectMutation,
+    getAllMovements, getMovementById
+} = require('../controllers/movementController');
 const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 const router = express.Router();
 
 router.get('/funding-sources', verifyToken, getFundingSources);
 router.post('/', verifyToken, createAsset);
 router.get('/', verifyToken, getAllAssets);
+
+// Mutation Routes
+router.get('/movements/all', verifyToken, getAllMovements);
+router.post('/movements/request', verifyToken, requestMutation);
+router.get('/movements/:id', verifyToken, getMovementById);
+router.post('/movements/:id/approve', verifyToken, authorizeRole(['SUPER_ADMIN', 'KEPALA_BIDANG']), approveMutation);
+router.post('/movements/:id/reject', verifyToken, authorizeRole(['SUPER_ADMIN', 'KEPALA_BIDANG']), rejectMutation);
+
 router.get('/:id', verifyToken, getAssetById);
 router.post('/:id/validate', verifyToken, validateAsset);
 router.post('/validate/bulk', verifyToken, validateMultipleAssets);

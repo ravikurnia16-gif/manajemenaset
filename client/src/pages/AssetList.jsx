@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin, Printer, QrCode, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin, Printer, QrCode, CheckCircle, XCircle, AlertCircle, ArrowLeftRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { LabelPrint, BatchLabelPrint } from '../components/LabelPrint';
@@ -715,6 +715,7 @@ const AssetList = ({ validationMode = false }) => {
                                         <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button onClick={() => openValidationModal([asset.id], asset.validationStatus || 'VALIDATED')} className="p-1 hover:bg-green-50 text-green-600 rounded transition-colors" title="Validasi Aset"><CheckCircle size={16} /></button>
                                             <button onClick={() => openPrintModal(asset)} className="p-1 hover:bg-slate-800 hover:text-white text-slate-500 rounded transition-colors" title="Cetak Label QR"><QrCode size={16} /></button>
+                                            <button onClick={() => navigate(`/mutasi/request?assetId=${asset.id}`)} className="p-1 hover:bg-orange-50 text-orange-600 rounded transition-colors" title="Ajukan Mutasi"><ArrowLeftRight size={16} /></button>
                                             <button onClick={() => navigate(`/aset/edit/${asset.id}`)} className="p-1 hover:bg-blue-50 text-blue-600 rounded" title="Edit"><Edit size={16} /></button>
                                             <button onClick={() => handleDelete(asset.id)} className="p-1 hover:bg-red-50 text-red-500 rounded" title="Hapus"><Trash2 size={16} /></button>
                                         </div>

@@ -9,6 +9,11 @@ router.post('/', verifyToken, vehicleController.createVehicle);
 router.put('/:id', verifyToken, vehicleController.updateVehicle);
 router.delete('/:id', verifyToken, vehicleController.deleteVehicle);
 
+// Test Routes (Tanpa Token untuk kemudahan testing di browser)
+router.get('/test/pajak', vehicleController.triggerTaxCheck);
+router.get('/test/wa', vehicleController.sendTestWA);
+router.get('/test/wa-pure', vehicleController.sendPureTestWA);
+
 // Maintenance Routes
 const maintenanceCtrl = require('../controllers/vehicleMaintenanceController');
 router.get('/maintenance/all', verifyToken, maintenanceCtrl.getAllMaintenanceLogs);

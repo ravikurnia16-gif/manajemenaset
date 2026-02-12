@@ -25,6 +25,8 @@ import VehicleForm from './pages/VehicleForm';
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
 import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
 import LoginPage from './pages/LoginPage';
+import MutationList from './pages/MutationList';
+import MutationForm from './pages/MutationForm';
 import ModulePlaceholder from './components/ModulePlaceholder';
 
 // Komponen untuk melindungi route yang butuh login
@@ -64,6 +66,8 @@ function App() {
           <Route path="pemeliharaan/input" element={<MaintenanceForm />} />
           <Route path="pemeliharaan/:id" element={<MaintenanceDetail />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="mutasi" element={<MutationList />} />
+          <Route path="mutasi/request" element={<MutationForm />} />
 
           {/* Module: Manajemen Kendaraan */}
           <Route path="kendaraan/dashboard" element={<ModulePlaceholder title="Dashboard Kendaraan" moduleName="Manajemen Kendaraan" />} />

@@ -159,6 +159,51 @@ exports.checkTaxNotifications = async () => {
     }
 };
 
+// Manual trigger for testing notifications
+exports.triggerTaxCheck = async (req, res) => {
+    try {
+        await exports.checkTaxNotifications();
+        res.json({ message: 'Tax notification check triggered. Check server console for logs.' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Send a direct test message to Kabid Sarpras
+exports.sendTestWA = async (req, res) => {
+    try {
+        const kabid = await prisma.user.findFirst({
+            where: { role: 'KEPALA_BIDANG' }
+        });
+
+        if (!kabid || !kabid.phone) {
+            return res.status(404).json({ error: 'Kabid Sarpras tidak ditemukan atau tidak memiliki nomor HP.' });
+        }
+
+        const message = `🧪 *TEST NOTIFIKASI SISTEM*\n\nWhatsApp Service Aktif!\nTarget: ${kabid.name}\nNomor: ${kabid.phone}\nPesan ini dikirim untuk memverifikasi jalur komunikasi.`;
+
+        await sendMessage(kabid.phone, message);
+        res.json({ message: `Test message sent to ${kabid.phone}` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Send a direct message without DB lookup (for local testing without DB)
+exports.sendPureTestWA = async (req, res) => {
+    try {
+        const { phone } = req.query;
+        if (!phone) return res.status(400).json({ error: 'Parameter ?phone=... wajib diisi' });
+
+        const message = `🧪 *TEST PURE WA*\n\nWhatsApp Service successfully reached from local server!\nTarget: ${phone}\nPesan ini dikirim tanpa koneksi database.`;
+
+        await sendMessage(phone, message);
+        res.json({ message: `Pure test message sent to ${phone}` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // Delete vehicle
 exports.deleteVehicle = async (req, res) => {
     try {
