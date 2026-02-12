@@ -20,6 +20,8 @@ import WarehouseTransactionForm from './pages/WarehouseTransactionForm';
 import Settings from './pages/Settings';
 import UniformOrderPage from './pages/UniformOrderPage';
 import UniformOrderAdmin from './pages/UniformOrderAdmin';
+import VehicleList from './pages/VehicleList';
+import VehicleForm from './pages/VehicleForm';
 import LoginPage from './pages/LoginPage';
 import ModulePlaceholder from './components/ModulePlaceholder';
 
@@ -63,7 +65,9 @@ function App() {
 
           {/* Module: Manajemen Kendaraan */}
           <Route path="kendaraan/dashboard" element={<ModulePlaceholder title="Dashboard Kendaraan" moduleName="Manajemen Kendaraan" />} />
-          <Route path="kendaraan/data" element={<ModulePlaceholder title="Data Kendaraan" moduleName="Manajemen Kendaraan" />} />
+          <Route path="kendaraan/data" element={<VehicleList />} />
+          <Route path="kendaraan/data/new" element={<VehicleForm />} />
+          <Route path="kendaraan/data/edit/:id" element={<VehicleForm />} />
           <Route path="kendaraan/peminjaman" element={<ModulePlaceholder title="Peminjaman Kendaraan" moduleName="Manajemen Kendaraan" />} />
           <Route path="kendaraan/pemeliharaan" element={<ModulePlaceholder title="Pemeliharaan Kendaraan" moduleName="Manajemen Kendaraan" />} />
 
