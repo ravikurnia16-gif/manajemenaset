@@ -41,6 +41,14 @@ const MutationList = () => {
         }
     };
 
+    const filteredMovements = movements.filter(m => {
+        const matchesSearch =
+            m.asset?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            m.asset?.code?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = statusFilter === 'ALL' || m.status === statusFilter;
+        return matchesSearch && matchesStatus;
+    });
+
     const handleBulkDelete = async () => {
         if (!confirm(`Hapus ${selectedItems.length} data mutasi terpilih?`)) return;
         try {
@@ -292,8 +300,8 @@ const MutationList = () => {
                                                 key={pageNum}
                                                 onClick={() => setCurrentPage(pageNum)}
                                                 className={`w-8 h-8 rounded-lg text-sm font-bold transition-all ${currentPage === pageNum
-                                                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                                                        : 'hover:bg-slate-100 text-slate-600'
+                                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                                                    : 'hover:bg-slate-100 text-slate-600'
                                                     }`}
                                             >
                                                 {pageNum}
