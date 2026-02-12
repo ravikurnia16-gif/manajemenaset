@@ -22,6 +22,8 @@ import UniformOrderPage from './pages/UniformOrderPage';
 import UniformOrderAdmin from './pages/UniformOrderAdmin';
 import VehicleList from './pages/VehicleList';
 import VehicleForm from './pages/VehicleForm';
+import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
+import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
 import LoginPage from './pages/LoginPage';
 import ModulePlaceholder from './components/ModulePlaceholder';
 
@@ -69,7 +71,9 @@ function App() {
           <Route path="kendaraan/data/new" element={<VehicleForm />} />
           <Route path="kendaraan/data/edit/:id" element={<VehicleForm />} />
           <Route path="kendaraan/peminjaman" element={<ModulePlaceholder title="Peminjaman Kendaraan" moduleName="Manajemen Kendaraan" />} />
-          <Route path="kendaraan/pemeliharaan" element={<ModulePlaceholder title="Pemeliharaan Kendaraan" moduleName="Manajemen Kendaraan" />} />
+          <Route path="kendaraan/pemeliharaan" element={<VehicleMaintenanceList />} />
+          <Route path="kendaraan/pemeliharaan/new" element={<VehicleMaintenanceForm />} />
+          <Route path="kendaraan/pemeliharaan/edit/:id" element={<VehicleMaintenanceForm />} />
 
           {/* Module: Manajemen Gudang */}
           <Route path="gudang/dashboard" element={<WarehouseDashboard />} />

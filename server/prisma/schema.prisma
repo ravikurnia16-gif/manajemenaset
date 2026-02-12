@@ -343,7 +343,7 @@ model Vehicle {
   // Additional fields (kept from previous version)
   year          Int?
   chassisNumber String?   // No Rangka
-  engineNumber  String?   // No Meisin
+  engineNumber  String?   // No Mesin
   taxDueDate    DateTime? // Pajak Tahunan
   stnkDueDate   DateTime? // Pajak 5 Tahunan
   
@@ -380,10 +380,12 @@ model VehicleService {
   vehicleId   Int
   vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
   date        DateTime
-  type        String   // SERVICE_RUTIN, GANTI_OLI, PAJAK, OTHER
+  category    String   @default("ROUTINE") // ROUTINE, NON_ROUTINE
+  type        String   // SERVICE_RUTIN, GANTI_OLI, PAJAK, PERBAIKAN, OTHER
   description String
   cost        Float
   odometer    Int?
+  nextServiceOdometer Int? // KM service berikutnya (Routine only)
   workshop    String?  // Bengkel
   proofFile   String?  // Foto Nota
   
