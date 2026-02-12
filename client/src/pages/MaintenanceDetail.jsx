@@ -136,7 +136,21 @@ const MaintenanceDetail = () => {
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between"><span className="text-slate-500">Judul</span><span className="font-medium text-right">{report.title}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Tipe</span><span className={`font-semibold ${report.type === 'ASSET' ? 'text-purple-600' : 'text-gray-600'}`}>{report.type === 'ASSET' ? 'Aset Terdata' : 'Non-Aset'}</span></div>
-                        {report.asset && <div className="flex justify-between"><span className="text-slate-500">Aset</span><span className="font-mono text-xs">{report.asset.code} - {report.asset.name}</span></div>}
+
+                        {report.assets && report.assets.length > 0 && (
+                            <div className="space-y-1">
+                                <span className="text-slate-500">Aset Terkait:</span>
+                                <div className="space-y-1 mt-1">
+                                    {report.assets.map(a => (
+                                        <div key={a.id} className="flex justify-between p-2 bg-slate-50 rounded border border-slate-100 font-mono text-xs">
+                                            <span className="font-bold text-blue-600">{a.code}</span>
+                                            <span className="text-slate-600">{a.name}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {report.location && <div className="flex justify-between"><span className="text-slate-500">Lokasi</span><span>{report.location}</span></div>}
                         <div className="flex justify-between"><span className="text-slate-500">Tanggal</span><span>{new Date(report.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
                     </div>

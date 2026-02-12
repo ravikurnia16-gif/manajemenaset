@@ -22,10 +22,10 @@ const MaintenanceForm = () => {
     });
 
     useEffect(() => {
-        if (type === 'ASSET') {
+        if (form.type === 'ASSET') {
             fetchAssets();
         }
-    }, [type]);
+    }, [form.type]);
 
     const fetchAssets = async () => {
         try {

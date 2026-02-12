@@ -64,11 +64,11 @@ const MaintenanceList = () => {
         }
     };
 
-    const filtered = reports.filter(r =>
+    const filtered = Array.isArray(reports) ? reports.filter(r =>
         (r.title?.toLowerCase() || '').includes(search.toLowerCase()) ||
         (r.code?.toLowerCase() || '').includes(search.toLowerCase()) ||
         (r.user?.name?.toLowerCase() || '').includes(search.toLowerCase())
-    );
+    ) : [];
 
     return (
         <div className="p-4 md:p-6 space-y-6">
@@ -167,7 +167,7 @@ const MaintenanceList = () => {
                                                         {r.assets.length} Aset
                                                     </span>
                                                     <div className="text-[9px] text-slate-400 mt-1 max-w-[100px] truncate">
-                                                        {r.assets.map(a => a.code).join(', ')}
+                                                        {r.assets?.map(a => a.code).join(', ')}
                                                     </div>
                                                 </div>
                                             ) : (
