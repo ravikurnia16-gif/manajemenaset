@@ -169,8 +169,8 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/personalia/staf" className={subNavItemClass('/personalia/staf')}>
                             <UserCog size={16} /> Data Staf
                         </Link>
-                        {/* Only Sarpras can see active reports & assignments */}
-                        {user.unit?.name?.toLowerCase().includes('sarana dan prasarana') && (
+                        {/* Only Sarpras can see active reports & assignments, or SUPER_ADMIN */}
+                        {(user.role === 'SUPER_ADMIN' || user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) && (
                             <>
                                 <Link to="/personalia/laporan" className={subNavItemClass('/personalia/laporan')}>
                                     <FileText size={16} /> Laporan Harian/Mingguan

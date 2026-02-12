@@ -50,7 +50,8 @@ exports.login = async (req, res) => {
                     { email: username },
                     { nip: username }
                 ]
-            }
+            },
+            include: { unit: true }
         });
 
         if (!user) return res.status(404).json({ error: 'User tidak ditemukan' });
@@ -75,7 +76,7 @@ exports.login = async (req, res) => {
 
         res.json({
             token,
-            user: { id: user.id, username: user.username, role: user.role, unitId: user.unitId }
+            user: { ...user, password: '' }
         });
     } catch (error) {
         console.error('Login error:', error);
