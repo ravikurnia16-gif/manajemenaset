@@ -172,12 +172,13 @@ exports.createProcurement = async (req, res) => {
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
 
-                // 3. Notify Admins: Ravi Kurnia (24071613) and Eldo (26021760) only
+                // 3. Notify Admins: Ravi Kurnia (24071613), Eldo (26021760), and Syafrian (25041676)
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
                             { nip: '24071613' }, // Ravi Kurnia
-                            { nip: '26021760' }  // Eldo
+                            { nip: '26021760' }, // Eldo
+                            { nip: '25041676' }  // Syafrian
                         ],
                         phone: { not: null, not: '' }
                     }
