@@ -28,12 +28,13 @@ exports.sendMessage = async (phoneNumber, message) => {
             }
         });
 
-        console.log(`[WhatsApp] Sent to ${formattedPhone}: ${message.substring(0, 20)}...`);
+        console.log(`[WhatsApp] Sent success to ${formattedPhone}: ${message.substring(0, 30)}...`);
         return response.data;
     } catch (error) {
         // Enhanced error logging
         const errorMsg = error.response?.data?.message || error.message;
-        console.error(`[WhatsApp] Failed to send to ${phoneNumber}:`, errorMsg);
+        const statusCode = error.response?.status;
+        console.error(`[WhatsApp Error] Target: ${phoneNumber} | Status: ${statusCode} | Msg: ${errorMsg}`);
         return null;
     }
 };

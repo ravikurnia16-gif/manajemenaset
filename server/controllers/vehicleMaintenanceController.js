@@ -131,13 +131,19 @@ exports.checkMaintenanceNotifications = async () => {
 
         if (dueLogs.length === 0) return;
 
-        // Find Kabid Sarpras
-        const kabid = await prisma.user.findFirst({
-            where: { role: 'KEPALA_BIDANG' }
+        // Find specific recipients: Ravi Kurnia (24071613) and Eldo (26021760) only
+        const recipients = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { nip: '24071613' }, // Ravi Kurnia
+                    { nip: '26021760' }  // Eldo
+                ],
+                phone: { not: null, not: '' }
+            }
         });
 
-        if (!kabid || !kabid.phone) {
-            console.log('Kabid Sarpras not found or has no phone for notification.');
+        if (recipients.length === 0) {
+            console.log('Ravi or Eldo not found or have no phone for notification.');
             return;
         }
 
@@ -148,8 +154,10 @@ exports.checkMaintenanceNotifications = async () => {
                 `KM Terakhir: ${log.odometer?.toLocaleString()} km\n` +
                 `Target Servis: ${log.nextServiceOdometer?.toLocaleString()} km`;
 
-            await sendWhatsAppMessage(kabid.phone, message);
-            console.log(`Notification sent for ${log.vehicle.name} to ${kabid.phone}`);
+            for (const person of recipients) {
+                await sendWhatsAppMessage(person.phone, message);
+                console.log(`Notification sent for ${log.vehicle.name} to ${person.name} (${person.phone})`);
+            }
         }
     } catch (error) {
         console.error('Failed to check maintenance notifications:', error.message);

@@ -125,12 +125,19 @@ exports.checkTaxNotifications = async () => {
 
         if (vehicles.length === 0) return;
 
-        const kabid = await prisma.user.findFirst({
-            where: { role: 'KEPALA_BIDANG' }
+        // Find specific recipients: Ravi Kurnia (24071613) and Eldo (26021760) only
+        const recipients = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { nip: '24071613' }, // Ravi Kurnia
+                    { nip: '26021760' }  // Eldo
+                ],
+                phone: { not: null, not: '' }
+            }
         });
 
-        if (!kabid || !kabid.phone) {
-            console.log('Kabid Sarpras not found or has no phone for tax notification.');
+        if (recipients.length === 0) {
+            console.log('No recipients (Ravi or Eldo) found or they do not have phone numbers for tax notification.');
             return;
         }
 
@@ -151,8 +158,10 @@ exports.checkTaxNotifications = async () => {
                 `Tanggal Jatuh Tempo: ${new Date(dueDate).toLocaleDateString('id-ID')}\n` +
                 `Mohon segera diproses pembayarannya.`;
 
-            await sendMessage(kabid.phone, message);
-            console.log(`Tax notification sent for ${vehicle.name} to ${kabid.phone}`);
+            for (const person of recipients) {
+                await sendMessage(person.phone, message);
+                console.log(`Tax notification sent for ${vehicle.name} to ${person.name} (${person.phone})`);
+            }
         }
     } catch (error) {
         console.error('Failed to check tax notifications:', error.message);
@@ -172,18 +181,25 @@ exports.triggerTaxCheck = async (req, res) => {
 // Send a direct test message to Kabid Sarpras
 exports.sendTestWA = async (req, res) => {
     try {
-        const kabid = await prisma.user.findFirst({
-            where: { role: 'KEPALA_BIDANG' }
+        const recipients = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { nip: '24071613' }, // Ravi Kurnia
+                    { nip: '26021760' }  // Eldo
+                ],
+                phone: { not: null, not: '' }
+            }
         });
 
-        if (!kabid || !kabid.phone) {
-            return res.status(404).json({ error: 'Kabid Sarpras tidak ditemukan atau tidak memiliki nomor HP.' });
+        if (recipients.length === 0) {
+            return res.status(404).json({ error: 'Ravi atau Eldo tidak ditemukan atau tidak memiliki nomor HP.' });
         }
 
-        const message = `🧪 *TEST NOTIFIKASI SISTEM*\n\nWhatsApp Service Aktif!\nTarget: ${kabid.name}\nNomor: ${kabid.phone}\nPesan ini dikirim untuk memverifikasi jalur komunikasi.`;
-
-        await sendMessage(kabid.phone, message);
-        res.json({ message: `Test message sent to ${kabid.phone}` });
+        for (const person of recipients) {
+            const message = `🧪 *TEST NOTIFIKASI SISTEM*\n\nWhatsApp Service Aktif!\nTarget: ${person.name}\nNomor: ${person.phone}\nPesan ini dikirim untuk memverifikasi jalur komunikasi.`;
+            await sendMessage(person.phone, message);
+        }
+        res.json({ message: `Test messages sent to ${recipients.length} recipients` });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

@@ -105,12 +105,18 @@ exports.createReport = async (req, res) => {
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
 
-                // 2. Notify Admin (NIY: 26021760) with 30s delay
-                const admin = await prisma.user.findFirst({
-                    where: { nip: '26021760', phone: { not: null } }
+                // 2. Notify Admin: Ravi Kurnia (24071613) and Eldo (26021760) only
+                const admins = await prisma.user.findMany({
+                    where: {
+                        OR: [
+                            { nip: '24071613' }, // Ravi Kurnia
+                            { nip: '26021760' }  // Eldo
+                        ],
+                        phone: { not: null, not: '' }
+                    }
                 });
 
-                if (admin?.phone) {
+                if (admins.length > 0) {
                     const msgAdmin = `*Laporan Pemeliharaan Baru*\n\n` +
                         `\u{1F464} *Pelapor* : ${submitter?.name || submitter?.username || '-'}\n` +
                         `\u{1F3E2} *Unit* : ${submitter?.unit?.name || '-'}\n` +
@@ -119,12 +125,15 @@ exports.createReport = async (req, res) => {
                         `\u{1F527} *Tipe* : ${type === 'ASSET' ? 'Aset Terdata' : 'Non-Aset / Umum'}\n\n` +
                         `Mohon segera ditindaklanjuti.`;
 
+                    // Send to all found admins with 30s delay
                     setTimeout(async () => {
-                        try {
-                            await whatsappService.sendMessage(admin.phone, msgAdmin);
-                            console.log(`[WA] Maintenance admin notif sent to ${admin.username}`);
-                        } catch (e) {
-                            console.error('[WA] Failed admin notif:', e);
+                        for (const admin of admins) {
+                            try {
+                                await whatsappService.sendMessage(admin.phone, msgAdmin);
+                                console.log(`[WA] Maintenance admin notif sent to ${admin.username}`);
+                            } catch (e) {
+                                console.error(`[WA] Failed admin notif to ${admin.username}:`, e);
+                            }
                         }
                     }, 30000);
                 }

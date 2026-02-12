@@ -64,18 +64,21 @@ exports.requestMutation = async (req, res) => {
         // --- Delayed Notification (30-60s) ---
         setTimeout(async () => {
             try {
-                // Find Kabid Sarpras and Eldo NIY (26021760)
+                // Find specific recipients: Ravi Kurnia (24071613) and Eldo (26021760) only
                 const recipients = await prisma.user.findMany({
                     where: {
                         OR: [
-                            { role: 'KEPALA_BIDANG' },
-                            { nip: '26021760' }
+                            { nip: '24071613' }, // Ravi Kurnia
+                            { nip: '26021760' }  // Eldo
                         ],
-                        phone: { not: null }
+                        phone: { not: null, not: '' } // Ensure phone is not empty
                     }
                 });
 
-                if (recipients.length === 0) return;
+                if (recipients.length === 0) {
+                    console.log('[Mutation] No valid notification recipients found.');
+                    return;
+                }
 
                 const message = `🔄 *PENGAJUAN MUTASI ASET (${mutationType})*\n\n` +
                     `Terdapat permintaan mutasi baru:\n` +

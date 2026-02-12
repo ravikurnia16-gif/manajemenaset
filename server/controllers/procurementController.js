@@ -172,13 +172,19 @@ exports.createProcurement = async (req, res) => {
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
 
-                // 3. Send to Syafrian (NIY: 25041676) with 30s Delay
-                const syafrian = await prisma.user.findFirst({
-                    where: { nip: '25041676', phone: { not: null } }
+                // 3. Notify Admins: Ravi Kurnia (24071613) and Eldo (26021760) only
+                const admins = await prisma.user.findMany({
+                    where: {
+                        OR: [
+                            { nip: '24071613' }, // Ravi Kurnia
+                            { nip: '26021760' }  // Eldo
+                        ],
+                        phone: { not: null, not: '' }
+                    }
                 });
 
-                if (syafrian && syafrian.phone) {
-                    const msgSyafrian = `*Info Request Pengadaan*\n\n` +
+                if (admins.length > 0) {
+                    const msgAdm = `*Info Request Pengadaan*\n\n` +
                         `Pesanan telah masuk dari:\n` +
                         `\u{1F464} *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
                         `\u{1F194} *NIY* : ${submitter.username || '-'}\n` +
@@ -188,11 +194,13 @@ exports.createProcurement = async (req, res) => {
                         `Mohon segera di proses.`;
 
                     setTimeout(async () => {
-                        try {
-                            console.log(`Sending WA to Syafrian (${syafrian.phone}) in 30s...`);
-                            await whatsappService.sendMessage(syafrian.phone, msgSyafrian);
-                        } catch (e) {
-                            console.error("Failed sending to Syafrian:", e);
+                        for (const admin of admins) {
+                            try {
+                                console.log(`Sending WA to Admin ${admin.username} (${admin.phone}) in 30s...`);
+                                await whatsappService.sendMessage(admin.phone, msgAdm);
+                            } catch (e) {
+                                console.error(`Failed sending to ${admin.username}:`, e);
+                            }
                         }
                     }, 30000);
                 }
