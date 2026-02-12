@@ -172,6 +172,11 @@ model Movement {
   approvalNote String?
 }
 
+enum MaintenanceCategory {
+  ROUTINE
+  INCIDENTAL
+}
+
 model Maintenance {
   id            Int      @id @default(autoincrement())
   code          String   @unique // e.g. MT/2026/001
@@ -181,8 +186,8 @@ model Maintenance {
   unit          Unit     @relation(fields: [unitId], references: [id])
   
   type          String   // "ASSET" or "NON_ASSET"
-  assetId       Int?     // Only if type=ASSET
-  asset         Asset?   @relation(fields: [assetId], references: [id])
+  category      MaintenanceCategory @default(INCIDENTAL)
+  assets        Asset[]
   
   title         String   // Judul Ringkas
   description   String   @db.Text // Keluhan / Masalah

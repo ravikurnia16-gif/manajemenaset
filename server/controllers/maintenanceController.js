@@ -12,13 +12,14 @@ const generateCode = async () => {
 
 // Get all maintenance reports
 exports.getAllReports = async (req, res) => {
-    const { status, type, unitId } = req.query;
+    const { status, type, unitId, category } = req.query;
     const user = req.user;
 
     try {
         const whereClause = {};
         if (status) whereClause.status = status;
         if (type) whereClause.type = type;
+        if (category) whereClause.category = category;
         if (unitId) whereClause.unitId = parseInt(unitId);
 
         // Non-admin users only see their own unit
@@ -31,7 +32,7 @@ exports.getAllReports = async (req, res) => {
             include: {
                 user: { select: { username: true, name: true } },
                 unit: { select: { name: true } },
-                asset: { select: { code: true, name: true } }
+                assets: { select: { code: true, name: true } }
             },
             orderBy: { createdAt: 'desc' }
         });
@@ -50,7 +51,7 @@ exports.getReportById = async (req, res) => {
             include: {
                 user: { select: { username: true, name: true, phone: true } },
                 unit: { select: { name: true } },
-                asset: { select: { code: true, name: true, specification: true, condition: true } }
+                assets: { select: { id: true, code: true, name: true, specification: true, condition: true } }
             }
         });
         if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
@@ -62,7 +63,7 @@ exports.getReportById = async (req, res) => {
 
 // Create Report
 exports.createReport = async (req, res) => {
-    const { title, type, assetId, description, location, photo } = req.body;
+    const { title, type, assetIds, description, location, photo, category } = req.body;
     const user = req.user;
 
     try {
@@ -74,12 +75,19 @@ exports.createReport = async (req, res) => {
                 userId: user.id,
                 unitId: user.unitId,
                 type: type || 'NON_ASSET',
-                assetId: assetId ? parseInt(assetId) : null,
+                category: category || 'INCIDENTAL',
+                assets: type === 'ASSET' && assetIds && assetIds.length > 0 ? {
+                    connect: assetIds.map(id => ({ id: parseInt(id) }))
+                } : undefined,
                 title,
                 description,
                 location: location || null,
                 photo: photo || null,
                 status: 'SUBMITTED'
+            },
+            include: {
+                unit: true,
+                assets: true
             }
         });
 
@@ -117,12 +125,17 @@ exports.createReport = async (req, res) => {
                 });
 
                 if (admins.length > 0) {
-                    const msgAdmin = `*Laporan Pemeliharaan Baru*\n\n` +
-                        `\u{1F464} *Pelapor* : ${submitter?.name || submitter?.username || '-'}\n` +
-                        `\u{1F3E2} *Unit* : ${submitter?.unit?.name || '-'}\n` +
-                        `\u{1F4CB} *Judul* : ${title}\n` +
-                        `\u{1F4C4} *Kode* : ${code}\n` +
-                        `\u{1F527} *Tipe* : ${type === 'ASSET' ? 'Aset Terdata' : 'Non-Aset / Umum'}\n\n` +
+                    const assetListStr = report.assets?.length > 0
+                        ? report.assets.map(a => `- ${a.name} (${a.code})`).join('\n')
+                        : '- (Non-Aset)';
+
+                    const msgAdmin = `🔧 *LAPORAN PEMELIHARAAN BARU*\n\n` +
+                        `👤 *Pelapor* : ${submitter?.name || submitter?.username || '-'}\n` +
+                        `📂 *Kategori* : ${report.category === 'ROUTINE' ? 'Pemeliharaan Rutin' : 'Pemeliharaan Insidentil'}\n` +
+                        `📜 *Kode* : ${code}\n` +
+                        `📋 *Judul* : ${title}\n` +
+                        `📝 *Masalah* : ${description}\n\n` +
+                        `📦 *Aset Terkait* :\n${assetListStr}\n\n` +
                         `Mohon segera ditindaklanjuti.`;
 
                     // Send to all found admins with 30s delay

@@ -14,8 +14,8 @@ const MaintenanceForm = () => {
     const [form, setForm] = useState({
         title: '',
         type: 'NON_ASSET',
-        assetId: null,
-        assetLabel: '',
+        category: 'INCIDENTAL',
+        selectedAssets: [], // Array of {id, label}
         description: '',
         location: '',
         photo: ''
@@ -50,14 +50,26 @@ const MaintenanceForm = () => {
         reader.readAsDataURL(file);
     };
 
-    const selectAsset = (asset) => {
+    const toggleAssetSelection = (asset) => {
+        const isSelected = form.selectedAssets.some(a => a.id === asset.id);
+        if (isSelected) {
+            setForm(prev => ({
+                ...prev,
+                selectedAssets: prev.selectedAssets.filter(a => a.id !== asset.id)
+            }));
+        } else {
+            setForm(prev => ({
+                ...prev,
+                selectedAssets: [...prev.selectedAssets, { id: asset.id, label: `${asset.code} - ${asset.name}` }]
+            }));
+        }
+    };
+
+    const removeAsset = (id) => {
         setForm(prev => ({
             ...prev,
-            assetId: asset.id,
-            assetLabel: `${asset.code} - ${asset.name}`
+            selectedAssets: prev.selectedAssets.filter(a => a.id !== id)
         }));
-        setAssetSearch('');
-        setShowAssetDropdown(false);
     };
 
     const filteredAssets = assets.filter(a =>
@@ -69,20 +81,21 @@ const MaintenanceForm = () => {
         e.preventDefault();
         if (!form.title) return alert('Judul wajib diisi');
         if (!form.description) return alert('Deskripsi masalah wajib diisi');
-        if (type === 'ASSET' && !form.assetId) return alert('Pilih aset yang bermasalah');
+        if (form.type === 'ASSET' && form.selectedAssets.length === 0) return alert('Pilih minimal satu aset');
 
         try {
             setSaving(true);
             await api.post('/maintenance', {
                 title: form.title,
-                type,
-                assetId: type === 'ASSET' ? form.assetId : null,
+                type: form.type,
+                category: form.category,
+                assetIds: form.type === 'ASSET' ? form.selectedAssets.map(a => a.id) : [],
                 description: form.description,
                 location: form.location || null,
                 photo: form.photo || null
             });
             alert('Laporan berhasil dibuat!');
-            navigate('/pemeliharaan');
+            navigate(form.category === 'ROUTINE' ? '/pemeliharaan?category=ROUTINE' : '/pemeliharaan?category=INCIDENTAL');
         } catch (err) {
             alert(err.response?.data?.error || 'Gagal membuat laporan');
         } finally {
@@ -105,21 +118,42 @@ const MaintenanceForm = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+                {/* Category Selection */}
+                <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Kategori Pemeliharaan</label>
+                    <div className="flex gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, category: 'ROUTINE' }))}
+                            className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${form.category === 'ROUTINE' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                        >
+                            📅 Rutin / Berkala
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, category: 'INCIDENTAL' }))}
+                            className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${form.category === 'INCIDENTAL' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                        >
+                            🚨 Insidentil / Perbaikan
+                        </button>
+                    </div>
+                </div>
+
                 {/* Type Toggle */}
                 <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Jenis Laporan</label>
                     <div className="flex gap-3">
                         <button
                             type="button"
-                            onClick={() => { setType('ASSET'); setForm(prev => ({ ...prev, type: 'ASSET' })); }}
-                            className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${type === 'ASSET' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                            onClick={() => { setForm(prev => ({ ...prev, type: 'ASSET' })); }}
+                            className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${form.type === 'ASSET' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
                         >
                             🏷️ Aset Terdata
                         </button>
                         <button
                             type="button"
-                            onClick={() => { setType('NON_ASSET'); setForm(prev => ({ ...prev, type: 'NON_ASSET', assetId: null, assetLabel: '' })); }}
-                            className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${type === 'NON_ASSET' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                            onClick={() => { setForm(prev => ({ ...prev, type: 'NON_ASSET', selectedAssets: [] })); }}
+                            className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${form.type === 'NON_ASSET' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
                         >
                             📝 Non-Aset / Umum
                         </button>
@@ -127,40 +161,56 @@ const MaintenanceForm = () => {
                 </div>
 
                 {/* Asset Selector (if ASSET) */}
-                {type === 'ASSET' && (
+                {form.type === 'ASSET' && (
                     <div className="relative">
-                        <label className="block text-sm font-semibold text-slate-700 mb-1">Pilih Aset</label>
-                        {form.assetLabel ? (
-                            <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                <span className="flex-1 text-sm font-medium text-blue-800">{form.assetLabel}</span>
-                                <button type="button" onClick={() => setForm(prev => ({ ...prev, assetId: null, assetLabel: '' }))} className="text-red-500 text-xs font-bold">Ganti</button>
-                            </div>
-                        ) : (
-                            <div>
-                                <div className="relative">
-                                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Cari kode atau nama aset..."
-                                        value={assetSearch}
-                                        onChange={e => { setAssetSearch(e.target.value); setShowAssetDropdown(true); }}
-                                        onFocus={() => setShowAssetDropdown(true)}
-                                        className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                                {showAssetDropdown && assetSearch && (
-                                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                                        {filteredAssets.length === 0 ? (
-                                            <div className="p-3 text-sm text-slate-400 text-center">Tidak ditemukan</div>
-                                        ) : (
-                                            filteredAssets.slice(0, 20).map(a => (
-                                                <button key={a.id} type="button" onClick={() => selectAsset(a)} className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 text-sm">
-                                                    <span className="font-mono text-xs text-blue-600">{a.code}</span>
-                                                    <span className="ml-2">{a.name}</span>
-                                                </button>
-                                            ))
-                                        )}
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Pilih Aset (Bisa lebih dari satu)</label>
+
+                        {/* Selected Assets Tags */}
+                        {form.selectedAssets.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                                {form.selectedAssets.map(asset => (
+                                    <div key={asset.id} className="flex items-center gap-2 bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold ring-1 ring-blue-200">
+                                        <span>{asset.label}</span>
+                                        <button type="button" onClick={() => removeAsset(asset.id)} className="hover:text-red-500 transition-colors">×</button>
                                     </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="relative">
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Cari kode atau nama aset..."
+                                value={assetSearch}
+                                onChange={e => { setAssetSearch(e.target.value); setShowAssetDropdown(true); }}
+                                onFocus={() => setShowAssetDropdown(true)}
+                                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+
+                        {showAssetDropdown && assetSearch && (
+                            <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                                {filteredAssets.length === 0 ? (
+                                    <div className="p-3 text-sm text-slate-400 text-center">Tidak ditemukan</div>
+                                ) : (
+                                    filteredAssets.slice(0, 20).map(a => {
+                                        const isSelected = form.selectedAssets.some(sa => sa.id === a.id);
+                                        return (
+                                            <button
+                                                key={a.id}
+                                                type="button"
+                                                onClick={() => toggleAssetSelection(a)}
+                                                className={`w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 text-sm flex items-center justify-between ${isSelected ? 'bg-blue-50' : ''}`}
+                                            >
+                                                <div>
+                                                    <span className="font-mono text-xs text-blue-600 font-bold">{a.code}</span>
+                                                    <span className="ml-2 font-medium">{a.name}</span>
+                                                </div>
+                                                {isSelected && <span className="text-blue-600">✓</span>}
+                                            </button>
+                                        );
+                                    })
                                 )}
                             </div>
                         )}
@@ -168,7 +218,7 @@ const MaintenanceForm = () => {
                 )}
 
                 {/* Location (if NON_ASSET) */}
-                {type === 'NON_ASSET' && (
+                {form.type === 'NON_ASSET' && (
                     <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1">Lokasi / Objek</label>
                         <input
