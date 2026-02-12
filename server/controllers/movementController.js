@@ -7,39 +7,57 @@ const { sendMessage } = require('../services/whatsappService');
  */
 exports.requestMutation = async (req, res) => {
     try {
-        const { assetId, toRoomId, reason } = req.body;
+        const { assetId, toRoomId, reason, type, toUnitId } = req.body; // type: INTERNAL | EXTERNAL
         const requesterId = req.user.id;
 
         // 1. Get Asset current location/room
         const asset = await prisma.asset.findUnique({
             where: { id: parseInt(assetId) },
-            include: { room: true }
+            include: { room: true, unit: true }
         });
 
         if (!asset) return res.status(404).json({ error: 'Asset not found' });
+
+        // Logic check for Internal vs External
+        let finalToUnitId = asset.unitId; // Default to current unit for INTERNAL
+        let mutationType = type || 'INTERNAL';
+
+        if (mutationType === 'EXTERNAL') {
+            if (!toUnitId) return res.status(400).json({ error: 'Unit Tujuan wajib diisi untuk Mutasi Antar Unit' });
+            finalToUnitId = parseInt(toUnitId);
+        } else {
+            // Internal Mutation
+            // Ensure the room belongs to the same unit (optional strict check, skipping for flexibility now)
+        }
 
         // 2. Create Movement record
         const movement = await prisma.movement.create({
             data: {
                 assetId: parseInt(assetId),
-                fromLocation: asset.room ? asset.room.name : 'Unknown',
-                toLocation: '', // To be filled or handled by toRoomId
+                fromLocation: asset.room ? `${asset.room.name} (${asset.unit.name})` : 'Unknown', // Enhanced location info
+                toLocation: '', // To be filled below
                 toRoomId: parseInt(toRoomId),
+                toUnitId: finalToUnitId, // Store target Unit
                 reason,
                 status: 'PENDING',
+                type: mutationType,
                 requesterId
             },
             include: { asset: true, requester: true }
         });
 
-        // 3. Get Room Info for "toLocation"
+        // 3. Get Room & Unit Info for "toLocation" text
         const targetRoom = await prisma.room.findUnique({ where: { id: parseInt(toRoomId) } });
-        if (targetRoom) {
-            await prisma.movement.update({
-                where: { id: movement.id },
-                data: { toLocation: targetRoom.name }
-            });
-        }
+        const targetUnit = await prisma.unit.findUnique({ where: { id: finalToUnitId } });
+
+        const toLocationText = targetRoom
+            ? `${targetRoom.name} ${targetUnit ? '(' + targetUnit.name + ')' : ''}`
+            : 'Unknown';
+
+        await prisma.movement.update({
+            where: { id: movement.id },
+            data: { toLocation: toLocationText }
+        });
 
         res.status(201).json(movement);
 
@@ -59,11 +77,11 @@ exports.requestMutation = async (req, res) => {
 
                 if (recipients.length === 0) return;
 
-                const message = `🔄 *PENGAJUAN MUTASI ASET*\n\n` +
+                const message = `🔄 *PENGAJUAN MUTASI ASET (${mutationType})*\n\n` +
                     `Terdapat permintaan mutasi baru:\n` +
                     `📦 *Aset*: ${asset.name} (${asset.code})\n` +
-                    `📍 *Dari*: ${asset.room ? asset.room.name : 'Unknown'}\n` +
-                    `🎯 *Ke*: ${targetRoom ? targetRoom.name : 'Unknown'}\n` +
+                    `📍 *Dari*: ${asset.room ? asset.room.name : '-'} (${asset.unit?.name})\n` +
+                    `🎯 *Ke*: ${targetRoom ? targetRoom.name : '-'} (${targetUnit?.name})\n` +
                     `📝 *Alasan*: ${reason || '-'}\n` +
                     `👤 *Oleh*: ${movement.requester.username}\n\n` +
                     `Mohon segera tinjau di dashboard untuk persetujuan.`;
@@ -83,7 +101,7 @@ exports.requestMutation = async (req, res) => {
 };
 
 /**
- * Approve a mutation (Updates Asset Location)
+ * Approve a mutation (Updates Asset Location & Unit)
  */
 exports.approveMutation = async (req, res) => {
     try {
@@ -113,9 +131,16 @@ exports.approveMutation = async (req, res) => {
 
             // Update Asset's Room ID
             if (movement.toRoomId) {
+                const updateData = { roomId: movement.toRoomId };
+
+                // Also update Unit ID if it's an External Mutation or toUnitId is present
+                if (movement.toUnitId) {
+                    updateData.unitId = movement.toUnitId;
+                }
+
                 await tx.asset.update({
                     where: { id: movement.assetId },
-                    data: { roomId: movement.toRoomId }
+                    data: updateData
                 });
             }
 

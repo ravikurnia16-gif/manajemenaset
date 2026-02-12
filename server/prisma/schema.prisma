@@ -159,6 +159,7 @@ model Movement {
   fromLocation String
   toLocation   String
   toRoomId     Int?
+  toUnitId     Int?      // New: For Inter-Unit Mutation
   date         DateTime  @default(now())
   reason       String?
   type         String    @default("MUTATION") // MUTATION, DISPOSAL
