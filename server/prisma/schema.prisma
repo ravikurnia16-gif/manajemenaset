@@ -44,6 +44,9 @@ model User {
   warehouseTransactions WarehouseTransaction[]
   requestedMovements Movement[]    @relation("RequestedMovements")
   approvedMovements  Movement[]    @relation("ApprovedMovements")
+  personnelReports   PersonnelReport[]
+  assignedAssignments PersonnelAssignment[] @relation("Assignee")
+  createdAssignments  PersonnelAssignment[] @relation("Assigner")
 }
 
 model Unit {
