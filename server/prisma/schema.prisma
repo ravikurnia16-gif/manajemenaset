@@ -328,18 +328,24 @@ model VendorOffer {
 
 model Vehicle {
   id            Int       @id @default(autoincrement())
-  name          String    // e.g. Toyota Avanza
-  type          String    // e.g. Minibus, Pickup, Motorcycle
+  name          String    // Nama
+  brand         String    // Merk
+  model         String?   // Model
+  type          String    // Tipe Kendaraan (e.g. Minibus, Pickup, Motor)
   plateNumber   String    @unique // Plat Nomor
-  brand         String
-  year          Int
-  color         String?
+  fuelType      String?   // Bahan Bakar
+  capacity      String?   // Kapasitas (e.g. 1500cc)
+  color         String?   // Warna
+  odometer      Int       @default(0) // Kilometer saat ini
+  photo         String?   @db.LongText // Foto Kendaraan (Base64 support)
+  status        String    @default("ACTIVE") // ACTIVE / INACTIVE
+  
+  // Additional fields (kept from previous version)
+  year          Int?
   chassisNumber String?   // No Rangka
-  engineNumber  String?   // No Mesin
+  engineNumber  String?   // No Meisin
   taxDueDate    DateTime? // Pajak Tahunan
   stnkDueDate   DateTime? // Pajak 5 Tahunan
-  photo         String?
-  status        String    @default("AVAILABLE") // AVAILABLE, IN_USE, MAINTENANCE
   
   // Relations
   assetId       Int?      @unique // Optional link to Asset table
