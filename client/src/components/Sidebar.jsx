@@ -166,11 +166,22 @@ const Sidebar = ({ isOpen = true }) => {
                 {/* 4. Manajemen Personalia */}
                 {renderCollapsible('personnel', <Users size={18} />, 'Personalia', (
                     <>
-                        <Link to="/personalia/struktur" className={subNavItemClass('/personalia/struktur')}>
-                            <Users size={16} /> Struktur Organisasi
-                        </Link>
                         <Link to="/personalia/staf" className={subNavItemClass('/personalia/staf')}>
                             <UserCog size={16} /> Data Staf
+                        </Link>
+                        {/* Only Sarpras can see active reports & assignments */}
+                        {user.unit?.name?.toLowerCase().includes('sarana dan prasarana') && (
+                            <>
+                                <Link to="/personalia/laporan" className={subNavItemClass('/personalia/laporan')}>
+                                    <FileText size={16} /> Laporan Harian/Mingguan
+                                </Link>
+                                <Link to="/personalia/penugasan" className={subNavItemClass('/personalia/penugasan')}>
+                                    <FileCheck size={16} /> Penugasan
+                                </Link>
+                            </>
+                        )}
+                        <Link to="/personalia/struktur" className={subNavItemClass('/personalia/struktur')}>
+                            <Users size={16} /> Struktur Organisasi
                         </Link>
                     </>
                 ))}

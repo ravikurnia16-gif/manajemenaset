@@ -508,3 +508,40 @@ model UniformOrderItem {
   quantity    Int
   price       Float    // Harga saat pesan
 }
+
+enum ReportType {
+  DAILY
+  WEEKLY
+}
+
+model PersonnelReport {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  type      ReportType
+  content   String   @db.Text
+  date      DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum AssignmentStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model PersonnelAssignment {
+  id          Int      @id @default(autoincrement())
+  assignerId  Int
+  assigner    User     @relation("Assigner", fields: [assignerId], references: [id])
+  assigneeId  Int
+  assignee    User     @relation("Assignee", fields: [assigneeId], references: [id])
+  title       String
+  description String   @db.Text
+  dueDate     DateTime?
+  status      AssignmentStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

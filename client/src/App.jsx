@@ -27,6 +27,8 @@ import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
 import LoginPage from './pages/LoginPage';
 import MutationList from './pages/MutationList';
 import MutationForm from './pages/MutationForm';
+import PersonnelReports from './pages/PersonnelReports';
+import PersonnelAssignments from './pages/PersonnelAssignments';
 import ModulePlaceholder from './components/ModulePlaceholder';
 
 // Komponen untuk melindungi route yang butuh login
@@ -89,6 +91,8 @@ function App() {
           <Route path="gudang/pesanan" element={<UniformOrderAdmin />} />
 
           {/* Module: Manajemen Personalia */}
+          <Route path="personalia/laporan" element={<PersonnelReports />} />
+          <Route path="personalia/penugasan" element={<PersonnelAssignments />} />
           <Route path="personalia/struktur" element={<ModulePlaceholder title="Struktur Organisasi" moduleName="Manajemen Personalia" />} />
           <Route path="personalia/staf" element={<ModulePlaceholder title="Data Staf" moduleName="Manajemen Personalia" />} />
           <Route path="personalia/detail/:id" element={<ModulePlaceholder title="Detail Staf" moduleName="Manajemen Personalia" />} />
