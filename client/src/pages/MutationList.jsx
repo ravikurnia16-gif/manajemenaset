@@ -9,6 +9,9 @@ const MutationList = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
+    const [selectedItems, setSelectedItems] = useState([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const canApprove = ['SUPER_ADMIN', 'KEPALA_BIDANG'].includes(user.role);
@@ -38,13 +41,35 @@ const MutationList = () => {
         }
     };
 
-    const filteredMovements = movements.filter(m => {
-        const matchesSearch =
-            m.asset?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            m.asset?.code.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesStatus = statusFilter === 'ALL' || m.status === statusFilter;
-        return matchesSearch && matchesStatus;
-    });
+    const handleBulkDelete = async () => {
+        if (!confirm(`Hapus ${selectedItems.length} data mutasi terpilih?`)) return;
+        try {
+            await api.delete('/assets/movements/bulk', { data: { ids: selectedItems } });
+            setSelectedItems([]);
+            fetchMovements();
+        } catch (error) {
+            alert('Gagal menghapus data: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedItems.length === filteredMovements.length) {
+            setSelectedItems([]);
+        } else {
+            setSelectedItems(filteredMovements.map(m => m.id));
+        }
+    };
+
+    const toggleSelectItem = (id) => {
+        setSelectedItems(prev =>
+            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+        );
+    };
+
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = filteredMovements.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(filteredMovements.length / itemsPerPage);
 
     const getStatusBadge = (status) => {
         switch (status) {
@@ -85,9 +110,12 @@ const MutationList = () => {
                 <div className="relative">
                     <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <select
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none appearance-none"
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none appearance-none font-medium"
                         value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
+                        onChange={(e) => {
+                            setStatusFilter(e.target.value);
+                            setCurrentPage(1);
+                        }}
                     >
                         <option value="ALL">Semua Status</option>
                         <option value="PENDING">Menunggu Persetujuan</option>
@@ -95,6 +123,14 @@ const MutationList = () => {
                         <option value="REJECTED">Ditolak</option>
                     </select>
                 </div>
+                {selectedItems.length > 0 && canApprove && (
+                    <button
+                        onClick={handleBulkDelete}
+                        className="flex items-center justify-center gap-2 bg-red-50 text-red-600 px-4 py-2.5 rounded-xl font-bold hover:bg-red-600 hover:text-white transition-all border border-red-100"
+                    >
+                        <XCircle size={18} /> Hapus {selectedItems.length}
+                    </button>
+                )}
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -102,6 +138,14 @@ const MutationList = () => {
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-100">
+                                <th className="px-6 py-4 w-10">
+                                    <input
+                                        type="checkbox"
+                                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                        checked={movements.length > 0 && selectedItems.length === filteredMovements.length}
+                                        onChange={toggleSelectAll}
+                                    />
+                                </th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Aset Info</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Jenis & Lokasi Mutasi</th>
                                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Tanggal & Alasan</th>
@@ -111,11 +155,19 @@ const MutationList = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {loading ? (
-                                <tr><td colSpan="5" className="px-6 py-20 text-center"><div className="animate-spin h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto"></div></td></tr>
+                                <tr><td colSpan="6" className="px-6 py-20 text-center"><div className="animate-spin h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto"></div></td></tr>
                             ) : filteredMovements.length === 0 ? (
-                                <tr><td colSpan="5" className="px-6 py-20 text-center text-slate-400 font-medium">Belum ada riwayat mutasi</td></tr>
-                            ) : filteredMovements.map(m => (
-                                <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
+                                <tr><td colSpan="6" className="px-6 py-20 text-center text-slate-400 font-medium">Belum ada riwayat mutasi</td></tr>
+                            ) : currentItems.map(m => (
+                                <tr key={m.id} className={`hover:bg-slate-50/50 transition-colors ${selectedItems.includes(m.id) ? 'bg-blue-50/30' : ''}`}>
+                                    <td className="px-6 py-4">
+                                        <input
+                                            type="checkbox"
+                                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            checked={selectedItems.includes(m.id)}
+                                            onChange={() => toggleSelectItem(m.id)}
+                                        />
+                                    </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
@@ -194,6 +246,78 @@ const MutationList = () => {
                             ))}
                         </tbody>
                     </table>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="px-6 py-4 bg-white border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
+                        <span>Tampilkan:</span>
+                        <select
+                            className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none font-bold text-slate-700 focus:ring-1 focus:ring-blue-500"
+                            value={itemsPerPage}
+                            onChange={(e) => {
+                                setItemsPerPage(parseInt(e.target.value));
+                                setCurrentPage(1);
+                            }}
+                        >
+                            <option value={10}>10</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                        <span>dari {filteredMovements.length} data</span>
+                    </div>
+
+                    {totalPages > 1 && (
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-bold"
+                            >
+                                Sebelumnya
+                            </button>
+
+                            <div className="flex items-center gap-1 mx-2">
+                                {[...Array(totalPages)].map((_, i) => {
+                                    const pageNum = i + 1;
+                                    // Show first, last, current, and pages around current
+                                    if (
+                                        pageNum === 1 ||
+                                        pageNum === totalPages ||
+                                        (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                                    ) {
+                                        return (
+                                            <button
+                                                key={pageNum}
+                                                onClick={() => setCurrentPage(pageNum)}
+                                                className={`w-8 h-8 rounded-lg text-sm font-bold transition-all ${currentPage === pageNum
+                                                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                                                        : 'hover:bg-slate-100 text-slate-600'
+                                                    }`}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        );
+                                    } else if (
+                                        (pageNum === 2 && currentPage > 3) ||
+                                        (pageNum === totalPages - 1 && currentPage < totalPages - 2)
+                                    ) {
+                                        return <span key={pageNum} className="text-slate-400">...</span>;
+                                    }
+                                    return null;
+                                })}
+                            </div>
+
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-bold"
+                            >
+                                Selanjutnya
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

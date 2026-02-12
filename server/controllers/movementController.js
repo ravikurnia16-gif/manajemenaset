@@ -222,3 +222,20 @@ exports.getMovementById = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.deleteMultipleMovements = async (req, res) => {
+    try {
+        const { ids } = req.body; // Array of IDs
+        if (!ids || !Array.isArray(ids)) {
+            return res.status(400).json({ error: 'IDs must be an array' });
+        }
+
+        await prisma.movement.deleteMany({
+            where: { id: { in: ids.map(id => parseInt(id)) } }
+        });
+
+        res.json({ message: `${ids.length} mutations deleted` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

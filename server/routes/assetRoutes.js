@@ -6,7 +6,7 @@ const {
 } = require('../controllers/assetController');
 const {
     requestMutation, approveMutation, rejectMutation,
-    getAllMovements, getMovementById
+    getAllMovements, getMovementById, deleteMultipleMovements
 } = require('../controllers/movementController');
 const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 const router = express.Router();
@@ -18,6 +18,7 @@ router.get('/', verifyToken, getAllAssets);
 // Mutation Routes
 router.get('/movements/all', verifyToken, getAllMovements);
 router.post('/movements/request', verifyToken, requestMutation);
+router.delete('/movements/bulk', verifyToken, authorizeRole(['SUPER_ADMIN', 'KEPALA_BIDANG']), deleteMultipleMovements);
 router.get('/movements/:id', verifyToken, getMovementById);
 router.post('/movements/:id/approve', verifyToken, authorizeRole(['SUPER_ADMIN', 'KEPALA_BIDANG']), approveMutation);
 router.post('/movements/:id/reject', verifyToken, authorizeRole(['SUPER_ADMIN', 'KEPALA_BIDANG']), rejectMutation);
