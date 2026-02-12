@@ -16,7 +16,7 @@ exports.createReport = async (req, res) => {
     const user = req.user;
 
     try {
-        if (!await isSarprasUnit(user.unitId)) {
+        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
             return res.status(403).json({ error: 'Akses ditolak. Hanya unit Sarana dan Prasarana yang dapat mengisi laporan.' });
         }
 
@@ -62,7 +62,7 @@ exports.getReports = async (req, res) => {
     const user = req.user;
 
     try {
-        if (!await isSarprasUnit(user.unitId)) {
+        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
@@ -114,7 +114,7 @@ exports.createAssignment = async (req, res) => {
             return res.status(403).json({ error: 'Anda tidak memiliki wewenang untuk memberikan tugas.' });
         }
 
-        if (user.role !== 'SUPER_ADMIN' && !await isSarprasUnit(user.unitId)) {
+        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
@@ -160,13 +160,13 @@ exports.getAssignments = async (req, res) => {
     const user = req.user;
 
     try {
-        if (user.role !== 'SUPER_ADMIN' && !await isSarprasUnit(user.unitId)) {
+        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
         const where = {};
         if (['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN'].includes(user.role)) {
-            if (user.role !== 'SUPER_ADMIN') {
+            if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
                 where.OR = [
                     { assignerId: user.id },
                     { assigneeId: user.id },
@@ -249,7 +249,7 @@ exports.updateAssignmentStatus = async (req, res) => {
 exports.getStaffSarpras = async (req, res) => {
     const user = req.user;
     try {
-        if (user.role !== 'SUPER_ADMIN' && !await isSarprasUnit(user.unitId)) {
+        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
