@@ -204,10 +204,10 @@ const VehicleForm = () => {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Kapasitas (CC/Cyl)</label>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Kapasitas (Kursi)</label>
                             <input
                                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"
-                                placeholder="1500cc"
+                                placeholder="Contoh: 7 Kursi / 40 Kursi"
                                 value={form.capacity}
                                 onChange={e => setForm({ ...form, capacity: e.target.value })}
                             />
