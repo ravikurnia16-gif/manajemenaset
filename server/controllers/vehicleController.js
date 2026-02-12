@@ -158,9 +158,16 @@ exports.checkTaxNotifications = async () => {
                 `Tanggal Jatuh Tempo: ${new Date(dueDate).toLocaleDateString('id-ID')}\n` +
                 `Mohon segera diproses pembayarannya.`;
 
-            for (const person of recipients) {
-                await sendMessage(person.phone, message);
-                console.log(`Tax notification sent for ${vehicle.name} to ${person.name} (${person.phone})`);
+            for (let i = 0; i < recipients.length; i++) {
+                const person = recipients[i];
+                setTimeout(async () => {
+                    try {
+                        await sendMessage(person.phone, message);
+                        console.log(`Tax notification sent for ${vehicle.name} to ${person.name} (${person.phone})`);
+                    } catch (e) {
+                        console.error(`[Vehicle Tax] Failed to notify ${person.name}:`, e.message);
+                    }
+                }, i * 5000);
             }
         }
     } catch (error) {
@@ -195,9 +202,12 @@ exports.sendTestWA = async (req, res) => {
             return res.status(404).json({ error: 'Ravi atau Eldo tidak ditemukan atau tidak memiliki nomor HP.' });
         }
 
-        for (const person of recipients) {
-            const message = `🧪 *TEST NOTIFIKASI SISTEM*\n\nWhatsApp Service Aktif!\nTarget: ${person.name}\nNomor: ${person.phone}\nPesan ini dikirim untuk memverifikasi jalur komunikasi.`;
-            await sendMessage(person.phone, message);
+        for (let i = 0; i < recipients.length; i++) {
+            const person = recipients[i];
+            setTimeout(async () => {
+                const message = `🧪 *TEST NOTIFIKASI SISTEM*\n\nWhatsApp Service Aktif!\nTarget: ${person.name}\nNomor: ${person.phone}\nPesan ini dikirim untuk memverifikasi jalur komunikasi.`;
+                await sendMessage(person.phone, message);
+            }, i * 5000);
         }
         res.json({ message: `Test messages sent to ${recipients.length} recipients` });
     } catch (error) {

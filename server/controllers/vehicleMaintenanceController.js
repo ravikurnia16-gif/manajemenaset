@@ -154,9 +154,16 @@ exports.checkMaintenanceNotifications = async () => {
                 `KM Terakhir: ${log.odometer?.toLocaleString()} km\n` +
                 `Target Servis: ${log.nextServiceOdometer?.toLocaleString()} km`;
 
-            for (const person of recipients) {
-                await sendWhatsAppMessage(person.phone, message);
-                console.log(`Notification sent for ${log.vehicle.name} to ${person.name} (${person.phone})`);
+            for (let i = 0; i < recipients.length; i++) {
+                const person = recipients[i];
+                setTimeout(async () => {
+                    try {
+                        await sendWhatsAppMessage(person.phone, message);
+                        console.log(`Notification sent for ${log.vehicle.name} to ${person.name} (${person.phone})`);
+                    } catch (e) {
+                        console.error(`[Vehicle Maintenance] Failed to notify ${person.name}:`, e.message);
+                    }
+                }, i * 5000); // 5s gap
             }
         }
     } catch (error) {

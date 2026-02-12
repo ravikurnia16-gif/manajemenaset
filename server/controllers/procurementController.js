@@ -195,13 +195,16 @@ exports.createProcurement = async (req, res) => {
                         `Mohon segera di proses.`;
 
                     setTimeout(async () => {
-                        for (const admin of admins) {
-                            try {
-                                console.log(`Sending WA to Admin ${admin.username} (${admin.phone}) in 30s...`);
-                                await whatsappService.sendMessage(admin.phone, msgAdm);
-                            } catch (e) {
-                                console.error(`Failed sending to ${admin.username}:`, e);
-                            }
+                        for (let i = 0; i < admins.length; i++) {
+                            const admin = admins[i];
+                            setTimeout(async () => {
+                                try {
+                                    console.log(`Sending WA to Admin ${admin.username} (${admin.phone})...`);
+                                    await whatsappService.sendMessage(admin.phone, msgAdm);
+                                } catch (e) {
+                                    console.error(`Failed sending to ${admin.username}:`, e);
+                                }
+                            }, i * 5000); // 5s gap
                         }
                     }, 30000);
                 }

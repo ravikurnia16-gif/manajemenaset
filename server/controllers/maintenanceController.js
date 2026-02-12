@@ -127,13 +127,16 @@ exports.createReport = async (req, res) => {
 
                     // Send to all found admins with 30s delay
                     setTimeout(async () => {
-                        for (const admin of admins) {
-                            try {
-                                await whatsappService.sendMessage(admin.phone, msgAdmin);
-                                console.log(`[WA] Maintenance admin notif sent to ${admin.username}`);
-                            } catch (e) {
-                                console.error(`[WA] Failed admin notif to ${admin.username}:`, e);
-                            }
+                        for (let i = 0; i < admins.length; i++) {
+                            const admin = admins[i];
+                            setTimeout(async () => {
+                                try {
+                                    await whatsappService.sendMessage(admin.phone, msgAdmin);
+                                    console.log(`[WA] Maintenance admin notif sent to ${admin.username}`);
+                                } catch (e) {
+                                    console.error(`[WA] Failed admin notif to ${admin.username}:`, e);
+                                }
+                            }, i * 5000); // 5s gap between admins
                         }
                     }, 30000);
                 }
