@@ -195,8 +195,11 @@ exports.createProcurement = async (req, res) => {
                         `Mohon segera di proses.`;
 
                     setTimeout(async () => {
-                        for (let i = 0; i < admins.length; i++) {
-                            const admin = admins[i];
+                        let cumulativeDelay = 0;
+                        for (const admin of admins) {
+                            const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
+                            cumulativeDelay += randomGap;
+
                             setTimeout(async () => {
                                 try {
                                     console.log(`Sending WA to Admin ${admin.username} (${admin.phone})...`);
@@ -204,7 +207,7 @@ exports.createProcurement = async (req, res) => {
                                 } catch (e) {
                                     console.error(`Failed sending to ${admin.username}:`, e);
                                 }
-                            }, i * 5000); // 5s gap
+                            }, cumulativeDelay);
                         }
                     }, 30000);
                 }

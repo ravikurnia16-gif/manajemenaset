@@ -89,9 +89,11 @@ exports.requestMutation = async (req, res) => {
                     `👤 *Oleh*: ${movement.requester.username}\n\n` +
                     `Mohon segera tinjau di dashboard untuk persetujuan.`;
 
-                for (let i = 0; i < recipients.length; i++) {
-                    const user = recipients[i];
-                    // Add further incremental delay per person (e.g. 5s apart)
+                let cumulativeDelay = 0;
+                for (const user of recipients) {
+                    const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
+                    cumulativeDelay += randomGap;
+
                     setTimeout(async () => {
                         try {
                             await sendMessage(user.phone, message);
@@ -99,7 +101,7 @@ exports.requestMutation = async (req, res) => {
                         } catch (err) {
                             console.error(`[Mutation] Failed to notify ${user.username}:`, err.message);
                         }
-                    }, i * 5000);
+                    }, cumulativeDelay);
                 }
             } catch (err) {
                 console.error('[Mutation Notification Error]', err.message);

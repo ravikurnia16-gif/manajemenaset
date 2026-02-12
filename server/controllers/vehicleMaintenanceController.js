@@ -154,8 +154,11 @@ exports.checkMaintenanceNotifications = async () => {
                 `KM Terakhir: ${log.odometer?.toLocaleString()} km\n` +
                 `Target Servis: ${log.nextServiceOdometer?.toLocaleString()} km`;
 
-            for (let i = 0; i < recipients.length; i++) {
-                const person = recipients[i];
+            let cumulativeDelay = 0;
+            for (const person of recipients) {
+                const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
+                cumulativeDelay += randomGap;
+
                 setTimeout(async () => {
                     try {
                         await sendWhatsAppMessage(person.phone, message);
@@ -163,7 +166,7 @@ exports.checkMaintenanceNotifications = async () => {
                     } catch (e) {
                         console.error(`[Vehicle Maintenance] Failed to notify ${person.name}:`, e.message);
                     }
-                }, i * 5000); // 5s gap
+                }, cumulativeDelay);
             }
         }
     } catch (error) {
