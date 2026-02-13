@@ -7,106 +7,101 @@ const { sendMessage } = require('../services/whatsappService');
  */
 exports.requestMutation = async (req, res) => {
     try {
-        const { assetId, toRoomId, reason, type, toUnitId } = req.body; // type: INTERNAL | EXTERNAL
+        const { assetId, assetIds, toRoomId, reason, type, toUnitId } = req.body; // assetIds is an array
         const requesterId = req.user.id;
 
-        // 1. Get Asset current location/room
-        const asset = await prisma.asset.findUnique({
-            where: { id: parseInt(assetId) },
-            include: { room: true, unit: true }
-        });
+        const idsToProcess = assetIds && Array.isArray(assetIds) ? assetIds : [assetId];
+        const processedMovements = [];
 
-        if (!asset) return res.status(404).json({ error: 'Asset not found' });
+        // 1. Fetch auxiliary data
+        const targetRoom = await prisma.room.findUnique({ where: { id: parseInt(toRoomId) } });
+        if (!targetRoom) return res.status(400).json({ error: 'Ruangan tujuan tidak valid' });
 
-        // Logic check for Internal vs External
-        let finalToUnitId = asset.unitId; // Default to current unit for INTERNAL
-        let mutationType = type || 'INTERNAL';
+        const finalToUnitId = type === 'EXTERNAL' ? parseInt(toUnitId) : null;
+        const targetUnit = finalToUnitId ? await prisma.unit.findUnique({ where: { id: finalToUnitId } }) : null;
 
-        if (mutationType === 'EXTERNAL') {
-            if (!toUnitId) return res.status(400).json({ error: 'Unit Tujuan wajib diisi untuk Mutasi Antar Unit' });
-            finalToUnitId = parseInt(toUnitId);
-        } else {
-            // Internal Mutation
-            // Ensure the room belongs to the same unit (optional strict check, skipping for flexibility now)
+        if (type === 'EXTERNAL' && !finalToUnitId) {
+            return res.status(400).json({ error: 'Unit Tujuan wajib diisi untuk Mutasi Antar Unit' });
         }
 
-        // 2. Create Movement record
-        const movement = await prisma.movement.create({
-            data: {
-                assetId: parseInt(assetId),
-                fromLocation: asset.room ? `${asset.room.name} (${asset.unit.name})` : 'Unknown', // Enhanced location info
-                toLocation: '', // To be filled below
-                toRoomId: parseInt(toRoomId),
-                toUnitId: finalToUnitId, // Store target Unit
-                reason,
-                status: 'PENDING',
-                type: mutationType,
-                requesterId
-            },
-            include: { asset: true, requester: true }
-        });
+        // 2. Process each Asset
+        for (const id of idsToProcess) {
+            const asset = await prisma.asset.findUnique({
+                where: { id: parseInt(id) },
+                include: { room: true, unit: true }
+            });
 
-        // 3. Get Room & Unit Info for "toLocation" text
-        const targetRoom = await prisma.room.findUnique({ where: { id: parseInt(toRoomId) } });
-        const targetUnit = await prisma.unit.findUnique({ where: { id: finalToUnitId } });
+            if (!asset) continue;
 
-        const toLocationText = targetRoom
-            ? `${targetRoom.name} ${targetUnit ? '(' + targetUnit.name + ')' : ''}`
-            : 'Unknown';
+            const unitIdForThisAsset = finalToUnitId || asset.unitId;
+            const actualTargetUnit = targetUnit || await prisma.unit.findUnique({ where: { id: unitIdForThisAsset } });
 
-        await prisma.movement.update({
-            where: { id: movement.id },
-            data: { toLocation: toLocationText }
-        });
+            const toLocationText = `${targetRoom.name} ${actualTargetUnit ? '(' + actualTargetUnit.name + ')' : ''}`;
 
-        res.status(201).json(movement);
+            const movement = await prisma.movement.create({
+                data: {
+                    assetId: parseInt(id),
+                    fromLocation: asset.room ? `${asset.room.name} (${asset.unit?.name || 'Unknown'})` : 'Unknown',
+                    toLocation: toLocationText,
+                    toRoomId: parseInt(toRoomId),
+                    toUnitId: unitIdForThisAsset,
+                    reason,
+                    status: 'PENDING',
+                    type: type || 'INTERNAL',
+                    requesterId
+                },
+                include: { asset: true, requester: true }
+            });
+            processedMovements.push(movement);
+        }
+
+        if (processedMovements.length === 0) {
+            return res.status(400).json({ error: 'Tidak ada aset valid yang diproses' });
+        }
+
+        res.status(201).json({ message: `${processedMovements.length} permintaan mutasi berhasil dikirim`, data: processedMovements });
 
         // --- Delayed Notification (30-60s) ---
         setTimeout(async () => {
             try {
-                // Find specific recipients: Ravi Kurnia (24071613) and Eldo (26021760) only
                 const recipients = await prisma.user.findMany({
                     where: {
-                        OR: [
-                            { nip: '24071613' }, // Ravi Kurnia
-                            { nip: '26021760' }  // Eldo
-                        ],
-                        phone: { not: null, not: '' } // Ensure phone is not empty
+                        OR: [{ nip: '24071613' }, { nip: '26021760' }],
+                        phone: { not: null, not: '' }
                     }
                 });
 
-                if (recipients.length === 0) {
-                    console.log('[Mutation] No valid notification recipients found.');
-                    return;
-                }
+                if (recipients.length === 0) return;
 
-                const message = `🔄 *PENGAJUAN MUTASI ASET (${mutationType})*\n\n` +
-                    `Terdapat permintaan mutasi baru:\n` +
-                    `📦 *Aset*: ${asset.name} (${asset.code})\n` +
-                    `📍 *Dari*: ${asset.room ? asset.room.name : '-'} (${asset.unit?.name})\n` +
-                    `🎯 *Ke*: ${targetRoom ? targetRoom.name : '-'} (${targetUnit?.name})\n` +
+                const assetNames = processedMovements.map(m => m.asset.name).join(', ');
+                const displayNames = processedMovements.length > 3
+                    ? `${processedMovements[0].asset.name} dan ${processedMovements.length - 1} aset lainnya`
+                    : assetNames;
+
+                const message = `🔄 *PENGAJUAN MUTASI MASAL (${type || 'INTERNAL'})*\n\n` +
+                    `Terdapat ${processedMovements.length} permintaan mutasi baru:\n` +
+                    `📦 *Aset*: ${displayNames}\n` +
+                    `🎯 *Tujuan*: ${processedMovements[0].toLocation}\n` +
                     `📝 *Alasan*: ${reason || '-'}\n` +
-                    `👤 *Oleh*: ${movement.requester.username}\n\n` +
+                    `👤 *Oleh*: ${processedMovements[0].requester.username}\n\n` +
                     `Mohon segera tinjau di dashboard untuk persetujuan.`;
 
                 let cumulativeDelay = 0;
                 for (const user of recipients) {
-                    const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
+                    const randomGap = Math.floor(Math.random() * (15000 - 5000 + 1)) + 5000;
                     cumulativeDelay += randomGap;
-
                     setTimeout(async () => {
                         try {
                             await sendMessage(user.phone, message);
-                            console.log(`[Mutation] Notification sent to ${user.username} (${user.phone}).`);
                         } catch (err) {
-                            console.error(`[Mutation] Failed to notify ${user.username}:`, err.message);
+                            console.error(`[Mutation] Notification failed for ${user.username}`);
                         }
                     }, cumulativeDelay);
                 }
             } catch (err) {
                 console.error('[Mutation Notification Error]', err.message);
             }
-        }, 45000); // 45 seconds average delay
+        }, 45000);
 
     } catch (error) {
         res.status(500).json({ error: error.message });

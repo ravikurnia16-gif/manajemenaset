@@ -461,6 +461,13 @@ const AssetList = ({ validationMode = false }) => {
                                     <CheckCircle size={12} /> Validasi {selectedIds.length} Item
                                 </button>
                                 <button
+                                    onClick={() => navigate(`/mutasi/request?ids=${selectedIds.join(',')}`)}
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-bold shadow-sm shadow-blue-200"
+                                >
+                                    <ArrowLeftRight size={14} />
+                                    Mutasi Masal
+                                </button>
+                                <button
                                     onClick={handleBulkDelete}
                                     className="flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold hover:bg-red-100 transition-colors border border-red-100"
                                 >
@@ -600,8 +607,8 @@ const AssetList = ({ validationMode = false }) => {
                                         key={layout.id}
                                         onClick={() => setPrintLayout(layout.id)}
                                         className={`flex flex-col items-start p-3 rounded-xl border-2 transition-all ${printLayout === layout.id
-                                                ? 'border-blue-500 bg-blue-50/50 shadow-sm'
-                                                : 'border-slate-200 bg-white hover:border-slate-300'
+                                            ? 'border-blue-500 bg-blue-50/50 shadow-sm'
+                                            : 'border-slate-200 bg-white hover:border-slate-300'
                                             }`}
                                     >
                                         <span className={`text-sm font-bold ${printLayout === layout.id ? 'text-blue-700' : 'text-slate-700'}`}>

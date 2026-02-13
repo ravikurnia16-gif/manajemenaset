@@ -1,21 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowLeftRight, Save, Box, MapPin, MessageSquare, AlertCircle, Building2 } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, Save, Box, MapPin, MessageSquare, AlertCircle, Building2, X } from 'lucide-react';
 import api from '../lib/axios';
 
 const MutationForm = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const preselectedAssetId = searchParams.get('assetId');
+    const preselectedIds = searchParams.get('ids')?.split(',') || (searchParams.get('assetId') ? [searchParams.get('assetId')] : []);
 
     const [assets, setAssets] = useState([]);
     const [rooms, setRooms] = useState([]);
-    const [units, setUnits] = useState([]); // New: Units
+    const [units, setUnits] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
 
     const [form, setForm] = useState({
-        assetId: preselectedAssetId || '',
+        assetIds: preselectedIds,
         type: 'INTERNAL', // INTERNAL | EXTERNAL
         toUnitId: '',
         toRoomId: '',
@@ -29,18 +29,13 @@ const MutationForm = () => {
     const fetchData = async () => {
         try {
             const [assetRes, roomRes, unitRes] = await Promise.all([
-                api.get('/assets'),
+                api.get('/assets', { params: { limit: 10000 } }), // Fetch more for selection if needed
                 api.get('/master/rooms'),
                 api.get('/master/units')
             ]);
-            // assets might be paginated, check structure
             setAssets(assetRes.data.data || assetRes.data);
             setRooms(roomRes.data);
             setUnits(unitRes.data);
-
-            if (preselectedAssetId) {
-                setForm(prev => ({ ...prev, assetId: preselectedAssetId }));
-            }
         } catch (error) {
             console.error('Failed to fetch data:', error);
         } finally {
@@ -50,13 +45,17 @@ const MutationForm = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!form.assetId || !form.toRoomId) return alert('Pilih aset dan ruangan tujuan');
+        if (form.assetIds.length === 0) return alert('Pilih minimal satu aset');
+        if (!form.toRoomId) return alert('Pilih ruangan tujuan');
         if (form.type === 'EXTERNAL' && !form.toUnitId) return alert('Pilih unit tujuan untuk mutasi antar unit');
 
         setSubmitting(true);
         try {
-            await api.post('/assets/movements/request', form);
-            alert('Permintaan mutasi berhasil dikirim dan menunggu persetujuan.');
+            await api.post('/assets/movements/request', {
+                ...form,
+                assetIds: form.assetIds.map(id => parseInt(id))
+            });
+            alert(`${form.assetIds.length} permintaan mutasi berhasil dikirim dan menunggu persetujuan.`);
             navigate('/mutasi');
         } catch (error) {
             alert('Gagal mengirim permintaan: ' + (error.response?.data?.error || error.message));
@@ -65,17 +64,30 @@ const MutationForm = () => {
         }
     };
 
+    const toggleAsset = (id) => {
+        const idStr = id.toString();
+        setForm(prev => ({
+            ...prev,
+            assetIds: prev.assetIds.includes(idStr)
+                ? prev.assetIds.filter(i => i !== idStr)
+                : [...prev.assetIds, idStr]
+        }));
+    };
+
     if (loading) return <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full"></div></div>;
 
-    const selectedAsset = assets.find(a => a.id === parseInt(form.assetId));
+    const selectedAssetsData = assets.filter(a => form.assetIds.includes(a.id.toString()));
+
+    // Logic for internal rooms: must be in the same unit
+    // For bulk, let's assume assets are from the same unit if it's INTERNAL
+    // Or just show all rooms if it's too complex. For now, let's pick unit from first asset.
+    const referenceAsset = selectedAssetsData[0];
 
     // Filter Logic
     let filteredRooms = [];
-    if (form.type === 'INTERNAL' && selectedAsset) {
-        // Only show rooms in the SAME unit as the asset
-        filteredRooms = rooms.filter(r => r.unitId === selectedAsset.unitId);
+    if (form.type === 'INTERNAL' && referenceAsset) {
+        filteredRooms = rooms.filter(r => r.unitId === referenceAsset.unitId);
     } else if (form.type === 'EXTERNAL' && form.toUnitId) {
-        // Show rooms in the TARGET unit
         filteredRooms = rooms.filter(r => r.unitId === parseInt(form.toUnitId));
     }
 
@@ -87,40 +99,57 @@ const MutationForm = () => {
                         <ArrowLeft size={20} className="text-slate-600" />
                     </button>
                     <div>
-                        <h1 className="text-xl font-bold text-slate-800">Ajukan Mutasi Aset</h1>
-                        <p className="text-sm text-slate-500">Pindahkan aset ke lokasi atau ruangan baru.</p>
+                        <h1 className="text-xl font-bold text-slate-800">Ajukan Mutasi Aset ({form.assetIds.length})</h1>
+                        <p className="text-sm text-slate-500">Pindahkan aset terpilih ke lokasi atau ruangan baru.</p>
                     </div>
                 </div>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 space-y-8">
-                    {/* Asset Selection */}
+                    {/* Selected Assets List */}
                     <div className="space-y-4">
                         <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                            <Box size={14} className="text-blue-500" /> Pilih Aset
+                            <Box size={14} className="text-blue-500" /> Aset Terpilih
                         </label>
-                        <select
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 bg-slate-50/50"
-                            value={form.assetId}
-                            onChange={(e) => setForm({ ...form, assetId: e.target.value, toUnitId: '', toRoomId: '' })}
-                            required
-                        >
-                            <option value="">-- Pilih Aset --</option>
-                            {assets.map(a => (
-                                <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
-                            ))}
-                        </select>
-                        {selectedAsset && (
-                            <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 flex items-start gap-3">
-                                <AlertCircle size={16} className="text-blue-500 mt-0.5" />
-                                <div className="text-xs text-blue-700">
-                                    <p className="font-bold mb-1 underline">Info Aset:</p>
-                                    <p className="font-medium">Unit: {selectedAsset.unit?.name || '-'}</p>
-                                    <p className="text-slate-500">Lokasi: {selectedAsset.room?.name || 'Lokasi tidak terdefinisi'}</p>
+
+                        <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                            {selectedAssetsData.length > 0 ? (
+                                selectedAssetsData.map(a => (
+                                    <div key={a.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 group">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-[10px] font-black border border-slate-200 shadow-sm text-blue-600">
+                                                {a.code.split('.').pop()}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-800 leading-none mb-1">{a.name}</p>
+                                                <p className="text-[10px] text-slate-400 font-medium uppercase tracking-tight">{a.code} &bull; {a.unit?.name}</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleAsset(a.id)}
+                                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-8 border-2 border-dashed border-slate-100 rounded-2xl text-center">
+                                    <p className="text-slate-400 text-sm font-medium italic">Tidak ada aset terpilih.</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate('/aset')}
+                                        className="mt-2 text-blue-600 text-xs font-bold hover:underline"
+                                    >
+                                        Kembali ke daftar aset
+                                    </button>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
+
+                        {/* Dropdown to add more assets could go here, but starting with IDs from AssetList is enough */}
                     </div>
 
                     <div className="h-px bg-slate-100"></div>
@@ -165,7 +194,7 @@ const MutationForm = () => {
                                 required
                             >
                                 <option value="">-- Pilih Unit Tujuan --</option>
-                                {units.filter(u => selectedAsset && u.id !== selectedAsset.unitId).map(u => (
+                                {units.filter(u => !referenceAsset || u.id !== referenceAsset.unitId).map(u => (
                                     <option key={u.id} value={u.id}>{u.name}</option>
                                 ))}
                             </select>
@@ -182,10 +211,10 @@ const MutationForm = () => {
                             value={form.toRoomId}
                             onChange={(e) => setForm({ ...form, toRoomId: e.target.value })}
                             required
-                            disabled={!selectedAsset || (form.type === 'EXTERNAL' && !form.toUnitId)}
+                            disabled={!referenceAsset || (form.type === 'EXTERNAL' && !form.toUnitId)}
                         >
                             <option value="">
-                                {!selectedAsset
+                                {!referenceAsset
                                     ? '-- Pilih Aset Terlebih Dahulu --'
                                     : (form.type === 'EXTERNAL' && !form.toUnitId)
                                         ? '-- Pilih Unit Tujuan Terlebih Dahulu --'
@@ -195,9 +224,6 @@ const MutationForm = () => {
                                 <option key={r.id} value={r.id}>{r.name} ({r.code})</option>
                             ))}
                         </select>
-                        {filteredRooms.length === 0 && selectedAsset && (form.type === 'INTERNAL' || form.toUnitId) && (
-                            <p className="text-xs text-red-500 italic">*Tidak ada data ruangan untuk unit ini. Harap hubungi admin.</p>
-                        )}
                     </div>
 
                     {/* Reason */}
@@ -215,14 +241,11 @@ const MutationForm = () => {
 
                     <button
                         type="submit"
-                        disabled={submitting}
+                        disabled={submitting || form.assetIds.length === 0}
                         className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-600/20 text-lg"
                     >
-                        {submitting ? <div className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full"></div> : <><Save size={20} /> Kirim Pengajuan</>}
+                        {submitting ? <div className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full"></div> : <><Save size={20} /> Kirim {form.assetIds.length} Pengajuan</>}
                     </button>
-                    <p className="text-center text-[10px] text-slate-400">
-                        *Pengajuan akan diverifikasi oleh Admin/Kabid Sarpras sebelum data aset diperbarui.
-                    </p>
                 </div>
             </form>
         </div>
