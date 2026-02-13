@@ -141,10 +141,16 @@ const VehicleList = () => {
 
                                 <div className="flex gap-2 pt-4 border-t border-slate-50">
                                     <button
-                                        onClick={() => navigate(`/kendaraan/data/edit/${v.id}`)}
-                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors text-xs font-bold"
+                                        onClick={() => navigate(`/kendaraan/laporan-mingguan/${v.id}`)}
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all text-xs font-bold"
                                     >
-                                        <Edit size={14} /> Edit
+                                        <FileText size={14} /> Laporan
+                                    </button>
+                                    <button
+                                        onClick={() => navigate(`/kendaraan/data/edit/${v.id}`)}
+                                        className="flex tems-center justify-center gap-1.5 p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                    >
+                                        <Edit size={14} />
                                     </button>
                                     <button
                                         onClick={() => handleDelete(v.id)}

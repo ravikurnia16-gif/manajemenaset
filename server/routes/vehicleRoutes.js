@@ -21,4 +21,9 @@ router.post('/maintenance', verifyToken, maintenanceCtrl.createMaintenanceLog);
 router.put('/maintenance/:id', verifyToken, maintenanceCtrl.updateMaintenanceLog);
 router.delete('/maintenance/:id', verifyToken, maintenanceCtrl.deleteMaintenanceLog);
 
+// Weekly Report Routes
+const reportCtrl = require('../controllers/vehicleReportController');
+router.post('/reports/weekly', verifyToken, reportCtrl.createWeeklyReport);
+router.get('/:id/reports/weekly', verifyToken, reportCtrl.getVehicleReports);
+
 module.exports = router;

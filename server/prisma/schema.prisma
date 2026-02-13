@@ -371,9 +371,34 @@ model Vehicle {
   bookings      VehicleBooking[]
   services      VehicleService[]
   fuelLogs      VehicleFuelLog[]
+  weeklyReports VehicleWeeklyReport[]
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+model VehicleWeeklyReport {
+  id              Int      @id @default(autoincrement())
+  vehicleId       Int
+  vehicle         Vehicle  @relation(fields: [vehicleId], references: [id])
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id])
+  
+  weekStartDate   DateTime
+  weekEndDate     DateTime
+  
+  startOdometer   Int
+  endOdometer     Int
+  
+  conditionEngine   String  // e.g. BAIK, PERLU PERBAIKAN
+  conditionBody     String
+  conditionInterior String
+  isClean           Boolean @default(true)
+  
+  notes             String? @db.Text
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model VehicleBooking {

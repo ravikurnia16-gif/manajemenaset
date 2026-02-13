@@ -24,6 +24,7 @@ import VehicleList from './pages/VehicleList';
 import VehicleForm from './pages/VehicleForm';
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
 import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
+import VehicleWeeklyReport from './pages/VehicleWeeklyReport';
 import LoginPage from './pages/LoginPage';
 import MutationList from './pages/MutationList';
 import MutationForm from './pages/MutationForm';
@@ -80,6 +81,7 @@ function App() {
           <Route path="kendaraan/pemeliharaan" element={<VehicleMaintenanceList />} />
           <Route path="kendaraan/pemeliharaan/new" element={<VehicleMaintenanceForm />} />
           <Route path="kendaraan/pemeliharaan/edit/:id" element={<VehicleMaintenanceForm />} />
+          <Route path="kendaraan/laporan-mingguan/:id" element={<VehicleWeeklyReport />} />
 
           {/* Module: Manajemen Gudang */}
           <Route path="gudang/dashboard" element={<WarehouseDashboard />} />
