@@ -280,10 +280,11 @@ exports.getStaffSarpras = async (req, res) => {
             where: {
                 unit: { name: { contains: 'Sarana dan Prasarana' } },
                 OR: [
-                    { name: { contains: 'Syafrian', mode: 'insensitive' } },
+                    { name: { contains: 'Syafruan', mode: 'insensitive' } },
                     { name: { contains: 'Eldo', mode: 'insensitive' } },
-                    { name: { contains: 'Ringgo', mode: 'insensitive' } },
-                    { name: { contains: 'Jeri', mode: 'insensitive' } }
+                    { name: { contains: 'Wegi', mode: 'insensitive' } },
+                    { name: { contains: 'Jeri', mode: 'insensitive' } },
+                    { name: { contains: 'Ringgo', mode: 'insensitive' } }
                 ]
             },
             select: { id: true, name: true, position: true }
