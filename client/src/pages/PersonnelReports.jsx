@@ -174,6 +174,7 @@ const PersonnelReports = () => {
                                         <option value="ASET">🏢 Staf Manajemen Aset (Eldo)</option>
                                         <option value="GUDANG">🏠 Staf Gudang & Logistik (Jeri)</option>
                                         <option value="KENDARAAN">🚗 Staf Kendaraan (Ringgo/Wegi)</option>
+                                        <option value="LAPORAN_MINGGUAN_KENDARAAN">🗓️ Laporan Mingguan Kendaraan</option>
                                     </select>
                                 </div>
                             )}
@@ -307,25 +308,44 @@ const PersonnelReports = () => {
                             </div>
                         )}
 
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Laporan Kegiatan / Aktivitas</label>
-                            <textarea
-                                value={form.content}
-                                onChange={e => setForm({ ...form, content: e.target.value })}
-                                rows={form.type === 'DAILY' ? 6 : 4}
-                                placeholder={form.type === 'DAILY' ? "Jelaskan apa saja yang Anda lakukan hari ini..." : "Berikan ringkasan aktivitas selama seminggu ini..."}
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                            ></textarea>
-                        </div>
-                        <div className="flex justify-end">
-                            <button
-                                type="submit"
-                                disabled={submitting}
-                                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-blue-700 hover:shadow-xl transition-all disabled:opacity-50"
-                            >
-                                {submitting ? 'Mengirim...' : 'Kirim Laporan'}
-                            </button>
-                        </div>
+                        {form.category === 'LAPORAN_MINGGUAN_KENDARAAN' ? (
+                            <div className="p-10 bg-blue-50 rounded-2xl border border-dashed border-blue-200 text-center">
+                                <Car size={40} className="mx-auto text-blue-400 mb-3" />
+                                <h4 className="text-blue-800 font-bold mb-1">Input Laporan Per Kendaraan</h4>
+                                <p className="text-blue-600 text-sm mb-6">Laporan mingguan diinput langsung pada masing-masing unit kendaraan.</p>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/kendaraan/data')}
+                                    className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20"
+                                >
+                                    Pilih Kendaraan Sekarang
+                                </button>
+                            </div>
+                        ) : (
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Isi Laporan / Aktivitas</label>
+                                <textarea
+                                    required
+                                    value={form.content}
+                                    onChange={e => setForm({ ...form, content: e.target.value })}
+                                    rows={4}
+                                    placeholder="Ceritakan apa yang dikerjakan hari ini..."
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                ></textarea>
+                            </div>
+                        )}
+
+                        {form.category !== 'LAPORAN_MINGGUAN_KENDARAAN' && (
+                            <div className="flex justify-end">
+                                <button
+                                    type="submit"
+                                    disabled={submitting}
+                                    className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20"
+                                >
+                                    {submitting ? 'Mengirim...' : 'Kirim Laporan'}
+                                </button>
+                            </div>
+                        )}
                     </form>
                 </div>
             )}
