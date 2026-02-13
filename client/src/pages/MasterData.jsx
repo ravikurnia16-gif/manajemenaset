@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Database, Plus, Trash2, Building2, MapPin, Tag, Save, Edit3 } from 'lucide-react';
+import { Database, Plus, Trash2, Building2, MapPin, Tag, Save, Edit } from 'lucide-react';
 import api from '../lib/axios';
 
 const MasterData = () => {
@@ -11,7 +11,27 @@ const MasterData = () => {
     const [loading, setLoading] = useState(false);
 
     // Form inputs
-    const [newUnit, setNewUnit] = useState({ name: '', code: '' });
+    const [newUnit, setNewUnit] = useState({
+        name: '',
+        code: '',
+        description: '',
+        phone: '',
+        email: '',
+        address: '',
+        headName: '',
+        headNip: '',
+        logo: ''
+    });
+
+    const handleLogoUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setNewUnit(prev => ({ ...prev, logo: reader.result }));
+        };
+        reader.readAsDataURL(file);
+    };
     const [newRoom, setNewRoom] = useState({ name: '', code: '', floor: '1', building: '', unitId: '' });
     const [newCategory, setNewCategory] = useState({ name: '', code: '', usefulLife: 5 });
     const [newVendor, setNewVendor] = useState({ name: '', contact: '', address: '' });
@@ -87,7 +107,17 @@ const MasterData = () => {
             } else {
                 await api.post('/master/units', newUnit);
             }
-            setNewUnit({ name: '', code: '' });
+            setNewUnit({
+                name: '',
+                code: '',
+                description: '',
+                phone: '',
+                email: '',
+                address: '',
+                headName: '',
+                headNip: '',
+                logo: ''
+            });
             fetchData();
         } catch (err) { alert(err.message); }
     };
@@ -400,7 +430,7 @@ const MasterData = () => {
                                         <td className="px-6 py-3 text-slate-600 font-mono">{u.code}</td>
                                         <td className="px-6 py-3 text-center">
                                             <div className="flex items-center justify-center gap-2">
-                                                <button onClick={() => handleEdit('units', u)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit3 size={16} /></button>
+                                                <button onClick={() => handleEdit('units', u)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit size={16} /></button>
                                                 <button onClick={() => handleDelete('units', u.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
                                             </div>
                                         </td>
@@ -421,7 +451,7 @@ const MasterData = () => {
                                         <td className="px-6 py-3 text-slate-500 text-xs">{r.unit?.name || '-'}</td>
                                         <td className="px-6 py-3 text-center">
                                             <div className="flex items-center justify-center gap-2">
-                                                <button onClick={() => handleEdit('rooms', r)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit3 size={16} /></button>
+                                                <button onClick={() => handleEdit('rooms', r)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit size={16} /></button>
                                                 <button onClick={() => handleDelete('rooms', r.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
                                             </div>
                                         </td>
@@ -441,7 +471,7 @@ const MasterData = () => {
                                         <td className="px-6 py-3 text-slate-600 font-mono">{c.code}</td>
                                         <td className="px-6 py-3 text-center">
                                             <div className="flex items-center justify-center gap-2">
-                                                <button onClick={() => handleEdit('categories', c)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit3 size={16} /></button>
+                                                <button onClick={() => handleEdit('categories', c)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit size={16} /></button>
                                                 <button onClick={() => handleDelete('categories', c.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
                                             </div>
                                         </td>
@@ -461,7 +491,7 @@ const MasterData = () => {
                                         <td className="px-6 py-3 text-slate-600">{v.contact || '-'}</td>
                                         <td className="px-6 py-3 text-center">
                                             <div className="flex items-center justify-center gap-2">
-                                                <button onClick={() => handleEdit('vendors', v)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit3 size={16} /></button>
+                                                <button onClick={() => handleEdit('vendors', v)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit size={16} /></button>
                                                 <button onClick={() => handleDelete('vendors', v.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
                                             </div>
                                         </td>
