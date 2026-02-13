@@ -693,3 +693,67 @@ exports.validateMultipleAssets = async (req, res) => {
         res.status(500).json({ error: 'Failed to validate assets: ' + error.message });
     }
 };
+
+exports.getAssetPublic = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const asset = await prisma.asset.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                category: true,
+                vendor: true,
+                room: true,
+                unit: true
+            }
+        });
+
+        if (!asset) return res.status(404).json({ error: 'Aset tidak ditemukan' });
+
+        // Calculation Logic
+        const now = new Date();
+        const purchaseDate = new Date(asset.purchaseDate || asset.createdAt);
+
+        // Months elapsed since purchase
+        const diffMonths = (now.getFullYear() - purchaseDate.getFullYear()) * 12 + (now.getMonth() - purchaseDate.getMonth());
+        const monthsElapsed = Math.max(0, diffMonths);
+
+        // Total useful life in months
+        const totalMonths = (asset.usefulLife || 5) * 12;
+
+        // Straight line depreciation
+        const monthlyDepreciation = asset.price / totalMonths;
+        const accumulatedDepreciation = Math.min(asset.price, monthlyDepreciation * monthsElapsed);
+        const currentBookValue = Math.max(0, Math.round(asset.price - accumulatedDepreciation));
+
+        // Remaining Life
+        const remainingMonthsTotal = Math.max(0, totalMonths - monthsElapsed);
+        const remainingYears = Math.floor(remainingMonthsTotal / 12);
+        const remainingMonths = remainingMonthsTotal % 12;
+
+        res.json({
+            id: asset.id,
+            code: asset.code,
+            name: asset.name,
+            brand: asset.brand || '-',
+            specification: asset.specification || '-',
+            condition: asset.condition,
+            purchaseDate: asset.purchaseDate,
+            price: asset.price,
+            sourceOfFunds: asset.sourceOfFunds || 'Mandiri',
+            category: asset.category?.name || '-',
+            vendor: asset.vendor?.name || '-',
+            room: asset.room?.name || '-',
+            building: asset.room?.building || '-',
+            unit: asset.unit?.name || '-',
+            bookValue: currentBookValue,
+            remainingLife: {
+                years: remainingYears,
+                months: remainingMonths,
+                text: `${remainingYears} Tahun ${remainingMonths} Bulan`
+            }
+        });
+    } catch (error) {
+        console.error('Public Asset GET Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};

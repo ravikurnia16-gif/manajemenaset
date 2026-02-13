@@ -26,6 +26,7 @@ import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
 import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
 import VehicleWeeklyReport from './pages/VehicleWeeklyReport';
 import LoginPage from './pages/LoginPage';
+import PublicAssetView from './pages/PublicAssetView';
 import MutationList from './pages/MutationList';
 import MutationForm from './pages/MutationForm';
 import PersonnelReports from './pages/PersonnelReports';
@@ -48,6 +49,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/pesan-seragam" element={<UniformOrderPage />} />
+        <Route path="/public/asset/:id" element={<PublicAssetView />} />
 
         {/* Semua route di dalam sini diproteksi */}
         <Route path="/" element={

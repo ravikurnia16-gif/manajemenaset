@@ -33,10 +33,7 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
                 {/* QR Code Container with Center Logo */}
                 <div className="relative bg-white p-1 rounded-sm shadow-sm border border-slate-100 flex items-center justify-center mb-3">
                     <QRCode
-                        value={JSON.stringify({
-                            code: asset?.code || '-',
-                            id: asset?.id,
-                        })}
+                        value={`${window.location.origin}/public/asset/${asset?.id}`}
                         size={size === 'small' ? 90 : 125}
                         level="H"
                     />
@@ -213,10 +210,7 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                     {/* Middle: QR with Logo */}
                     <div className="batch-qr-container">
                         <QRCode
-                            value={JSON.stringify({
-                                code: asset?.code || '-',
-                                id: asset?.id,
-                            })}
+                            value={`${window.location.origin}/public/asset/${asset?.id}`}
                             size={config.qr}
                             level="H"
                         />

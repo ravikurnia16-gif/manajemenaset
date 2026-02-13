@@ -11,6 +11,7 @@ const {
 const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 const router = express.Router();
 
+router.get('/public/:id', getAssetPublic);
 router.get('/funding-sources', verifyToken, getFundingSources);
 router.post('/', verifyToken, createAsset);
 router.get('/', verifyToken, getAllAssets);
