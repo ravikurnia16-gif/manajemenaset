@@ -29,8 +29,8 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
                     <h2 className="font-bold text-[14px] leading-tight mb-1 uppercase break-words text-slate-900 tracking-wide w-full truncate">
                         {orgName}
                     </h2>
-                    <p className="text-[11px] font-semibold text-slate-700 mb-1.5 w-full truncate uppercase italic">
-                        {asset?.name || '-'}
+                    <p className="text-[11px] font-bold text-slate-600 mb-1.5 w-full truncate uppercase tracking-tight">
+                        {asset?.room?.name || 'TANPA RUANGAN'}
                     </p>
                     <div className="bg-white px-4 py-1.5 rounded-sm shadow-sm border border-slate-300">
                         <p className="font-mono text-[13px] text-black font-bold tracking-wider leading-none">
@@ -65,12 +65,12 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
     // Layout configuration
     const getLayoutConfigs = (id) => {
         switch (id) {
-            case '2x2': return { cols: 2, width: '95mm', height: '130mm', qr: 120, title: '18pt', name: '14pt', code: '14pt', logo: '80px', padding: '10mm' };
-            case '3x4': return { cols: 3, width: '60mm', height: '65mm', qr: 80, title: '11pt', name: '9pt', code: '9pt', logo: '45px', padding: '3mm' };
-            case '3x7': return { cols: 3, width: '64mm', height: '38mm', qr: 60, title: '9pt', name: '8pt', code: '8pt', logo: '35px', padding: '2mm' };
-            case '3x10': return { cols: 3, width: '64mm', height: '26mm', qr: 45, title: '7pt', name: '6.5pt', code: '7pt', logo: '30px', padding: '1.5mm' };
+            case '2x2': return { cols: 2, width: '95mm', height: '130mm', qr: 120, title: '18pt', room: '14pt', code: '14pt', logo: '80px', padding: '10mm' };
+            case '3x4': return { cols: 3, width: '60mm', height: '65mm', qr: 80, title: '11pt', room: '9pt', code: '9pt', logo: '45px', padding: '3mm' };
+            case '3x7': return { cols: 3, width: '64mm', height: '38mm', qr: 60, title: '9pt', room: '8pt', code: '8pt', logo: '35px', padding: '2mm' };
+            case '3x10': return { cols: 3, width: '64mm', height: '26mm', qr: 45, title: '7pt', room: '6.5pt', code: '7pt', logo: '30px', padding: '1.5mm' };
             case '2x4':
-            default: return { cols: 2, width: '90mm', height: '45mm', qr: 90, title: '14pt', name: '10pt', code: '11pt', logo: '60px', padding: '4mm' };
+            default: return { cols: 2, width: '90mm', height: '45mm', qr: 90, title: '14pt', room: '11pt', code: '11pt', logo: '60px', padding: '4mm' };
         }
     };
 
@@ -105,17 +105,16 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                     }
                 .qr-box { padding: 4px; }
                 .org-title { font-size: ${config.title}; }
-                .asset-name-label { 
-                    font-size: ${config.name}; 
-                    font-weight: 600; 
-                    color: #334155; 
-                    margin-bottom: 1mm;
+                .asset-room-label { 
+                    font-size: ${config.room}; 
+                    font-weight: 700; 
+                    color: #475569; 
+                    margin-bottom: 2mm;
                     display: -webkit-box;
                     -webkit-line-clamp: 1;
                     -webkit-box-orient: vertical;
                     overflow: hidden;
                     text-transform: uppercase;
-                    font-style: italic;
                 }
                 .code-text { font-size: ${config.code}; }
                 .logo-box { width: ${config.logo}; }
@@ -209,7 +208,7 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                     {/* Middle: Info */}
                     <div className="text-content">
                         <h2 className="org-title">{orgName}</h2>
-                        <div className="asset-name-label">{asset?.name || '-'}</div>
+                        <div className="asset-room-label">{asset?.room?.name || 'Tanpa Ruangan'}</div>
                         <div className="code-box">
                             <span className="code-text">{asset?.code || '-'}</span>
                         </div>
