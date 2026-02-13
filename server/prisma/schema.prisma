@@ -23,6 +23,12 @@ enum Condition {
   DISPOSED
 }
 
+enum DisposalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id        Int      @id @default(autoincrement())
   username  String   @unique
@@ -49,7 +55,8 @@ model User {
   assignedAssignments PersonnelAssignment[] @relation("Assignee")
   createdAssignments  PersonnelAssignment[] @relation("Assigner")
   vehicleWeeklyReports VehicleWeeklyReport[]
-  authorizedDisposals AssetDisposal[]
+  authorizedDisposals AssetDisposal[] @relation("Reviewer")
+  proposedDisposals   AssetDisposal[] @relation("Proposer")
 }
 
 model Unit {
@@ -592,12 +599,17 @@ model AssetDisposal {
   id           Int      @id @default(autoincrement())
   assetId      Int      @unique
   asset        Asset    @relation(fields: [assetId], references: [id])
-  disposalDate DateTime @default(now())
-  reason       String   // e.g., RUSAK_TOTAL, DIJUAL, HILANG, HIBAH
-  method       String?  // Cara penghapusan: Lelang, Musnahkan, Hibah, dll
+  disposalDate DateTime?
+  reason       String   
+  method       String?  
   notes        String?  @db.Text
-  authorizedById Int
-  authorizedBy   User   @relation(fields: [authorizedById], references: [id])
+  status       DisposalStatus @default(PENDING)
+  proposedById Int
+  proposedBy   User   @relation("Proposer", fields: [proposedById], references: [id])
+  reviewedById Int?
+  reviewedBy   User?  @relation("Reviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  rejectionReason String? @db.Text
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }

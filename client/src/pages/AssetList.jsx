@@ -236,7 +236,7 @@ const AssetList = ({ validationMode = false }) => {
                 notes,
                 disposalDate
             });
-            alert('Aset berhasil dipindahkan ke riwayat penghapusan');
+            alert('Usulan penghapusan berhasil diajukan dan sedang menunggu persetujuan');
             setDisposalModal({ isOpen: false, asset: null, reason: '', method: 'DIMUSNAHKAN', notes: '', disposalDate: new Date().toISOString().split('T')[0] });
             fetchData();
         } catch (error) {
@@ -757,7 +757,7 @@ const AssetList = ({ validationMode = false }) => {
                                                         disposalDate: new Date().toISOString().split('T')[0]
                                                     })}
                                                     className="p-1 hover:bg-red-50 text-red-600 rounded"
-                                                    title="Penghapusan Aset (Disposal)"
+                                                    title="Usulkan Penghapusan"
                                                 >
                                                     <Trash2 size={16} />
                                                 </button>
@@ -827,12 +827,12 @@ const AssetList = ({ validationMode = false }) => {
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
                         <div className="flex items-center gap-3 mb-4 text-red-600">
                             <Trash2 size={24} />
-                            <h3 className="text-xl font-bold">Penghapusan Aset</h3>
+                            <h3 className="text-xl font-bold">Usulan Penghapusan</h3>
                         </div>
 
                         <div className="p-3 bg-red-50 border border-red-100 rounded-lg mb-6">
                             <p className="text-xs text-red-700 leading-relaxed font-medium">
-                                Anda akan menghapus <span className="font-bold underline">{disposalModal.asset?.name}</span> ({disposalModal.asset?.code}) dari inventaris aktif. Aset ini akan dipindahkan ke riwayat penghapusan.
+                                Anda mengajukan <span className="font-bold underline">usulan</span> untuk menghapus <span className="font-bold underline">{disposalModal.asset?.name}</span> ({disposalModal.asset?.code}) dari inventaris aktif.
                             </p>
                         </div>
 
@@ -898,7 +898,7 @@ const AssetList = ({ validationMode = false }) => {
                                 disabled={!disposalModal.reason || loading}
                                 className="px-5 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-all active:scale-95 disabled:opacity-50 disabled:shadow-none"
                             >
-                                {loading ? 'Memproses...' : 'Ya, Konfirmasi Hapus'}
+                                {loading ? 'Memproses...' : 'Kirim Usulan'}
                             </button>
                         </div>
                     </div>
