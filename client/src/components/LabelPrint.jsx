@@ -2,56 +2,53 @@ import React from 'react';
 import QRCode from 'react-qr-code';
 
 export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }, ref) => {
-    // Sizes
-    // Small: ~5x3cm 
-    // Large: ~5x5cm
     const containerStyle = size === 'small'
-        ? { width: '8cm', height: '3cm', backgroundColor: '#dfd8bc' }
-        : { width: '8cm', height: '4cm', backgroundColor: '#dfd8bc' };
+        ? { width: '4cm', height: '5cm', backgroundColor: '#fff' }
+        : { width: '5.5cm', height: '6.5cm', backgroundColor: '#fff' };
 
     const orgName = institute?.orgName || "YAYASAN DAR EL IMAN";
     const orgLogo = institute?.orgLogo;
 
     return (
         <div ref={ref} className="p-2 inline-block print:p-0">
-            <div style={containerStyle} className="flex items-center justify-between px-4 py-2 rounded-sm relative overflow-hidden">
-                {/* Left: QR Code */}
-                <div className="bg-white p-1 flex items-center justify-center shrink-0 shadow-sm rounded-sm">
+            <div style={containerStyle} className="flex flex-col items-center justify-center p-3 rounded-sm border border-slate-200 shadow-sm transition-all text-center">
+                {/* Institute Title */}
+                <h2 className="font-bold text-[10px] uppercase text-slate-800 mb-2 leading-tight">
+                    {orgName}
+                </h2>
+
+                {/* QR Code Container with Center Logo */}
+                <div className="relative bg-white p-1 rounded-sm shadow-sm border border-slate-100 flex items-center justify-center mb-3">
                     <QRCode
-                        value={JSON.stringify({ code: asset.code, id: asset.id })}
-                        size={size === 'small' ? 70 : 90}
-                        level="M"
+                        value={JSON.stringify({
+                            code: asset?.code || '-',
+                            id: asset?.id,
+                        })}
+                        size={size === 'small' ? 100 : 140}
+                        level="H"
                     />
-                </div>
-
-                {/* Middle: Text + Code Box */}
-                <div className="flex-1 flex flex-col items-center justify-center text-center px-4 overflow-hidden">
-                    <h2 className="font-bold text-[14px] leading-tight mb-1 uppercase break-words text-slate-900 tracking-wide w-full truncate">
-                        {orgName}
-                    </h2>
-                    <p className="text-[11px] font-bold text-slate-600 mb-1.5 w-full truncate uppercase tracking-tight">
-                        {asset?.room?.name || 'TANPA RUANGAN'}
-                    </p>
-                    <div className="bg-white px-4 py-1.5 rounded-sm shadow-sm border border-slate-300">
-                        <p className="font-mono text-[13px] text-black font-bold tracking-wider leading-none">
-                            {asset?.code || '-'}
-                        </p>
-                    </div>
-                </div>
-
-                {/* Right: Institute Logo */}
-                <div className="flex flex-col items-center justify-center shrink-0 w-[60px]">
-                    {orgLogo ? (
-                        <img
-                            src={orgLogo}
-                            alt="Logo"
-                            className="w-full h-auto object-contain max-h-[60px]"
-                        />
-                    ) : (
-                        <div className="w-12 h-12 border-2 border-slate-400 rounded-full flex items-center justify-center text-[10px] text-slate-500 font-bold border-dashed uppercase text-center">
-                            Logo
+                    {orgLogo && (
+                        <div
+                            className="absolute bg-white p-[2px] rounded-sm"
+                            style={{
+                                width: size === 'small' ? '24px' : '34px',
+                                height: size === 'small' ? '24px' : '34px'
+                            }}
+                        >
+                            <img
+                                src={orgLogo}
+                                alt="logo"
+                                className="w-full h-full object-contain"
+                            />
                         </div>
                     )}
+                </div>
+
+                {/* Asset Code below QR */}
+                <div className="bg-slate-50 px-3 py-1 rounded-sm border border-slate-300">
+                    <p className="font-mono text-[12px] text-black font-extrabold tracking-wider leading-none">
+                        {asset?.code || '-'}
+                    </p>
                 </div>
             </div>
         </div>
@@ -62,15 +59,15 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
     const orgName = institute?.orgName || "YAYASAN DAR EL IMAN";
     const orgLogo = institute?.orgLogo;
 
-    // Layout configuration
+    // Layout configuration (Adjusted for square labels)
     const getLayoutConfigs = (id) => {
         switch (id) {
-            case '2x2': return { cols: 2, width: '95mm', height: '130mm', qr: 120, title: '18pt', room: '14pt', code: '14pt', logo: '80px', padding: '10mm' };
-            case '3x4': return { cols: 3, width: '60mm', height: '65mm', qr: 80, title: '11pt', room: '9pt', code: '9pt', logo: '45px', padding: '3mm' };
-            case '3x7': return { cols: 3, width: '64mm', height: '38mm', qr: 60, title: '9pt', room: '8pt', code: '8pt', logo: '35px', padding: '2mm' };
-            case '3x10': return { cols: 3, width: '64mm', height: '26mm', qr: 45, title: '7pt', room: '6.5pt', code: '7pt', logo: '30px', padding: '1.5mm' };
+            case '2x2': return { cols: 2, width: '90mm', height: '120mm', qr: 200, logoSize: '45px', title: '18pt', code: '16pt', padding: '10mm' };
+            case '3x4': return { cols: 3, width: '60mm', height: '65mm', qr: 130, logoSize: '30px', title: '11pt', code: '11pt', padding: '5mm' };
+            case '3x7': return { cols: 3, width: '60mm', height: '38mm', qr: 80, logoSize: '18px', title: '8pt', code: '9pt', padding: '3mm' };
+            case '3x10': return { cols: 3, width: '60mm', height: '26mm', qr: 55, logoSize: '14px', title: '7pt', code: '8pt', padding: '2mm' };
             case '2x4':
-            default: return { cols: 2, width: '90mm', height: '45mm', qr: 90, title: '14pt', room: '11pt', code: '11pt', logo: '60px', padding: '4mm' };
+            default: return { cols: 2, width: '90mm', height: '65mm', qr: 160, logoSize: '40px', title: '14pt', code: '14pt', padding: '6mm' };
         }
     };
 
@@ -88,36 +85,26 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                         width: 100%;
                         display: grid;
                         grid-template-columns: repeat(${config.cols}, 1fr);
-                        gap: 5mm;
+                        gap: 2mm;
+                        row-gap: 5mm;
                         page-break-inside: avoid;
                     }
                     .label-item {
                         width: ${config.width};
                         height: ${config.height};
                         page-break-inside: avoid;
-                        background-color: #dfd8bc !important;
-                        -webkit-print-color-adjust: exact;
+                        background-color: #fff !important;
                         padding: ${config.padding};
                         display: flex;
+                        flex-direction: column;
                         align-items: center;
-                        justify-content: space-between;
-                        border-radius: 4px;
+                        justify-content: center;
+                        border: 0.2mm solid #eee;
+                        border-radius: 2px;
                     }
-                .qr-box { padding: 4px; }
-                .org-title { font-size: ${config.title}; }
-                .asset-room-label { 
-                    font-size: ${config.room}; 
-                    font-weight: 700; 
-                    color: #475569; 
-                    margin-bottom: 2mm;
-                    display: -webkit-box;
-                    -webkit-line-clamp: 1;
-                    -webkit-box-orient: vertical;
-                    overflow: hidden;
-                    text-transform: uppercase;
-                }
-                .code-text { font-size: ${config.code}; }
-                .logo-box { width: ${config.logo}; }
+                    .batch-org-title { font-size: ${config.title}; }
+                    .batch-code-text { font-size: ${config.code}; }
+                    .batch-qr-container { margin-bottom: 2mm; position: relative; display: flex; align-items: center; justify-content: center; }
                 }
                 
                 .print-container {
@@ -131,96 +118,80 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                 .label-item {
                     width: 100%;
                     height: ${config.height};
-                    background-color: #dfd8bc;
+                    background-color: #fff;
                     padding: ${config.padding};
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    border-radius: 6px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }
-                .qr-box {
-                    background: white;
-                    padding: 4px;
-                    border-radius: 2px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }
-                .text-content {
-                    flex: 1;
                     display: flex;
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
-                    text-align: center;
-                    padding: 0 4px;
+                    border: 1px solid #eee;
+                    border-radius: 4px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
                 }
-                .org-title {
+                .batch-org-title {
                     font-weight: bold;
-                    color: #000;
+                    color: #1e293b;
                     text-transform: uppercase;
-                    margin-bottom: 1.5mm;
+                    margin-bottom: 2mm;
                     line-height: 1.1;
                     width: 100%;
+                    text-align: center;
                     font-size: ${config.title};
                 }
-                .code-box {
+                .batch-qr-container {
+                    position: relative;
+                    margin-bottom: 3mm;
                     background: white;
-                    padding: 1mm 3mm;
-                    border-radius: 1mm;
-                    border: 0.5px solid #ccc;
-                }
-                .code-text {
-                    font-family: 'Courier New', monospace;
-                    font-weight: bold;
-                    color: #000;
-                    font-size: ${config.code};
-                }
-                .logo-box {
-                    width: ${config.logo};
+                    padding: 2px;
+                    border: 1px solid #f1f5f9;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                 }
-                .logo-img {
-                    width: 100%;
-                    height: auto;
-                    max-height: ${config.logo};
-                    object-fit: contain;
+                .batch-logo-embed {
+                    position: absolute;
+                    background: white;
+                    padding: 2px;
+                    border-radius: 1px;
+                }
+                .batch-code-box {
+                    background: #f8fafc;
+                    padding: 1mm 4mm;
+                    border-radius: 1mm;
+                    border: 0.5px solid #cbd5e1;
+                }
+                .batch-code-text {
+                    font-family: 'Courier New', monospace;
+                    font-weight: 800;
+                    color: #000;
+                    font-size: ${config.code};
                 }
             `}</style>
             {assets.map(asset => (
                 <div key={asset.id} className="label-item">
-                    {/* Left: QR */}
-                    <div className="qr-box">
+                    {/* Top: Org Name */}
+                    <h2 className="batch-org-title">{orgName}</h2>
+
+                    {/* Middle: QR with Logo */}
+                    <div className="batch-qr-container">
                         <QRCode
                             value={JSON.stringify({
                                 code: asset?.code || '-',
                                 id: asset?.id,
-                                name: asset?.name
                             })}
                             size={config.qr}
-                            level="M"
+                            level="H"
                         />
-                    </div>
-
-                    {/* Middle: Info */}
-                    <div className="text-content">
-                        <h2 className="org-title">{orgName}</h2>
-                        <div className="asset-room-label">{asset?.room?.name || 'Tanpa Ruangan'}</div>
-                        <div className="code-box">
-                            <span className="code-text">{asset?.code || '-'}</span>
-                        </div>
-                    </div>
-
-                    {/* Right: Logo */}
-                    <div className="logo-box">
-                        {orgLogo ? (
-                            <img src={orgLogo} alt="Logo" className="logo-img" />
-                        ) : (
-                            <div className="w-8 h-8 border-2 border-slate-400 rounded-full border-dashed" />
+                        {orgLogo && (
+                            <div className="batch-logo-embed" style={{ width: config.logoSize, height: config.logoSize }}>
+                                <img src={orgLogo} alt="Logo" className="w-full h-full object-contain" />
+                            </div>
                         )}
+                    </div>
+
+                    {/* Bottom: Asset Code */}
+                    <div className="batch-code-box">
+                        <span className="batch-code-text">{asset?.code || '-'}</span>
                     </div>
                 </div>
             ))}
