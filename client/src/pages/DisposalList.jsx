@@ -8,13 +8,54 @@ const DisposalList = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState('PENDING'); // PENDING, FINALIZED (APPROVED/REJECTED)
     const [reviewModal, setReviewModal] = useState({ isOpen: false, data: null, status: '', reason: '' });
+    const [addModal, setAddModal] = useState({ isOpen: false, assetId: '', reason: '', method: 'DIMUSNAHKAN', notes: '', disposalDate: new Date().toISOString().split('T')[0] });
+    const [assets, setAssets] = useState([]); // Assets available for proposal
+    const [assetSearch, setAssetSearch] = useState('');
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN_ASET';
+    const canPropose = isAdmin || user.role === 'KEPALA_BIDANG' || user.role === 'ADMIN_UNIT';
 
     useEffect(() => {
         fetchDisposals();
+        if (canPropose) fetchAvailableAssets();
     }, [activeTab]);
+
+    const fetchAvailableAssets = async () => {
+        try {
+            // Fetch assets that are not disposed. Limiting to 50 for selection or using search in real app.
+            const res = await api.get('/assets?limit=100');
+            // Assets are in res.data.data if using paginated API
+            const assetData = res.data.data || res.data;
+            setAssets(Array.isArray(assetData) ? assetData : []);
+        } catch (error) {
+            console.error('Fetch assets error:', error);
+        }
+    };
+
+    const handleAddProposal = async () => {
+        try {
+            if (!addModal.assetId || !addModal.reason) {
+                alert('Pilih aset dan isi alasan penghapusan');
+                return;
+            }
+            setLoading(true);
+            await api.post('/disposals', {
+                assetId: addModal.assetId,
+                reason: addModal.reason,
+                method: addModal.method,
+                notes: addModal.notes,
+                disposalDate: addModal.disposalDate
+            });
+            alert('Usulan penghapusan berhasil diajukan');
+            setAddModal({ isOpen: false, assetId: '', reason: '', method: 'DIMUSNAHKAN', notes: '', disposalDate: new Date().toISOString().split('T')[0] });
+            fetchDisposals();
+        } catch (error) {
+            alert('Gagal mengajukan usulan: ' + (error.response?.data?.error || error.message));
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const fetchDisposals = async () => {
         try {
@@ -71,6 +112,14 @@ const DisposalList = () => {
                         Kelola usulan dan riwayat penghapusan aset inventaris
                     </p>
                 </div>
+                {canPropose && (
+                    <button
+                        onClick={() => setAddModal(prev => ({ ...prev, isOpen: true }))}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-all active:scale-95"
+                    >
+                        <Trash2 size={18} /> Tambah Usulan
+                    </button>
+                )}
             </div>
 
             {/* Tabs */}
@@ -239,6 +288,102 @@ const DisposalList = () => {
                                 className={`px-5 py-2.5 text-white rounded-xl font-bold shadow-lg transition-all active:scale-95 disabled:opacity-50 ${reviewModal.status === 'APPROVED' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
                             >
                                 {loading ? 'Memproses...' : (reviewModal.status === 'APPROVED' ? 'Ya, Setujui' : 'Ya, Tolak')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Proposal Modal */}
+            {addModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 text-slate-800">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3 text-red-600">
+                                <Trash2 size={24} />
+                                <h3 className="text-xl font-bold">Usulkan Penghapusan</h3>
+                            </div>
+                            <button onClick={() => setAddModal(prev => ({ ...prev, isOpen: false }))} className="text-slate-400 hover:text-slate-600"><XCircle size={24} /></button>
+                        </div>
+
+                        <div className="space-y-5">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Pilih Aset</label>
+                                <select
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={addModal.assetId}
+                                    onChange={(e) => setAddModal(prev => ({ ...prev, assetId: e.target.value }))}
+                                >
+                                    <option value="">-- Pilih Aset dari Inventaris --</option>
+                                    {assets.filter(a => a.condition !== 'DISPOSED').map(a => (
+                                        <option key={a.id} value={a.id}>{a.code} - {a.name} ({a.unit?.name || 'No Unit'})</option>
+                                    ))}
+                                </select>
+                                <p className="text-[10px] text-slate-400 mt-1 italic">*Hanya aset yang belum dihapus yang muncul di sini</p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Tanggal</label>
+                                    <input
+                                        type="date"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={addModal.disposalDate}
+                                        onChange={(e) => setAddModal(prev => ({ ...prev, disposalDate: e.target.value }))}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Metode</label>
+                                    <select
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={addModal.method}
+                                        onChange={(e) => setAddModal(prev => ({ ...prev, method: e.target.value }))}
+                                    >
+                                        <option value="DIMUSNAHKAN">DIMUSNAHKAN</option>
+                                        <option value="DIJUAL">DIJUAL / LELANG</option>
+                                        <option value="HIBAH">HIBAH / DONASI</option>
+                                        <option value="HILANG">HILANG / DICURI</option>
+                                        <option value="TUKAR_TAMBAH">TUKAR TAMBAH</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Alasan Penghapusan</label>
+                                <textarea
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    rows={2}
+                                    placeholder="Alasan mengapa aset ini perlu dihapus..."
+                                    value={addModal.reason}
+                                    onChange={(e) => setAddModal(prev => ({ ...prev, reason: e.target.value }))}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Catatan (Opsional)</label>
+                                <textarea
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    rows={2}
+                                    placeholder="..."
+                                    value={addModal.notes}
+                                    onChange={(e) => setAddModal(prev => ({ ...prev, notes: e.target.value }))}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-8">
+                            <button
+                                onClick={() => setAddModal(prev => ({ ...prev, isOpen: false }))}
+                                className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold transition-colors"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleAddProposal}
+                                disabled={loading || !addModal.assetId || !addModal.reason}
+                                className="px-5 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-all active:scale-95 disabled:opacity-50"
+                            >
+                                {loading ? 'Memproses...' : 'Kirim Usulan'}
                             </button>
                         </div>
                     </div>

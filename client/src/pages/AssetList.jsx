@@ -40,7 +40,8 @@ const AssetList = ({ validationMode = false }) => {
     });
 
     const [currentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
-    const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(currentUser.role);
+    const isGlobalAdmin = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'ADMIN_ASET';
+    const canProposeDisposal = isGlobalAdmin || currentUser.role === 'KEPALA_BIDANG' || currentUser.role === 'ADMIN_UNIT';
 
     const [selectedUnit, setSelectedUnit] = useState(isGlobalAdmin ? '' : (currentUser.unitId?.toString() || ''));
     const [selectedRoom, setSelectedRoom] = useState('');
@@ -746,7 +747,7 @@ const AssetList = ({ validationMode = false }) => {
                                             <button onClick={() => openValidationModal([asset.id], asset.validationStatus || 'VALIDATED')} className="p-1 hover:bg-green-50 text-green-600 rounded transition-colors" title="Validasi Aset"><CheckCircle size={16} /></button>
                                             <button onClick={() => openPrintModal(asset)} className="p-1 hover:bg-slate-800 hover:text-white text-slate-500 rounded transition-colors" title="Cetak Label QR"><QrCode size={16} /></button>
                                             <button onClick={() => navigate(`/mutasi/request?assetId=${asset.id}`)} className="p-1 hover:bg-orange-50 text-orange-600 rounded transition-colors" title="Ajukan Mutasi"><ArrowLeftRight size={16} /></button>
-                                            {isGlobalAdmin && (
+                                            {canProposeDisposal && (
                                                 <button
                                                     onClick={() => setDisposalModal({
                                                         isOpen: true,
