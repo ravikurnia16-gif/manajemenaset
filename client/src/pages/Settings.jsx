@@ -422,7 +422,7 @@ const Settings = () => {
                                                 <div>
                                                     <div className="font-bold text-slate-800 font-mono">{user.username}</div>
                                                     <div className="text-[10px] text-slate-400">
-                                                        {user.nip ? `NIY Old: ${user.nip}` : 'NIY Login'}
+                                                        {user.nip ? `NIP (NIY): ${user.nip}` : 'NIY Login'}
                                                     </div>
                                                 </div>
                                             </div>
@@ -543,7 +543,7 @@ const Settings = () => {
                                         className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
                                         placeholder="Gunakan NIY"
                                     />
-                                    <p className="text-[10px] text-slate-400 mt-1">*Digunakan untuk Log In</p>
+                                    <p className="text-[10px] text-slate-400 mt-1">*Digunakan untuk Log In & NIP secara otomatis</p>
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nama Lengkap</label>
@@ -682,9 +682,9 @@ const Settings = () => {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div >
             )}
-        </div>
+        </div >
     );
 };
 

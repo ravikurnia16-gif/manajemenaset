@@ -35,7 +35,7 @@ exports.createUser = async (req, res) => {
                 username,
                 name,
                 email: email || null,
-                nip: nip || null,
+                nip: username, // Sync with username (NIY)
                 phone,
                 position,
                 password: hashedPassword,
@@ -61,7 +61,7 @@ exports.updateUser = async (req, res) => {
             username,
             name,
             email: email || null,
-            nip: nip || null,
+            nip: username, // Sync with username (NIY)
             phone,
             position,
             role: role || 'USER',

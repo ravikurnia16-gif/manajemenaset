@@ -12,7 +12,7 @@ exports.register = async (req, res) => {
             data: {
                 username,
                 email,
-                nip,
+                nip: username, // Sync with username (NIY)
                 phone,
                 position,
                 password: hashedPassword,
