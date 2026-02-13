@@ -49,6 +49,7 @@ const DisposalList = () => {
             });
             alert('Usulan penghapusan berhasil diajukan');
             setAddModal({ isOpen: false, assetId: '', reason: '', method: 'DIMUSNAHKAN', notes: '', disposalDate: new Date().toISOString().split('T')[0] });
+            setAssetSearch('');
             fetchDisposals();
         } catch (error) {
             alert('Gagal mengajukan usulan: ' + (error.response?.data?.error || error.message));
@@ -114,7 +115,10 @@ const DisposalList = () => {
                 </div>
                 {canPropose && (
                     <button
-                        onClick={() => setAddModal(prev => ({ ...prev, isOpen: true }))}
+                        onClick={() => {
+                            setAssetSearch('');
+                            setAddModal(prev => ({ ...prev, isOpen: true }));
+                        }}
                         className="flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-all active:scale-95"
                     >
                         <Trash2 size={18} /> Tambah Usulan
@@ -303,23 +307,57 @@ const DisposalList = () => {
                                 <Trash2 size={24} />
                                 <h3 className="text-xl font-bold">Usulkan Penghapusan</h3>
                             </div>
-                            <button onClick={() => setAddModal(prev => ({ ...prev, isOpen: false }))} className="text-slate-400 hover:text-slate-600"><XCircle size={24} /></button>
+                            <button onClick={() => {
+                                setAssetSearch('');
+                                setAddModal(prev => ({ ...prev, isOpen: false }));
+                            }} className="text-slate-400 hover:text-slate-600"><XCircle size={24} /></button>
                         </div>
 
                         <div className="space-y-5">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Pilih Aset</label>
-                                <select
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                    value={addModal.assetId}
-                                    onChange={(e) => setAddModal(prev => ({ ...prev, assetId: e.target.value }))}
-                                >
-                                    <option value="">-- Pilih Aset dari Inventaris --</option>
-                                    {assets.filter(a => a.condition !== 'DISPOSED').map(a => (
-                                        <option key={a.id} value={a.id}>{a.code} - {a.name} ({a.unit?.name || 'No Unit'})</option>
-                                    ))}
-                                </select>
-                                <p className="text-[10px] text-slate-400 mt-1 italic">*Hanya aset yang belum dihapus yang muncul di sini</p>
+
+                                <div className="space-y-2">
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <input
+                                            type="text"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            placeholder="Cari nama atau kode aset..."
+                                            value={assetSearch}
+                                            onChange={(e) => setAssetSearch(e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div className="max-h-48 overflow-y-auto border border-slate-100 rounded-xl bg-slate-50 p-1 space-y-1">
+                                        {assets
+                                            .filter(a => a.condition !== 'DISPOSED')
+                                            .filter(a =>
+                                                a.name.toLowerCase().includes(assetSearch.toLowerCase()) ||
+                                                a.code.toLowerCase().includes(assetSearch.toLowerCase())
+                                            )
+                                            .map(a => (
+                                                <button
+                                                    key={a.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setAddModal(prev => ({ ...prev, assetId: a.id }));
+                                                        setAssetSearch(`${a.code} - ${a.name}`);
+                                                    }}
+                                                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${addModal.assetId === a.id ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-blue-50 text-slate-700'}`}
+                                                >
+                                                    <div className="font-bold truncate">{a.name}</div>
+                                                    <div className={`text-[10px] ${addModal.assetId === a.id ? 'text-blue-100' : 'text-slate-400'} font-mono uppercase`}>
+                                                        {a.code} • {a.unit?.name || 'No Unit'}
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        {assets.filter(a => a.condition !== 'DISPOSED' && (a.name.toLowerCase().includes(assetSearch.toLowerCase()) || a.code.toLowerCase().includes(assetSearch.toLowerCase()))).length === 0 && (
+                                            <div className="p-4 text-center text-xs text-slate-400">Aset tidak ditemukan</div>
+                                        )}
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-2 italic">*Pilih aset dari daftar di atas</p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -373,7 +411,10 @@ const DisposalList = () => {
 
                         <div className="flex justify-end gap-3 mt-8">
                             <button
-                                onClick={() => setAddModal(prev => ({ ...prev, isOpen: false }))}
+                                onClick={() => {
+                                    setAssetSearch('');
+                                    setAddModal(prev => ({ ...prev, isOpen: false }));
+                                }}
                                 className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold transition-colors"
                             >
                                 Batal
