@@ -170,7 +170,7 @@ const PersonnelReports = () => {
                                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-600"
                                     >
                                         <option value="UMUM">Umum / Lainnya</option>
-                                        <option value="KEUANGAN">📦 Staf Keuangan (Syafruan)</option>
+                                        <option value="KEUANGAN">📦 Staf Keuangan (Syafrian)</option>
                                         <option value="ASET">🏢 Staf Manajemen Aset (Eldo)</option>
                                         <option value="GUDANG">🏠 Staf Gudang & Logistik (Jeri)</option>
                                         <option value="KENDARAAN">🚗 Staf Kendaraan (Ringgo/Wegi)</option>

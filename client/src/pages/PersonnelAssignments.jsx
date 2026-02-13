@@ -44,8 +44,10 @@ const PersonnelAssignments = () => {
         try {
             const res = await api.get('/personnel/staff');
             setStaff(res.data);
+            if (res.data.length === 0) console.warn('Staff list is empty');
         } catch (err) {
             console.error(err);
+            alert('Gagal memuat daftar staf: ' + (err.response?.data?.error || err.message));
         }
     };
 

@@ -280,15 +280,15 @@ exports.getStaffSarpras = async (req, res) => {
             where: {
                 OR: [
                     { role: 'ADMIN_ASET' },
-                    { unit: { name: { contains: 'Sarana dan Prasarana' } } },
-                    { name: { contains: 'Syafrian', mode: 'insensitive' } },
-                    { name: { contains: 'Syafruan', mode: 'insensitive' } },
+                    { role: 'SUPER_ADMIN' },
+                    { name: { contains: 'Syaf', mode: 'insensitive' } }, // Matches Syafrian & Syafruan
                     { name: { contains: 'Wegi', mode: 'insensitive' } },
+                    { name: { contains: 'Ringgo', mode: 'insensitive' } },
                     { name: { contains: 'Eldo', mode: 'insensitive' } },
-                    { name: { contains: 'Jeri', mode: 'insensitive' } },
-                    { name: { contains: 'Ringgo', mode: 'insensitive' } }
+                    { name: { contains: 'Jeri', mode: 'insensitive' } }
                 ]
             },
+            orderBy: { name: 'asc' },
             select: { id: true, name: true, position: true }
         });
 
