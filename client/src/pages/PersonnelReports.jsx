@@ -149,34 +149,36 @@ const PersonnelReports = () => {
                 <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
                     <h3 className="text-lg font-bold text-slate-800 mb-4">Input Laporan Baru</h3>
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className={`grid grid-cols-1 ${form.type === 'WEEKLY' ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Jenis Laporan</label>
                                 <select
                                     value={form.type}
-                                    onChange={e => setForm({ ...form, type: e.target.value })}
+                                    onChange={e => setForm({ ...form, type: e.target.value, category: e.target.value === 'DAILY' ? 'UMUM' : form.category })}
                                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 >
                                     <option value="DAILY">Harian</option>
                                     <option value="WEEKLY">Mingguan</option>
                                 </select>
                             </div>
+                            {form.type === 'WEEKLY' && (
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Kategori Bidang</label>
+                                    <select
+                                        value={form.category}
+                                        onChange={e => setForm({ ...form, category: e.target.value })}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-600"
+                                    >
+                                        <option value="UMUM">Umum / Lainnya</option>
+                                        <option value="KEUANGAN">📦 Staf Keuangan (Syafrian)</option>
+                                        <option value="ASET">🏢 Staf Manajemen Aset (Eldo)</option>
+                                        <option value="GUDANG">🏠 Staf Gudang & Logistik (Jeri)</option>
+                                        <option value="KENDARAAN">🚗 Staf Kendaraan (Ringgo/Wegi)</option>
+                                    </select>
+                                </div>
+                            )}
                             <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Kategori Bidang</label>
-                                <select
-                                    value={form.category}
-                                    onChange={e => setForm({ ...form, category: e.target.value })}
-                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-600"
-                                >
-                                    <option value="UMUM">Umum / Lainnya</option>
-                                    <option value="KEUANGAN">📦 Staf Keuangan (Syafrian)</option>
-                                    <option value="ASET">🏢 Staf Manajemen Aset (Eldo)</option>
-                                    <option value="GUDANG">🏠 Staf Gudang & Logistik (Jeri)</option>
-                                    <option value="KENDARAAN">🚗 Staf Kendaraan (Ringgo/Wegi)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tanggal Aktivitas</label>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tanggal</label>
                                 <input
                                     type="date"
                                     value={form.date}
@@ -186,8 +188,8 @@ const PersonnelReports = () => {
                             </div>
                         </div>
 
-                        {/* Category Specific Fields */}
-                        {form.category === 'KEUANGAN' && (
+                        {/* Category Specific Fields (ONLY for WEEKLY) */}
+                        {form.type === 'WEEKLY' && form.category === 'KEUANGAN' && (
                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Pemasukan (Rp)</label>
@@ -204,7 +206,7 @@ const PersonnelReports = () => {
                             </div>
                         )}
 
-                        {form.category === 'ASET' && (
+                        {form.type === 'WEEKLY' && form.category === 'ASET' && (
                             <div className="space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
@@ -263,7 +265,7 @@ const PersonnelReports = () => {
                             </div>
                         )}
 
-                        {form.category === 'GUDANG' && (
+                        {form.type === 'WEEKLY' && form.category === 'GUDANG' && (
                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Stok Masuk</label>
@@ -280,7 +282,7 @@ const PersonnelReports = () => {
                             </div>
                         )}
 
-                        {form.category === 'KENDARAAN' && (
+                        {form.type === 'WEEKLY' && form.category === 'KENDARAAN' && (
                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">KM Awal</label>
@@ -306,13 +308,13 @@ const PersonnelReports = () => {
                         )}
 
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Kesimpulan Laporan / Aktivitas Lain</label>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Laporan Kegiatan / Aktivitas</label>
                             <textarea
                                 value={form.content}
                                 onChange={e => setForm({ ...form, content: e.target.value })}
-                                rows={4}
-                                placeholder="Jelaskan detail aktivitas secara naratif..."
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                rows={form.type === 'DAILY' ? 6 : 4}
+                                placeholder={form.type === 'DAILY' ? "Jelaskan apa saja yang Anda lakukan hari ini..." : "Berikan ringkasan aktivitas selama seminggu ini..."}
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                             ></textarea>
                         </div>
                         <div className="flex justify-end">
