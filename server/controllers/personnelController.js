@@ -278,8 +278,8 @@ exports.getStaffSarpras = async (req, res) => {
 
         const staff = await prisma.user.findMany({
             where: {
-                unit: { name: { contains: 'Sarana dan Prasarana' } },
                 OR: [
+                    { unit: { name: { contains: 'Sarana dan Prasarana' } } },
                     { name: { contains: 'Syafruan', mode: 'insensitive' } },
                     { name: { contains: 'Eldo', mode: 'insensitive' } },
                     { name: { contains: 'Wegi', mode: 'insensitive' } },
