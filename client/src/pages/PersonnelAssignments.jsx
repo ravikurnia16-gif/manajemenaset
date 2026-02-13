@@ -190,8 +190,7 @@ const PersonnelAssignments = () => {
 
                                 <div className="flex flex-col gap-2 pt-4 border-t border-slate-50">
                                     <div className="flex items-center gap-2 text-xs text-slate-600">
-                                        <User size={14} className="text-slate-400" />
-                                        <span className="font-semibold">Oleh:</span> {a.assigner?.name}
+                                        <span className="font-semibold">Pemberi Tugas:</span> {a.assigner?.name}
                                     </div>
                                     <div className="flex items-center gap-2 text-xs text-slate-600">
                                         <CheckCircle2 size={14} className="text-slate-400" />

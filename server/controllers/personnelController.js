@@ -161,11 +161,15 @@ exports.createAssignment = async (req, res) => {
                     where: { id: parseInt(assigneeId) }
                 });
 
+                const assigner = await prisma.user.findUnique({
+                    where: { id: user.id }
+                });
+
                 if (assignee?.phone) {
                     const msg = `👷‍♂️ *PENUGASAN BARU*\n\n` +
                         `📌 *Judul* : ${title}\n` +
                         `📅 *Deadline* : ${dueDate ? new Date(dueDate).toLocaleDateString('id-ID') : '-'}\n` +
-                        `👤 *Pemberi Tugas* : ${user.name || user.username}\n\n` +
+                        `*Pemberi Tugas* : ${assigner?.name || assigner?.username || 'Admin'}\n\n` +
                         `📝 *Deskripsi*:\n${description}`;
 
                     await whatsappService.sendMessage(assignee.phone, msg);
