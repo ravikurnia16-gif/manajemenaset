@@ -185,7 +185,9 @@ exports.getAllAssets = async (req, res) => {
             limit = 10,
             search = '',
             unitId: filterUnitId,
-            roomId: filterRoomId
+            roomId: filterRoomId,
+            startDate,
+            endDate
         } = req.query;
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -241,6 +243,17 @@ exports.getAllAssets = async (req, res) => {
                 where.AND = [dateCondition];
             } else {
                 where.OR = dateCondition.OR;
+            }
+        }
+
+        // 6. Registration Date Range (Cetak Rentang Tanggal)
+        if (startDate || endDate) {
+            where.purchaseDate = {};
+            if (startDate) where.purchaseDate.gte = new Date(startDate);
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                where.purchaseDate.lte = end;
             }
         }
 

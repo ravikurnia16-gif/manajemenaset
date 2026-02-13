@@ -14,6 +14,7 @@ const AssetList = ({ validationMode = false }) => {
     // Action Modal State
     const [actionModal, setActionModal] = useState({ isOpen: false, type: null }); // type: 'export' | 'print'
     const [targetUnitId, setTargetUnitId] = useState('');
+    const [printRange, setPrintRange] = useState({ start: '', end: '' });
 
     const [assets, setAssets] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -148,8 +149,10 @@ const AssetList = ({ validationMode = false }) => {
                 limit: 10000, // Large limit for export
                 search: searchTerm,
                 validationStatus: validationFilter,
-                unitId: targetUnitId || selectedUnit,
-                roomId: selectedRoom
+                unitId: targetUnitId === 'DATE_RANGE' ? '' : (targetUnitId || selectedUnit),
+                roomId: selectedRoom,
+                startDate: targetUnitId === 'DATE_RANGE' ? printRange.start : '',
+                endDate: targetUnitId === 'DATE_RANGE' ? printRange.end : ''
             };
             const response = await api.get('/assets', { params });
             return response.data.data || response.data;
@@ -172,6 +175,11 @@ const AssetList = ({ validationMode = false }) => {
             performBatchPrint(data);
         }
         setActionModal({ isOpen: false, type: null });
+        // Reset specific unit if not needed anymore to avoid confusion
+        if (targetUnitId === 'DATE_RANGE') {
+            setTargetUnitId('');
+            setPrintRange({ start: '', end: '' });
+        }
     };
 
     const performBatchPrint = (data) => {
@@ -481,438 +489,454 @@ const AssetList = ({ validationMode = false }) => {
                                         </div>
                                     </label>
 
-                                    <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-slate-50">
-                                        <input
-                                            type="radio"
-                                            name="scope"
-                                            checked={targetUnitId !== ''}
-                                            onChange={() => {
-                                                if (units.length > 0) setTargetUnitId(units[0].id.toString());
-                                            }}
-                                            className="text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <div className="flex-1">
-                                            <div className="font-medium text-slate-800">Pilih Unit Tertentu</div>
-                                            {targetUnitId !== '' && (
-                                                <select
-                                                    value={targetUnitId}
-                                                    onChange={(e) => setTargetUnitId(e.target.value)}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="mt-2 w-full p-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
-                                                >
-                                                    {units.map(u => (
-                                                        <option key={u.id} value={u.id}>{u.name}</option>
-                                                    ))}
-                                                </select>
-                                            )}
-                                        </div>
-                                    </label>
-                                </div>
+                                </label>
+
+                                <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-slate-50">
+                                    <input
+                                        type="radio"
+                                        name="scope"
+                                        checked={targetUnitId === 'DATE_RANGE'}
+                                        onChange={() => setTargetUnitId('DATE_RANGE')}
+                                        className="text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <div className="flex-1">
+                                        <div className="font-medium text-slate-800">Berdasarkan Rentang Tanggal</div>
+                                        <div className="text-xs text-slate-500 mb-2 italic">Aset berdasarkan tanggal perolehan/input</div>
+                                        {targetUnitId === 'DATE_RANGE' && (
+                                            <div className="grid grid-cols-2 gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Awal</label>
+                                                    <input
+                                                        type="date"
+                                                        value={printRange.start}
+                                                        onChange={(e) => setPrintRange(prev => ({ ...prev, start: e.target.value }))}
+                                                        className="w-full p-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Akhir</label>
+                                                    <input
+                                                        type="date"
+                                                        value={printRange.end}
+                                                        onChange={(e) => setPrintRange(prev => ({ ...prev, end: e.target.value }))}
+                                                        className="w-full p-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </label>
                             </div>
                         </div>
+                    </div>
 
-                        <div className="flex justify-end gap-3 mt-6">
+                    <div className="flex justify-end gap-3 mt-6">
+                        <button
+                            onClick={() => setActionModal({ isOpen: false, type: null })}
+                            className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            onClick={handleActionConfirmation}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-lg shadow-blue-200"
+                        >
+                            {actionModal.type === 'export' ? 'Download Excel' : 'Cetak QR'}
+                        </button>
+                    </div>
+                </div>
+                </div>
+    )
+}
+
+{/* Validation Modal */ }
+{
+    validationModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+                <h3 className="text-lg font-bold text-slate-800 mb-1">
+                    Validasi Aset
+                </h3>
+                <p className="text-slate-500 text-sm mb-4">
+                    Memproses validasi untuk <span className="font-bold text-blue-600">{validationModal.assetIds.length} aset</span> terpilih.
+                </p>
+
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Status Validasi</label>
+                        <div className="grid grid-cols-3 gap-2">
                             <button
-                                onClick={() => setActionModal({ isOpen: false, type: null })}
-                                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
+                                type="button"
+                                onClick={() => setValidationModal(prev => ({ ...prev, currentStatus: 'VALIDATED' }))}
+                                className={`p-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center gap-1 ${validationModal.currentStatus === 'VALIDATED' ? 'bg-green-50 border-green-200 text-green-700 ring-2 ring-green-500 ring-offset-1' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
                             >
-                                Batal
+                                <CheckCircle size={20} className={validationModal.currentStatus === 'VALIDATED' ? 'text-green-600' : 'text-slate-400'} />
+                                Valid / Sah
                             </button>
                             <button
-                                onClick={handleActionConfirmation}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-lg shadow-blue-200"
+                                type="button"
+                                onClick={() => setValidationModal(prev => ({ ...prev, currentStatus: 'NEEDS_UPDATE' }))}
+                                className={`p-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center gap-1 ${validationModal.currentStatus === 'NEEDS_UPDATE' ? 'bg-orange-50 border-orange-200 text-orange-700 ring-2 ring-orange-500 ring-offset-1' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
                             >
-                                {actionModal.type === 'export' ? 'Download Excel' : 'Cetak QR'}
+                                <AlertCircle size={20} className={validationModal.currentStatus === 'NEEDS_UPDATE' ? 'text-orange-600' : 'text-slate-400'} />
+                                Perlu Update
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setValidationModal(prev => ({ ...prev, currentStatus: 'REJECTED' }))}
+                                className={`p-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center gap-1 ${validationModal.currentStatus === 'REJECTED' ? 'bg-red-50 border-red-200 text-red-700 ring-2 ring-red-500 ring-offset-1' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                            >
+                                <XCircle size={20} className={validationModal.currentStatus === 'REJECTED' ? 'text-red-600' : 'text-slate-400'} />
+                                Ditolak
                             </button>
                         </div>
                     </div>
-                </div>
-            )}
 
-            {/* Validation Modal */}
-            {validationModal.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
-                        <h3 className="text-lg font-bold text-slate-800 mb-1">
-                            Validasi Aset
-                        </h3>
-                        <p className="text-slate-500 text-sm mb-4">
-                            Memproses validasi untuk <span className="font-bold text-blue-600">{validationModal.assetIds.length} aset</span> terpilih.
-                        </p>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">Status Validasi</label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setValidationModal(prev => ({ ...prev, currentStatus: 'VALIDATED' }))}
-                                        className={`p-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center gap-1 ${validationModal.currentStatus === 'VALIDATED' ? 'bg-green-50 border-green-200 text-green-700 ring-2 ring-green-500 ring-offset-1' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
-                                    >
-                                        <CheckCircle size={20} className={validationModal.currentStatus === 'VALIDATED' ? 'text-green-600' : 'text-slate-400'} />
-                                        Valid / Sah
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setValidationModal(prev => ({ ...prev, currentStatus: 'NEEDS_UPDATE' }))}
-                                        className={`p-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center gap-1 ${validationModal.currentStatus === 'NEEDS_UPDATE' ? 'bg-orange-50 border-orange-200 text-orange-700 ring-2 ring-orange-500 ring-offset-1' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
-                                    >
-                                        <AlertCircle size={20} className={validationModal.currentStatus === 'NEEDS_UPDATE' ? 'text-orange-600' : 'text-slate-400'} />
-                                        Perlu Update
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setValidationModal(prev => ({ ...prev, currentStatus: 'REJECTED' }))}
-                                        className={`p-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center gap-1 ${validationModal.currentStatus === 'REJECTED' ? 'bg-red-50 border-red-200 text-red-700 ring-2 ring-red-500 ring-offset-1' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
-                                    >
-                                        <XCircle size={20} className={validationModal.currentStatus === 'REJECTED' ? 'text-red-600' : 'text-slate-400'} />
-                                        Ditolak
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Catatan Validasi</label>
-                                <textarea
-                                    className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                    rows={3}
-                                    placeholder="Tuliskan catatan check fisik atau alasan penolakan..."
-                                    value={validationModal.note}
-                                    onChange={(e) => setValidationModal(prev => ({ ...prev, note: e.target.value }))}
-                                ></textarea>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end gap-3 mt-6">
-                            <button
-                                onClick={() => setValidationModal({ isOpen: false, assetIds: [], currentStatus: 'VALIDATED', note: '' })}
-                                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
-                            >
-                                Batal
-                            </button>
-                            <button
-                                onClick={handleValidationSubmit}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center gap-2"
-                            >
-                                <CheckCircle size={16} /> Simpan Validasi
-                            </button>
-                        </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Catatan Validasi</label>
+                        <textarea
+                            className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            rows={3}
+                            placeholder="Tuliskan catatan check fisik atau alasan penolakan..."
+                            value={validationModal.note}
+                            onChange={(e) => setValidationModal(prev => ({ ...prev, note: e.target.value }))}
+                        ></textarea>
                     </div>
                 </div>
-            )}
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                {/* Advanced Filter Bar */}
-                <div className="p-4 border-b border-slate-100 bg-slate-50/50 grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div className="md:col-span-4 relative">
-                        <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                <div className="flex justify-end gap-3 mt-6">
+                    <button
+                        onClick={() => setValidationModal({ isOpen: false, assetIds: [], currentStatus: 'VALIDATED', note: '' })}
+                        className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        onClick={handleValidationSubmit}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center gap-2"
+                    >
+                        <CheckCircle size={16} /> Simpan Validasi
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+<div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+    {/* Advanced Filter Bar */}
+    <div className="p-4 border-b border-slate-100 bg-slate-50/50 grid grid-cols-1 md:grid-cols-12 gap-4">
+        <div className="md:col-span-4 relative">
+            <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+            <input
+                type="text"
+                placeholder="Cari nama / kode aset..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+        </div>
+
+        <div className="md:col-span-2 relative">
+            <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><Building2 size={16} /></div>
+            <select
+                className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
+                value={selectedUnit}
+                disabled={!isGlobalAdmin}
+                onChange={e => { setSelectedUnit(e.target.value); setSelectedRoom(''); }}
+            >
+                <option value="">Semua Unit</option>
+                {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+        </div>
+
+        <div className="md:col-span-2 relative">
+            <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><MapPin size={16} /></div>
+            <select
+                className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-400"
+                value={selectedRoom}
+                onChange={e => setSelectedRoom(e.target.value)}
+                disabled={!selectedUnit && availableRooms.length === rooms.length}
+            >
+                <option value="">Semua Ruangan</option>
+                {availableRooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+        </div>
+
+        <div className="md:col-span-2 relative">
+            {/* Validation Filter */}
+            <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><CheckCircle size={16} /></div>
+            <select
+                className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
+                value={validationFilter}
+                onChange={e => setValidationFilter(e.target.value)}
+            >
+                <option value="ALL">Status Validasi</option>
+                <option value="UNVERIFIED">Belum Valid (Unverified)</option>
+                <option value="VALIDATED">Sudah Valid (Validated)</option>
+                <option value="NEEDS_UPDATE">Perlu Perbaikan</option>
+            </select>
+        </div>
+
+        <div className="md:col-span-2">
+            <button onClick={() => { setSearchTerm(''); if (isGlobalAdmin) setSelectedUnit(''); setSelectedRoom(''); }} className="w-full px-3 py-2 border border-slate-200 bg-white rounded-lg text-slate-600 hover:bg-slate-50 flex justify-center items-center gap-2 text-sm">
+                <Filter size={16} /> Reset
+            </button>
+        </div>
+    </div>
+
+    <div className="overflow-x-auto">
+        <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
+                <tr>
+                    <th className="px-6 py-4 w-10">
                         <input
-                            type="text"
-                            placeholder="Cari nama / kode aset..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            type="checkbox"
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            checked={paginatedAssets.length > 0 && selectedIds.length === paginatedAssets.length}
+                            onChange={handleSelectAll}
+                        />
+                    </th>
+                    <th className="px-6 py-4">Kode Aset</th>
+                    <th className="px-6 py-4">Nama Item</th>
+                    <th className="px-6 py-4">Unit / Divisi</th>
+                    <th className="px-6 py-4">Lokasi (Ruang)</th>
+                    <th className="px-6 py-4">Kondisi</th>
+                    <th className="px-6 py-4">Harga</th>
+                    <th className="px-6 py-4 text-center">Aksi</th>
+                </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+                {loading ? (
+                    <tr>
+                        <td colSpan="8" className="px-6 py-12 text-center text-slate-500">
+                            Memuat data...
+                        </td>
+                    </tr>
+                ) : (Array.isArray(paginatedAssets) && paginatedAssets.length > 0) ? paginatedAssets.map((asset) => (
+                    <tr key={asset.id} className={`hover:bg-slate-50/80 transition-colors group ${selectedIds.includes(asset.id) ? 'bg-blue-50/30' : ''}`}>
+                        <td className="px-6 py-4 text-center">
+                            <input
+                                type="checkbox"
+                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                checked={selectedIds.includes(asset.id)}
+                                onChange={() => handleToggleSelect(asset.id)}
+                            />
+                        </td>
+                        <td className="px-6 py-4 font-medium text-blue-600 font-mono tracking-tight">
+                            {asset.code}
+                            <div className="mt-1">
+                                {asset.validationStatus === 'VALIDATED' ? (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-700 border border-green-200 font-bold uppercase">
+                                        <CheckCircle size={10} /> Valid
+                                    </span>
+                                ) : asset.validationStatus === 'NEEDS_UPDATE' ? (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-orange-100 text-orange-700 border border-orange-200 font-bold uppercase">
+                                        <AlertCircle size={10} /> Cek Fisik
+                                    </span>
+                                ) : asset.validationStatus === 'REJECTED' ? (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-red-100 text-red-700 border border-red-200 font-bold uppercase">
+                                        <XCircle size={10} /> Ditolak
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 border border-slate-200 font-bold uppercase">
+                                        Unverified
+                                    </span>
+                                )}
+                            </div>
+                        </td>
+                        <td className="px-6 py-4 font-medium text-slate-800">
+                            {asset.name}
+                            <div className="text-xs text-slate-400 font-normal">{asset.category?.name}</div>
+                        </td>
+                        <td className="px-6 py-4 text-slate-600">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
+                                {asset.unit?.name || '-'}
+                            </span>
+                        </td>
+                        <td className="px-6 py-4 text-slate-600">{asset.room?.name || '-'}</td>
+                        <td className="px-6 py-4">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${asset.condition === 'BAIK' ? 'bg-emerald-100 text-emerald-700' :
+                                asset.condition === 'RUSAK_RINGAN' ? 'bg-orange-100 text-orange-700' :
+                                    'bg-red-100 text-red-700'
+                                }`}>
+                                {(asset.condition || 'BAIK').replace('_', ' ')}
+                            </span>
+                        </td>
+                        <td className="px-6 py-4 text-slate-600">Rp {(asset.price || 0).toLocaleString()}</td>
+                        <td className="px-6 py-4 text-center">
+                            <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => openValidationModal([asset.id], asset.validationStatus || 'VALIDATED')} className="p-1 hover:bg-green-50 text-green-600 rounded transition-colors" title="Validasi Aset"><CheckCircle size={16} /></button>
+                                <button onClick={() => openPrintModal(asset)} className="p-1 hover:bg-slate-800 hover:text-white text-slate-500 rounded transition-colors" title="Cetak Label QR"><QrCode size={16} /></button>
+                                <button onClick={() => navigate(`/mutasi/request?assetId=${asset.id}`)} className="p-1 hover:bg-orange-50 text-orange-600 rounded transition-colors" title="Ajukan Mutasi"><ArrowLeftRight size={16} /></button>
+                                {canProposeDisposal && (
+                                    <button
+                                        onClick={() => setDisposalModal({
+                                            isOpen: true,
+                                            asset,
+                                            reason: '',
+                                            method: 'DIMUSNAHKAN',
+                                            notes: '',
+                                            disposalDate: new Date().toISOString().split('T')[0]
+                                        })}
+                                        className="p-1 hover:bg-red-50 text-red-600 rounded"
+                                        title="Usulkan Penghapusan"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                )}
+                                <button onClick={() => navigate(`/aset/edit/${asset.id}`)} className="p-1 hover:bg-blue-50 text-blue-600 rounded" title="Edit"><Edit size={16} /></button>
+                                {isGlobalAdmin && (
+                                    <button onClick={() => handleDelete(asset.id)} className="p-1 hover:bg-slate-100 text-slate-400 rounded" title="Hapus Permanen (Database)">
+                                        <XCircle size={14} />
+                                    </button>
+                                )}
+                            </div>
+                        </td>
+                    </tr>
+                )) : (
+                    <tr>
+                        <td colSpan="8" className="px-6 py-12 text-center text-slate-500">
+                            Data tidak ditemukan untuk filter ini
+                        </td>
+                    </tr>
+                )}
+            </tbody>
+        </table>
+    </div>
+
+    <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-slate-500">
+        <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+                <span>Tampilkan:</span>
+                <select
+                    value={itemsPerPage}
+                    onChange={e => setItemsPerPage(parseInt(e.target.value))}
+                    className="bg-white border border-slate-200 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                    {[10, 25, 50, 100, 500, 1000].map(limit => (
+                        <option key={limit} value={limit}>{limit}</option>
+                    ))}
+                </select>
+            </div>
+            <span>Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, totalItems)} dari {totalItems} data</span>
+        </div>
+
+        <div className="flex gap-2">
+            <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+                Sebelumnya
+            </button>
+            <span className="flex items-center px-2 bg-slate-100 rounded text-slate-600 font-medium">
+                Hal {currentPage} / {totalPages || 1}
+            </span>
+            <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+                Selanjutnya
+            </button>
+        </div>
+    </div>
+</div>
+
+{/* Disposal Modal */ }
+{
+    disposalModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 text-slate-800">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+                <div className="flex items-center gap-3 mb-4 text-red-600">
+                    <Trash2 size={24} />
+                    <h3 className="text-xl font-bold">Usulan Penghapusan</h3>
+                </div>
+
+                <div className="p-3 bg-red-50 border border-red-100 rounded-lg mb-6">
+                    <p className="text-xs text-red-700 leading-relaxed font-medium">
+                        Anda mengajukan <span className="font-bold underline">usulan</span> untuk menghapus <span className="font-bold underline">{disposalModal.asset?.name}</span> ({disposalModal.asset?.code}) dari inventaris aktif.
+                    </p>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-1">
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Tanggal</label>
+                            <input
+                                type="date"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={disposalModal.disposalDate}
+                                onChange={e => setDisposalModal(prev => ({ ...prev, disposalDate: e.target.value }))}
+                            />
+                        </div>
+                        <div className="col-span-1">
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Metode</label>
+                            <select
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={disposalModal.method}
+                                onChange={e => setDisposalModal(prev => ({ ...prev, method: e.target.value }))}
+                            >
+                                <option value="DIMUSNAHKAN">DIMUSNAHKAN</option>
+                                <option value="DIJUAL">DIJUAL / LELANG</option>
+                                <option value="HIBAH">HIBAH / DONASI</option>
+                                <option value="HILANG">HILANG / DICURI</option>
+                                <option value="TUKAR_TAMBAH">TUKAR TAMBAH</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Alasan Penghapusan</label>
+                        <textarea
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            rows={2}
+                            placeholder="Contoh: Rusak parah, tidak bisa diperbaiki lagi..."
+                            value={disposalModal.reason}
+                            onChange={e => setDisposalModal(prev => ({ ...prev, reason: e.target.value }))}
                         />
                     </div>
 
-                    <div className="md:col-span-2 relative">
-                        <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><Building2 size={16} /></div>
-                        <select
-                            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
-                            value={selectedUnit}
-                            disabled={!isGlobalAdmin}
-                            onChange={e => { setSelectedUnit(e.target.value); setSelectedRoom(''); }}
-                        >
-                            <option value="">Semua Unit</option>
-                            {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                        </select>
-                    </div>
-
-                    <div className="md:col-span-2 relative">
-                        <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><MapPin size={16} /></div>
-                        <select
-                            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-400"
-                            value={selectedRoom}
-                            onChange={e => setSelectedRoom(e.target.value)}
-                            disabled={!selectedUnit && availableRooms.length === rooms.length}
-                        >
-                            <option value="">Semua Ruangan</option>
-                            {availableRooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                        </select>
-                    </div>
-
-                    <div className="md:col-span-2 relative">
-                        {/* Validation Filter */}
-                        <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><CheckCircle size={16} /></div>
-                        <select
-                            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
-                            value={validationFilter}
-                            onChange={e => setValidationFilter(e.target.value)}
-                        >
-                            <option value="ALL">Status Validasi</option>
-                            <option value="UNVERIFIED">Belum Valid (Unverified)</option>
-                            <option value="VALIDATED">Sudah Valid (Validated)</option>
-                            <option value="NEEDS_UPDATE">Perlu Perbaikan</option>
-                        </select>
-                    </div>
-
-                    <div className="md:col-span-2">
-                        <button onClick={() => { setSearchTerm(''); if (isGlobalAdmin) setSelectedUnit(''); setSelectedRoom(''); }} className="w-full px-3 py-2 border border-slate-200 bg-white rounded-lg text-slate-600 hover:bg-slate-50 flex justify-center items-center gap-2 text-sm">
-                            <Filter size={16} /> Reset
-                        </button>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Catatan Tambahan (Opsional)</label>
+                        <textarea
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            rows={2}
+                            placeholder="..."
+                            value={disposalModal.notes}
+                            onChange={e => setDisposalModal(prev => ({ ...prev, notes: e.target.value }))}
+                        />
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
-                            <tr>
-                                <th className="px-6 py-4 w-10">
-                                    <input
-                                        type="checkbox"
-                                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                        checked={paginatedAssets.length > 0 && selectedIds.length === paginatedAssets.length}
-                                        onChange={handleSelectAll}
-                                    />
-                                </th>
-                                <th className="px-6 py-4">Kode Aset</th>
-                                <th className="px-6 py-4">Nama Item</th>
-                                <th className="px-6 py-4">Unit / Divisi</th>
-                                <th className="px-6 py-4">Lokasi (Ruang)</th>
-                                <th className="px-6 py-4">Kondisi</th>
-                                <th className="px-6 py-4">Harga</th>
-                                <th className="px-6 py-4 text-center">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {loading ? (
-                                <tr>
-                                    <td colSpan="8" className="px-6 py-12 text-center text-slate-500">
-                                        Memuat data...
-                                    </td>
-                                </tr>
-                            ) : (Array.isArray(paginatedAssets) && paginatedAssets.length > 0) ? paginatedAssets.map((asset) => (
-                                <tr key={asset.id} className={`hover:bg-slate-50/80 transition-colors group ${selectedIds.includes(asset.id) ? 'bg-blue-50/30' : ''}`}>
-                                    <td className="px-6 py-4 text-center">
-                                        <input
-                                            type="checkbox"
-                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                            checked={selectedIds.includes(asset.id)}
-                                            onChange={() => handleToggleSelect(asset.id)}
-                                        />
-                                    </td>
-                                    <td className="px-6 py-4 font-medium text-blue-600 font-mono tracking-tight">
-                                        {asset.code}
-                                        <div className="mt-1">
-                                            {asset.validationStatus === 'VALIDATED' ? (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-700 border border-green-200 font-bold uppercase">
-                                                    <CheckCircle size={10} /> Valid
-                                                </span>
-                                            ) : asset.validationStatus === 'NEEDS_UPDATE' ? (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-orange-100 text-orange-700 border border-orange-200 font-bold uppercase">
-                                                    <AlertCircle size={10} /> Cek Fisik
-                                                </span>
-                                            ) : asset.validationStatus === 'REJECTED' ? (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-red-100 text-red-700 border border-red-200 font-bold uppercase">
-                                                    <XCircle size={10} /> Ditolak
-                                                </span>
-                                            ) : (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 border border-slate-200 font-bold uppercase">
-                                                    Unverified
-                                                </span>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 font-medium text-slate-800">
-                                        {asset.name}
-                                        <div className="text-xs text-slate-400 font-normal">{asset.category?.name}</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-slate-600">
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
-                                            {asset.unit?.name || '-'}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-slate-600">{asset.room?.name || '-'}</td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${asset.condition === 'BAIK' ? 'bg-emerald-100 text-emerald-700' :
-                                            asset.condition === 'RUSAK_RINGAN' ? 'bg-orange-100 text-orange-700' :
-                                                'bg-red-100 text-red-700'
-                                            }`}>
-                                            {(asset.condition || 'BAIK').replace('_', ' ')}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-slate-600">Rp {(asset.price || 0).toLocaleString()}</td>
-                                    <td className="px-6 py-4 text-center">
-                                        <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => openValidationModal([asset.id], asset.validationStatus || 'VALIDATED')} className="p-1 hover:bg-green-50 text-green-600 rounded transition-colors" title="Validasi Aset"><CheckCircle size={16} /></button>
-                                            <button onClick={() => openPrintModal(asset)} className="p-1 hover:bg-slate-800 hover:text-white text-slate-500 rounded transition-colors" title="Cetak Label QR"><QrCode size={16} /></button>
-                                            <button onClick={() => navigate(`/mutasi/request?assetId=${asset.id}`)} className="p-1 hover:bg-orange-50 text-orange-600 rounded transition-colors" title="Ajukan Mutasi"><ArrowLeftRight size={16} /></button>
-                                            {canProposeDisposal && (
-                                                <button
-                                                    onClick={() => setDisposalModal({
-                                                        isOpen: true,
-                                                        asset,
-                                                        reason: '',
-                                                        method: 'DIMUSNAHKAN',
-                                                        notes: '',
-                                                        disposalDate: new Date().toISOString().split('T')[0]
-                                                    })}
-                                                    className="p-1 hover:bg-red-50 text-red-600 rounded"
-                                                    title="Usulkan Penghapusan"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            )}
-                                            <button onClick={() => navigate(`/aset/edit/${asset.id}`)} className="p-1 hover:bg-blue-50 text-blue-600 rounded" title="Edit"><Edit size={16} /></button>
-                                            {isGlobalAdmin && (
-                                                <button onClick={() => handleDelete(asset.id)} className="p-1 hover:bg-slate-100 text-slate-400 rounded" title="Hapus Permanen (Database)">
-                                                    <XCircle size={14} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            )) : (
-                                <tr>
-                                    <td colSpan="8" className="px-6 py-12 text-center text-slate-500">
-                                        Data tidak ditemukan untuk filter ini
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                <div className="flex justify-end gap-3 mt-8">
+                    <button
+                        onClick={() => setDisposalModal({ isOpen: false, asset: null, reason: '', method: 'DIMUSNAHKAN', notes: '', disposalDate: '' })}
+                        className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold transition-colors"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        onClick={handleDisposalSubmit}
+                        disabled={!disposalModal.reason || loading}
+                        className="px-5 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-all active:scale-95 disabled:opacity-50 disabled:shadow-none"
+                    >
+                        {loading ? 'Memproses...' : 'Kirim Usulan'}
+                    </button>
                 </div>
-
-                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-slate-500">
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                            <span>Tampilkan:</span>
-                            <select
-                                value={itemsPerPage}
-                                onChange={e => setItemsPerPage(parseInt(e.target.value))}
-                                className="bg-white border border-slate-200 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
-                            >
-                                {[10, 25, 50, 100, 500, 1000].map(limit => (
-                                    <option key={limit} value={limit}>{limit}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <span>Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, totalItems)} dari {totalItems} data</span>
-                    </div>
-
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                            disabled={currentPage === 1}
-                            className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 transition-colors"
-                        >
-                            Sebelumnya
-                        </button>
-                        <span className="flex items-center px-2 bg-slate-100 rounded text-slate-600 font-medium">
-                            Hal {currentPage} / {totalPages || 1}
-                        </span>
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                            disabled={currentPage === totalPages || totalPages === 0}
-                            className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 transition-colors"
-                        >
-                            Selanjutnya
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Disposal Modal */}
-            {disposalModal.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 text-slate-800">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center gap-3 mb-4 text-red-600">
-                            <Trash2 size={24} />
-                            <h3 className="text-xl font-bold">Usulan Penghapusan</h3>
-                        </div>
-
-                        <div className="p-3 bg-red-50 border border-red-100 rounded-lg mb-6">
-                            <p className="text-xs text-red-700 leading-relaxed font-medium">
-                                Anda mengajukan <span className="font-bold underline">usulan</span> untuk menghapus <span className="font-bold underline">{disposalModal.asset?.name}</span> ({disposalModal.asset?.code}) dari inventaris aktif.
-                            </p>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="col-span-1">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Tanggal</label>
-                                    <input
-                                        type="date"
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                        value={disposalModal.disposalDate}
-                                        onChange={e => setDisposalModal(prev => ({ ...prev, disposalDate: e.target.value }))}
-                                    />
-                                </div>
-                                <div className="col-span-1">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Metode</label>
-                                    <select
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                        value={disposalModal.method}
-                                        onChange={e => setDisposalModal(prev => ({ ...prev, method: e.target.value }))}
-                                    >
-                                        <option value="DIMUSNAHKAN">DIMUSNAHKAN</option>
-                                        <option value="DIJUAL">DIJUAL / LELANG</option>
-                                        <option value="HIBAH">HIBAH / DONASI</option>
-                                        <option value="HILANG">HILANG / DICURI</option>
-                                        <option value="TUKAR_TAMBAH">TUKAR TAMBAH</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Alasan Penghapusan</label>
-                                <textarea
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                    rows={2}
-                                    placeholder="Contoh: Rusak parah, tidak bisa diperbaiki lagi..."
-                                    value={disposalModal.reason}
-                                    onChange={e => setDisposalModal(prev => ({ ...prev, reason: e.target.value }))}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Catatan Tambahan (Opsional)</label>
-                                <textarea
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                    rows={2}
-                                    placeholder="..."
-                                    value={disposalModal.notes}
-                                    onChange={e => setDisposalModal(prev => ({ ...prev, notes: e.target.value }))}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end gap-3 mt-8">
-                            <button
-                                onClick={() => setDisposalModal({ isOpen: false, asset: null, reason: '', method: 'DIMUSNAHKAN', notes: '', disposalDate: '' })}
-                                className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold transition-colors"
-                            >
-                                Batal
-                            </button>
-                            <button
-                                onClick={handleDisposalSubmit}
-                                disabled={!disposalModal.reason || loading}
-                                className="px-5 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-all active:scale-95 disabled:opacity-50 disabled:shadow-none"
-                            >
-                                {loading ? 'Memproses...' : 'Kirim Usulan'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Hidden Print Components */}
-            <div className="hidden">
-                {printAsset && <LabelPrint ref={printRef} asset={printAsset} />}
-                {/* Use batchPrintAssets if available, else filteredAssets */}
-                <BatchLabelPrint ref={batchPrintRef} assets={Array.isArray(batchPrintAssets) && batchPrintAssets.length > 0 ? batchPrintAssets : (Array.isArray(filteredAssets) ? filteredAssets : [])} />
             </div>
         </div>
+    )
+}
+
+{/* Hidden Print Components */ }
+<div className="hidden">
+    {printAsset && <LabelPrint ref={printRef} asset={printAsset} />}
+    {/* Use batchPrintAssets if available, else filteredAssets */}
+    <BatchLabelPrint ref={batchPrintRef} assets={Array.isArray(batchPrintAssets) && batchPrintAssets.length > 0 ? batchPrintAssets : (Array.isArray(filteredAssets) ? filteredAssets : [])} />
+</div>
+        </div >
     );
 };
 
