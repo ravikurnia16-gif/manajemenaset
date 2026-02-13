@@ -54,6 +54,7 @@ model User {
   personnelReports   PersonnelReport[]
   assignedAssignments PersonnelAssignment[] @relation("Assignee")
   createdAssignments  PersonnelAssignment[] @relation("Assigner")
+  assignedProcurementItems ProcurementItem[] @relation("ItemAssignee")
   vehicleWeeklyReports VehicleWeeklyReport[]
   authorizedDisposals AssetDisposal[] @relation("Reviewer")
   proposedDisposals   AssetDisposal[] @relation("Proposer")
