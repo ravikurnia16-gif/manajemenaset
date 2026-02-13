@@ -12,7 +12,7 @@ const isSarprasUnit = async (unitId) => {
 // --- REPORTS ---
 
 exports.createReport = async (req, res) => {
-    const { type, content, date } = req.body;
+    const { type, category, content, date, details } = req.body;
     const user = req.user;
 
     try {
@@ -24,6 +24,7 @@ exports.createReport = async (req, res) => {
             data: {
                 userId: user.id,
                 type,
+                category: category || 'UMUM',
                 content,
                 date: date ? new Date(date) : new Date()
             }
@@ -40,11 +41,25 @@ exports.createReport = async (req, res) => {
 
                 if (ravi?.phone) {
                     const typeLabel = type === 'DAILY' ? 'Harian' : 'Mingguan';
-                    const msg = `📋 *LAPORAN PERSONALIA BARU*\n\n` +
+                    const catLabel = {
+                        'KEUANGAN': '💰 Keuangan',
+                        'ASET': '📦 Manajemen Aset',
+                        'GUDANG': '🏠 Gudang & Logistik',
+                        'KENDARAAN': '🚗 Kendaraan',
+                        'UMUM': '📝 Umum'
+                    }[category] || '📝 Umum';
+
+                    let msg = `📋 *LAPORAN PERSONALIA BARU*\n\n` +
                         `👤 *Staf* : ${user.name || user.username}\n` +
                         `📅 *Tanggal* : ${new Date(date || new Date()).toLocaleDateString('id-ID')}\n` +
-                        `📑 *Tipe* : ${typeLabel}\n\n` +
-                        `📝 *Isi Laporan*:\n${content}`;
+                        `📑 *Tipe* : ${typeLabel}\n` +
+                        `📂 *Kategori* : ${catLabel}\n\n`;
+
+                    if (details) {
+                        msg += `📊 *Detail Aktivitas*:\n${details}\n\n`;
+                    }
+
+                    msg += `📝 *Isi Laporan*:\n${content}`;
 
                     await whatsappService.sendMessage(ravi.phone, msg);
                 }
@@ -58,7 +73,7 @@ exports.createReport = async (req, res) => {
 };
 
 exports.getReports = async (req, res) => {
-    const { type, startDate, endDate, userId } = req.query;
+    const { type, category, startDate, endDate, userId } = req.query;
     const user = req.user;
 
     try {
@@ -68,6 +83,7 @@ exports.getReports = async (req, res) => {
 
         const where = {};
         if (type) where.type = type;
+        if (category) where.category = category;
         if (startDate && endDate) {
             where.date = {
                 gte: new Date(startDate),

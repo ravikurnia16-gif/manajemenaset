@@ -517,11 +517,20 @@ enum ReportType {
   WEEKLY
 }
 
+enum PersonnelReportCategory {
+  KEUANGAN
+  ASET
+  GUDANG
+  KENDARAAN
+  UMUM
+}
+
 model PersonnelReport {
   id        Int      @id @default(autoincrement())
   userId    Int
   user      User     @relation(fields: [userId], references: [id])
   type      ReportType
+  category  PersonnelReportCategory @default(UMUM)
   content   String   @db.Text
   date      DateTime @default(now())
   createdAt DateTime @default(now())

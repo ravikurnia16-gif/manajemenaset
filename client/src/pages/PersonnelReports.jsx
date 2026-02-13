@@ -11,8 +11,14 @@ const PersonnelReports = () => {
 
     const [form, setForm] = useState({
         type: 'DAILY',
+        category: 'UMUM',
         content: '',
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        // Specialized fields
+        finance: { income: '', outcome: '', balance: '' },
+        assets: { in: '', out: '', condition: 'BAIK' },
+        warehouse: { in: '', out: '', remaining: '' },
+        vehicle: { kmStart: '', kmEnd: '', fuel: '', condition: 'BAIK' }
     });
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
@@ -37,13 +43,37 @@ const PersonnelReports = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!form.content.trim()) return alert('Isi laporan tidak boleh kosong');
+
+        let details = '';
+        if (form.category === 'KEUANGAN') {
+            details = `💰 *Pemasukan*: Rp ${form.finance.income || '-'}\n💸 *Pengeluaran*: Rp ${form.finance.outcome || '-'}\n⚖️ *Saldo*: Rp ${form.finance.balance || '-'}`;
+        } else if (form.category === 'ASET') {
+            details = `📦 *Aset Masuk*: ${form.assets.in || '-'}\n📤 *Aset Keluar*: ${form.assets.out || '-'}\n🛠️ *Kondisi*: ${form.assets.condition}`;
+        } else if (form.category === 'GUDANG') {
+            details = `🏠 *Stok Masuk*: ${form.warehouse.in || '-'}\n📦 *Stok Keluar*: ${form.warehouse.out || '-'}\n📊 *Sisa Stok*: ${form.warehouse.remaining || '-'}`;
+        } else if (form.category === 'KENDARAAN') {
+            details = `🚗 *KM Awal*: ${form.vehicle.kmStart || '-'}\n🏁 *KM Akhir*: ${form.vehicle.kmEnd || '-'}\n⛽ *BBM*: ${form.vehicle.fuel || '-'}\n🛠️ *Kondisi*: ${form.vehicle.condition}`;
+        }
+
+        if (!form.content.trim() && !details) return alert('Isi laporan tidak boleh kosong');
 
         try {
             setSubmitting(true);
-            await api.post('/personnel/reports', form);
+            await api.post('/personnel/reports', {
+                ...form,
+                details: details.replace(/\*/g, '') // Send clean text to backend
+            });
             setShowForm(false);
-            setForm({ type: 'DAILY', content: '', date: new Date().toISOString().split('T')[0] });
+            setForm({
+                type: 'DAILY',
+                category: 'UMUM',
+                content: '',
+                date: new Date().toISOString().split('T')[0],
+                finance: { income: '', outcome: '', balance: '' },
+                assets: { in: '', out: '', condition: 'BAIK' },
+                warehouse: { in: '', out: '', remaining: '' },
+                vehicle: { kmStart: '', kmEnd: '', fuel: '', condition: 'BAIK' }
+            });
             fetchReports();
             alert('Laporan berhasil dikirim');
         } catch (err) {
@@ -77,8 +107,8 @@ const PersonnelReports = () => {
             {showForm && (
                 <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
                     <h3 className="text-lg font-bold text-slate-800 mb-4">Input Laporan Baru</h3>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Jenis Laporan</label>
                                 <select
@@ -91,6 +121,20 @@ const PersonnelReports = () => {
                                 </select>
                             </div>
                             <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Kategori Bidang</label>
+                                <select
+                                    value={form.category}
+                                    onChange={e => setForm({ ...form, category: e.target.value })}
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-600"
+                                >
+                                    <option value="UMUM">Umum / Lainnya</option>
+                                    <option value="KEUANGAN">📦 Staf Keuangan (Syafrian)</option>
+                                    <option value="ASET">🏢 Staf Manajemen Aset (Eldo)</option>
+                                    <option value="GUDANG">🏠 Staf Gudang & Logistik (Jeri)</option>
+                                    <option value="KENDARAAN">🚗 Staf Kendaraan (Ringgo/Wegi)</option>
+                                </select>
+                            </div>
+                            <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tanggal Aktivitas</label>
                                 <input
                                     type="date"
@@ -100,13 +144,95 @@ const PersonnelReports = () => {
                                 />
                             </div>
                         </div>
+
+                        {/* Category Specific Fields */}
+                        {form.category === 'KEUANGAN' && (
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Pemasukan (Rp)</label>
+                                    <input type="number" value={form.finance.income} onChange={e => setForm({ ...form, finance: { ...form.finance, income: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Pengeluaran (Rp)</label>
+                                    <input type="number" value={form.finance.outcome} onChange={e => setForm({ ...form, finance: { ...form.finance, outcome: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Saldo Akhir (Rp)</label>
+                                    <input type="number" value={form.finance.balance} onChange={e => setForm({ ...form, finance: { ...form.finance, balance: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
+                                </div>
+                            </div>
+                        )}
+
+                        {form.category === 'ASET' && (
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Aset Masuk</label>
+                                    <input type="text" value={form.assets.in} onChange={e => setForm({ ...form, assets: { ...form.assets, in: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Aset Keluar</label>
+                                    <input type="text" value={form.assets.out} onChange={e => setForm({ ...form, assets: { ...form.assets, out: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Kondisi Umum</label>
+                                    <select value={form.assets.condition} onChange={e => setForm({ ...form, assets: { ...form.assets, condition: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm">
+                                        <option value="BAIK">BAIK</option>
+                                        <option value="RUSAK_RINGAN">RUSAK RINGAN</option>
+                                        <option value="RUSAK_BERAT">RUSAK BERAT</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
+                        {form.category === 'GUDANG' && (
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Stok Masuk</label>
+                                    <input type="text" value={form.warehouse.in} onChange={e => setForm({ ...form, warehouse: { ...form.warehouse, in: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Stok Keluar</label>
+                                    <input type="text" value={form.warehouse.out} onChange={e => setForm({ ...form, warehouse: { ...form.warehouse, out: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Sisa Stok</label>
+                                    <input type="text" value={form.warehouse.remaining} onChange={e => setForm({ ...form, warehouse: { ...form.warehouse, remaining: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
+                                </div>
+                            </div>
+                        )}
+
+                        {form.category === 'KENDARAAN' && (
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">KM Awal</label>
+                                    <input type="number" value={form.vehicle.kmStart} onChange={e => setForm({ ...form, vehicle: { ...form.vehicle, kmStart: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">KM Akhir</label>
+                                    <input type="number" value={form.vehicle.kmEnd} onChange={e => setForm({ ...form, vehicle: { ...form.vehicle, kmEnd: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">BBM (Liter)</label>
+                                    <input type="number" value={form.vehicle.fuel} onChange={e => setForm({ ...form, vehicle: { ...form.vehicle, fuel: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Kondisi</label>
+                                    <select value={form.vehicle.condition} onChange={e => setForm({ ...form, vehicle: { ...form.vehicle, condition: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm">
+                                        <option value="BAIK">BAIK</option>
+                                        <option value="SERVIS">PERLU SERVIS</option>
+                                        <option value="RUSAK">RUSAK</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Isi Laporan / Aktivitas</label>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Kesimpulan Laporan / Aktivitas Lain</label>
                             <textarea
                                 value={form.content}
                                 onChange={e => setForm({ ...form, content: e.target.value })}
-                                rows={5}
-                                placeholder="Jelaskan aktivitas yang dilakukan..."
+                                rows={4}
+                                placeholder="Jelaskan detail aktivitas secara naratif..."
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                             ></textarea>
                         </div>
@@ -114,7 +240,7 @@ const PersonnelReports = () => {
                             <button
                                 type="submit"
                                 disabled={submitting}
-                                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:opacity-50"
+                                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-blue-700 hover:shadow-xl transition-all disabled:opacity-50"
                             >
                                 {submitting ? 'Mengirim...' : 'Kirim Laporan'}
                             </button>
