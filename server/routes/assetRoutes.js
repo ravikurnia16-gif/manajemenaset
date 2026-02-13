@@ -2,7 +2,7 @@ const express = require('express');
 const {
     createAsset, getAllAssets, getAssetById, updateAsset, deleteAsset,
     batchImportAssets, deleteMultipleAssets, getFundingSources,
-    validateAsset, validateMultipleAssets
+    validateAsset, validateMultipleAssets, getAssetPublic
 } = require('../controllers/assetController');
 const {
     requestMutation, approveMutation, rejectMutation,
