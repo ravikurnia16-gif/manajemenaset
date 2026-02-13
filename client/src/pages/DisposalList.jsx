@@ -9,8 +9,9 @@ const DisposalList = () => {
     const [activeTab, setActiveTab] = useState('PENDING'); // PENDING, FINALIZED (APPROVED/REJECTED)
     const [reviewModal, setReviewModal] = useState({ isOpen: false, data: null, status: '', reason: '' });
     const [addModal, setAddModal] = useState({ isOpen: false, assetId: '', reason: '', method: 'DIMUSNAHKAN', notes: '', disposalDate: new Date().toISOString().split('T')[0] });
-    const [assets, setAssets] = useState([]); // Assets available for proposal
-    const [assetSearch, setAssetSearch] = useState('');
+    const [assets, setAssets] = useState([]); // Assets from server
+    const [assetSearch, setAssetSearch] = useState(''); // Display/Input value
+    const [assetSearchTerm, setAssetSearchTerm] = useState(''); // Debounced term for API
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN_ASET';
@@ -18,14 +19,28 @@ const DisposalList = () => {
 
     useEffect(() => {
         fetchDisposals();
-        if (canPropose) fetchAvailableAssets();
     }, [activeTab]);
 
-    const fetchAvailableAssets = async () => {
+    // Debounce asset search
+    useEffect(() => {
+        if (!addModal.isOpen) return;
+        const timer = setTimeout(() => {
+            setAssetSearchTerm(assetSearch);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [assetSearch, addModal.isOpen]);
+
+    useEffect(() => {
+        if (canPropose && addModal.isOpen) {
+            fetchAvailableAssets(assetSearchTerm);
+        }
+    }, [assetSearchTerm, canPropose, addModal.isOpen]);
+
+    const fetchAvailableAssets = async (query = '') => {
         try {
-            // Fetch assets that are not disposed. Limiting to 50 for selection or using search in real app.
-            const res = await api.get('/assets?limit=100');
-            // Assets are in res.data.data if using paginated API
+            // Fetch assets with search query and limit. 
+            // We search for assets that are NOT disposed.
+            const res = await api.get(`/assets?limit=50&search=${query}`);
             const assetData = res.data.data || res.data;
             setAssets(Array.isArray(assetData) ? assetData : []);
         } catch (error) {
@@ -348,7 +363,7 @@ const DisposalList = () => {
                                                 >
                                                     <div className="font-bold truncate">{a.name}</div>
                                                     <div className={`text-[10px] ${addModal.assetId === a.id ? 'text-blue-100' : 'text-slate-400'} font-mono uppercase`}>
-                                                        {a.code} • {a.unit?.name || 'No Unit'}
+                                                        {a.code} • {a.unit?.name || 'No Unit'} • {a.room?.name || 'No Room'}
                                                     </div>
                                                 </button>
                                             ))}

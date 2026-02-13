@@ -216,11 +216,13 @@ exports.getAllAssets = async (req, res) => {
             where.validationStatus = validationStatus;
         }
 
-        // 4. Search (Name or Code)
+        // 4. Search (Name, Code, Unit, or Room)
         if (search) {
             where.OR = [
-                { name: { contains: search } }, // Case insensitive usually depends on DB collation
-                { code: { contains: search } }
+                { name: { contains: search } },
+                { code: { contains: search } },
+                { unit: { name: { contains: search } } },
+                { room: { name: { contains: search } } }
             ];
         }
 
