@@ -194,7 +194,7 @@ exports.getAssignments = async (req, res) => {
         }
 
         const where = {};
-        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
+        if (user.role !== 'SUPER_ADMIN') {
             where.OR = [
                 { assigneeId: user.id },
                 { assignerId: user.id }
