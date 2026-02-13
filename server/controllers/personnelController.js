@@ -12,7 +12,7 @@ const isSarprasUnit = async (unitId) => {
 // --- REPORTS ---
 
 exports.createReport = async (req, res) => {
-    const { type, category, content, date, details } = req.body;
+    const { type, category, content, date, details, metadata } = req.body;
     const user = req.user;
 
     try {
@@ -26,6 +26,7 @@ exports.createReport = async (req, res) => {
                 type,
                 category: category || 'UMUM',
                 content,
+                metadata: metadata || null,
                 date: date ? new Date(date) : new Date()
             }
         });
@@ -55,7 +56,13 @@ exports.createReport = async (req, res) => {
                         `📑 *Tipe* : ${typeLabel}\n` +
                         `📂 *Kategori* : ${catLabel}\n\n`;
 
-                    if (details) {
+                    if (category === 'ASET' && metadata?.items) {
+                        msg += `📊 *Daftar Barang*:\n`;
+                        metadata.items.forEach((item, idx) => {
+                            msg += `${idx + 1}. ${item.name || '-'} (${item.qty || '0'} unit)${item.target ? ' -> ' + item.target : ''}\n`;
+                        });
+                        msg += `\n`;
+                    } else if (details) {
                         msg += `📊 *Detail Aktivitas*:\n${details}\n\n`;
                     }
 
