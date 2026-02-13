@@ -44,11 +44,16 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
                     )}
                 </div>
 
-                {/* Asset Code below QR */}
-                <div className="bg-slate-50 px-3 py-1 rounded-sm border border-slate-300">
-                    <p className="font-mono text-[12px] text-black font-extrabold tracking-wider leading-none">
-                        {asset?.code || '-'}
+                {/* Room and Asset Code below QR */}
+                <div className="flex flex-col items-center justify-center gap-1">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight truncate max-w-full italic px-2">
+                        {asset?.room?.name || 'TANPA RUANGAN'}
                     </p>
+                    <div className="bg-slate-50 px-3 py-1 rounded-sm border border-slate-300">
+                        <p className="font-mono text-[12px] text-black font-extrabold tracking-wider leading-none">
+                            {asset?.code || '-'}
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -62,12 +67,12 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
     // Layout configuration (Adjusted for square labels)
     const getLayoutConfigs = (id) => {
         switch (id) {
-            case '2x2': return { cols: 2, width: '90mm', height: '120mm', qr: 200, logoSize: '45px', title: '18pt', code: '16pt', padding: '10mm' };
-            case '3x4': return { cols: 3, width: '60mm', height: '65mm', qr: 130, logoSize: '30px', title: '11pt', code: '11pt', padding: '5mm' };
-            case '3x7': return { cols: 3, width: '60mm', height: '38mm', qr: 80, logoSize: '18px', title: '8pt', code: '9pt', padding: '3mm' };
-            case '3x10': return { cols: 3, width: '60mm', height: '26mm', qr: 55, logoSize: '14px', title: '7pt', code: '8pt', padding: '2mm' };
+            case '2x2': return { cols: 2, width: '90mm', height: '120mm', qr: 200, logoSize: '45px', title: '18pt', room: '14pt', code: '16pt', padding: '10mm' };
+            case '3x4': return { cols: 3, width: '60mm', height: '65mm', qr: 130, logoSize: '30px', title: '11pt', room: '9pt', code: '11pt', padding: '5mm' };
+            case '3x7': return { cols: 3, width: '60mm', height: '38mm', qr: 80, logoSize: '18px', title: '8pt', room: '7pt', code: '9pt', padding: '3mm' };
+            case '3x10': return { cols: 3, width: '60mm', height: '26mm', qr: 55, logoSize: '14px', title: '7pt', room: '6pt', code: '8pt', padding: '2mm' };
             case '2x4':
-            default: return { cols: 2, width: '90mm', height: '65mm', qr: 160, logoSize: '40px', title: '14pt', code: '14pt', padding: '6mm' };
+            default: return { cols: 2, width: '90mm', height: '65mm', qr: 160, logoSize: '40px', title: '14pt', room: '11pt', code: '14pt', padding: '6mm' };
         }
     };
 
@@ -103,6 +108,14 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                         border-radius: 2px;
                     }
                     .batch-org-title { font-size: ${config.title}; }
+                    .batch-room-text { 
+                        font-size: ${config.room}; 
+                        font-weight: 700; 
+                        color: #64748b; 
+                        margin-bottom: 1.5mm;
+                        text-transform: uppercase;
+                        font-style: italic;
+                    }
                     .batch-code-text { font-size: ${config.code}; }
                     .batch-qr-container { margin-bottom: 2mm; position: relative; display: flex; align-items: center; justify-content: center; }
                 }
@@ -154,6 +167,18 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                     padding: 2px;
                     border-radius: 1px;
                 }
+                .batch-room-text {
+                    font-weight: 700;
+                    color: #64748b;
+                    text-transform: uppercase;
+                    margin-bottom: 1.5mm;
+                    text-align: center;
+                    width: 100%;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    font-style: italic;
+                }
                 .batch-code-box {
                     background: #f8fafc;
                     padding: 1mm 4mm;
@@ -189,7 +214,8 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                         )}
                     </div>
 
-                    {/* Bottom: Asset Code */}
+                    {/* Bottom: Room and Asset Code */}
+                    <div className="batch-room-text">{asset?.room?.name || 'Tanpa Ruangan'}</div>
                     <div className="batch-code-box">
                         <span className="batch-code-text">{asset?.code || '-'}</span>
                     </div>
