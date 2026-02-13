@@ -506,7 +506,7 @@ exports.addVendorOffer = async (req, res) => {
 // Process BAST & Auto-Asset Creation
 exports.processBAST = async (req, res) => {
     const { id } = req.params;
-    const { bastDate } = req.body;
+    const { bastDate, bastFile } = req.body;
 
     try {
         const procurement = await prisma.procurement.findUnique({
@@ -524,6 +524,7 @@ exports.processBAST = async (req, res) => {
                 data: {
                     status: 'COMPLETED',
                     bastDate: new Date(bastDate),
+                    bastFile: bastFile || null
                 }
             });
 
