@@ -16,15 +16,23 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small' }, ref) => {
             <div style={containerStyle} className="flex flex-col items-center justify-center p-2 border-2 border-slate-800 rounded-sm">
                 <div className="flex w-full gap-2 items-center h-full">
                     <div className="flex flex-col items-center gap-1 shrink-0">
-                        {asset?.unit?.logo && (
-                            <img src={asset.unit.logo} alt="Unit Logo" className="w-10 h-10 object-contain mb-1" />
-                        )}
-                        <div className="bg-white p-1">
+                        <div className="bg-white p-1 relative flex items-center justify-center">
                             <QRCode
                                 value={JSON.stringify({ code: asset.code, id: asset.id })}
-                                size={size === 'small' ? 60 : 100}
-                                level="M"
+                                size={size === 'small' ? 70 : 110}
+                                level="H"
                             />
+                            {asset?.unit?.logo && (
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <div className="bg-white p-0.5 rounded-sm shadow-sm flex items-center justify-center border border-slate-100" style={{ width: '22%', height: '22%' }}>
+                                        <img
+                                            src={asset.unit.logo}
+                                            alt="L"
+                                            className="w-full h-full object-contain"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div className="flex-1 flex flex-col justify-center overflow-hidden">
@@ -190,20 +198,28 @@ export const BatchLabelPrint = React.forwardRef(({ assets }, ref) => {
             `}</style>
             {assets.map(asset => (
                 <div key={asset.id} className="label-item">
-                    <div className="flex items-center justify-between w-full mb-2">
-                        {asset?.unit?.logo && (
-                            <img src={asset.unit.logo} alt="Unit Logo" className="w-12 h-12 object-contain" />
-                        )}
-                        <div className="qr-section ml-auto">
+                    <div className="flex items-center justify-center w-full mb-2">
+                        <div className="qr-section relative flex items-center justify-center">
                             <QRCode
                                 value={JSON.stringify({
                                     code: asset?.code || '-',
                                     id: asset?.id,
                                     name: asset?.name
                                 })}
-                                size={asset?.unit?.logo ? 80 : 100}
-                                level="M"
+                                size={120}
+                                level="H"
                             />
+                            {asset?.unit?.logo && (
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <div className="bg-white p-0.5 rounded-sm shadow-sm flex items-center justify-center border border-slate-100" style={{ width: '24%', height: '24%' }}>
+                                        <img
+                                            src={asset.unit.logo}
+                                            alt="L"
+                                            className="w-full h-full object-contain"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div className="info-section">
