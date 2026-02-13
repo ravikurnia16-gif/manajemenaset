@@ -279,10 +279,12 @@ exports.getStaffSarpras = async (req, res) => {
         const staff = await prisma.user.findMany({
             where: {
                 OR: [
+                    { role: 'ADMIN_ASET' },
                     { unit: { name: { contains: 'Sarana dan Prasarana' } } },
-                    { name: { contains: 'Syaf', mode: 'insensitive' } },
-                    { name: { contains: 'Eldo', mode: 'insensitive' } },
+                    { name: { contains: 'Syafrian', mode: 'insensitive' } },
+                    { name: { contains: 'Syafruan', mode: 'insensitive' } },
                     { name: { contains: 'Wegi', mode: 'insensitive' } },
+                    { name: { contains: 'Eldo', mode: 'insensitive' } },
                     { name: { contains: 'Jeri', mode: 'insensitive' } },
                     { name: { contains: 'Ringgo', mode: 'insensitive' } }
                 ]

@@ -116,7 +116,7 @@ const PersonnelAssignments = () => {
                                 >
                                     <option value="">-- Pilih Staf --</option>
                                     {staff.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name} ({s.position || 'Staf'})</option>
+                                        <option key={s.id} value={s.id}>{s.name}</option>
                                     ))}
                                 </select>
                             </div>
