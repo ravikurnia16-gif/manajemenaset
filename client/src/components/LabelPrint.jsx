@@ -55,9 +55,23 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
     );
 });
 
-export const BatchLabelPrint = React.forwardRef(({ assets, institute }, ref) => {
+export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '2x4' }, ref) => {
     const orgName = institute?.orgName || "YAYASAN DAR EL IMAN";
     const orgLogo = institute?.orgLogo;
+
+    // Layout configuration
+    const getLayoutConfigs = (id) => {
+        switch (id) {
+            case '2x2': return { cols: 2, width: '95mm', height: '130mm', qr: 120, title: '18pt', code: '14pt', logo: '80px', padding: '10mm' };
+            case '3x4': return { cols: 3, width: '60mm', height: '65mm', qr: 80, title: '11pt', code: '9pt', logo: '45px', padding: '3mm' };
+            case '3x7': return { cols: 3, width: '60mm', height: '36mm', qr: 60, title: '9pt', code: '8pt', logo: '35px', padding: '2mm' };
+            case '3x10': return { cols: 3, width: '60mm', height: '24mm', qr: 50, title: '7pt', code: '7pt', logo: '30px', padding: '1.5mm' };
+            case '2x4':
+            default: return { cols: 2, width: '90mm', height: '45mm', qr: 90, title: '14pt', code: '11pt', logo: '60px', padding: '4mm' };
+        }
+    };
+
+    const config = getLayoutConfigs(layout);
 
     return (
         <div ref={ref} className="print-container">
@@ -70,37 +84,41 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute }, ref) => 
                     .print-container {
                         width: 100%;
                         display: grid;
-                        grid-template-columns: repeat(2, 1fr);
-                        gap: 8mm;
+                        grid-template-columns: repeat(${config.cols}, 1fr);
+                        gap: 5mm;
                         page-break-inside: avoid;
                     }
                     .label-item {
-                        width: 90mm;
-                        height: 45mm;
+                        width: ${config.width};
+                        height: ${config.height};
                         page-break-inside: avoid;
                         background-color: #dfd8bc !important;
                         -webkit-print-color-adjust: exact;
-                        padding: 4mm;
+                        padding: ${config.padding};
                         display: flex;
                         align-items: center;
                         justify-content: space-between;
                         border-radius: 4px;
                     }
+                    .qr-box { padding: 4px; }
+                    .org-title { font-size: ${config.title}; }
+                    .code-text { font-size: ${config.code}; }
+                    .logo-box { width: ${config.logo}; }
                 }
                 
                 .print-container {
                     padding: 20px;
                     display: grid;
-                    grid-template-columns: repeat(2, 1fr);
+                    grid-template-columns: repeat(${config.cols}, 1fr);
                     gap: 16px;
                     max-width: 210mm;
                     margin: 0 auto;
                 }
                 .label-item {
                     width: 100%;
-                    aspect-ratio: 2/1;
+                    height: ${config.height};
                     background-color: #dfd8bc;
-                    padding: 16px;
+                    padding: ${config.padding};
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
@@ -114,7 +132,6 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute }, ref) => 
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
                 }
                 .text-content {
                     flex: 1;
@@ -123,31 +140,31 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute }, ref) => 
                     align-items: center;
                     justify-content: center;
                     text-align: center;
-                    padding: 0 8px;
+                    padding: 0 4px;
                 }
                 .org-title {
-                    font-size: 14pt;
                     font-weight: bold;
                     color: #000;
                     text-transform: uppercase;
-                    margin-bottom: 2mm;
+                    margin-bottom: 1.5mm;
                     line-height: 1.1;
                     width: 100%;
+                    font-size: ${config.title};
                 }
                 .code-box {
                     background: white;
-                    padding: 1.5mm 4mm;
+                    padding: 1mm 3mm;
                     border-radius: 1mm;
                     border: 0.5px solid #ccc;
                 }
                 .code-text {
                     font-family: 'Courier New', monospace;
-                    font-size: 11pt;
                     font-weight: bold;
                     color: #000;
+                    font-size: ${config.code};
                 }
                 .logo-box {
-                    width: 65px;
+                    width: ${config.logo};
                     display: flex;
                     align-items: center;
                     justify-content: center;
@@ -155,8 +172,8 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute }, ref) => 
                 .logo-img {
                     width: 100%;
                     height: auto;
-                    max-height: 60px;
-                    object-contain: true;
+                    max-height: ${config.logo};
+                    object-fit: contain;
                 }
             `}</style>
             {assets.map(asset => (
@@ -169,7 +186,7 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute }, ref) => 
                                 id: asset?.id,
                                 name: asset?.name
                             })}
-                            size={90}
+                            size={config.qr}
                             level="M"
                         />
                     </div>
@@ -187,7 +204,7 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute }, ref) => 
                         {orgLogo ? (
                             <img src={orgLogo} alt="Logo" className="logo-img" />
                         ) : (
-                            <div className="w-12 h-12 border-2 border-slate-400 rounded-full border-dashed" />
+                            <div className="w-8 h-8 border-2 border-slate-400 rounded-full border-dashed" />
                         )}
                     </div>
                 </div>

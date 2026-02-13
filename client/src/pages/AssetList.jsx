@@ -20,6 +20,7 @@ const AssetList = ({ validationMode = false }) => {
     const [assets, setAssets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+    const [printLayout, setPrintLayout] = useState('2x4'); // Default 8 labels per page
 
     // Filter Logic
     const [searchTerm, setSearchTerm] = useState('');
@@ -584,10 +585,38 @@ const AssetList = ({ validationMode = false }) => {
                             </div>
                         </div>
 
-                        <div className="flex justify-end gap-3 mt-6">
+                        {/* Layout Selection */}
+                        <div className="bg-slate-50 p-4 border-y border-slate-100 flex flex-col gap-3">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Layout Cetak (per halaman A4)</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {[
+                                    { id: '2x2', label: '4 Label (Besar)', desc: '2 x 2' },
+                                    { id: '2x4', label: '8 Label (Standar)', desc: '2 x 4' },
+                                    { id: '3x4', label: '12 Label (Sedang)', desc: '3 x 4' },
+                                    { id: '3x7', label: '21 Label (Stiker)', desc: '3 x 7' },
+                                    { id: '3x10', label: '30 Label (Kecil)', desc: '3 x 10' },
+                                ].map((layout) => (
+                                    <button
+                                        key={layout.id}
+                                        onClick={() => setPrintLayout(layout.id)}
+                                        className={`flex flex-col items-start p-3 rounded-xl border-2 transition-all ${printLayout === layout.id
+                                                ? 'border-blue-500 bg-blue-50/50 shadow-sm'
+                                                : 'border-slate-200 bg-white hover:border-slate-300'
+                                            }`}
+                                    >
+                                        <span className={`text-sm font-bold ${printLayout === layout.id ? 'text-blue-700' : 'text-slate-700'}`}>
+                                            {layout.label}
+                                        </span>
+                                        <span className="text-[10px] text-slate-500 font-medium">Layout: {layout.desc}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="p-6 pt-2 flex justify-end gap-3">
                             <button
                                 onClick={() => setActionModal({ isOpen: false, type: null })}
-                                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
+                                className="px-6 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold transition-colors"
                             >
                                 Batal
                             </button>
@@ -991,6 +1020,7 @@ const AssetList = ({ validationMode = false }) => {
                         ref={batchPrintRef}
                         assets={Array.isArray(batchPrintAssets) && batchPrintAssets.length > 0 ? batchPrintAssets : []}
                         institute={settings}
+                        layout={printLayout}
                     />
                 </div>
             )}
