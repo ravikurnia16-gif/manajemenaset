@@ -192,7 +192,9 @@ exports.getAllAssets = async (req, res) => {
         const take = parseInt(limit);
 
         let where = {
-            condition: { not: 'DISPOSED' }
+            condition: {
+                notIn: ['DISPOSED']
+            }
         };
 
         // 1. Role-based Restriction
