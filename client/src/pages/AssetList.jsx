@@ -36,7 +36,7 @@ const AssetList = ({ validationMode = false }) => {
         reason: '',
         method: 'DIMUSNAHKAN',
         notes: '',
-        disposalDate: new Uint8Array(new Date().getTimezoneOffset() * 60 * 1000).length > 0 ? "" : new Date().toISOString().split('T')[0]
+        disposalDate: new Date().toISOString().split('T')[0]
     });
 
     const [currentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
@@ -73,13 +73,13 @@ const AssetList = ({ validationMode = false }) => {
             ]);
 
             // Handle new response structure (data + pagination)
-            if (respAssets.data.pagination) {
-                setAssets(respAssets.data.data);
-                setTotalItems(respAssets.data.pagination.total);
+            if (respAssets.data && respAssets.data.pagination) {
+                setAssets(Array.isArray(respAssets.data.data) ? respAssets.data.data : []);
+                setTotalItems(respAssets.data.pagination.total || 0);
             } else {
                 // Fallback for old API style (just in case)
-                setAssets(respAssets.data);
-                setTotalItems(respAssets.data.length);
+                setAssets(Array.isArray(respAssets.data) ? respAssets.data : []);
+                setTotalItems(Array.isArray(respAssets.data) ? respAssets.data.length : 0);
             }
 
             setUnits(respUnits.data);
@@ -686,11 +686,11 @@ const AssetList = ({ validationMode = false }) => {
                         <tbody className="divide-y divide-slate-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan="7" className="px-6 py-12 text-center text-slate-500">
+                                    <td colSpan="8" className="px-6 py-12 text-center text-slate-500">
                                         Memuat data...
                                     </td>
                                 </tr>
-                            ) : paginatedAssets.length > 0 ? paginatedAssets.map((asset) => (
+                            ) : (Array.isArray(paginatedAssets) && paginatedAssets.length > 0) ? paginatedAssets.map((asset) => (
                                 <tr key={asset.id} className={`hover:bg-slate-50/80 transition-colors group ${selectedIds.includes(asset.id) ? 'bg-blue-50/30' : ''}`}>
                                     <td className="px-6 py-4 text-center">
                                         <input
@@ -773,7 +773,7 @@ const AssetList = ({ validationMode = false }) => {
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan="7" className="px-6 py-12 text-center text-slate-500">
+                                    <td colSpan="8" className="px-6 py-12 text-center text-slate-500">
                                         Data tidak ditemukan untuk filter ini
                                     </td>
                                 </tr>
@@ -909,7 +909,7 @@ const AssetList = ({ validationMode = false }) => {
             <div className="hidden">
                 {printAsset && <LabelPrint ref={printRef} asset={printAsset} />}
                 {/* Use batchPrintAssets if available, else filteredAssets */}
-                <BatchLabelPrint ref={batchPrintRef} assets={batchPrintAssets.length > 0 ? batchPrintAssets : filteredAssets} />
+                <BatchLabelPrint ref={batchPrintRef} assets={Array.isArray(batchPrintAssets) && batchPrintAssets.length > 0 ? batchPrintAssets : (Array.isArray(filteredAssets) ? filteredAssets : [])} />
             </div>
         </div>
     );

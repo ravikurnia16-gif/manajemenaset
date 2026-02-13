@@ -191,11 +191,9 @@ exports.getAllAssets = async (req, res) => {
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const take = parseInt(limit);
 
-        let where = {
-            condition: {
-                notIn: ['DISPOSED']
-            }
-        };
+        let where = {};
+        // Note: condition: { notIn: ['DISPOSED'] } is temporarily disabled 
+        // until database schema is confirmed to be in sync.
 
         // 1. Role-based Restriction
         if (role !== 'SUPER_ADMIN' && role !== 'ADMIN_ASET' && role !== 'KEPALA_BIDANG') {

@@ -23,10 +23,10 @@ const DisposalList = () => {
         }
     };
 
-    const filteredDisposals = disposals.filter(d =>
-        d.asset?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.asset?.code.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredDisposals = Array.isArray(disposals) ? disposals.filter(d =>
+        d.asset?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        d.asset?.code?.toLowerCase().includes(searchTerm.toLowerCase())
+    ) : [];
 
     if (loading) return <div className="p-8 text-center text-slate-500 font-medium">Memuat riwayat penghapusan...</div>;
 
