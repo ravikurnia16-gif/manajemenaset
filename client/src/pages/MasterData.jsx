@@ -267,19 +267,19 @@ const MasterData = () => {
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-500 mb-1">Nama Kepala Unit</label>
-                                        <input value={newUnit.headName} onChange={e => setNewUnit({ ...newUnit, headName: e.target.value })} className="w-full border border-white rounded-lg px-3 py-2 text-sm outline-none shadow-sm" placeholder="Budi Santoso" />
+                                        <input value={newUnit.headName} onChange={e => setNewUnit({ ...newUnit, headName: e.target.value })} className="w-full border border-white rounded-lg px-3 py-2 text-sm outline-none shadow-sm" placeholder="Ravi Kurnia" />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-500 mb-1">NIP Kepala Unit</label>
-                                        <input value={newUnit.headNip} onChange={e => setNewUnit({ ...newUnit, headNip: e.target.value })} className="w-full border border-white rounded-lg px-3 py-2 text-sm outline-none shadow-sm" placeholder="1980..." />
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1">NIY Kepala Unit</label>
+                                        <input value={newUnit.headNip} onChange={e => setNewUnit({ ...newUnit, headNip: e.target.value })} className="w-full border border-white rounded-lg px-3 py-2 text-sm outline-none shadow-sm" placeholder="1997..." />
                                     </div>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Nomor Telepon</label>
-                                    <input value={newUnit.phone} onChange={e => setNewUnit({ ...newUnit, phone: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="021..." />
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Nomor Handphone</label>
+                                    <input value={newUnit.phone} onChange={e => setNewUnit({ ...newUnit, phone: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="628..." />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-500 mb-1">Email Unit</label>
@@ -293,7 +293,7 @@ const MasterData = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Logo Unit (Muncul di QR Code)</label>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Logo Unit</label>
                                 <div className="flex items-center gap-4 p-3 bg-blue-50/50 border border-blue-100 rounded-xl mt-1">
                                     <div className="w-16 h-16 bg-white border border-blue-200 rounded-lg flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
                                         {newUnit.logo ? (
