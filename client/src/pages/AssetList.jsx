@@ -10,6 +10,7 @@ const AssetList = ({ validationMode = false }) => {
     const navigate = useNavigate();
     const [units, setUnits] = useState([]);
     const [rooms, setRooms] = useState([]);
+    const [settings, setSettings] = useState(null);
 
     // Action Modal State
     const [actionModal, setActionModal] = useState({ isOpen: false, type: null }); // type: 'export' | 'print'
@@ -69,10 +70,11 @@ const AssetList = ({ validationMode = false }) => {
                 roomId: selectedRoom
             };
 
-            const [respAssets, respUnits, respRooms] = await Promise.all([
+            const [respAssets, respUnits, respRooms, respSettings] = await Promise.all([
                 api.get('/assets', { params }).catch(err => { throw new Error(`Data Aset: ${err.message}`); }),
                 api.get('/master/units').catch(err => { throw new Error(`Data Unit: ${err.message}`); }),
-                api.get('/master/rooms').catch(err => { throw new Error(`Data Ruangan: ${err.message}`); })
+                api.get('/master/rooms').catch(err => { throw new Error(`Data Ruangan: ${err.message}`); }),
+                api.get('/settings').catch(err => { console.warn("Failed to fetch settings"); return { data: null }; })
             ]);
 
             // Handle new response structure (data + pagination)
@@ -87,6 +89,7 @@ const AssetList = ({ validationMode = false }) => {
 
             setUnits(respUnits.data);
             setRooms(respRooms.data);
+            if (respSettings && respSettings.data) setSettings(respSettings.data);
         } catch (error) {
             console.error('Fetch error:', error);
             if (!error.message.includes('401') && !error.message.includes('403')) {
@@ -983,10 +986,11 @@ const AssetList = ({ validationMode = false }) => {
             {/* Hidden Print Components - Render only when needed to save memory */}
             {isPreparingPrint && (
                 <div className="hidden">
-                    {printAsset && <LabelPrint ref={printRef} asset={printAsset} />}
+                    {printAsset && <LabelPrint ref={printRef} asset={printAsset} institute={settings} />}
                     <BatchLabelPrint
                         ref={batchPrintRef}
                         assets={Array.isArray(batchPrintAssets) && batchPrintAssets.length > 0 ? batchPrintAssets : []}
+                        institute={settings}
                     />
                 </div>
             )}
