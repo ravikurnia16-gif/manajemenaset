@@ -166,11 +166,13 @@ exports.createAssignment = async (req, res) => {
                 });
 
                 if (assignee?.phone) {
-                    const msg = `👷‍♂️ *PENUGASAN BARU*\n\n` +
+                    const msg = `*Info Penugasan Sarpras*\n\n` +
+                        `Telah masuk permintaan dari Kepala Bidang Sarana dan Prasarana Dengan Rinciannya:\n\n` +
                         `📌 *Judul* : ${title}\n` +
                         `📅 *Deadline* : ${dueDate ? new Date(dueDate).toLocaleDateString('id-ID') : '-'}\n` +
-                        `*Pemberi Tugas* : ${assigner?.name || assigner?.username || 'Admin'}\n\n` +
-                        `📝 *Deskripsi*:\n${description}`;
+                        `👤 *Pemberi Tugas* : ${assigner?.name || assigner?.username || 'Admin'}\n\n` +
+                        `*Deskripsi* :\n${description}\n\n` +
+                        `Mohon bantuan untuk segera dilaksanakan ya Ustadz`;
 
                     await whatsappService.sendMessage(assignee.phone, msg);
                 }

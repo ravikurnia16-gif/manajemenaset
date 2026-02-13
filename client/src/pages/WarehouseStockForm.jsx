@@ -125,7 +125,7 @@ const WarehouseStockForm = () => {
                                 <label className="block text-xs font-semibold text-slate-600 mb-1">Ukuran</label>
                                 <select value={form.size} onChange={e => setForm(prev => ({ ...prev, size: e.target.value }))} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm">
                                     <option value="">Pilih</option>
-                                    {['SS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '38', '40', '42', '44', '46', '48', '50/20', '50/22', '50/24', '52/20', '52/22', '52/24', '54/20', '54/22', '54/24'].map(s => <option key={s} value={s}>{s}</option>)}
+                                    {['SS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '4XL', '38', '40', '42', '44', '46', '48', '50/20', '50/22', '50/24', '52/20', '52/22', '52/24', '54/20', '54/22', '54/24'].map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                             </div>
                             <div>
