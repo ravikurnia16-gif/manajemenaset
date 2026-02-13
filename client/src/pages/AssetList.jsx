@@ -18,6 +18,7 @@ const AssetList = ({ validationMode = false }) => {
 
     const [assets, setAssets] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isPreparingPrint, setIsPreparingPrint] = useState(false);
 
     // Filter Logic
     const [searchTerm, setSearchTerm] = useState('');
@@ -122,17 +123,24 @@ const AssetList = ({ validationMode = false }) => {
 
     const handlePrintSingle = useReactToPrint({
         contentRef: printRef,
-        onAfterPrint: () => setPrintAsset(null),
+        onAfterPrint: () => {
+            setPrintAsset(null);
+            setIsPreparingPrint(false);
+        },
     });
 
     const handleBatchPrint = useReactToPrint({
         contentRef: batchPrintRef,
-        onAfterPrint: () => setBatchPrintAssets([]),
+        onAfterPrint: () => {
+            setBatchPrintAssets([]);
+            setIsPreparingPrint(false);
+        },
     });
 
     const openPrintModal = (asset) => {
+        setIsPreparingPrint(true);
         setPrintAsset(asset);
-        setTimeout(() => handlePrintSingle(), 100);
+        setTimeout(() => handlePrintSingle(), 500);
     };
 
     // -- REMOVED CLIENT-SIDE FILTERING LOGIC --
@@ -183,10 +191,11 @@ const AssetList = ({ validationMode = false }) => {
     };
 
     const performBatchPrint = (data) => {
+        setIsPreparingPrint(true);
         setBatchPrintAssets(data);
         setTimeout(() => {
             handleBatchPrint();
-        }, 500); // Give time for state update and re-render
+        }, 800); // Give enough time for rendering thousands of cards
     };
 
     const handleDelete = async (id) => {
@@ -415,6 +424,20 @@ const AssetList = ({ validationMode = false }) => {
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Print Preparation Overlay */}
+            {isPreparingPrint && (
+                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/80 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center text-center max-w-xs ring-1 ring-slate-100">
+                        <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-6"></div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">Menyiapkan Dokumen</h3>
+                        <p className="text-slate-500 text-sm leading-relaxed">
+                            Sedang merender label QR...<br />
+                            Mohon tunggu sebentar sampai dialog cetak muncul.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                 <div>
@@ -957,12 +980,16 @@ const AssetList = ({ validationMode = false }) => {
                 )
             }
 
-            {/* Hidden Print Components */}
-            <div className="hidden">
-                {printAsset && <LabelPrint ref={printRef} asset={printAsset} />}
-                {/* Use batchPrintAssets if available, else filteredAssets */}
-                <BatchLabelPrint ref={batchPrintRef} assets={Array.isArray(batchPrintAssets) && batchPrintAssets.length > 0 ? batchPrintAssets : (Array.isArray(filteredAssets) ? filteredAssets : [])} />
-            </div>
+            {/* Hidden Print Components - Render only when needed to save memory */}
+            {isPreparingPrint && (
+                <div className="hidden">
+                    {printAsset && <LabelPrint ref={printRef} asset={printAsset} />}
+                    <BatchLabelPrint
+                        ref={batchPrintRef}
+                        assets={Array.isArray(batchPrintAssets) && batchPrintAssets.length > 0 ? batchPrintAssets : []}
+                    />
+                </div>
+            )}
         </div >
     );
 };
