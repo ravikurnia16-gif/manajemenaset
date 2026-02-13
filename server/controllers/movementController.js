@@ -114,82 +114,105 @@ exports.requestMutation = async (req, res) => {
 exports.approveMutation = async (req, res) => {
     try {
         const { id } = req.params;
-        const { note } = req.body;
+        const { ids, note } = req.body; // Support both single (via URL) and bulk (via body)
         const approverId = req.user.id;
 
-        const movement = await prisma.movement.findUnique({
-            where: { id: parseInt(id) },
-            include: { asset: true }
-        });
+        const idsToProcess = ids && Array.isArray(ids) ? ids : (id ? [id] : []);
+        if (idsToProcess.length === 0) return res.status(400).json({ error: 'No IDs provided' });
 
-        if (!movement) return res.status(404).json({ error: 'Mutation record not found' });
-        if (movement.status !== 'PENDING') return res.status(400).json({ error: 'Movement is already processed' });
+        const results = [];
+        const errors = [];
 
-        // Update Movement & Asset Location in Transaction
-        const result = await prisma.$transaction(async (tx) => {
-            const updatedMovement = await tx.movement.update({
-                where: { id: parseInt(id) },
-                data: {
-                    status: 'APPROVED',
-                    approverId,
-                    approvalDate: new Date(),
-                    approvalNote: note
-                }
-            });
-
-            // Update Asset's Room ID and Code
-            if (movement.toRoomId) {
-                const asset = await tx.asset.findUnique({
-                    where: { id: movement.assetId },
-                    include: { category: true }
+        // We process each one individually to avoid one failure blocking everything (e.g. invalid status)
+        // or we could use a single big transaction. Individual transactions are safer here for code generation.
+        for (const targetId of idsToProcess) {
+            try {
+                const numericId = parseInt(targetId);
+                const movement = await prisma.movement.findUnique({
+                    where: { id: numericId },
+                    include: { asset: true }
                 });
 
-                if (!asset) throw new Error('Aset tidak ditemukan');
+                if (!movement) {
+                    errors.push({ id: targetId, error: 'Mutation record not found' });
+                    continue;
+                }
+                if (movement.status !== 'PENDING') {
+                    errors.push({ id: targetId, error: 'Status is not PENDING' });
+                    continue;
+                }
 
-                const updateData = {
-                    roomId: movement.toRoomId,
-                    unitId: movement.toUnitId || asset.unitId
-                };
+                // Internal Approval Logic in Transaction
+                const result = await prisma.$transaction(async (tx) => {
+                    const updatedMovement = await tx.movement.update({
+                        where: { id: numericId },
+                        data: {
+                            status: 'APPROVED',
+                            approverId,
+                            approvalDate: new Date(),
+                            approvalNote: note || 'Disetujui masal'
+                        }
+                    });
 
-                // Logic: NEW CODE if Unit changes
-                if (movement.toUnitId && movement.toUnitId !== asset.unitId) {
-                    const targetUnit = await tx.unit.findUnique({ where: { id: movement.toUnitId } });
-                    const category = asset.category;
-                    const settings = await tx.setting.findUnique({ where: { id: 1 } });
-
-                    if (targetUnit && category) {
-                        const prefix = settings?.assetCodePrefix || 'AST';
-                        const purchaseDate = asset.purchaseDate || asset.createdAt;
-                        const year = purchaseDate ? new Date(purchaseDate).getFullYear() : 'YYYY';
-                        const patternPrefix = `${prefix}.${targetUnit.code}.${category.code}.${year}.`;
-
-                        // Find current max sequence in the TARGET unit for this category/year
-                        const lastAsset = await tx.asset.findFirst({
-                            where: { code: { startsWith: patternPrefix } },
-                            orderBy: { code: 'desc' }
+                    if (movement.toRoomId) {
+                        const asset = await tx.asset.findUnique({
+                            where: { id: movement.assetId },
+                            include: { category: true }
                         });
 
-                        let currentSeq = 1;
-                        if (lastAsset) {
-                            const parts = lastAsset.code.split('.');
-                            const lastSeqPart = parts[parts.length - 1];
-                            currentSeq = (parseInt(lastSeqPart) || 0) + 1;
+                        if (!asset) throw new Error('Aset tidak ditemukan');
+
+                        const updateData = {
+                            roomId: movement.toRoomId,
+                            unitId: movement.toUnitId || asset.unitId
+                        };
+
+                        if (movement.toUnitId && movement.toUnitId !== asset.unitId) {
+                            const targetUnit = await tx.unit.findUnique({ where: { id: movement.toUnitId } });
+                            const category = asset.category;
+                            const settings = await tx.setting.findUnique({ where: { id: 1 } });
+
+                            if (targetUnit && category) {
+                                const prefix = settings?.assetCodePrefix || 'AST';
+                                const purchaseDate = asset.purchaseDate || asset.createdAt;
+                                const year = purchaseDate ? new Date(purchaseDate).getFullYear() : 'YYYY';
+                                const patternPrefix = `${prefix}.${targetUnit.code}.${category.code}.${year}.`;
+
+                                const lastAsset = await tx.asset.findFirst({
+                                    where: { code: { startsWith: patternPrefix } },
+                                    orderBy: { code: 'desc' }
+                                });
+
+                                let currentSeq = 1;
+                                if (lastAsset) {
+                                    const parts = lastAsset.code.split('.');
+                                    const lastSeqPart = parts[parts.length - 1];
+                                    currentSeq = (parseInt(lastSeqPart) || 0) + 1;
+                                }
+
+                                updateData.code = `${patternPrefix}${currentSeq.toString().padStart(4, '0')}`;
+                            }
                         }
 
-                        updateData.code = `${patternPrefix}${currentSeq.toString().padStart(4, '0')}`;
+                        await tx.asset.update({
+                            where: { id: movement.assetId },
+                            data: updateData
+                        });
                     }
-                }
 
-                await tx.asset.update({
-                    where: { id: movement.assetId },
-                    data: updateData
+                    return updatedMovement;
                 });
+                results.push(result);
+            } catch (err) {
+                errors.push({ id: targetId, error: err.message });
             }
+        }
 
-            return updatedMovement;
+        res.json({
+            message: `${results.length} mutasi disetujui, ${errors.length} gagal`,
+            data: results,
+            errors
         });
-
-        res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -201,20 +224,26 @@ exports.approveMutation = async (req, res) => {
 exports.rejectMutation = async (req, res) => {
     try {
         const { id } = req.params;
-        const { note } = req.body;
+        const { ids, note } = req.body;
         const approverId = req.user.id;
 
-        const updatedMovement = await prisma.movement.update({
-            where: { id: parseInt(id) },
+        const idsToProcess = ids && Array.isArray(ids) ? ids : (id ? [id] : []);
+        if (idsToProcess.length === 0) return res.status(400).json({ error: 'No IDs provided' });
+
+        const updatedMovements = await prisma.movement.updateMany({
+            where: {
+                id: { in: idsToProcess.map(i => parseInt(i)) },
+                status: 'PENDING'
+            },
             data: {
                 status: 'REJECTED',
                 approverId,
                 approvalDate: new Date(),
-                approvalNote: note
+                approvalNote: note || 'Ditolak masal'
             }
         });
 
-        res.json(updatedMovement);
+        res.json({ message: `${updatedMovements.count} mutations rejected`, count: updatedMovements.count });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

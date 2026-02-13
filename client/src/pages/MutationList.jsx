@@ -31,15 +31,22 @@ const MutationList = () => {
         }
     };
 
-    const handleApproval = async (id, action, note = '') => {
-        if (!confirm(`Konfirmasi ${action === 'approve' ? 'Persetujuan' : 'Penolakan'}?`)) return;
+    const handleBulkApproval = async (action) => {
+        if (!confirm(`Konfirmasi ${action === 'approve' ? 'Persetujuan' : 'Penolakan'} untuk ${selectedItems.length} data?`)) return;
         try {
-            await api.post(`/assets/movements/${id}/${action}`, { note });
+            await api.post(`/assets/movements/${action}`, { ids: selectedItems, note: `Diproses masal oleh ${user.username}` });
+            alert(`${selectedItems.length} data berhasil diproses.`);
+            setSelectedItems([]);
             fetchMovements();
         } catch (error) {
             alert('Gagal memproses mutasi: ' + (error.response?.data?.error || error.message));
         }
     };
+
+    const isOnlyPendingSelected = selectedItems.length > 0 && selectedItems.every(id => {
+        const item = movements.find(m => m.id === id);
+        return item?.status === 'PENDING';
+    });
 
     const filteredMovements = movements.filter(m => {
         const matchesSearch =
@@ -104,8 +111,8 @@ const MutationList = () => {
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2 relative">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-center">
+                <div className="md:col-span-3 relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input
                         type="text"
@@ -115,7 +122,7 @@ const MutationList = () => {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <div className="relative">
+                <div className="md:col-span-1 relative">
                     <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <select
                         className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none appearance-none font-medium"
@@ -131,14 +138,33 @@ const MutationList = () => {
                         <option value="REJECTED">Ditolak</option>
                     </select>
                 </div>
-                {selectedItems.length > 0 && canApprove && (
-                    <button
-                        onClick={handleBulkDelete}
-                        className="flex items-center justify-center gap-2 bg-red-50 text-red-600 px-4 py-2.5 rounded-xl font-bold hover:bg-red-600 hover:text-white transition-all border border-red-100"
-                    >
-                        <XCircle size={18} /> Hapus {selectedItems.length}
-                    </button>
-                )}
+                <div className="md:col-span-2 flex gap-2">
+                    {selectedItems.length > 0 && isOnlyPendingSelected && canApprove && (
+                        <>
+                            <button
+                                onClick={() => handleBulkApproval('approve')}
+                                className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white px-3 py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-200"
+                            >
+                                <CheckCircle size={18} /> Setujui ({selectedItems.length})
+                            </button>
+                            <button
+                                onClick={() => handleBulkApproval('reject')}
+                                className="flex-1 flex items-center justify-center gap-2 bg-orange-600 text-white px-3 py-2.5 rounded-xl font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200"
+                            >
+                                <XCircle size={18} /> Tolak
+                            </button>
+                        </>
+                    )}
+                    {selectedItems.length > 0 && canApprove && (
+                        <button
+                            onClick={handleBulkDelete}
+                            className={`p-2.5 rounded-xl font-bold transition-all border ${isOnlyPendingSelected ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-600 hover:text-white' : 'flex-1 bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-200'}`}
+                            title="Hapus Terpilih"
+                        >
+                            <Plus size={18} className="rotate-45" /> {isOnlyPendingSelected ? '' : `Hapus ${selectedItems.length}`}
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">

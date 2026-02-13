@@ -19,6 +19,8 @@ router.get('/', verifyToken, getAllAssets);
 // Mutation Routes
 router.get('/movements/all', verifyToken, getAllMovements);
 router.post('/movements/request', verifyToken, requestMutation);
+router.post('/movements/approve', verifyToken, authorizeRole(['SUPER_ADMIN', 'KEPALA_BIDANG']), approveMutation);
+router.post('/movements/reject', verifyToken, authorizeRole(['SUPER_ADMIN', 'KEPALA_BIDANG']), rejectMutation);
 router.delete('/movements/bulk', verifyToken, authorizeRole(['SUPER_ADMIN', 'KEPALA_BIDANG']), deleteMultipleMovements);
 router.get('/movements/:id', verifyToken, getMovementById);
 router.post('/movements/:id/approve', verifyToken, authorizeRole(['SUPER_ADMIN', 'KEPALA_BIDANG']), approveMutation);
