@@ -23,12 +23,50 @@ const MasterData = () => {
         logo: ''
     });
 
+    // Helper for image compression
+    const compressImage = (base64Str, maxWidth = 300, maxHeight = 300) => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.src = base64Str;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height *= maxWidth / width;
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width *= maxHeight / height;
+                        height = maxHeight;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.7)); // Compress to 70% quality
+            };
+        });
+    };
+
     const handleLogoUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        // Show loading state or alert if file is too big to start with
+        if (file.size > 5 * 1024 * 1024) {
+            alert('File terlalu besar. Sistem akan mencoba mengompresinya, mohon tunggu...');
+        }
+
         const reader = new FileReader();
-        reader.onloadend = () => {
-            setNewUnit(prev => ({ ...prev, logo: reader.result }));
+        reader.onloadend = async () => {
+            const compressed = await compressImage(reader.result);
+            setNewUnit(prev => ({ ...prev, logo: compressed }));
         };
         reader.readAsDataURL(file);
     };
@@ -173,20 +211,36 @@ const MasterData = () => {
         } catch (err) { alert(err.message); }
     };
 
-    const handleEdit = (type, item) => {
+    const handleEdit = async (type, item) => {
         setEditingItem({ type, id: item.id });
         if (type === 'units') {
-            setNewUnit({
-                name: item.name,
-                code: item.code,
-                description: item.description || '',
-                phone: item.phone || '',
-                email: item.email || '',
-                address: item.address || '',
-                headName: item.headName || '',
-                headNip: item.headNip || '',
-                logo: item.logo || ''
-            });
+            try {
+                const { data } = await api.get(`/master/units/${item.id}`);
+                setNewUnit({
+                    name: data.name || '',
+                    code: data.code || '',
+                    description: data.description || '',
+                    phone: data.phone || '',
+                    email: data.email || '',
+                    address: data.address || '',
+                    headName: data.headName || '',
+                    headNip: data.headNip || '',
+                    logo: data.logo || ''
+                });
+            } catch (error) {
+                console.error("Failed to fetch unit details:", error);
+                setNewUnit({
+                    name: item.name,
+                    code: item.code,
+                    description: item.description || '',
+                    phone: item.phone || '',
+                    email: item.email || '',
+                    address: item.address || '',
+                    headName: item.headName || '',
+                    headNip: item.headNip || '',
+                    logo: '' // Fallback
+                });
+            }
         }
         if (type === 'rooms') setNewRoom({ name: item.name, code: item.code, floor: item.floor, building: item.building, unitId: item.unitId });
         if (type === 'categories') setNewCategory({ name: item.name, code: item.code, usefulLife: item.usefulLife });

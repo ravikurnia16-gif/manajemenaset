@@ -3,11 +3,37 @@ const prisma = new PrismaClient();
 
 exports.getAllUnits = async (req, res) => {
     try {
-        const units = await prisma.unit.findMany();
+        const units = await prisma.unit.findMany({
+            select: {
+                id: true,
+                name: true,
+                code: true,
+                description: true,
+                phone: true,
+                email: true,
+                address: true,
+                headName: true,
+                headNip: true,
+                // logo is excluded to improve performance
+            }
+        });
         res.json(units);
     } catch (error) {
         console.error('GetUnits Error:', error);
         res.status(500).json({ error: 'Database Error (Unit): ' + error.message });
+    }
+};
+
+exports.getUnitById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const unit = await prisma.unit.findUnique({
+            where: { id: parseInt(id) }
+        });
+        if (!unit) return res.status(404).json({ error: 'Unit not found' });
+        res.json(unit);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 };
 

@@ -1,6 +1,6 @@
 const express = require('express');
 const {
-    getAllUnits, createUnit, updateUnit, deleteUnit, deleteMultipleUnits,
+    getAllUnits, getUnitById, createUnit, updateUnit, deleteUnit, deleteMultipleUnits,
     getAllRooms, createRoom, updateRoom, deleteRoom, deleteMultipleRooms,
     getAllCategories, createCategory, updateCategory, deleteCategory, deleteMultipleCategories,
     getAllVendors, createVendor, updateVendor, deleteVendor, deleteMultipleVendors
@@ -9,6 +9,7 @@ const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 const router = express.Router();
 
 router.get('/units', verifyToken, getAllUnits);
+router.get('/units/:id', verifyToken, getUnitById);
 router.post('/units', verifyToken, authorizeRole(['SUPER_ADMIN']), createUnit);
 router.delete('/units/bulk', verifyToken, authorizeRole(['SUPER_ADMIN']), deleteMultipleUnits);
 router.put('/units/:id', verifyToken, authorizeRole(['SUPER_ADMIN']), updateUnit);
