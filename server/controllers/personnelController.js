@@ -133,7 +133,7 @@ exports.createAssignment = async (req, res) => {
 
     try {
         // Only Head or Admin can assign
-        if (!['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN'].includes(user.role)) {
+        if (!['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
             return res.status(403).json({ error: 'Anda tidak memiliki wewenang untuk memberikan tugas.' });
         }
 
@@ -188,7 +188,7 @@ exports.getAssignments = async (req, res) => {
         }
 
         const where = {};
-        if (['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN'].includes(user.role)) {
+        if (['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
             if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
                 where.OR = [
                     { assignerId: user.id },
@@ -280,7 +280,7 @@ exports.getStaffSarpras = async (req, res) => {
             where: {
                 OR: [
                     { unit: { name: { contains: 'Sarana dan Prasarana' } } },
-                    { name: { contains: 'Syafruan', mode: 'insensitive' } },
+                    { name: { contains: 'Syaf', mode: 'insensitive' } },
                     { name: { contains: 'Eldo', mode: 'insensitive' } },
                     { name: { contains: 'Wegi', mode: 'insensitive' } },
                     { name: { contains: 'Jeri', mode: 'insensitive' } },

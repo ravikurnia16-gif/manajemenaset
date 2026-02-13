@@ -11,7 +11,7 @@ const PersonnelAssignments = () => {
 
     // User info for role-based UI
     const user = JSON.parse(localStorage.getItem('user')) || {};
-    const canAssign = ['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN'].includes(user.role);
+    const canAssign = ['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
 
     const [form, setForm] = useState({
         assigneeId: '',
