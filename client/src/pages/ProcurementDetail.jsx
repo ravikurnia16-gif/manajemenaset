@@ -29,7 +29,7 @@ const ProcurementDetail = () => {
     const fetchUsers = async () => {
         try {
             const res = await api.get('/users');
-            setUsers(res.data.map(u => ({ id: u.id, name: u.name || u.username })));
+            setUsers(res.data.map(u => ({ id: u.id, name: `${u.name || u.username} (${u.username})` })));
         } catch (error) {
             console.error(error);
         }
