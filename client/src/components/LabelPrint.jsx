@@ -3,15 +3,28 @@ import QRCode from 'react-qr-code';
 
 export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }, ref) => {
     const containerStyle = size === 'small'
-        ? { width: '4cm', height: '5cm', backgroundColor: '#fff' }
-        : { width: '5.5cm', height: '6.5cm', backgroundColor: '#fff' };
+        ? { width: '4cm', height: '5.5cm', backgroundColor: '#fff' }
+        : { width: '5.5cm', height: '7cm', backgroundColor: '#fff' };
 
     const orgName = institute?.orgName || "YAYASAN DAR EL IMAN";
     const orgLogo = institute?.orgLogo;
 
     return (
         <div ref={ref} className="p-2 inline-block print:p-0">
-            <div style={containerStyle} className="flex flex-col items-center justify-center p-3 rounded-sm border border-slate-200 shadow-sm transition-all text-center">
+            <style>{`
+                @media print {
+                    .single-label-container {
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+                    .room-text-bold {
+                        color: #000000 !important;
+                        font-weight: 800 !important;
+                        -webkit-print-color-adjust: exact;
+                    }
+                }
+            `}</style>
+            <div style={containerStyle} className="single-label-container flex flex-col items-center justify-center p-3 rounded-sm border border-slate-200 shadow-sm transition-all text-center overflow-hidden">
                 {/* Institute Title */}
                 <h2 className="font-bold text-[10px] uppercase text-slate-800 mb-2 leading-tight">
                     {orgName}
@@ -24,15 +37,15 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
                             code: asset?.code || '-',
                             id: asset?.id,
                         })}
-                        size={size === 'small' ? 100 : 140}
+                        size={size === 'small' ? 90 : 125}
                         level="H"
                     />
                     {orgLogo && (
                         <div
                             className="absolute bg-white p-[2px] rounded-sm"
                             style={{
-                                width: size === 'small' ? '24px' : '34px',
-                                height: size === 'small' ? '24px' : '34px'
+                                width: size === 'small' ? '22px' : '30px',
+                                height: size === 'small' ? '22px' : '30px'
                             }}
                         >
                             <img
@@ -45,8 +58,8 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
                 </div>
 
                 {/* Room and Asset Code below QR */}
-                <div className="flex flex-col items-center justify-center gap-1">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight truncate max-w-full italic px-2">
+                <div className="flex flex-col items-center justify-center gap-1.5 w-full">
+                    <p className="room-text-bold text-[10px] uppercase tracking-tight truncate w-full italic px-1 text-black font-[800]">
                         {asset?.room?.name || 'TANPA RUANGAN'}
                     </p>
                     <div className="bg-slate-50 px-3 py-1 rounded-sm border border-slate-300">
@@ -64,15 +77,15 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
     const orgName = institute?.orgName || "YAYASAN DAR EL IMAN";
     const orgLogo = institute?.orgLogo;
 
-    // Layout configuration (Adjusted for square labels)
+    // Layout configuration (Adjusted for square labels with room visibility)
     const getLayoutConfigs = (id) => {
         switch (id) {
-            case '2x2': return { cols: 2, width: '90mm', height: '120mm', qr: 200, logoSize: '45px', title: '18pt', room: '14pt', code: '16pt', padding: '10mm' };
-            case '3x4': return { cols: 3, width: '60mm', height: '65mm', qr: 130, logoSize: '30px', title: '11pt', room: '9pt', code: '11pt', padding: '5mm' };
-            case '3x7': return { cols: 3, width: '60mm', height: '38mm', qr: 80, logoSize: '18px', title: '8pt', room: '7pt', code: '9pt', padding: '3mm' };
-            case '3x10': return { cols: 3, width: '60mm', height: '26mm', qr: 55, logoSize: '14px', title: '7pt', room: '6pt', code: '8pt', padding: '2mm' };
+            case '2x2': return { cols: 2, width: '90mm', height: '125mm', qr: 180, logoSize: '40px', title: '18pt', room: '14pt', code: '16pt', padding: '10mm' };
+            case '3x4': return { cols: 3, width: '60mm', height: '70mm', qr: 115, logoSize: '28px', title: '11pt', room: '9pt', code: '11pt', padding: '5mm' };
+            case '3x7': return { cols: 3, width: '60mm', height: '42mm', qr: 70, logoSize: '16px', title: '8pt', room: '7.5pt', code: '9pt', padding: '3mm' };
+            case '3x10': return { cols: 3, width: '60mm', height: '29mm', qr: 50, logoSize: '12px', title: '7pt', room: '6.5pt', code: '8pt', padding: '2mm' };
             case '2x4':
-            default: return { cols: 2, width: '90mm', height: '65mm', qr: 160, logoSize: '40px', title: '14pt', room: '11pt', code: '14pt', padding: '6mm' };
+            default: return { cols: 2, width: '90mm', height: '70mm', qr: 145, logoSize: '36px', title: '14pt', room: '11pt', code: '14pt', padding: '6mm' };
         }
     };
 
@@ -106,15 +119,17 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                         justify-content: center;
                         border: 0.2mm solid #eee;
                         border-radius: 2px;
+                        -webkit-print-color-adjust: exact;
                     }
                     .batch-org-title { font-size: ${config.title}; }
                     .batch-room-text { 
                         font-size: ${config.room}; 
-                        font-weight: 700; 
-                        color: #64748b; 
-                        margin-bottom: 1.5mm;
+                        font-weight: 800; 
+                        color: #000000 !important; 
+                        margin-bottom: 2mm;
                         text-transform: uppercase;
                         font-style: italic;
+                        -webkit-print-color-adjust: exact;
                     }
                     .batch-code-text { font-size: ${config.code}; }
                     .batch-qr-container { margin-bottom: 2mm; position: relative; display: flex; align-items: center; justify-content: center; }
@@ -131,22 +146,20 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                 .label-item {
                     width: 100%;
                     height: ${config.height};
-                    background-color: #fff;
+                    border: 1px solid #e2e8f0;
                     padding: ${config.padding};
                     display: flex;
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
-                    border: 1px solid #eee;
-                    border-radius: 4px;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+                    background: white;
+                    border-radius: 8px;
                 }
                 .batch-org-title {
-                    font-weight: bold;
+                    font-weight: 800;
                     color: #1e293b;
                     text-transform: uppercase;
                     margin-bottom: 2mm;
-                    line-height: 1.1;
                     width: 100%;
                     text-align: center;
                     font-size: ${config.title};
@@ -168,10 +181,10 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                     border-radius: 1px;
                 }
                 .batch-room-text {
-                    font-weight: 700;
-                    color: #64748b;
+                    font-weight: 800;
+                    color: #000000;
                     text-transform: uppercase;
-                    margin-bottom: 1.5mm;
+                    margin-bottom: 2mm;
                     text-align: center;
                     width: 100%;
                     white-space: nowrap;
