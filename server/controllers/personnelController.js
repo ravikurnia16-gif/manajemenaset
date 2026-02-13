@@ -281,11 +281,11 @@ exports.getStaffSarpras = async (req, res) => {
                 OR: [
                     { role: 'ADMIN_ASET' },
                     { role: 'SUPER_ADMIN' },
-                    { name: { contains: 'Syaf', mode: 'insensitive' } },
-                    { name: { contains: 'Wegi', mode: 'insensitive' } },
-                    { name: { contains: 'Ringgo', mode: 'insensitive' } },
-                    { name: { contains: 'Eldo', mode: 'insensitive' } },
-                    { name: { contains: 'Jeri', mode: 'insensitive' } }
+                    { name: { contains: 'Syaf' } },
+                    { name: { contains: 'Wegi' } },
+                    { name: { contains: 'Ringgo' } },
+                    { name: { contains: 'Eldo' } },
+                    { name: { contains: 'Jeri' } }
                 ]
             },
             orderBy: { name: 'asc' },
