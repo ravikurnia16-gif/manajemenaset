@@ -142,13 +142,47 @@ exports.approveMutation = async (req, res) => {
                 }
             });
 
-            // Update Asset's Room ID
+            // Update Asset's Room ID and Code
             if (movement.toRoomId) {
-                const updateData = { roomId: movement.toRoomId };
+                const asset = await tx.asset.findUnique({
+                    where: { id: movement.assetId },
+                    include: { category: true }
+                });
 
-                // Also update Unit ID if it's an External Mutation or toUnitId is present
-                if (movement.toUnitId) {
-                    updateData.unitId = movement.toUnitId;
+                if (!asset) throw new Error('Aset tidak ditemukan');
+
+                const updateData = {
+                    roomId: movement.toRoomId,
+                    unitId: movement.toUnitId || asset.unitId
+                };
+
+                // Logic: NEW CODE if Unit changes
+                if (movement.toUnitId && movement.toUnitId !== asset.unitId) {
+                    const targetUnit = await tx.unit.findUnique({ where: { id: movement.toUnitId } });
+                    const category = asset.category;
+                    const settings = await tx.setting.findUnique({ where: { id: 1 } });
+
+                    if (targetUnit && category) {
+                        const prefix = settings?.assetCodePrefix || 'AST';
+                        const purchaseDate = asset.purchaseDate || asset.createdAt;
+                        const year = purchaseDate ? new Date(purchaseDate).getFullYear() : 'YYYY';
+                        const patternPrefix = `${prefix}.${targetUnit.code}.${category.code}.${year}.`;
+
+                        // Find current max sequence in the TARGET unit for this category/year
+                        const lastAsset = await tx.asset.findFirst({
+                            where: { code: { startsWith: patternPrefix } },
+                            orderBy: { code: 'desc' }
+                        });
+
+                        let currentSeq = 1;
+                        if (lastAsset) {
+                            const parts = lastAsset.code.split('.');
+                            const lastSeqPart = parts[parts.length - 1];
+                            currentSeq = (parseInt(lastSeqPart) || 0) + 1;
+                        }
+
+                        updateData.code = `${patternPrefix}${currentSeq.toString().padStart(4, '0')}`;
+                    }
                 }
 
                 await tx.asset.update({
