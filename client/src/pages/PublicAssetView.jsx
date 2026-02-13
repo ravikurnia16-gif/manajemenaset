@@ -16,10 +16,17 @@ const PublicAssetView = () => {
     useEffect(() => {
         const fetchAsset = async () => {
             try {
-                // Use absolute URL or relative if proxy is set. 
-                // Since this is a public page, we use the base API URL.
-                const baseUrl = window.location.origin.replace('5173', '3000'); // Dynamic adjustment for local dev
-                const response = await axios.get(`${baseUrl}/api/assets/public/${id}`);
+                // Robust API Base Detection:
+                // 1. If we're on port 5173 (Vite dev), we need to hit port 3000 (Node dev).
+                // 2. Otherwise, we use relative paths (works for Production/Docker/Proxied setups).
+                let apiPath = `/api/assets/public/${id}`;
+
+                if (window.location.port === '5173') {
+                    const devBase = `${window.location.protocol}//${window.location.hostname}:3000`;
+                    apiPath = `${devBase}${apiPath}`;
+                }
+
+                const response = await axios.get(apiPath);
                 setAsset(response.data);
             } catch (err) {
                 console.error('Fetch error:', err);
