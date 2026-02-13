@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, FileText, Upload, DollarSign, Store, ArrowLeft, Plus, Trash2, ShoppingCart } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, Upload, DollarSign, Store, ArrowLeft, Plus, Trash2, ShoppingCart, UserCheck } from 'lucide-react';
 import api from '../lib/axios';
+import SearchableSelect from '../components/SearchableSelect';
 
 const ProcurementDetail = () => {
     const { id } = useParams();
@@ -10,6 +11,7 @@ const ProcurementDetail = () => {
     const [loading, setLoading] = useState(true);
     const [bastDate, setBastDate] = useState('');
     const [vendors, setVendors] = useState([]);
+    const [users, setUsers] = useState([]);
 
     // View Management (Split Pages)
     const [activeTab, setActiveTab] = useState('DETAIL'); // 'DETAIL' (Stage 1&2), 'FINAL' (Stage 3), 'BAST' (Stage 4)
@@ -20,7 +22,17 @@ const ProcurementDetail = () => {
     useEffect(() => {
         fetchDetail();
         fetchVendors();
+        fetchUsers();
     }, [id]);
+
+    const fetchUsers = async () => {
+        try {
+            const res = await api.get('/users');
+            setUsers(res.data.map(u => ({ id: u.id, name: u.name || u.username })));
+        } catch (error) {
+            console.error(error);
+        }
+    };
 
     const fetchVendors = async () => {
         try {
@@ -58,7 +70,9 @@ const ProcurementDetail = () => {
                     fundingSource: item.fundingSource || 'Mandiri',
                     vendorId: item.vendorId || '',
                     comparisonVendors: safeJSONParse(item.comparisonVendors),
-                    needComparison: item.needComparison !== false // Default true
+                    needComparison: item.needComparison !== false, // Default true
+                    assignedTo: item.assignedTo || '',
+                    assignedToId: item.assignedToId || null
                 }));
             } else {
                 data.items = []; // Safety items array
@@ -93,7 +107,9 @@ const ProcurementDetail = () => {
                 vendorId: payloadVendorId,
                 newVendorName: payloadNewVendor,
                 comparisonVendors: item.comparisonVendors,
-                needComparison: item.needComparison
+                needComparison: item.needComparison,
+                assignedTo: item.assignedTo,
+                assignedToId: item.assignedToId
             });
 
             if (!silent) {
@@ -435,9 +451,10 @@ const ProcurementDetail = () => {
                                                 <th className="p-3 rounded-l-lg">Item</th>
                                                 <th className="p-3">Vendor Terpilih</th>
                                                 <th className="p-3">Harga Final</th>
-                                                <th className="p-3">Merk/Brand</th>
+                                                <th className="p-3">Brand</th>
                                                 {req.type === 'ASSET' && <th className="p-3">Umur (Thn)</th>}
                                                 <th className="p-3">Sumber Dana</th>
+                                                <th className="p-3">Ditugaskan Ke</th>
                                                 <th className="p-3 rounded-r-lg text-center">Aksi</th>
                                             </tr>
                                         </thead>
@@ -517,6 +534,56 @@ const ProcurementDetail = () => {
                                                             <option value="Wakaf">Wakaf</option>
                                                             <option value="Mandiri">Mandiri</option>
                                                         </select>
+                                                    </td>
+                                                    <td className="p-3 w-56">
+                                                        <div className="flex flex-col gap-1">
+                                                            <div className="flex items-center gap-1 border-b border-slate-100 pb-1 mb-1">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        handleItemChange(index, 'assignedToId', null);
+                                                                        handleItemChange(index, 'assignedTo', '');
+                                                                    }}
+                                                                    className={`px-1.5 py-0.5 text-[9px] rounded font-bold transition-all ${!item.assignedToId ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                                                                >
+                                                                    Manual
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (users.length > 0) {
+                                                                            handleItemChange(index, 'assignedToId', users[0].id);
+                                                                            handleItemChange(index, 'assignedTo', users[0].name);
+                                                                        }
+                                                                    }}
+                                                                    className={`px-1.5 py-0.5 text-[9px] rounded font-bold transition-all ${item.assignedToId ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                                                                >
+                                                                    User Sistem
+                                                                </button>
+                                                            </div>
+                                                            {item.assignedToId ? (
+                                                                <SearchableSelect
+                                                                    options={users}
+                                                                    value={item.assignedToId}
+                                                                    placeholder="Cari User..."
+                                                                    className="text-xs"
+                                                                    disabled={req.status === 'COMPLETED' || !isAdmin}
+                                                                    onChange={(id) => {
+                                                                        const selectedUser = users.find(u => u.id == id);
+                                                                        handleItemChange(index, 'assignedToId', id);
+                                                                        handleItemChange(index, 'assignedTo', selectedUser?.name || '');
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <input
+                                                                    className="w-full border border-slate-300 rounded p-1.5 text-xs bg-white focus:border-blue-500 outline-none"
+                                                                    placeholder="Nama / Jabatan..."
+                                                                    value={item.assignedTo || ''}
+                                                                    onChange={e => handleItemChange(index, 'assignedTo', e.target.value)}
+                                                                    disabled={req.status === 'COMPLETED' || !isAdmin}
+                                                                />
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="p-3 text-center">
                                                         {isAdmin && req.status === 'PROCESS' && (

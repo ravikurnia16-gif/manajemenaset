@@ -347,6 +347,11 @@ model ProcurementItem {
   brand         String?     // Merk/Type
   usefulLife    Int?        // Umur Manfaat (Tahun)
   finalPrice    Float?      // Harga Akhir / Realisasi
+  
+  // Assignment Fields
+  assignedTo    String?     // Nama (Internal/Manual)
+  assignedToId  Int?
+  assignedToUser User?      @relation("ItemAssignee", fields: [assignedToId], references: [id])
 }
 
 model VendorOffer {

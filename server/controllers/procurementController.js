@@ -341,7 +341,7 @@ exports.updateStatus = async (req, res) => {
 // Update Item Detail (Vendor, Brand, Specs)
 exports.updateItemDetail = async (req, res) => {
     const { itemId } = req.params;
-    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison } = req.body;
+    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison, assignedTo, assignedToId } = req.body;
 
     try {
         let finalVendorId = vendorId;
@@ -368,6 +368,8 @@ exports.updateItemDetail = async (req, res) => {
             usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
             vendorId: finalVendorId ? parseInt(finalVendorId) : undefined,
             finalPrice: finalPrice ? parseFloat(finalPrice) : undefined,
+            assignedTo,
+            assignedToId: assignedToId ? parseInt(assignedToId) : null
         };
 
         // Explicitly handle comparisonVendors
@@ -385,6 +387,40 @@ exports.updateItemDetail = async (req, res) => {
             data: updateData
         });
         res.json(item);
+
+        // --- WhatsApp Notification: Penugasan (Async) ---
+        if (assignedToId) {
+            (async () => {
+                try {
+                    const assignedUser = await prisma.user.findUnique({
+                        where: { id: parseInt(assignedToId) }
+                    });
+
+                    if (!assignedUser || !assignedUser.phone) return;
+
+                    const procInfo = await prisma.procurement.findUnique({
+                        where: { id: item.procurementId },
+                        include: { user: true }
+                    });
+
+                    const msg = `*Info Penugasan Pengadaan*\n\n` +
+                        `Ustadz/Ustadzah *${assignedUser.name || assignedUser.username}*,\n\n` +
+                        `Anda telah ditugaskan untuk mengelola item *"${item.name}"* pada pengajuan pengadaan *"${procInfo?.title || procInfo?.code || '-'}"*.\n\n` +
+                        `Mohon segera ditindaklanjuti. Terima kasih.`;
+
+                    setTimeout(async () => {
+                        try {
+                            await whatsappService.sendMessage(assignedUser.phone, msg);
+                            console.log(`[WA] Assignment notification sent to ${assignedUser.username}`);
+                        } catch (e) {
+                            console.error('[WA] Failed assignment notification:', e);
+                        }
+                    }, 30000);
+                } catch (err) {
+                    console.error('WA Assignment Notification Error:', err);
+                }
+            })();
+        }
 
         // --- WhatsApp Notification: Vendor Terpilih (Async) ---
         if (finalVendorId) {
