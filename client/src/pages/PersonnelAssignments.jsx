@@ -40,7 +40,6 @@ const PersonnelAssignments = () => {
     };
 
     const fetchStaff = async () => {
-        if (!canAssign) return;
         try {
             const res = await api.get('/personnel/staff');
             setStaff(res.data);

@@ -281,7 +281,7 @@ exports.getStaffSarpras = async (req, res) => {
                 OR: [
                     { role: 'ADMIN_ASET' },
                     { role: 'SUPER_ADMIN' },
-                    { name: { contains: 'Syaf', mode: 'insensitive' } }, // Matches Syafrian & Syafruan
+                    { name: { contains: 'Syaf', mode: 'insensitive' } },
                     { name: { contains: 'Wegi', mode: 'insensitive' } },
                     { name: { contains: 'Ringgo', mode: 'insensitive' } },
                     { name: { contains: 'Eldo', mode: 'insensitive' } },
@@ -289,7 +289,7 @@ exports.getStaffSarpras = async (req, res) => {
                 ]
             },
             orderBy: { name: 'asc' },
-            select: { id: true, name: true, position: true }
+            select: { id: true, name: true }
         });
 
         res.json(staff);
