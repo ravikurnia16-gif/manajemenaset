@@ -194,16 +194,11 @@ exports.getAssignments = async (req, res) => {
         }
 
         const where = {};
-        if (['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
-            if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
-                where.OR = [
-                    { assignerId: user.id },
-                    { assigneeId: user.id },
-                    { assignee: { unitId: user.unitId } }
-                ];
-            }
-        } else {
-            where.assigneeId = user.id;
+        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
+            where.OR = [
+                { assigneeId: user.id },
+                { assignerId: user.id }
+            ];
         }
 
         const assignments = await prisma.personnelAssignment.findMany({
