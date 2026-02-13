@@ -145,7 +145,19 @@ const MasterData = () => {
 
     const handleEdit = (type, item) => {
         setEditingItem({ type, id: item.id });
-        if (type === 'units') setNewUnit({ name: item.name, code: item.code });
+        if (type === 'units') {
+            setNewUnit({
+                name: item.name,
+                code: item.code,
+                description: item.description || '',
+                phone: item.phone || '',
+                email: item.email || '',
+                address: item.address || '',
+                headName: item.headName || '',
+                headNip: item.headNip || '',
+                logo: item.logo || ''
+            });
+        }
         if (type === 'rooms') setNewRoom({ name: item.name, code: item.code, floor: item.floor, building: item.building, unitId: item.unitId });
         if (type === 'categories') setNewCategory({ name: item.name, code: item.code, usefulLife: item.usefulLife });
         if (type === 'vendors') setNewVendor({ name: item.name, contact: item.contact, address: item.address });
@@ -154,7 +166,17 @@ const MasterData = () => {
 
     const cancelEdit = () => {
         setEditingItem(null);
-        setNewUnit({ name: '', code: '' });
+        setNewUnit({
+            name: '',
+            code: '',
+            description: '',
+            phone: '',
+            email: '',
+            address: '',
+            headName: '',
+            headNip: '',
+            logo: ''
+        });
         setNewRoom({ name: '', code: '', floor: '1', building: '', unitId: '' });
         setNewCategory({ name: '', code: '', usefulLife: 5 });
         setNewVendor({ name: '', contact: '', address: '' });
@@ -199,16 +221,75 @@ const MasterData = () => {
 
                     {activeTab === 'units' && (
                         <form onSubmit={handleAddUnit} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Nama Unit</label>
-                                <input required value={newUnit.name} onChange={e => setNewUnit({ ...newUnit, name: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Pemasaran" />
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Nama Unit</label>
+                                    <input required value={newUnit.name} onChange={e => setNewUnit({ ...newUnit, name: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Pemasaran" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Kode Unit</label>
+                                    <input required value={newUnit.code} onChange={e => setNewUnit({ ...newUnit, code: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="MKT" />
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Kode Unit</label>
-                                <input required value={newUnit.code} onChange={e => setNewUnit({ ...newUnit, code: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="MKT" />
+
+                            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-3">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Informasi Pimpinan</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1">Nama Kepala Unit</label>
+                                        <input value={newUnit.headName} onChange={e => setNewUnit({ ...newUnit, headName: e.target.value })} className="w-full border border-white rounded-lg px-3 py-2 text-sm outline-none shadow-sm" placeholder="Budi Santoso" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1">NIP Kepala Unit</label>
+                                        <input value={newUnit.headNip} onChange={e => setNewUnit({ ...newUnit, headNip: e.target.value })} className="w-full border border-white rounded-lg px-3 py-2 text-sm outline-none shadow-sm" placeholder="1980..." />
+                                    </div>
+                                </div>
                             </div>
-                            <button className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
-                                <Save size={16} /> {editingItem ? 'Perbarui' : 'Simpan'} Unit
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Nomor Telepon</label>
+                                    <input value={newUnit.phone} onChange={e => setNewUnit({ ...newUnit, phone: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="021..." />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Email Unit</label>
+                                    <input value={newUnit.email} onChange={e => setNewUnit({ ...newUnit, email: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="unit@mail.com" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Alamat / Lokasi</label>
+                                <textarea value={newUnit.address} onChange={e => setNewUnit({ ...newUnit, address: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" rows={2} placeholder="Gedung A Lantai 2..." />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">Logo Unit (Muncul di QR Code)</label>
+                                <div className="flex items-center gap-4 p-3 bg-blue-50/50 border border-blue-100 rounded-xl mt-1">
+                                    <div className="w-16 h-16 bg-white border border-blue-200 rounded-lg flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                                        {newUnit.logo ? (
+                                            <img src={newUnit.logo} alt="Preview" className="w-full h-full object-contain" />
+                                        ) : (
+                                            <Building2 className="text-blue-300" size={30} />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 space-y-1">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            id="logoUpload"
+                                            className="hidden"
+                                            onChange={handleLogoUpload}
+                                        />
+                                        <label htmlFor="logoUpload" className="inline-block px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700 cursor-pointer transition-all">
+                                            {newUnit.logo ? 'Ganti Logo' : 'Upload Logo'}
+                                        </label>
+                                        <p className="text-[10px] text-slate-400 italic">Format PNG/JPG, Maks 1MB</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button className="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95">
+                                <Save size={18} /> {editingItem ? 'Perbarui Profil Unit' : 'Simpan Data Unit'}
                             </button>
                         </form>
                     )}

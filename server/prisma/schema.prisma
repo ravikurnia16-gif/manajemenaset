@@ -60,16 +60,22 @@ model User {
 }
 
 model Unit {
-  id        Int      @id @default(autoincrement())
-  code      String   @unique
-  name      String
-  head      String?
-  location  String?
-  assets    Asset[]
-  rooms     Room[]
-  users     User[]
-  requests  Request[]
-  rkbs      RKB[]
+  id          Int       @id @default(autoincrement())
+  code        String    @unique
+  name        String
+  description String?
+  phone       String?
+  email       String?
+  address     String?   @db.Text
+  headName    String?   // Nama Kepala Unit
+  headNip     String?   // NIP Kepala Unit
+  logo        String?   @db.LongText // Logo Unit (Base64)
+  
+  assets      Asset[]
+  rooms       Room[]
+  users       User[]
+  requests    Request[]
+  rkbs        RKB[]
   procurements Procurement[]
   maintenances Maintenance[]
 }

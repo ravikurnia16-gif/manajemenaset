@@ -15,19 +15,26 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small' }, ref) => {
         <div ref={ref} className="bg-white p-2 border border-slate-200 inline-block print:border-none">
             <div style={containerStyle} className="flex flex-col items-center justify-center p-2 border-2 border-slate-800 rounded-sm">
                 <div className="flex w-full gap-2 items-center h-full">
-                    <div className="bg-white p-1">
-                        <QRCode
-                            value={JSON.stringify({ code: asset.code, id: asset.id })}
-                            size={size === 'small' ? 70 : 100}
-                            level="M"
-                        />
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                        {asset?.unit?.logo && (
+                            <img src={asset.unit.logo} alt="Unit Logo" className="w-10 h-10 object-contain mb-1" />
+                        )}
+                        <div className="bg-white p-1">
+                            <QRCode
+                                value={JSON.stringify({ code: asset.code, id: asset.id })}
+                                size={size === 'small' ? 60 : 100}
+                                level="M"
+                            />
+                        </div>
                     </div>
                     <div className="flex-1 flex flex-col justify-center overflow-hidden">
-                        <h4 className="font-bold text-xs uppercase leading-tight mb-0.5 truncate">{asset?.name || '-'}</h4>
-                        <p className="font-mono text-[10px] text-slate-600 mb-1">{asset?.code || '-'}</p>
-                        <hr className="border-slate-300 w-full my-0.5" />
-                        <p className="text-[9px] text-slate-500 truncate">{asset?.unit?.name || asset?.unit || '-'}</p>
-                        <p className="text-[8px] text-slate-400 mt-0.5 ml-auto">{new Date().toLocaleDateString('id-ID')}</p>
+                        <h4 className="font-bold text-[10px] uppercase leading-tight mb-0.5 break-words">{asset?.name || '-'}</h4>
+                        <p className="font-mono text-[9px] text-slate-800 font-bold mb-1">{asset?.code || '-'}</p>
+                        <hr className="border-slate-300 w-full my-1" />
+                        <div className="flex flex-col gap-0.5">
+                            <p className="text-[8px] text-slate-600 font-bold uppercase truncate">{asset?.unit?.name || '-'}</p>
+                            <p className="text-[7px] text-slate-400 mt-0.5 ml-auto">{new Date().toLocaleDateString('id-ID')}</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -183,21 +190,29 @@ export const BatchLabelPrint = React.forwardRef(({ assets }, ref) => {
             `}</style>
             {assets.map(asset => (
                 <div key={asset.id} className="label-item">
-                    <div className="qr-section">
-                        <QRCode
-                            value={JSON.stringify({
-                                code: asset?.code || '-',
-                                id: asset?.id,
-                                name: asset?.name
-                            })}
-                            size={100}
-                            level="M"
-                        />
+                    <div className="flex items-center justify-between w-full mb-2">
+                        {asset?.unit?.logo && (
+                            <img src={asset.unit.logo} alt="Unit Logo" className="w-12 h-12 object-contain" />
+                        )}
+                        <div className="qr-section ml-auto">
+                            <QRCode
+                                value={JSON.stringify({
+                                    code: asset?.code || '-',
+                                    id: asset?.id,
+                                    name: asset?.name
+                                })}
+                                size={asset?.unit?.logo ? 80 : 100}
+                                level="M"
+                            />
+                        </div>
                     </div>
                     <div className="info-section">
                         <div className="asset-code">{asset?.code || '-'}</div>
                         <div className="asset-name">{asset?.name || 'Unnamed Asset'}</div>
-                        <div className="category-badge">{asset?.category?.name || 'Uncategorized'}</div>
+                        <div className="flex items-center justify-between mt-1 border-t border-slate-100 pt-1">
+                            <div className="category-badge">{asset?.category?.name || 'Uncategorized'}</div>
+                            <div className="text-[8px] text-slate-400">{asset?.unit?.name || '-'}</div>
+                        </div>
                     </div>
                 </div>
             ))}

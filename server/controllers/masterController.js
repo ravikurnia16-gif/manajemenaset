@@ -13,8 +13,20 @@ exports.getAllUnits = async (req, res) => {
 
 exports.createUnit = async (req, res) => {
     try {
-        const { name, code } = req.body;
-        const unit = await prisma.unit.create({ data: { name, code } });
+        const { name, code, description, phone, email, address, headName, headNip, logo } = req.body;
+        const unit = await prisma.unit.create({
+            data: {
+                name,
+                code,
+                description,
+                phone,
+                email,
+                address,
+                headName,
+                headNip,
+                logo
+            }
+        });
         res.json(unit);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -24,10 +36,20 @@ exports.createUnit = async (req, res) => {
 exports.updateUnit = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, code } = req.body;
+        const { name, code, description, phone, email, address, headName, headNip, logo } = req.body;
         const unit = await prisma.unit.update({
             where: { id: parseInt(id) },
-            data: { name, code }
+            data: {
+                name,
+                code,
+                description,
+                phone,
+                email,
+                address,
+                headName,
+                headNip,
+                logo
+            }
         });
         res.json(unit);
     } catch (error) {
