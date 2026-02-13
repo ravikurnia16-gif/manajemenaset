@@ -191,7 +191,9 @@ exports.getAllAssets = async (req, res) => {
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const take = parseInt(limit);
 
-        let where = {};
+        let where = {
+            condition: { not: 'DISPOSED' }
+        };
 
         // 1. Role-based Restriction
         if (role !== 'SUPER_ADMIN' && role !== 'ADMIN_ASET' && role !== 'KEPALA_BIDANG') {

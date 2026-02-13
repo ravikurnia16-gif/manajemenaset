@@ -20,6 +20,7 @@ enum Condition {
   BAIK
   RUSAK_RINGAN
   RUSAK_BERAT
+  DISPOSED
 }
 
 model User {
@@ -48,6 +49,7 @@ model User {
   assignedAssignments PersonnelAssignment[] @relation("Assignee")
   createdAssignments  PersonnelAssignment[] @relation("Assigner")
   vehicleWeeklyReports VehicleWeeklyReport[]
+  authorizedDisposals AssetDisposal[]
 }
 
 model Unit {
@@ -126,6 +128,7 @@ model Asset {
   
   movements       Movement[]
   maintenances    Maintenance[]
+  disposal        AssetDisposal?
   
   // Validation Fields
   validationStatus ValidationStatus @default(UNVERIFIED)
@@ -583,4 +586,18 @@ model PersonnelAssignment {
   status      AssignmentStatus @default(PENDING)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model AssetDisposal {
+  id           Int      @id @default(autoincrement())
+  assetId      Int      @unique
+  asset        Asset    @relation(fields: [assetId], references: [id])
+  disposalDate DateTime @default(now())
+  reason       String   // e.g., RUSAK_TOTAL, DIJUAL, HILANG, HIBAH
+  method       String?  // Cara penghapusan: Lelang, Musnahkan, Hibah, dll
+  notes        String?  @db.Text
+  authorizedById Int
+  authorizedBy   User   @relation(fields: [authorizedById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

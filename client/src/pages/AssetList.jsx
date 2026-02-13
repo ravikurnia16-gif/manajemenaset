@@ -30,6 +30,14 @@ const AssetList = ({ validationMode = false }) => {
         currentStatus: 'VALIDATED', // Default action to Validated
         note: ''
     });
+    const [disposalModal, setDisposalModal] = useState({
+        isOpen: false,
+        asset: null,
+        reason: '',
+        method: 'DIMUSNAHKAN',
+        notes: '',
+        disposalDate: new Uint8Array(new Date().getTimezoneOffset() * 60 * 1000).length > 0 ? "" : new Date().toISOString().split('T')[0]
+    });
 
     const [currentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
     const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(currentUser.role);
@@ -212,6 +220,28 @@ const AssetList = ({ validationMode = false }) => {
         } catch (error) {
             console.error('Validation error:', error);
             alert('Gagal menyimpan validasi: ' + (error.response?.data?.error || error.message));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDisposalSubmit = async () => {
+        try {
+            setLoading(true);
+            const { asset, reason, method, notes, disposalDate } = disposalModal;
+            await api.post('/disposals', {
+                assetId: asset.id,
+                reason,
+                method,
+                notes,
+                disposalDate
+            });
+            alert('Aset berhasil dipindahkan ke riwayat penghapusan');
+            setDisposalModal({ isOpen: false, asset: null, reason: '', method: 'DIMUSNAHKAN', notes: '', disposalDate: new Date().toISOString().split('T')[0] });
+            fetchData();
+        } catch (error) {
+            console.error('Disposal error:', error);
+            alert('Gagal memproses penghapusan: ' + (error.response?.data?.error || error.message));
         } finally {
             setLoading(false);
         }
@@ -716,8 +746,28 @@ const AssetList = ({ validationMode = false }) => {
                                             <button onClick={() => openValidationModal([asset.id], asset.validationStatus || 'VALIDATED')} className="p-1 hover:bg-green-50 text-green-600 rounded transition-colors" title="Validasi Aset"><CheckCircle size={16} /></button>
                                             <button onClick={() => openPrintModal(asset)} className="p-1 hover:bg-slate-800 hover:text-white text-slate-500 rounded transition-colors" title="Cetak Label QR"><QrCode size={16} /></button>
                                             <button onClick={() => navigate(`/mutasi/request?assetId=${asset.id}`)} className="p-1 hover:bg-orange-50 text-orange-600 rounded transition-colors" title="Ajukan Mutasi"><ArrowLeftRight size={16} /></button>
+                                            {isGlobalAdmin && (
+                                                <button
+                                                    onClick={() => setDisposalModal({
+                                                        isOpen: true,
+                                                        asset,
+                                                        reason: '',
+                                                        method: 'DIMUSNAHKAN',
+                                                        notes: '',
+                                                        disposalDate: new Date().toISOString().split('T')[0]
+                                                    })}
+                                                    className="p-1 hover:bg-red-50 text-red-600 rounded"
+                                                    title="Penghapusan Aset (Disposal)"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
                                             <button onClick={() => navigate(`/aset/edit/${asset.id}`)} className="p-1 hover:bg-blue-50 text-blue-600 rounded" title="Edit"><Edit size={16} /></button>
-                                            <button onClick={() => handleDelete(asset.id)} className="p-1 hover:bg-red-50 text-red-500 rounded" title="Hapus"><Trash2 size={16} /></button>
+                                            {isGlobalAdmin && (
+                                                <button onClick={() => handleDelete(asset.id)} className="p-1 hover:bg-slate-100 text-slate-400 rounded" title="Hapus Permanen (Database)">
+                                                    <XCircle size={14} />
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -770,6 +820,90 @@ const AssetList = ({ validationMode = false }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Disposal Modal */}
+            {disposalModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 text-slate-800">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center gap-3 mb-4 text-red-600">
+                            <Trash2 size={24} />
+                            <h3 className="text-xl font-bold">Penghapusan Aset</h3>
+                        </div>
+
+                        <div className="p-3 bg-red-50 border border-red-100 rounded-lg mb-6">
+                            <p className="text-xs text-red-700 leading-relaxed font-medium">
+                                Anda akan menghapus <span className="font-bold underline">{disposalModal.asset?.name}</span> ({disposalModal.asset?.code}) dari inventaris aktif. Aset ini akan dipindahkan ke riwayat penghapusan.
+                            </p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="col-span-1">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Tanggal</label>
+                                    <input
+                                        type="date"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={disposalModal.disposalDate}
+                                        onChange={e => setDisposalModal(prev => ({ ...prev, disposalDate: e.target.value }))}
+                                    />
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Metode</label>
+                                    <select
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={disposalModal.method}
+                                        onChange={e => setDisposalModal(prev => ({ ...prev, method: e.target.value }))}
+                                    >
+                                        <option value="DIMUSNAHKAN">DIMUSNAHKAN</option>
+                                        <option value="DIJUAL">DIJUAL / LELANG</option>
+                                        <option value="HIBAH">HIBAH / DONASI</option>
+                                        <option value="HILANG">HILANG / DICURI</option>
+                                        <option value="TUKAR_TAMBAH">TUKAR TAMBAH</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Alasan Penghapusan</label>
+                                <textarea
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    rows={2}
+                                    placeholder="Contoh: Rusak parah, tidak bisa diperbaiki lagi..."
+                                    value={disposalModal.reason}
+                                    onChange={e => setDisposalModal(prev => ({ ...prev, reason: e.target.value }))}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Catatan Tambahan (Opsional)</label>
+                                <textarea
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    rows={2}
+                                    placeholder="..."
+                                    value={disposalModal.notes}
+                                    onChange={e => setDisposalModal(prev => ({ ...prev, notes: e.target.value }))}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-8">
+                            <button
+                                onClick={() => setDisposalModal({ isOpen: false, asset: null, reason: '', method: 'DIMUSNAHKAN', notes: '', disposalDate: '' })}
+                                className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold transition-colors"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleDisposalSubmit}
+                                disabled={!disposalModal.reason || loading}
+                                className="px-5 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-all active:scale-95 disabled:opacity-50 disabled:shadow-none"
+                            >
+                                {loading ? 'Memproses...' : 'Ya, Konfirmasi Hapus'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Hidden Print Components */}
             <div className="hidden">

@@ -30,6 +30,7 @@ import MutationList from './pages/MutationList';
 import MutationForm from './pages/MutationForm';
 import PersonnelReports from './pages/PersonnelReports';
 import PersonnelAssignments from './pages/PersonnelAssignments';
+import DisposalList from './pages/DisposalList';
 import ModulePlaceholder from './components/ModulePlaceholder';
 
 // Komponen untuk melindungi route yang butuh login
@@ -71,6 +72,7 @@ function App() {
           <Route path="settings" element={<Settings />} />
           <Route path="mutasi" element={<MutationList />} />
           <Route path="mutasi/request" element={<MutationForm />} />
+          <Route path="penghapusan" element={<DisposalList />} />
 
           {/* Module: Manajemen Kendaraan */}
           <Route path="kendaraan/dashboard" element={<ModulePlaceholder title="Dashboard Kendaraan" moduleName="Manajemen Kendaraan" />} />
