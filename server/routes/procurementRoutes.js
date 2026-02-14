@@ -10,17 +10,17 @@ router.post('/', verifyToken, procurementController.createProcurement);
 // Import
 router.post('/import', verifyToken, procurementController.importProcurement);
 
-// Status Workflow
-router.put('/:id/status', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.updateStatus);
+// Status Workflow (Admin + Assigned users can change status)
+router.put('/:id/status', verifyToken, procurementController.updateStatus);
 
-// Item Level Update (Vendor, Brand, Specs)
-router.put('/items/:itemId', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.updateItemDetail);
+// Item Level Update (Vendor, Brand, Specs - Admin + Assigned users)
+router.put('/items/:itemId', verifyToken, procurementController.updateItemDetail);
 
 // Vendor Offer (Legacy/Optional)
-router.post('/:id/offers', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.addVendorOffer);
+router.post('/:id/offers', verifyToken, procurementController.addVendorOffer);
 
-// BAST & Completion
-router.post('/:id/bast', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.processBAST);
+// BAST & Completion (Admin + Assigned users can finalize)
+router.post('/:id/bast', verifyToken, procurementController.processBAST);
 
 // Delete
 router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.deleteProcurement);
