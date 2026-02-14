@@ -42,7 +42,9 @@ const PersonnelReports = () => {
             setLoading(true);
             const params = { type: 'DAILY' }; // Force DAILY
             const res = await api.get('/personnel/reports', { params });
-            setReports(res.data);
+            // Ensure data is array to prevent crash
+            const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+            setReports(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error(err);
         } finally {
