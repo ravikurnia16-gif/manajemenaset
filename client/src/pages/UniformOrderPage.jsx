@@ -104,14 +104,41 @@ const UniformOrderPage = () => {
         if (!identity.gender) return alert('Jenis Kelamin wajib dipilih');
         if (!identity.phone) return alert('Nomor HP wajib diisi');
         if (!identity.unit) return alert('Unit Sekolah wajib dipilih');
-        if (cart.length === 0) return alert('Keranjang pesanan kosong');
+
+        // Check if there's a "pending" item in the inputs that wasn't added to the cart
+        let finalCart = [...cart];
+        let pendingItem = null;
+
+        if (activeTab === 'Seragam') {
+            if (seragamGroup && seragamType && seragamSize) {
+                pendingItem = {
+                    name: `Seragam ${seragamGroup} - ${seragamType}`,
+                    size: seragamSize,
+                    quantity: seragamQty
+                };
+            }
+        } else {
+            if (peciSize) {
+                pendingItem = {
+                    name: `Peci / Songkok`,
+                    size: peciSize,
+                    quantity: peciQty
+                };
+            }
+        }
+
+        if (pendingItem) {
+            finalCart.push(pendingItem);
+        }
+
+        if (finalCart.length === 0) return alert('Keranjang pesanan kosong. Silakan pilih seragam/peci terlebih dahulu.');
 
         if (!confirm('Apakah data sudah benar? Kirim pesanan sekarang?')) return;
 
         setLoading(true);
         try {
             // Format Items into a String Note
-            const itemNote = cart.map((c, i) => `${i + 1}. ${c.name} (${c.size}) x${c.quantity}`).join('\n');
+            const itemNote = finalCart.map((c, i) => `${i + 1}. ${c.name} (${c.size}) x${c.quantity}`).join('\n');
             const fullNote = `GENDER: ${identity.gender}\n\nITEM PESANAN:\n${itemNote}`;
 
             const payload = {
