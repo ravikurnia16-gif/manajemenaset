@@ -87,8 +87,13 @@ const UniformOrderPage = () => {
 
         setCart(prev => [...prev, newItem]);
 
-        // Reset inputs for convenience?
-        // setSeragamSize(''); setPeciSize('');
+        // Reset Inputs
+        setSeragamGroup('');
+        setSeragamType('');
+        setSeragamSize('');
+        setSeragamQty(1);
+        setPeciSize('');
+        setPeciQty(1);
     };
 
     const handleRemoveItem = (id) => setCart(prev => prev.filter(c => c.id !== id));
@@ -352,11 +357,15 @@ const UniformOrderPage = () => {
                                     className="flex-1 bg-green-600 text-white py-3.5 rounded-lg font-bold hover:bg-green-700 transition flex justify-center items-center gap-2 disabled:opacity-50 disabled:grayscale"
                                 >
                                     {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />} KIRIM PESANAN
-                                </button>
                             </div>
-                            <p className="text-[10px] text-center text-slate-400 italic">
-                                * Tambahkan semua item terlebih dahulu sebelum klik Kirim Pesanan.
-                            </p>
+                            <div className="mt-3 space-y-1">
+                                <p className="text-[10px] text-center text-indigo-600 font-bold animate-pulse">
+                                    💡 Jika ingin memesan lebih dari 1 item, silakan klik "TAMBAH PESANAN" untuk setiap item.
+                                </p>
+                                <p className="text-[10px] text-center text-slate-400 italic">
+                                    * Pastikan semua item sudah masuk ke "Daftar Pesanan" sebelum klik Kirim Pesanan.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
