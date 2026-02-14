@@ -83,14 +83,19 @@ const Sidebar = ({ isOpen = true }) => {
                 "border-b border-slate-800 bg-slate-900 sticky top-0 z-10 flex items-center transition-all duration-300 overflow-hidden whitespace-nowrap",
                 isOpen ? "p-5 justify-start h-auto opacity-100" : "p-0 h-0 opacity-0"
             )}>
-                <div className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent flex items-center gap-2">
-                    <div className="w-8 h-8 rounded bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white shrink-0">S</div>
-                    <span className={cn("transition-all duration-300", !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100")}>SARPRAS</span>
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white shrink-0 font-bold text-xl shadow-lg shadow-blue-500/20">S</div>
+                    <div className="flex flex-col justify-center">
+                        <span className={cn(
+                            "text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent transition-all duration-300",
+                            !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100"
+                        )}>SARPRAS DEI</span>
+                        <div className={cn(
+                            "text-[9px] text-slate-500 tracking-[0.15em] uppercase font-bold transition-all duration-300 whitespace-nowrap overflow-hidden",
+                            !isOpen ? "w-0 opacity-0" : "w-auto opacity-100"
+                        )}>Sistem Manajemen Aset</div>
+                    </div>
                 </div>
-                <div className={cn(
-                    "text-[10px] text-slate-500 mt-1 tracking-wider uppercase font-semibold pl-1 transition-all duration-300 whitespace-nowrap overflow-hidden",
-                    !isOpen ? "w-0 opacity-0" : "w-auto opacity-100"
-                )}>Sistem Manajemen Aset</div>
             </div>
 
             <nav className={cn(
@@ -99,7 +104,7 @@ const Sidebar = ({ isOpen = true }) => {
             )}>
 
                 <Link to="/dashboard" className={navItemClass('/dashboard')}><LayoutDashboard size={18} /> Dashboard</Link>
-                <Link to="/sarpras/rules" className={navItemClass('/sarpras/rules')}><FileText size={18} /> Aturan Sarpras</Link>
+                <Link to="/sarpras/rules" className={navItemClass('/sarpras/rules')}><FileText size={18} /> Dokumen Sarpras</Link>
 
                 {/* 1. Manajemen Aset */}
                 {renderCollapsible('assets', <Box size={18} />, 'Manajemen Aset', (
