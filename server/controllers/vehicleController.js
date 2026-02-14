@@ -1,13 +1,34 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// Get all vehicles
+// Get all vehicles (with latest service KM info)
 exports.getAllVehicles = async (req, res) => {
     try {
         const vehicles = await prisma.vehicle.findMany({
+            include: {
+                services: {
+                    where: { category: 'ROUTINE', nextServiceOdometer: { not: null } },
+                    orderBy: { date: 'desc' },
+                    take: 1,
+                    select: { nextServiceOdometer: true, odometer: true, date: true }
+                }
+            },
             orderBy: { createdAt: 'desc' }
         });
-        res.json(vehicles);
+
+        // Flatten: attach nextServiceOdometer directly to vehicle object
+        const result = vehicles.map(v => {
+            const latestService = v.services?.[0];
+            return {
+                ...v,
+                nextServiceOdometer: latestService?.nextServiceOdometer || null,
+                lastServiceOdometer: latestService?.odometer || null,
+                lastServiceDate: latestService?.date || null,
+                services: undefined // Remove nested services array
+            };
+        });
+
+        res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

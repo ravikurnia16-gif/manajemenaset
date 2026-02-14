@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Car, Plus, Search, MapPin, Fuel, Gauge, Trash2, Edit, Calendar, FileText } from 'lucide-react';
+import { Car, Plus, Search, MapPin, Fuel, Gauge, Trash2, Edit, Calendar, FileText, Wrench } from 'lucide-react';
 import api from '../lib/axios';
 
 const VehicleList = () => {
@@ -137,6 +137,22 @@ const VehicleList = () => {
                                             STNK (5 Thn): {new Date(v.stnkDueDate).toLocaleDateString('id-ID')}
                                         </div>
                                     )}
+                                    {v.nextServiceOdometer ? (() => {
+                                        const kmRemaining = v.nextServiceOdometer - (v.odometer || 0);
+                                        const isUrgent = kmRemaining <= 500 && kmRemaining > 0;
+                                        const isPastDue = kmRemaining <= 0;
+                                        return (
+                                            <div className={`col-span-2 flex items-center gap-2 text-[10px] font-bold py-1 px-3 rounded-lg ${isPastDue ? 'bg-red-50 text-red-600 animate-pulse'
+                                                    : isUrgent ? 'bg-orange-50 text-orange-600 animate-pulse'
+                                                        : 'bg-blue-50 text-blue-500'
+                                                }`}>
+                                                <Wrench size={12} />
+                                                Service Berikutnya: {v.nextServiceOdometer.toLocaleString()} km
+                                                {isPastDue && ' ⚠ LEWAT!'}
+                                                {isUrgent && !isPastDue && ` (sisa ${kmRemaining.toLocaleString()} km)`}
+                                            </div>
+                                        );
+                                    })() : null}
                                 </div>
 
                                 <div className="flex gap-2 pt-4 border-t border-slate-50">

@@ -69,12 +69,14 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`   - Frontend Path: ${distPath}`);
 
     // Run vehicle notifications on start
+    // Run vehicle notifications on start
     try {
-        const { checkMaintenanceNotifications } = require('./controllers/vehicleMaintenanceController');
+        const { checkMaintenanceNotifications, checkKmServiceNotifications } = require('./controllers/vehicleMaintenanceController');
         const { checkTaxNotifications } = require('./controllers/vehicleController');
 
         setTimeout(() => {
             checkMaintenanceNotifications();
+            checkKmServiceNotifications();
             checkTaxNotifications();
         }, 10000); // Wait 10s after start
     } catch (e) {

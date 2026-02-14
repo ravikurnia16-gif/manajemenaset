@@ -173,3 +173,119 @@ exports.checkMaintenanceNotifications = async () => {
         console.error('Failed to check maintenance notifications:', error.message);
     }
 };
+
+/**
+ * Checker for KM-based Service Notifications
+ * Sends WhatsApp to Syafrian & Ravi Kurnia when a vehicle's current KM
+ * is within 500 km of its next service target.
+ * Re-reminds every 4 days until nextServiceOdometer is updated.
+ */
+exports.checkKmServiceNotifications = async () => {
+    try {
+        console.log('[KM Service] Checking for vehicles approaching next service KM...');
+
+        // Get all active vehicles with their latest ROUTINE service that has a nextServiceOdometer
+        const vehicles = await prisma.vehicle.findMany({
+            where: { status: 'ACTIVE' },
+            include: {
+                services: {
+                    where: { category: 'ROUTINE', nextServiceOdometer: { not: null } },
+                    orderBy: { date: 'desc' },
+                    take: 1
+                }
+            }
+        });
+
+        // Filter vehicles that are within 500 km of nextServiceOdometer
+        const dueVehicles = vehicles.filter(v => {
+            const latestService = v.services?.[0];
+            if (!latestService?.nextServiceOdometer) return false;
+            const kmRemaining = latestService.nextServiceOdometer - (v.odometer || 0);
+            return kmRemaining <= 500; // Within 500 km OR past due
+        });
+
+        if (dueVehicles.length === 0) {
+            console.log('[KM Service] No vehicles approaching service KM threshold.');
+            return;
+        }
+
+        console.log(`[KM Service] Found ${dueVehicles.length} vehicle(s) within 500 km of next service.`);
+
+        // Check 4-day cooldown: only notify if lastKmNotifiedAt is null or >= 4 days ago
+        const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
+        const now = new Date();
+
+        const vehiclesToNotify = dueVehicles.filter(v => {
+            if (!v.lastKmNotifiedAt) return true;
+            const elapsed = now.getTime() - new Date(v.lastKmNotifiedAt).getTime();
+            return elapsed >= FOUR_DAYS_MS;
+        });
+
+        if (vehiclesToNotify.length === 0) {
+            console.log('[KM Service] All due vehicles were notified recently (< 4 days). Skipping.');
+            return;
+        }
+
+        // Find recipients: Syafrian (25041676) and Ravi Kurnia (24071613)
+        const recipients = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { nip: '25041676' }, // Syafrian
+                    { nip: '24071613' }  // Ravi Kurnia
+                ],
+                phone: { not: null, not: '' }
+            }
+        });
+
+        if (recipients.length === 0) {
+            console.log('[KM Service] Syafrian or Ravi Kurnia not found or have no phone number.');
+            return;
+        }
+
+        let globalDelay = 0;
+
+        for (const vehicle of vehiclesToNotify) {
+            const latestService = vehicle.services[0];
+            const kmRemaining = latestService.nextServiceOdometer - (vehicle.odometer || 0);
+            const statusText = kmRemaining <= 0
+                ? `⚠️ *SUDAH MELEWATI* target service (${Math.abs(kmRemaining).toLocaleString()} km lebih)`
+                : `Sisa *${kmRemaining.toLocaleString()} km* lagi menuju service berikutnya`;
+
+            const message = `🔧 *PENGINGAT SERVICE KENDARAAN*\n\n` +
+                `Kendaraan *${vehicle.name} (${vehicle.plateNumber})*\n\n` +
+                `KM Saat Ini: *${(vehicle.odometer || 0).toLocaleString()} km*\n` +
+                `Target Service: *${latestService.nextServiceOdometer.toLocaleString()} km*\n\n` +
+                `${statusText}\n\n` +
+                `Mohon segera dijadwalkan untuk service rutin. Terima kasih.`;
+
+            for (const person of recipients) {
+                // Random delay between 30-60 seconds between each message
+                const randomGap = Math.floor(Math.random() * (60000 - 30000 + 1)) + 30000;
+                globalDelay += randomGap;
+
+                setTimeout(async () => {
+                    try {
+                        await sendWhatsAppMessage(person.phone, message);
+                        console.log(`[KM Service] Notification sent for ${vehicle.name} to ${person.name} (${person.phone})`);
+                    } catch (e) {
+                        console.error(`[KM Service] Failed to notify ${person.name}:`, e.message);
+                    }
+                }, globalDelay);
+            }
+
+            // Update lastKmNotifiedAt on the vehicle
+            try {
+                await prisma.vehicle.update({
+                    where: { id: vehicle.id },
+                    data: { lastKmNotifiedAt: now }
+                });
+            } catch (e) {
+                console.error(`[KM Service] Failed to update lastKmNotifiedAt for ${vehicle.name}:`, e.message);
+            }
+        }
+
+        console.log(`[KM Service] Scheduled ${vehiclesToNotify.length * recipients.length} notification(s) with 30-60s delays.`);
+    } catch (error) {
+        console.error('[KM Service] Failed to check KM notifications:', error.message);
+    }
+};

@@ -398,6 +398,9 @@ model Vehicle {
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  
+  // Notification Tracking
+  lastKmNotifiedAt DateTime? // Track last time KM service warning was sent
 }
 
 model VehicleWeeklyReport {
