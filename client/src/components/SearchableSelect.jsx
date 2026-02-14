@@ -26,6 +26,9 @@ const SearchableSelect = ({
             setSearchTerm('+ Lainnya (Input Manual)');
         } else if (!value) {
             setSearchTerm('');
+        } else {
+            // If value exists but option not found yet (e.g. loading)
+            setSearchTerm(`... (ID: ${value})`);
         }
     }, [value, selectedOption, isOther]);
 
@@ -102,6 +105,7 @@ const SearchableSelect = ({
 
             {isOpen && !disabled && (
                 <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-auto animate-in fade-in zoom-in-95 duration-100">
+                    {console.log('SearchableSelect Options:', options.length)}
                     <div className="p-1">
                         {filteredOptions.length === 0 && (
                             <div className="px-4 py-3 text-sm text-slate-500 text-center">
