@@ -287,7 +287,7 @@ const UniformOrderPage = () => {
                                 <>
                                     {/* a1. Jenis Seragam (Group) */}
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 mb-1">a1. Jenis Seragam</label>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Jenis Seragam</label>
                                         <select className="w-full border p-2 rounded" value={seragamGroup} onChange={e => setSeragamGroup(e.target.value)}>
                                             <option value="">-- Pilih Jenis --</option>
                                             {UNIFORM_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
@@ -296,7 +296,7 @@ const UniformOrderPage = () => {
 
                                     {/* a2. Tipe */}
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 mb-1">a2. Tipe</label>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Tipe</label>
                                         <select className="w-full border p-2 rounded" value={seragamType} onChange={e => setSeragamType(e.target.value)}>
                                             <option value="">-- Pilih Tipe --</option>
                                             {UNIFORM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
@@ -305,7 +305,7 @@ const UniformOrderPage = () => {
 
                                     {/* a3. Ukuran */}
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 mb-1">a3. Ukuran</label>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Ukuran</label>
                                         <select className="w-full border p-2 rounded" value={seragamSize} onChange={e => setSeragamSize(e.target.value)}>
                                             <option value="">-- Pilih Ukuran --</option>
                                             {(seragamGroup.includes('Jubah') || seragamType.includes('Jubah') ? SIZES_JUBAH : SIZES_STD).map(s => (
@@ -316,7 +316,7 @@ const UniformOrderPage = () => {
 
                                     {/* a4. Jumlah */}
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 mb-1">a4. Jumlah</label>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Jumlah</label>
                                         <input type="number" min="1" className="w-24 border p-2 rounded text-center font-bold" value={seragamQty} onChange={e => setSeragamQty(parseInt(e.target.value) || 1)} />
                                     </div>
                                 </>
@@ -338,26 +338,33 @@ const UniformOrderPage = () => {
                                 </>
                             )}
 
-                            {/* ADD BUTTON */}
-                            <div className="pt-2">
+                            {/* ACTION BUTTONS */}
+                            <div className="pt-2 flex gap-3">
                                 <button
                                     onClick={handleAddItem}
-                                    className="w-full bg-slate-800 text-white py-3 rounded-lg font-bold hover:bg-slate-900 transition flex justify-center items-center gap-2"
+                                    className="flex-1 bg-slate-100 text-slate-700 py-3.5 rounded-lg font-bold hover:bg-slate-200 transition flex justify-center items-center gap-2"
                                 >
-                                    <Plus size={18} /> Tambahkan Pesanan
+                                    <Plus size={18} /> TAMBAH PESANAN
                                 </button>
-                                <p className="text-xs text-center mt-2 text-slate-400 italic">
-                                    Item akan ditambahkan manual (tanpa pengecekan stok).
-                                </p>
+                                <button
+                                    onClick={handleSubmit}
+                                    disabled={loading || cart.length === 0}
+                                    className="flex-1 bg-green-600 text-white py-3.5 rounded-lg font-bold hover:bg-green-700 transition flex justify-center items-center gap-2 disabled:opacity-50 disabled:grayscale"
+                                >
+                                    {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />} KIRIM PESANAN
+                                </button>
                             </div>
+                            <p className="text-[10px] text-center text-slate-400 italic">
+                                * Tambahkan semua item terlebih dahulu sebelum klik Kirim Pesanan.
+                            </p>
                         </div>
                     </div>
                 </div>
 
-                {/* CART LIST */}
+                {/* CART LIST - Only visible if has items */}
                 {cart.length > 0 && (
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-                        <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2"><ShoppingBag size={18} /> Daftar Pesanan ({cart.length})</h3>
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2 border-b pb-2"><ShoppingBag size={18} className="text-indigo-600" /> Daftar Pesanan ({cart.length})</h3>
                         <div className="space-y-3">
                             {cart.map((c, i) => (
                                 <div key={i} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
@@ -366,7 +373,7 @@ const UniformOrderPage = () => {
                                         <div className="text-xs text-slate-500">Ukuran: {c.size} • Qty: {c.quantity}</div>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <button onClick={() => handleRemoveItem(c.id)} className="text-red-500 p-1 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
+                                        <button onClick={() => handleRemoveItem(c.id)} className="text-red-500 p-1.5 hover:bg-red-50 rounded-lg transition"><Trash2 size={16} /></button>
                                     </div>
                                 </div>
                             ))}
@@ -375,29 +382,6 @@ const UniformOrderPage = () => {
                 )}
 
             </div>
-
-            {/* FLOATING SUBMIT BUTTON */}
-            {cart.length > 0 && (
-                <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-lg z-50">
-                    <div className="max-w-xl mx-auto flex gap-3">
-                        <button
-                            onClick={() => {
-                                document.getElementById('input-section')?.scrollIntoView({ behavior: 'smooth' });
-                            }}
-                            className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-4 rounded-xl font-bold flex justify-center items-center gap-2 transition active:scale-95"
-                        >
-                            <Plus size={20} /> TAMBAH PESANAN
-                        </button>
-                        <button
-                            onClick={handleSubmit}
-                            disabled={loading}
-                            className="flex-[2] bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold shadow-green-200 shadow-lg flex justify-center items-center gap-2 text-lg transform transition active:scale-95 disabled:opacity-50"
-                        >
-                            {loading ? <Loader2 className="animate-spin" /> : <Save />} KIRIM PESANAN
-                        </button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
