@@ -386,16 +386,16 @@ const PersonnelReports = () => {
                                 </div>
                                 <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 whitespace-pre-wrap">
                                     {report.content}
-                                    {report.metadata?.items && report.metadata.items.length > 0 && (
+                                    {Array.isArray(report.metadata?.items) && report.metadata.items.length > 0 && (
                                         <div className="mt-3 pt-3 border-t border-slate-200">
                                             <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Rincian Pekerjaan:</div>
                                             <div className="space-y-1">
                                                 {report.metadata.items.map((item, i) => (
                                                     <div key={i} className="text-xs flex items-center gap-2">
                                                         <span className="w-5 h-5 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[10px]">{i + 1}</span>
-                                                        <span className="font-semibold">{item.name}</span>
-                                                        <span className="text-slate-400">({item.qty})</span>
-                                                        {item.target && <span className="text-blue-500 flex items-center gap-1"><ChevronRight size={12} /> {item.target}</span>}
+                                                        <span className="font-semibold">{item?.name || '-'}</span>
+                                                        <span className="text-slate-400">({item?.qty || '-'})</span>
+                                                        {item?.target && <span className="text-blue-500 flex items-center gap-1"><ChevronRight size={12} /> {item.target}</span>}
                                                     </div>
                                                 ))}
                                             </div>

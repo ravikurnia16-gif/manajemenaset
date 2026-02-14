@@ -178,7 +178,7 @@ const Sidebar = ({ isOpen = true }) => {
                             {(['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) || user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) && (
                                 <>
                                     <Link to="/personalia/laporan" className={subNavItemClass('/personalia/laporan')}>
-                                        <FileText size={16} /> Laporan Harian/Mingguan
+                                        <FileText size={16} /> Laporan Staff
                                     </Link>
                                     <Link to="/personalia/penugasan" className={subNavItemClass('/personalia/penugasan')}>
                                         <FileCheck size={16} /> Penugasan
