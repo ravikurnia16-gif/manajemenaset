@@ -76,7 +76,7 @@ const SarprasRules = () => {
             fetchRules();
         } catch (error) {
             console.error('Upload error:', error);
-            alert(error.response?.data?.error || 'Gagal mengupload aturan');
+            alert(error.response?.data?.error || 'Gagal mengupload Dokumen');
         } finally {
             setUploading(false);
         }
@@ -112,13 +112,13 @@ const SarprasRules = () => {
     };
 
     const handleDeleteRule = async (id) => {
-        if (!window.confirm('Hapus aturan ini?')) return;
+        if (!window.confirm('Hapus Dokumen ini?')) return;
         try {
             await api.delete(`/sarpras-rules/${id}`);
             fetchRules();
         } catch (error) {
             console.error('Delete error:', error);
-            alert('Gagal menghapus aturan');
+            alert('Gagal menghapus Dokumen');
         }
     };
 
@@ -157,7 +157,7 @@ const SarprasRules = () => {
                             }`}
                     >
                         {selectedFolder === 'Semua' ? <FolderOpen size={16} /> : <Folder size={16} />}
-                        <span className="truncate">Semua Aturan</span>
+                        <span className="truncate">Semua Dokumen</span>
                         {selectedFolder === 'Semua' && <ChevronRight size={14} className="ml-auto" />}
                     </button>
 
@@ -190,10 +190,10 @@ const SarprasRules = () => {
                 {/* Header */}
                 <div className="p-4 md:p-6 bg-white border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-xl md:text-2xl font-bold text-slate-800 tracking-tight">Aturan Sarpras</h1>
+                        <h1 className="text-xl md:text-2xl font-bold text-slate-800 tracking-tight">Dokumen Sarpras</h1>
                         <p className="text-slate-500 text-xs md:text-sm">
                             Lokasi: <span className="font-semibold text-blue-600">
-                                {selectedFolder === 'Semua' ? 'Semua Aturan' : folders.find(f => f.id.toString() === selectedFolder)?.name}
+                                {selectedFolder === 'Semua' ? 'Semua Dokumen' : folders.find(f => f.id.toString() === selectedFolder)?.name}
                             </span>
                         </p>
                     </div>
@@ -296,7 +296,7 @@ const SarprasRules = () => {
                     <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200">
                         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-blue-600">
                             <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                <Upload size={20} /> Upload Aturan Baru
+                                <Upload size={20} /> Upload Dokumen Baru
                             </h3>
                             <button onClick={() => setShowUploadModal(false)} className="p-2 hover:bg-white/20 rounded-full text-white/80 hover:text-white transition-colors">
                                 <X size={20} />
@@ -306,7 +306,7 @@ const SarprasRules = () => {
                         <form onSubmit={handleUpload} className="p-6 space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="col-span-2 sm:col-span-1">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Judul Aturan</label>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Judul Dokumen</label>
                                     <input
                                         type="text"
                                         value={form.title}
