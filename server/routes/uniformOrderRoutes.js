@@ -98,87 +98,72 @@ const createOrder = async (req, res) => {
             include: { items: { include: { item: true } } }
         });
 
-        // Send WhatsApp notifications
-        let sendWhatsAppMessage;
-        try {
-            const waService = require('../services/whatsappService');
-            sendWhatsAppMessage = waService.sendMessage;
-        } catch (e) {
-            console.error('WA Service not available:', e.message);
-        }
+        // Send WhatsApp notifications after delay (30-60 seconds)
+        const delayMs = Math.floor(Math.random() * (60000 - 30000 + 1) + 30000);
+        console.log(`[WhatsApp] Scheduling notifications with ${delayMs / 1000}s delay...`);
 
-        try {
-            const settings = await prisma.setting.findFirst();
-
-            // --- WA CONFIRMATION TO CUSTOMER (Pengaju) ---
-            if (sendWhatsAppMessage) {
-                try {
-                    if (order.customerPhone) {
-                        const customerMsg = `Assalamu'alaikum Abu/Ummu *${order.studentName}*\n\n` +
-                            `Pesanan seragam atas nama *${order.studentName}* telah kami terima.\n` +
-                            `📋 Kode Pesanan: *${order.code}*\n\n` +
-                            `InsyaaAllah akan kami hubungi segera.\n` +
-                            `Jazaakumullahu khairan.`;
-
-                        await sendWhatsAppMessage(order.customerPhone, customerMsg);
-                    }
-                } catch (custWaError) {
-                    console.error('WA to customer failed:', custWaError.message);
-                }
-
-                if (settings?.waGroupId) {
-                    let itemList = '';
-
-                    if (order.items && order.items.length > 0) {
-                        itemList = order.items.map((oi, i) =>
-                            `${i + 1}. ${oi.item.name} (${oi.item.size || '-'}) x${oi.quantity}`
-                        ).join('\n');
-                    } else {
-                        // Fallback to Note for Decoupled Mode
-                        itemList = `_Item tercantum dalam catatan_`;
-                    }
-
-                    const msg = `🛒 *PESANAN SERAGAM BARU*\n\n` +
-                        `📋 Kode: *${order.code}*\n` +
-                        `👤 Pemesan: ${order.customerName}\n` +
-                        `📱 HP: ${order.customerPhone}\n` +
-                        `🏫 Unit: ${order.customerUnit}\n` +
-                        `👨‍🎓 Siswa: ${order.studentName}${order.studentClass ? ` (${order.studentClass})` : ''}\n\n` +
-                        `📦 *Item:*\n${itemList}\n\n` +
-                        `💰 Total: Rp ${order.totalAmount.toLocaleString('id-ID')}\n` +
-                        `📝 Catatan:\n${order.note || '-'}`;
-
-                    // Group Notification DISABLED as per request
-                    // await sendWhatsAppMessage(settings.waGroupId, msg);
-                }
-
-                // --- CUSTOM NOTIFICATION TO SPECIFIC NIY (18121079 - Jeri Saputra) ---
-                try {
-                    const targetNip = '18121079';
-                    const targetUser = await prisma.user.findFirst({ where: { nip: targetNip } });
-
-                    if (targetUser && targetUser.phone) {
-                        const gender = req.body.gender || '-';
-                        const pesananText = order.note ? order.note.replace('GENDER: ' + gender, '').replace('ITEM PESANAN:', '').trim() : '-';
-                        const specificMsg = `Telah masuk pesanan atas nama dengan rincian\n` +
-                            `Nama : ${order.studentName}\n` +
-                            `no Hp : ${order.customerPhone}\n` +
-                            `Unit : ${order.customerUnit}\n` +
-                            `Jenis Kelamin : ${gender}\n` +
-                            `pesanan : ${pesananText}\n\n` +
-                            `Mohon segera di proses`;
-
-                        await sendWhatsAppMessage(targetUser.phone, specificMsg);
-                    } else {
-                        console.log(`Target NIY ${targetNip} for custom WA not found or has no phone.`);
-                    }
-                } catch (customWaError) {
-                    console.error('Custom WA to NIY failed:', customWaError.message);
-                }
+        setTimeout(async () => {
+            let sendWhatsAppMessage;
+            try {
+                const waService = require('../services/whatsappService');
+                sendWhatsAppMessage = waService.sendMessage;
+            } catch (e) {
+                console.error('WA Service not available:', e.message);
+                return;
             }
-        } catch (waError) {
-            console.error('WA notification failed:', waError.message);
-        }
+
+            if (!sendWhatsAppMessage) return;
+
+            try {
+                const settings = await prisma.setting.findFirst();
+
+                // Generate Item List String
+                let itemListText = '';
+                if (order.items && order.items.length > 0) {
+                    itemListText = order.items.map((oi, i) =>
+                        `- ${oi.item.name} (${oi.item.size || '-'}) x${oi.quantity}`
+                    ).join('\n');
+                } else if (order.note && order.note.includes('ITEM PESANAN:')) {
+                    // Extract from note if decoupled
+                    const parts = order.note.split('ITEM PESANAN:');
+                    itemListText = parts[1]?.trim() || '_Detail di catatan_';
+                }
+
+                // --- WA CONFIRMATION TO CUSTOMER (Pengaju) ---
+                if (order.customerPhone) {
+                    const customerMsg = `Assalamu'alaikum Warrahmatullahi Wabarakatuh Abu/Ummu *${order.studentName}*\n\n` +
+                        `Pesanan seragam atas nama *${order.studentName}* telah kami terima.\n` +
+                        `📋 Kode Pesanan: *${order.code}*\n\n` +
+                        `*Rincian Pesanan:*\n${itemListText}\n\n` +
+                        `InsyaaAllah akan kami hubungi segera.\n` +
+                        `Jazaakumullahu khairan.`;
+
+                    await sendWhatsAppMessage(order.customerPhone, customerMsg);
+                }
+
+                // --- NOTIFICATION TO JERI SAPUTRA (18121079) ---
+                const targetNip = '18121079';
+                const targetUser = await prisma.user.findFirst({ where: { nip: targetNip } });
+
+                if (targetUser && targetUser.phone) {
+                    const gender = req.body.gender || '-';
+                    const specificMsg = `Assalamu'alaikum Warrahmatullahi Wabarakatuh Bapak *${targetUser.name || 'Jeri Saputra'}*,\n\n` +
+                        `Telah masuk pesanan baru dengan rincian:\n\n` +
+                        `📋 Kode: *${order.code}*\n` +
+                        `👨‍🎓 Nama Siswa: *${order.studentName}*\n` +
+                        `🚻 Jenis Kelamin: ${gender}\n` +
+                        `🏫 Unit: ${order.customerUnit}\n` +
+                        `📱 No HP (WA): ${order.customerPhone}\n\n` +
+                        `📦 *Pesanan:*\n${itemListText}\n\n` +
+                        `📝 Catatan: ${order.note?.split('\n\n')[1]?.replace('ITEM PESANAN:', '')?.trim() || '-'}\n\n` +
+                        `Mohon segera diproses. Syukran.`;
+
+                    await sendWhatsAppMessage(targetUser.phone, specificMsg);
+                }
+            } catch (waError) {
+                console.error('WA notification delivery failed:', waError.message);
+            }
+        }, delayMs);
 
         res.json({ message: 'Pesanan berhasil dibuat!', order });
     } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
