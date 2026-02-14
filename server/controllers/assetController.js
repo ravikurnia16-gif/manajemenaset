@@ -24,8 +24,9 @@ exports.createAsset = async (req, res) => {
             code: manualCode,
             name, categoryId, roomId, unitId,
             price, purchaseDate, condition, brand,
-            usefulLife, vendorId, specification, sourceOfFunds, quantity,
+            quantity,
             acquisitionStatus,
+            picId, picName,
             // Additional fields for "Other" options
             newCategoryName, newCategoryCode,
             newVendorName, newVendorContact,
@@ -127,7 +128,9 @@ exports.createAsset = async (req, res) => {
                         specification,
                         sourceOfFunds: sourceOfFunds || "Mandiri",
                         acquisitionStatus: acquisitionStatus || "Pembelian",
-                        quantity: 1
+                        quantity: 1,
+                        picId: picId ? parseInt(picId) : null,
+                        picName: picName || null
                     }
                 }));
             }
@@ -306,7 +309,8 @@ exports.updateAsset = async (req, res) => {
             name, categoryId, roomId, unitId,
             price, purchaseDate, condition, brand,
             usefulLife, vendorId, specification, sourceOfFunds,
-            acquisitionStatus
+            acquisitionStatus,
+            picId, picName
         } = req.body;
 
         const asset = await prisma.asset.update({
@@ -325,7 +329,9 @@ exports.updateAsset = async (req, res) => {
                 specification,
                 sourceOfFunds,
                 usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
-                acquisitionStatus
+                acquisitionStatus,
+                picId: picId ? parseInt(picId) : null,
+                picName: picName || null
             }
         });
         res.json(asset);
@@ -703,7 +709,10 @@ exports.getAssetPublic = async (req, res) => {
                 category: true,
                 vendor: true,
                 room: true,
-                unit: true
+                unit: true,
+                pic: {
+                    select: { id: true, name: true, username: true }
+                }
             }
         });
 

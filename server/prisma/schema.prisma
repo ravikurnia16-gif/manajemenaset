@@ -59,6 +59,7 @@ model User {
   authorizedDisposals AssetDisposal[] @relation("Reviewer")
   proposedDisposals   AssetDisposal[] @relation("Proposer")
   sarprasRules        SarprasRule[]
+  assetsPIC           Asset[]         @relation("AssetPIC")
 }
 
 model Unit {
@@ -137,6 +138,11 @@ model Asset {
   
   image           String?
   invoice         String?
+  
+  // PIC (Person In Charge)
+  picId           Int?
+  pic             User?    @relation("AssetPIC", fields: [picId], references: [id])
+  picName         String?  // For custom PIC names not in system
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

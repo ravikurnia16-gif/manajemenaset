@@ -23,7 +23,8 @@ const AssetForm = () => {
         units: [],
         rooms: [],
         categories: [],
-        vendors: []
+        vendors: [],
+        users: []
     });
     const [settings, setSettings] = useState({ assetCodePrefix: 'AST' });
     const [isAutoCode, setIsAutoCode] = useState(true);
@@ -40,13 +41,15 @@ const AssetForm = () => {
                     api.get('/master/rooms'),
                     api.get('/master/categories'),
                     api.get('/master/vendors'),
+                    api.get('/users').catch(() => ({ data: [] })),
                     api.get('/settings').catch(() => ({ data: { assetCodePrefix: 'AST' } }))
                 ]);
                 setMasterData({
                     units: rUnits.data,
                     rooms: rRooms.data,
                     categories: rCats.data,
-                    vendors: rVendors.data
+                    vendors: rVendors.data,
+                    users: Array.isArray(rUsers.data) ? rUsers.data : []
                 });
                 setSettings(rSettings.data);
 
@@ -75,13 +78,14 @@ const AssetForm = () => {
         fetchMaster();
     }, [id, isEdit, reset, isGlobalAdmin, currentUser.unitId]);
 
-    const watchedFields = watch(["unitId", "categoryId", "purchaseDate", "vendorId", "roomId", "newCategoryCode"]);
+    const watchedFields = watch(["unitId", "categoryId", "purchaseDate", "vendorId", "roomId", "newCategoryCode", "picId"]);
     const selectedUnitId = watchedFields[0];
     const selectedCategoryId = watchedFields[1];
     const purchaseDate = watchedFields[2];
     const selectedVendorId = watchedFields[3];
     const selectedRoomId = watchedFields[4];
     const newCategoryCode = watchedFields[5];
+    const selectedPicId = watchedFields[6];
 
     const filteredRooms = selectedUnitId
         ? masterData.rooms.filter(r => r.unitId === parseInt(selectedUnitId))
@@ -340,6 +344,65 @@ const AssetForm = () => {
                             <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors cursor-pointer">
                                 <p className="text-sm text-slate-500">Klik untuk upload foto aset atau invoice</p>
                                 <p className="text-xs text-slate-400 mt-1">JPG, PNG, PDF max 5MB</p>
+                            </div>
+                        </div>
+
+                        <div className="pt-2">
+                            <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wider mb-4 border-b border-blue-100 pb-2">Penanggung Jawab (PIC)</h3>
+
+                            <div className="space-y-4">
+                                <div className="flex gap-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setValue('picId', null);
+                                            setValue('picName', '');
+                                        }}
+                                        className={`flex-1 py-2 px-3 rounded-lg border text-xs font-bold transition-all ${!selectedPicId ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-400'}`}
+                                    >
+                                        NAMA MANUAL
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (masterData.users.length > 0) {
+                                                setValue('picId', masterData.users[0].id);
+                                                setValue('picName', masterData.users[0].name);
+                                            }
+                                        }}
+                                        className={`flex-1 py-2 px-3 rounded-lg border text-xs font-bold transition-all ${selectedPicId ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-400'}`}
+                                    >
+                                        PILIH USER SISTEM
+                                    </button>
+                                </div>
+
+                                {selectedPicId ? (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Pilih User <span className="text-red-500">*</span></label>
+                                        <select
+                                            {...register('picId')}
+                                            onChange={(e) => {
+                                                const u = masterData.users.find(user => user.id === parseInt(e.target.value));
+                                                setValue('picName', u?.name || '');
+                                            }}
+                                            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                                        >
+                                            <option value="">Pilih User</option>
+                                            {masterData.users.map(u => (
+                                                <option key={u.id} value={u.id}>{u.name} ({u.username})</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Nama PIC <span className="text-red-500">*</span></label>
+                                        <input
+                                            {...register('picName')}
+                                            className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                                            placeholder="Contoh: Budi Sudarsono (Manager)"
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

@@ -402,6 +402,7 @@ const AssetList = ({ validationMode = false }) => {
                 'Nama Ruangan': a.room?.name || '-',
                 'Lokasi': a.room?.building || '-',
                 'Nama Unit/Bidang': a.unit?.name || '-',
+                'PIC': a.picName || (a.pic?.name) || '-',
                 'Penjual/Penghibah': a.vendor?.name || '-',
                 'Umur Ekonomis': a.usefulLife + ' Tahun',
                 'Nilai Penyusutan per Bulan': monthlyDepreciation,
@@ -791,6 +792,7 @@ const AssetList = ({ validationMode = false }) => {
                                 <th className="px-6 py-4">Unit / Divisi</th>
                                 <th className="px-6 py-4">Lokasi (Ruang)</th>
                                 <th className="px-6 py-4">Kondisi</th>
+                                <th className="px-6 py-4 text-center">PIC</th>
                                 <th className="px-6 py-4">Harga</th>
                                 <th className="px-6 py-4 text-center">Aksi</th>
                             </tr>
@@ -852,6 +854,12 @@ const AssetList = ({ validationMode = false }) => {
                                             {(asset.condition || 'BAIK').replace('_', ' ')}
                                         </span>
                                     </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-slate-700">{asset.picName || (asset.pic?.name) || '-'}</span>
+                                            {asset.pic && <span className="text-[10px] text-blue-500 font-medium uppercase">{asset.pic.username}</span>}
+                                        </div>
+                                    </td>
                                     <td className="px-6 py-4 text-slate-600">Rp {(asset.price || 0).toLocaleString()}</td>
                                     <td className="px-6 py-4 text-center">
                                         <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -885,7 +893,7 @@ const AssetList = ({ validationMode = false }) => {
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan="8" className="px-6 py-12 text-center text-slate-500">
+                                    <td colSpan="9" className="px-6 py-12 text-center text-slate-500">
                                         Data tidak ditemukan untuk filter ini
                                     </td>
                                 </tr>
