@@ -20,6 +20,13 @@ const ProcurementDetail = () => {
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user?.role);
 
+    // Check if current user is assigned to ANY item in this procurement
+    const isAssignedToAny = req?.items?.some(item => item.assignedToId === user?.id) || false;
+    // Check if current user is assigned to a SPECIFIC item
+    const isAssignedToItem = (item) => item.assignedToId === user?.id;
+    // Combined: can act on this procurement (admin OR assigned)
+    const canAct = isAdmin || isAssignedToAny;
+
     useEffect(() => {
         fetchDetail();
         fetchVendors();
@@ -321,7 +328,7 @@ const ProcurementDetail = () => {
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                     <UserCheck size={18} /> Tahap 2: Penugasan Internal
                                 </h3>
-                                {isAdmin && ['APPROVED', 'PROCESS'].includes(req.status) && (
+                                {(isAdmin || isAssignedToAny) && ['APPROVED', 'PROCESS'].includes(req.status) && (
                                     <button onClick={() => setActiveTab(3)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm">
                                         Lanjut ke Pemilihan Vendor &rsaquo;
                                     </button>
@@ -399,7 +406,7 @@ const ProcurementDetail = () => {
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                     <Store size={18} /> Tahap 3: Pemilihan Vendor Pembanding
                                 </h3>
-                                {req.status === 'APPROVED' && isAdmin && (
+                                {req.status === 'APPROVED' && (isAdmin || isAssignedToAny) && (
                                     <button onClick={() => {
                                         handleStatus('PROCESS', 'Melanjutkan ke Tahap Finalisasi');
                                         setActiveTab(4);
@@ -418,7 +425,7 @@ const ProcurementDetail = () => {
                                                 <p className="text-xs text-slate-500">{item.spec} • {item.qty} {item.unit}</p>
                                             </div>
                                             <div className="flex flex-col items-end gap-2">
-                                                {isAdmin && req.status === 'APPROVED' && (
+                                                {(isAdmin || isAssignedToItem(item)) && req.status === 'APPROVED' && (
                                                     <div className="flex items-center gap-2 bg-white px-3 py-1 rounded border border-slate-300">
                                                         <input
                                                             type="checkbox"
@@ -434,7 +441,7 @@ const ProcurementDetail = () => {
                                                     </div>
                                                 )}
 
-                                                {isAdmin && req.status === 'APPROVED' && item.needComparison && (
+                                                {(isAdmin || isAssignedToItem(item)) && req.status === 'APPROVED' && item.needComparison && (
                                                     <button onClick={() => {
                                                         const newComparisons = [...(item.comparisonVendors || [])];
                                                         newComparisons.push({ name: '', price: 0, notes: '' });
@@ -451,7 +458,7 @@ const ProcurementDetail = () => {
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                                 {(item.comparisonVendors || []).map((cv, cvIndex) => (
                                                     <div key={cvIndex} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm relative group">
-                                                        {isAdmin && req.status === 'APPROVED' && (
+                                                        {(isAdmin || isAssignedToItem(item)) && req.status === 'APPROVED' && (
                                                             <button onClick={() => {
                                                                 const newComparisons = item.comparisonVendors.filter((_, i) => i !== cvIndex);
                                                                 handleItemChange(index, 'comparisonVendors', newComparisons);
@@ -516,7 +523,7 @@ const ProcurementDetail = () => {
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                     <DollarSign size={18} /> Tahap 4: Finalisasi Harga & Vendor
                                 </h3>
-                                {isAdmin && req.status === 'PROCESS' && (
+                                {(isAdmin || isAssignedToAny) && req.status === 'PROCESS' && (
                                     <button onClick={() => setActiveTab(5)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm">
                                         Lanjut ke Serah Terima &rsaquo;
                                     </button>
@@ -548,7 +555,7 @@ const ProcurementDetail = () => {
                                                         className="w-full border border-slate-300 rounded p-1.5 text-xs bg-white focus:border-blue-500 outline-none"
                                                         value={item.vendorId || ''}
                                                         onChange={e => handleItemChange(index, 'vendorId', e.target.value)}
-                                                        disabled={req.status === 'COMPLETED' || !isAdmin}
+                                                        disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(item))}
                                                     >
                                                         <option value="">- Pilih Vendor -</option>
                                                         {item.needComparison && (item.comparisonVendors || []).map((cv, i) => (
@@ -575,7 +582,7 @@ const ProcurementDetail = () => {
                                                         className="w-full border border-slate-300 rounded p-1.5 text-xs bg-white focus:border-blue-500 outline-none"
                                                         value={item.finalPrice || ''}
                                                         onChange={e => handleItemChange(index, 'finalPrice', e.target.value)}
-                                                        disabled={req.status === 'COMPLETED' || !isAdmin}
+                                                        disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(item))}
                                                     />
                                                 </td>
                                                 <td className="p-3 w-32">
@@ -584,7 +591,7 @@ const ProcurementDetail = () => {
                                                         placeholder="Merk"
                                                         value={item.brand || ''}
                                                         onChange={e => handleItemChange(index, 'brand', e.target.value)}
-                                                        disabled={req.status === 'COMPLETED' || !isAdmin}
+                                                        disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(item))}
                                                     />
                                                 </td>
                                                 {req.type === 'ASSET' && (
@@ -594,7 +601,7 @@ const ProcurementDetail = () => {
                                                             className="w-full border border-slate-300 rounded p-1.5 text-xs bg-white focus:border-blue-500 outline-none"
                                                             value={item.usefulLife || 4}
                                                             onChange={e => handleItemChange(index, 'usefulLife', e.target.value)}
-                                                            disabled={req.status === 'COMPLETED' || !isAdmin}
+                                                            disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(item))}
                                                         />
                                                     </td>
                                                 )}
@@ -603,7 +610,7 @@ const ProcurementDetail = () => {
                                                         className="w-full border border-slate-300 rounded p-1.5 text-xs bg-white focus:border-blue-500 outline-none"
                                                         value={item.fundingSource || 'Mandiri'}
                                                         onChange={e => handleItemChange(index, 'fundingSource', e.target.value)}
-                                                        disabled={req.status === 'COMPLETED' || !isAdmin}
+                                                        disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(item))}
                                                     >
                                                         <option value="Yayasan">Yayasan</option>
                                                         <option value="Hibah">Hibah</option>
@@ -612,7 +619,7 @@ const ProcurementDetail = () => {
                                                     </select>
                                                 </td>
                                                 <td className="p-3 text-center">
-                                                    {isAdmin && req.status === 'PROCESS' && (
+                                                    {(isAdmin || isAssignedToItem(item)) && req.status === 'PROCESS' && (
                                                         <button onClick={() => handleSaveItem(item)} className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded text-xs font-bold shadow-sm">
                                                             Simpan
                                                         </button>
