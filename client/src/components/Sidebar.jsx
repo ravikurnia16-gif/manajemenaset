@@ -98,12 +98,12 @@ const Sidebar = ({ isOpen = true }) => {
                 isOpen ? "p-3" : "p-0 overflow-hidden"
             )}>
 
+                <Link to="/dashboard" className={navItemClass('/dashboard')}><LayoutDashboard size={18} /> Dashboard</Link>
+                <Link to="/sarpras/rules" className={navItemClass('/sarpras/rules')}><FileText size={18} /> Aturan Sarpras</Link>
+
                 {/* 1. Manajemen Aset */}
                 {renderCollapsible('assets', <Box size={18} />, 'Manajemen Aset', (
                     <>
-                        <Link to="/dashboard" className={subNavItemClass('/dashboard')}>
-                            <LayoutDashboard size={16} /> Dashboard
-                        </Link>
                         <Link to="/aset" className={subNavItemClass('/aset')}>
                             <Box size={16} /> Data Aset
                         </Link>
@@ -112,9 +112,6 @@ const Sidebar = ({ isOpen = true }) => {
                         </Link>
                         <Link to="/procurements" className={subNavItemClass('/procurements')}>
                             <ShoppingCart size={16} /> Pengadaan
-                        </Link>
-                        <Link to="/sarpras/rules" className={subNavItemClass('/sarpras/rules')}>
-                            <FileText size={16} /> Aturan Sarpras
                         </Link>
 
                         <Link to="/pemeliharaan" className={subNavItemClass('/pemeliharaan')}>
