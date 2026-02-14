@@ -142,9 +142,6 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/kendaraan/pemeliharaan" className={subNavItemClass('/kendaraan/pemeliharaan')}>
                             <Settings size={16} /> Pemeliharaan
                         </Link>
-                        <Link to="/kendaraan/data" className={subNavItemClass('/kendaraan/data')}>
-                            <FileText size={16} /> Laporan Mingguan
-                        </Link>
                     </>
                 ))}
 
