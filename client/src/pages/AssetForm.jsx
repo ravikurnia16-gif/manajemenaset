@@ -36,7 +36,7 @@ const AssetForm = () => {
     useEffect(() => {
         const fetchMaster = async () => {
             try {
-                const [rUnits, rRooms, rCats, rVendors, rSettings] = await Promise.all([
+                const [rUnits, rRooms, rCats, rVendors, rUsers, rSettings] = await Promise.all([
                     api.get('/master/units'),
                     api.get('/master/rooms'),
                     api.get('/master/categories'),
