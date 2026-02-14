@@ -22,7 +22,12 @@ const PersonnelReports = () => {
             checks: { bast: false, photo: false, database: false }
         },
         warehouse: { in: '', out: '', remaining: '' },
-        vehicle: { kmStart: '', kmEnd: '', fuel: '', condition: 'BAIK' }
+        warehouse: { in: '', out: '', remaining: '' },
+        vehicle: { kmStart: '', kmEnd: '', fuel: '', condition: 'BAIK' },
+        // New fields for generic report
+        startTime: '08:00',
+        endTime: '17:00',
+        generalItems: [{ activity: '', status: 'SELESAI' }]
     });
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
@@ -57,6 +62,24 @@ const PersonnelReports = () => {
         setForm({ ...form, assets: { ...form.assets, items: newItems } });
     };
 
+    const addGeneralItem = () => {
+        setForm({
+            ...form,
+            generalItems: [...form.generalItems, { activity: '', status: 'SELESAI' }]
+        });
+    };
+
+    const removeGeneralItem = (index) => {
+        const newItems = form.generalItems.filter((_, i) => i !== index);
+        setForm({ ...form, generalItems: newItems });
+    };
+
+    const handleGeneralItemChange = (index, field, value) => {
+        const newItems = [...form.generalItems];
+        newItems[index][field] = value;
+        setForm({ ...form, generalItems: newItems });
+    };
+
     const handleAssetItemChange = (index, field, value) => {
         const newItems = [...form.assets.items];
         newItems[index][field] = value;
@@ -89,6 +112,30 @@ const PersonnelReports = () => {
             details = `🏠 *Stok Masuk*: ${form.warehouse.in || '-'}\n📦 *Stok Keluar*: ${form.warehouse.out || '-'}\n📊 *Sisa Stok*: ${form.warehouse.remaining || '-'}`;
         } else if (form.category === 'KENDARAAN') {
             details = `🚗 *KM Awal*: ${form.vehicle.kmStart || '-'}\n🏁 *KM Akhir*: ${form.vehicle.kmEnd || '-'}\n⛽ *BBM*: ${form.vehicle.fuel || '-'}\n🛠️ *Kondisi*: ${form.vehicle.condition}`;
+        } else if (form.category === 'UMUM') {
+            // New logic for Generic/General reports
+            if (form.generalItems.length > 0 && form.generalItems[0].activity) {
+                const itemsList = form.generalItems
+                    .filter(it => it.activity.trim())
+                    .map(it => `- ${it.activity} [${it.status}]`)
+                    .join('\n');
+                details = `🕒 *Jam Kerja*: ${form.startTime} - ${form.endTime}\n📋 *Aktivitas*:\n${itemsList}`;
+
+                metadata = {
+                    startTime: form.startTime,
+                    endTime: form.endTime,
+                    // Map to 'items' structure so existing display logic works (name=activity, qty=status)
+                    items: form.generalItems.filter(it => it.activity.trim()).map(it => ({
+                        name: it.activity,
+                        qty: it.status,
+                        target: ''
+                    }))
+                };
+            } else {
+                // Fallback for simple textarea
+                details = `🕒 *Jam Kerja*: ${form.startTime} - ${form.endTime}\n📝 ${form.content}`;
+                metadata = { startTime: form.startTime, endTime: form.endTime };
+            }
         }
 
         if (!form.content.trim() && !details) return alert('Isi laporan tidak boleh kosong');
@@ -113,7 +160,11 @@ const PersonnelReports = () => {
                     checks: { bast: false, photo: false, database: false }
                 },
                 warehouse: { in: '', out: '', remaining: '' },
-                vehicle: { kmStart: '', kmEnd: '', fuel: '', condition: 'BAIK' }
+                warehouse: { in: '', out: '', remaining: '' },
+                vehicle: { kmStart: '', kmEnd: '', fuel: '', condition: 'BAIK' },
+                startTime: '08:00',
+                endTime: '17:00',
+                generalItems: [{ activity: '', status: 'SELESAI' }]
             });
             fetchReports();
             alert('Laporan berhasil dikirim');
@@ -184,6 +235,24 @@ const PersonnelReports = () => {
                                     type="date"
                                     value={form.date}
                                     onChange={e => setForm({ ...form, date: e.target.value })}
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Dari Jam</label>
+                                <input
+                                    type="time"
+                                    value={form.startTime}
+                                    onChange={e => setForm({ ...form, startTime: e.target.value })}
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Sampai Jam</label>
+                                <input
+                                    type="time"
+                                    value={form.endTime}
+                                    onChange={e => setForm({ ...form, endTime: e.target.value })}
                                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 />
                             </div>
@@ -323,13 +392,49 @@ const PersonnelReports = () => {
                             </div>
                         ) : (
                             <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Isi Laporan / Aktivitas</label>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="block text-sm font-semibold text-slate-700">Daftar Aktivitas / Pekerjaan</label>
+                                    <button type="button" onClick={addGeneralItem} className="text-blue-600 hover:text-blue-700 text-xs font-bold flex items-center gap-1">
+                                        <Plus size={14} /> Tambah Aktivitas
+                                    </button>
+                                </div>
+                                <div className="space-y-3 mb-4">
+                                    {form.generalItems.map((item, idx) => (
+                                        <div key={idx} className="flex gap-2 items-start">
+                                            <div className="flex-1">
+                                                <input
+                                                    placeholder="Deskripsi Aktivitas"
+                                                    value={item.activity}
+                                                    onChange={e => handleGeneralItemChange(idx, 'activity', e.target.value)}
+                                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                                />
+                                            </div>
+                                            <div className="w-32">
+                                                <select
+                                                    value={item.status}
+                                                    onChange={e => handleGeneralItemChange(idx, 'status', e.target.value)}
+                                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-600"
+                                                >
+                                                    <option value="SELESAI">SELESAI</option>
+                                                    <option value="PROSES">PROSES</option>
+                                                    <option value="PENDING">PENDING</option>
+                                                </select>
+                                            </div>
+                                            {form.generalItems.length > 1 && (
+                                                <button type="button" onClick={() => removeGeneralItem(idx)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Catatan Tambahan (Opsional)</label>
                                 <textarea
-                                    required
                                     value={form.content}
                                     onChange={e => setForm({ ...form, content: e.target.value })}
-                                    rows={4}
-                                    placeholder="Ceritakan apa yang dikerjakan hari ini..."
+                                    rows={2}
+                                    placeholder="Catatan lain atau kendala yang dihadapi..."
                                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 ></textarea>
                             </div>
@@ -385,6 +490,11 @@ const PersonnelReports = () => {
                                             <div className="font-bold text-slate-800">{report.user?.name || report.user?.username}</div>
                                             <div className="text-[10px] text-slate-500 flex items-center gap-1">
                                                 <Calendar size={12} /> {new Date(report.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                                {report.metadata?.startTime && report.metadata?.endTime && (
+                                                    <span className="ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">
+                                                        {report.metadata.startTime} - {report.metadata.endTime}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
