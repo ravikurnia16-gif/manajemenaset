@@ -48,9 +48,14 @@ const SearchableSelect = ({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [selectedOption, isOther]);
 
-    const filteredOptions = options.filter(option =>
-        option.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredOptions = options.filter(option => {
+        // If the search term is exactly the same as the selected option's name,
+        // it likely means the user just opened the dropdown and hasn't started typing yet.
+        // In this case, we show all options.
+        if (isOpen && selectedOption && searchTerm === selectedOption.name) return true;
+
+        return option.name.toLowerCase().includes(searchTerm.toLowerCase());
+    });
 
     const handleSelect = (option) => {
         onChange(option.id);

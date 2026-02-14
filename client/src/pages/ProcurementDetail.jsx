@@ -32,6 +32,7 @@ const ProcurementDetail = () => {
             setUsers(res.data.map(u => ({ id: u.id, name: `${u.name || u.username} (${u.username})` })));
         } catch (error) {
             console.error(error);
+            alert('Gagal mengambil daftar pengguna. Periksa koneksi database.');
         }
     };
 
