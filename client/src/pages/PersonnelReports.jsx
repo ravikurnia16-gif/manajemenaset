@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react';
-import { FileText, Plus, Search, Calendar, ChevronRight, ChevronDown, CheckCircle2, Clock } from 'lucide-react';
+import { FileText, Plus, Search, Calendar, ChevronRight, ChevronDown, CheckCircle2, Clock, Trash2, Sparkles, X } from 'lucide-react';
 import api from '../lib/axios';
 
 const PersonnelReports = () => {
     const [reports, setReports] = useState([]);
-    const [loading, setLoading] = true;
+    const [reports, setReports] = useState([]);
+    const [loading, setLoading] = useState(true);
     // const [typeFilter, setTypeFilter] = useState('ALL'); // Removed filter
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+
+    // AI Summary State
+    const [showSummaryModal, setShowSummaryModal] = useState(false);
+    const [summaryDate, setSummaryDate] = useState({ start: '', end: '' });
+    const [summaryResult, setSummaryResult] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
 
     const [form, setForm] = useState({
         type: 'DAILY',
@@ -76,6 +83,70 @@ const PersonnelReports = () => {
         const newItems = [...form.generalItems];
         newItems[index][field] = value;
         setForm({ ...form, generalItems: newItems });
+    };
+
+    const generateSummary = () => {
+        if (!summaryDate.start || !summaryDate.end) return alert('Pilih rentang tanggal terlebih dahulu');
+
+        setIsGenerating(true);
+        setSummaryResult('');
+
+        setTimeout(() => {
+            // Filter reports client-side
+            const start = new Date(summaryDate.start);
+            const end = new Date(summaryDate.end);
+            end.setHours(23, 59, 59); // Include end date fully
+
+            const filtered = reports.filter(r => {
+                const d = new Date(r.date);
+                return d >= start && d <= end;
+            });
+
+            if (filtered.length === 0) {
+                setSummaryResult('❌ Tidak ada laporan ditemukan pada rentang tanggal tersebut.');
+                setIsGenerating(false);
+                return;
+            }
+
+            // Group by User
+            const grouped = {};
+            filtered.forEach(r => {
+                const name = r.user?.name || r.user?.username || 'Unknown';
+                if (!grouped[name]) grouped[name] = { count: 0, activities: [] };
+                grouped[name].count++;
+
+                // Collect activities
+                if (r.metadata?.items && Array.isArray(r.metadata.items)) {
+                    r.metadata.items.forEach(item => {
+                        if (item.name && item.name.trim()) grouped[name].activities.push(item.name.trim());
+                    });
+                }
+
+                // Fallback to content if no items but content exists
+                if (r.content && (!r.metadata?.items || r.metadata.items.length === 0)) {
+                    grouped[name].activities.push(r.content.trim());
+                }
+            });
+
+            // Format Output
+            let text = `🤖 **Rangkuman Aktivitas Staff (AI Generated)**\n`;
+            text += `📅 Periode: ${new Date(summaryDate.start).toLocaleDateString('id-ID')} s/d ${new Date(summaryDate.end).toLocaleDateString('id-ID')}\n`;
+            text += `📊 Total Laporan: ${filtered.length}\n\n`;
+
+            Object.entries(grouped).forEach(([name, data], index) => {
+                const uniqueActivities = [...new Set(data.activities)];
+                text += `${index + 1}. **${name}** (${data.count} Hari Kerja)\n`;
+                if (uniqueActivities.length > 0) {
+                    text += uniqueActivities.map(a => `   • ${a}`).join('\n');
+                } else {
+                    text += `   • (Tidak ada detail aktivitas)`;
+                }
+                text += '\n\n';
+            });
+
+            setSummaryResult(text);
+            setIsGenerating(false);
+        }, 1500); // Simulation delay
     };
 
     const handleAssetItemChange = (index, field, value) => {
@@ -166,6 +237,14 @@ const PersonnelReports = () => {
                         Input laporan kinerja harian staf Sarpras
                     </p>
                 </div>
+            </div>
+            <div className="flex gap-2">
+                <button
+                    onClick={() => setShowSummaryModal(true)}
+                    className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all text-sm hover:bg-purple-700"
+                >
+                    <Sparkles size={18} /> Rangkum AI
+                </button>
                 <button
                     onClick={() => setShowForm(!showForm)}
                     className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all text-sm"
@@ -174,100 +253,102 @@ const PersonnelReports = () => {
                 </button>
             </div>
 
-            {showForm && (
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4">Input Laporan Harian</h3>
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tanggal</label>
-                                <input
-                                    type="date"
-                                    value={form.date}
-                                    onChange={e => setForm({ ...form, date: e.target.value })}
-                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                />
+            {
+                showForm && (
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">Input Laporan Harian</h3>
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tanggal</label>
+                                    <input
+                                        type="date"
+                                        value={form.date}
+                                        onChange={e => setForm({ ...form, date: e.target.value })}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Dari Jam</label>
+                                    <input
+                                        type="time"
+                                        value={form.startTime}
+                                        onChange={e => setForm({ ...form, startTime: e.target.value })}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Sampai Jam</label>
+                                    <input
+                                        type="time"
+                                        value={form.endTime}
+                                        onChange={e => setForm({ ...form, endTime: e.target.value })}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Dari Jam</label>
-                                <input
-                                    type="time"
-                                    value={form.startTime}
-                                    onChange={e => setForm({ ...form, startTime: e.target.value })}
-                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Sampai Jam</label>
-                                <input
-                                    type="time"
-                                    value={form.endTime}
-                                    onChange={e => setForm({ ...form, endTime: e.target.value })}
-                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                />
-                            </div>
-                        </div>
 
-                        {/* Always show General Activity Input */}
-                        <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <label className="block text-sm font-semibold text-slate-700">Daftar Aktivitas / Pekerjaan</label>
-                                <button type="button" onClick={addGeneralItem} className="text-blue-600 hover:text-blue-700 text-xs font-bold flex items-center gap-1">
-                                    <Plus size={14} /> Tambah Aktivitas
+                            {/* Always show General Activity Input */}
+                            <div>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="block text-sm font-semibold text-slate-700">Daftar Aktivitas / Pekerjaan</label>
+                                    <button type="button" onClick={addGeneralItem} className="text-blue-600 hover:text-blue-700 text-xs font-bold flex items-center gap-1">
+                                        <Plus size={14} /> Tambah Aktivitas
+                                    </button>
+                                </div>
+                                <div className="space-y-3 mb-4">
+                                    {form.generalItems.map((item, idx) => (
+                                        <div key={idx} className="flex gap-2 items-start">
+                                            <div className="flex-1">
+                                                <input
+                                                    placeholder="Deskripsi Aktivitas"
+                                                    value={item.activity}
+                                                    onChange={e => handleGeneralItemChange(idx, 'activity', e.target.value)}
+                                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                                />
+                                            </div>
+                                            <div className="w-32">
+                                                <select
+                                                    value={item.status}
+                                                    onChange={e => handleGeneralItemChange(idx, 'status', e.target.value)}
+                                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-600"
+                                                >
+                                                    <option value="SELESAI">SELESAI</option>
+                                                    <option value="PROSES">PROSES</option>
+                                                    <option value="PENDING">PENDING</option>
+                                                </select>
+                                            </div>
+                                            {form.generalItems.length > 1 && (
+                                                <button type="button" onClick={() => removeGeneralItem(idx)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Catatan Tambahan (Opsional)</label>
+                                <textarea
+                                    value={form.content}
+                                    onChange={e => setForm({ ...form, content: e.target.value })}
+                                    rows={2}
+                                    placeholder="Catatan lain atau kendala yang dihadapi..."
+                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                ></textarea>
+                            </div>
+                            <div className="flex justify-end">
+                                <button
+                                    type="submit"
+                                    disabled={submitting}
+                                    className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20"
+                                >
+                                    {submitting ? 'Mengirim...' : 'Kirim Laporan'}
                                 </button>
                             </div>
-                            <div className="space-y-3 mb-4">
-                                {form.generalItems.map((item, idx) => (
-                                    <div key={idx} className="flex gap-2 items-start">
-                                        <div className="flex-1">
-                                            <input
-                                                placeholder="Deskripsi Aktivitas"
-                                                value={item.activity}
-                                                onChange={e => handleGeneralItemChange(idx, 'activity', e.target.value)}
-                                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                                            />
-                                        </div>
-                                        <div className="w-32">
-                                            <select
-                                                value={item.status}
-                                                onChange={e => handleGeneralItemChange(idx, 'status', e.target.value)}
-                                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-600"
-                                            >
-                                                <option value="SELESAI">SELESAI</option>
-                                                <option value="PROSES">PROSES</option>
-                                                <option value="PENDING">PENDING</option>
-                                            </select>
-                                        </div>
-                                        {form.generalItems.length > 1 && (
-                                            <button type="button" onClick={() => removeGeneralItem(idx)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg">
-                                                <Trash2 size={16} />
-                                            </button>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-
-                            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Catatan Tambahan (Opsional)</label>
-                            <textarea
-                                value={form.content}
-                                onChange={e => setForm({ ...form, content: e.target.value })}
-                                rows={2}
-                                placeholder="Catatan lain atau kendala yang dihadapi..."
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                            ></textarea>
-                        </div>
-                        <div className="flex justify-end">
-                            <button
-                                type="submit"
-                                disabled={submitting}
-                                className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20"
-                            >
-                                {submitting ? 'Mengirim...' : 'Kirim Laporan'}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            )}
+                        </form>
+                    </div>
+                )
+            }
 
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                 <div className="divide-y divide-slate-100">
@@ -335,7 +416,76 @@ const PersonnelReports = () => {
                     )}
                 </div>
             </div>
-        </div>
+
+            {/* AI Summary Modal */}
+            {
+                showSummaryModal && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+                            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-purple-50">
+                                <h3 className="text-lg font-bold text-purple-900 flex items-center gap-2">
+                                    <Sparkles className="text-purple-600" /> Assistant Rangkuman AI
+                                </h3>
+                                <button onClick={() => setShowSummaryModal(false)} className="p-2 hover:bg-white/50 rounded-full text-slate-500 hover:text-red-500 transition-colors">
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="p-6 overflow-y-auto custom-scrollbar">
+                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
+                                    <label className="block text-sm font-semibold text-slate-700 mb-3">Pilih Rentang Tanggal</label>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <div className="text-xs text-slate-500 mb-1">Dari Tanggal</div>
+                                            <input
+                                                type="date"
+                                                value={summaryDate.start}
+                                                onChange={e => setSummaryDate({ ...summaryDate, start: e.target.value })}
+                                                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+                                            />
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-slate-500 mb-1">Sampai Tanggal</div>
+                                            <input
+                                                type="date"
+                                                value={summaryDate.end}
+                                                onChange={e => setSummaryDate({ ...summaryDate, end: e.target.value })}
+                                                className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={generateSummary}
+                                        disabled={isGenerating || !summaryDate.start || !summaryDate.end}
+                                        className="w-full mt-4 bg-purple-600 text-white py-2.5 rounded-xl font-bold hover:bg-purple-700 transition-all shadow-lg flex justify-center items-center gap-2 disabled:opacity-50"
+                                    >
+                                        {isGenerating ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                Sedang Menganalisa...
+                                            </>
+                                        ) : (
+                                            <>✨ Buat Rangkuman</>
+                                        )}
+                                    </button>
+                                </div>
+
+                                {summaryResult && (
+                                    <div className="animate-in slide-in-from-bottom-2 duration-500">
+                                        <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                                            <FileText size={16} className="text-purple-600" /> Hasil Rangkuman:
+                                        </h4>
+                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed font-medium">
+                                            {summaryResult}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 };
 
