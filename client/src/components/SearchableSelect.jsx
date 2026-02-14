@@ -60,6 +60,10 @@ const SearchableSelect = ({
         return option.name.toLowerCase().includes(searchTerm.toLowerCase());
     });
 
+    if (isOpen) {
+        console.log(`SearchableSelect: isOpen=${isOpen}, term="${searchTerm}", optionsCount=${options.length}, filteredCount=${filteredOptions.length}`);
+    }
+
     const handleSelect = (option) => {
         onChange(option.id);
         setIsOpen(false);

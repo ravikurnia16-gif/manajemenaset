@@ -29,16 +29,16 @@ const ProcurementDetail = () => {
     const fetchUsers = async () => {
         try {
             const res = await api.get('/users');
-            setUsers(res.data
-                .filter(u => u.role !== 'SUPER_ADMIN')
-                .map(u => ({
-                    id: u.id,
-                    name: `${u.name || u.username} [${u.role}]`
-                }))
-            );
-            console.log('Fetched Users:', res.data.length);
-            console.log('Final Users State:', res.data.filter(u => u.role !== 'SUPER_ADMIN').length);
-            console.log('Sample Roles:', [...new Set(res.data.map(u => u.role))]);
+            setUsers(res.data.map(u => ({
+                id: u.id,
+                name: `${u.name || u.username} [${u.role}]`
+            })));
+            console.log('--- USER DEBUG ---');
+            console.log('Total users from API:', res.data.length);
+            console.log('Total users in state:', res.data.length);
+            console.log('User roles present:', [...new Set(res.data.map(u => u.role))]);
+            console.log('Full User Data:', res.data);
+            console.log('--- END DEBUG ---');
         } catch (error) {
             console.error(error);
             alert('Gagal mengambil daftar pengguna. Periksa koneksi database.');
