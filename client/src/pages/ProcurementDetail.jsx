@@ -351,18 +351,25 @@ const ProcurementDetail = () => {
                                                     <div className="text-xs text-slate-500">{item.spec}</div>
                                                 </td>
                                                 <td className="p-3 w-72">
-                                                    <SearchableSelect
-                                                        options={users}
-                                                        value={item.assignedToId}
-                                                        placeholder="Cari Akun User..."
-                                                        className="text-xs"
+                                                    <select
+                                                        className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                                        value={item.assignedToId || ''}
                                                         disabled={req.status === 'COMPLETED' || !isAdmin}
-                                                        onChange={(id) => {
-                                                            const selectedUser = users.find(u => u.id == id);
-                                                            handleItemChange(index, 'assignedToId', id);
+                                                        onChange={(e) => {
+                                                            const selectedId = e.target.value ? parseInt(e.target.value) : null;
+                                                            const selectedUser = users.find(u => u.id === selectedId);
+                                                            handleItemChange(index, 'assignedToId', selectedId);
                                                             handleItemChange(index, 'assignedTo', selectedUser?.name || '');
                                                         }}
-                                                    />
+                                                    >
+                                                        <option value="">-- Pilih Pengguna --</option>
+                                                        {users.map(u => (
+                                                            <option key={u.id} value={u.id}>{u.name}</option>
+                                                        ))}
+                                                    </select>
+                                                    {users.length === 0 && (
+                                                        <p className="text-xs text-red-500 mt-1">⚠ Daftar pengguna kosong. Periksa koneksi database.</p>
+                                                    )}
                                                 </td>
                                                 <td className="p-3 text-center">
                                                     {isAdmin && ['APPROVED', 'PROCESS'].includes(req.status) && (
