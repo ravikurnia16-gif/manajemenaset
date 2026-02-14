@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { FileText, Plus, Search, Calendar, ChevronRight, ChevronDown, CheckCircle2, Clock, Trash2, Sparkles, X } from 'lucide-react';
+import { FileText, Plus, Calendar, ChevronRight, CheckCircle2, Trash2, Sparkles, X } from 'lucide-react';
 import api from '../lib/axios';
 
 const PersonnelReports = () => {
-    const [reports, setReports] = useState([]);
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
     // const [typeFilter, setTypeFilter] = useState('ALL'); // Removed filter
