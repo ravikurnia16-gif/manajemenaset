@@ -102,7 +102,7 @@ const createOrder = async (req, res) => {
         let sendWhatsAppMessage;
         try {
             const waService = require('../services/whatsappService');
-            sendWhatsAppMessage = waService.sendWhatsAppMessage;
+            sendWhatsAppMessage = waService.sendMessage;
         } catch (e) {
             console.error('WA Service not available:', e.message);
         }

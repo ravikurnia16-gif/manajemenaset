@@ -84,7 +84,7 @@ const Sidebar = ({ isOpen = true }) => {
                 isOpen ? "p-5 justify-start h-auto opacity-100" : "p-0 h-0 opacity-0"
             )}>
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white shrink-0 font-bold text-xl shadow-lg shadow-blue-500/20">S</div>
+                    <img src="/Sarpras.jpeg" className="w-10 h-10 rounded-lg object-cover shadow-lg shadow-blue-500/20 shrink-0" alt="Logo" />
                     <div className="flex flex-col justify-center">
                         <span className={cn(
                             "text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent transition-all duration-300",
@@ -93,7 +93,7 @@ const Sidebar = ({ isOpen = true }) => {
                         <div className={cn(
                             "text-[9px] text-slate-500 tracking-[0.15em] uppercase font-bold transition-all duration-300 whitespace-nowrap overflow-hidden",
                             !isOpen ? "w-0 opacity-0" : "w-auto opacity-100"
-                        )}>Sistem Manajemen Aset</div>
+                        )}>Sistem Manajemen SarPras</div>
                     </div>
                 </div>
             </div>
