@@ -31,6 +31,7 @@ app.use('/api/vehicles', require('./routes/vehicleRoutes'));
 app.use('/api/personnel', require('./routes/personnelRoutes'));
 app.use('/api/disposals', require('./routes/disposalRoutes'));
 app.use('/api/sarpras-rules', require('./routes/sarprasRuleRoutes'));
+app.use('/api/sarpras-folders', require('./routes/sarprasFolderRoutes'));
 
 // Serve Static Files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

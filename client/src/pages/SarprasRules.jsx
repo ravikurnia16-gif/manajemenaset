@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
-import { FileText, Download, Trash2, Plus, X, Upload, Calendar, User, Folder, FolderOpen, ChevronRight, Search } from 'lucide-react';
+import { FileText, Download, Trash2, Plus, X, Upload, Calendar, User, Folder, FolderOpen, ChevronRight, Search, FolderPlus } from 'lucide-react';
 import api from '../lib/axios';
 
 const SarprasRules = () => {
     const [rules, setRules] = useState([]);
+    const [folders, setFolders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showUploadModal, setShowUploadModal] = useState(false);
+    const [showFolderModal, setShowFolderModal] = useState(false);
     const [uploading, setUploading] = useState(false);
-    const [form, setForm] = useState({ title: '', description: '', category: 'Umum', file: null });
+    const [creatingFolder, setCreatingFolder] = useState(false);
+    const [form, setForm] = useState({ title: '', description: '', folderId: '', file: null });
+    const [newFolderName, setNewFolderName] = useState('');
     const [selectedFolder, setSelectedFolder] = useState('Semua');
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -16,25 +20,35 @@ const SarprasRules = () => {
     const isAdmin = ['SUPER_ADMIN'].includes(currentUser.role);
 
     useEffect(() => {
-        fetchRules();
+        initData();
     }, []);
+
+    const initData = async () => {
+        setLoading(true);
+        await Promise.all([fetchRules(), fetchFolders()]);
+        setLoading(false);
+    };
 
     const fetchRules = async () => {
         try {
-            setLoading(true);
             const res = await api.get('/sarpras-rules');
             setRules(res.data);
         } catch (error) {
             console.error('Fetch rules error:', error);
-        } finally {
-            setLoading(false);
         }
     };
 
-    const folders = ['Semua', ...new Set(rules.map(r => r.category))].sort();
+    const fetchFolders = async () => {
+        try {
+            const res = await api.get('/sarpras-folders');
+            setFolders(res.data);
+        } catch (error) {
+            console.error('Fetch folders error:', error);
+        }
+    };
 
     const filteredRules = rules.filter(rule => {
-        const matchesFolder = selectedFolder === 'Semua' || rule.category === selectedFolder;
+        const matchesFolder = selectedFolder === 'Semua' || rule.folderId === parseInt(selectedFolder);
         const matchesSearch = rule.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             rule.description?.toLowerCase().includes(searchQuery.toLowerCase());
         return matchesFolder && matchesSearch;
@@ -43,13 +57,14 @@ const SarprasRules = () => {
     const handleUpload = async (e) => {
         e.preventDefault();
         if (!form.file) return alert('Pilih file terlebih dahulu');
+        if (!form.folderId) return alert('Pilih folder terlebih dahulu');
 
         try {
             setUploading(true);
             const formData = new FormData();
             formData.append('title', form.title || form.file.name);
             formData.append('description', form.description);
-            formData.append('category', form.category);
+            formData.append('folderId', form.folderId);
             formData.append('file', form.file);
 
             await api.post('/sarpras-rules', formData, {
@@ -57,7 +72,7 @@ const SarprasRules = () => {
             });
 
             setShowUploadModal(false);
-            setForm({ title: '', description: '', category: 'Umum', file: null });
+            setForm({ title: '', description: '', folderId: '', file: null });
             fetchRules();
         } catch (error) {
             console.error('Upload error:', error);
@@ -67,7 +82,36 @@ const SarprasRules = () => {
         }
     };
 
-    const handleDelete = async (id) => {
+    const handleCreateFolder = async (e) => {
+        e.preventDefault();
+        if (!newFolderName.trim()) return;
+
+        try {
+            setCreatingFolder(true);
+            await api.post('/sarpras-folders', { name: newFolderName });
+            setNewFolderName('');
+            setShowFolderModal(false);
+            fetchFolders();
+        } catch (error) {
+            alert(error.response?.data?.error || 'Gagal membuat folder');
+        } finally {
+            setCreatingFolder(false);
+        }
+    };
+
+    const handleDeleteFolder = async (e, id) => {
+        e.stopPropagation();
+        if (!window.confirm('Hapus folder ini? Pastikan folder dalam keadaan kosong.')) return;
+        try {
+            await api.delete(`/sarpras-folders/${id}`);
+            if (selectedFolder === id.toString()) setSelectedFolder('Semua');
+            fetchFolders();
+        } catch (error) {
+            alert(error.response?.data?.error || 'Gagal menghapus folder');
+        }
+    };
+
+    const handleDeleteRule = async (id) => {
         if (!window.confirm('Hapus aturan ini?')) return;
         try {
             await api.delete(`/sarpras-rules/${id}`);
@@ -90,24 +134,52 @@ const SarprasRules = () => {
         <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] overflow-hidden bg-slate-50">
             {/* Sidebar Folder */}
             <div className="w-full md:w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
-                <div className="p-4 border-b border-slate-100">
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center">
                     <h2 className="font-bold text-slate-800 flex items-center gap-2">
-                        <Folder className="text-blue-600" size={18} /> Direktori Aturan
+                        <Folder className="text-blue-600" size={18} /> Direktori
                     </h2>
+                    {isAdmin && (
+                        <button
+                            onClick={() => setShowFolderModal(true)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Tambah Folder"
+                        >
+                            <FolderPlus size={18} />
+                        </button>
+                    )}
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                    <button
+                        onClick={() => setSelectedFolder('Semua')}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${selectedFolder === 'Semua'
+                            ? 'bg-blue-50 text-blue-700 shadow-sm'
+                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                            }`}
+                    >
+                        {selectedFolder === 'Semua' ? <FolderOpen size={16} /> : <Folder size={16} />}
+                        <span className="truncate">Semua Aturan</span>
+                        {selectedFolder === 'Semua' && <ChevronRight size={14} className="ml-auto" />}
+                    </button>
+
                     {folders.map(folder => (
                         <button
-                            key={folder}
-                            onClick={() => setSelectedFolder(folder)}
-                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${selectedFolder === folder
-                                    ? 'bg-blue-50 text-blue-700 shadow-sm'
-                                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                            key={folder.id}
+                            onClick={() => setSelectedFolder(folder.id.toString())}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${selectedFolder === folder.id.toString()
+                                ? 'bg-blue-50 text-blue-700 shadow-sm'
+                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                                 }`}
                         >
-                            {selectedFolder === folder ? <FolderOpen size={16} /> : <Folder size={16} />}
-                            <span className="truncate">{folder}</span>
-                            {selectedFolder === folder && <ChevronRight size={14} className="ml-auto" />}
+                            {selectedFolder === folder.id.toString() ? <FolderOpen size={16} /> : <Folder size={16} />}
+                            <span className="truncate flex-1 text-left">{folder.name}</span>
+                            {isAdmin && folder._count?.rules === 0 && (
+                                <X
+                                    size={14}
+                                    className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                                    onClick={(e) => handleDeleteFolder(e, folder.id)}
+                                />
+                            )}
+                            {selectedFolder === folder.id.toString() && <ChevronRight size={14} className="ml-2" />}
                         </button>
                     ))}
                 </div>
@@ -118,15 +190,19 @@ const SarprasRules = () => {
                 {/* Header */}
                 <div className="p-4 md:p-6 bg-white border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-xl md:text-2xl font-bold text-slate-800">Aturan Sarana & Prasarana</h1>
-                        <p className="text-slate-500 text-xs md:text-sm">Folder: <span className="font-semibold text-blue-600">{selectedFolder}</span></p>
+                        <h1 className="text-xl md:text-2xl font-bold text-slate-800 tracking-tight">Aturan Sarpras</h1>
+                        <p className="text-slate-500 text-xs md:text-sm">
+                            Lokasi: <span className="font-semibold text-blue-600">
+                                {selectedFolder === 'Semua' ? 'Semua Aturan' : folders.find(f => f.id.toString() === selectedFolder)?.name}
+                            </span>
+                        </p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="relative group">
+                        <div className="relative group flex-1 md:flex-none">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={16} />
                             <input
                                 type="text"
-                                placeholder="Cari aturan..."
+                                placeholder="Cari dokumen..."
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                                 className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:w-64 transition-all"
@@ -158,7 +234,7 @@ const SarprasRules = () => {
                             </div>
                             <h3 className="text-lg font-bold text-slate-700">Tidak Ada Dokumen</h3>
                             <p className="text-slate-400 text-sm max-w-xs mx-auto">
-                                {searchQuery ? `Tidak ada hasil untuk "${searchQuery}" di folder ini.` : `Folder "${selectedFolder}" masih kosong.`}
+                                {searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : `Belum ada dokumen di folder ini.`}
                             </p>
                         </div>
                     ) : (
@@ -168,11 +244,11 @@ const SarprasRules = () => {
                                     <div className="p-5 flex-1">
                                         <div className="flex justify-between items-start mb-4">
                                             <div className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-[10px] font-bold uppercase tracking-wider">
-                                                {rule.category}
+                                                {rule.folder?.name || 'Tidak Dikategorikan'}
                                             </div>
                                             {isAdmin && (
                                                 <button
-                                                    onClick={() => handleDelete(rule.id)}
+                                                    onClick={() => handleDeleteRule(rule.id)}
                                                     className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                                 >
                                                     <Trash2 size={16} />
@@ -241,23 +317,18 @@ const SarprasRules = () => {
                                     />
                                 </div>
                                 <div className="col-span-2 sm:col-span-1">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Folder / Kategori</label>
-                                    <input
-                                        type="text"
-                                        list="category-suggestions"
-                                        value={form.category}
-                                        onChange={e => setForm({ ...form, category: e.target.value })}
-                                        placeholder="Pilih atau ketik baru..."
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Folder Tujuan</label>
+                                    <select
+                                        value={form.folderId}
+                                        onChange={e => setForm({ ...form, folderId: e.target.value })}
                                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                                         required
-                                    />
-                                    <datalist id="category-suggestions">
-                                        {folders.filter(f => f !== 'Semua').map(f => <option key={f} value={f} />)}
-                                        <option value="Keuangan" />
-                                        <option value="Kendaraan" />
-                                        <option value="Kepegawaian" />
-                                        <option value="SOP Umum" />
-                                    </datalist>
+                                    >
+                                        <option value="">-- Pilih Folder --</option>
+                                        {folders.map(f => (
+                                            <option key={f.id} value={f.id}>{f.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
                             <div>
@@ -304,6 +375,45 @@ const SarprasRules = () => {
                                 ) : (
                                     <>Simpan Dokumen</>
                                 )}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Create Folder Modal */}
+            {showFolderModal && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-200">
+                        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-blue-600">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <FolderPlus size={20} /> Tambah Folder
+                            </h3>
+                            <button onClick={() => setShowFolderModal(false)} className="p-2 hover:bg-white/20 rounded-full text-white/80 hover:text-white transition-colors">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleCreateFolder} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Nama Folder</label>
+                                <input
+                                    type="text"
+                                    value={newFolderName}
+                                    onChange={e => setNewFolderName(e.target.value)}
+                                    placeholder="Contoh: Kepegawaian"
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    required
+                                    autoFocus
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={creatingFolder}
+                                className="w-full bg-blue-600 text-white py-3 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg flex justify-center items-center gap-2 disabled:opacity-50"
+                            >
+                                {creatingFolder ? 'Menciptakan...' : 'Buat Folder'}
                             </button>
                         </form>
                     </div>

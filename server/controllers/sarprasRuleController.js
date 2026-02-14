@@ -10,6 +10,9 @@ exports.getAllRules = async (req, res) => {
             include: {
                 uploadedBy: {
                     select: { name: true, username: true }
+                },
+                folder: {
+                    select: { id: true, name: true }
                 }
             },
             orderBy: { createdAt: 'desc' }
@@ -24,17 +27,24 @@ exports.getAllRules = async (req, res) => {
 // Create new rule (Upload)
 exports.createRule = async (req, res) => {
     try {
-        const { title, description, category } = req.body;
+        const { title, description, category, folderId } = req.body;
         const file = req.file;
 
         if (!file) {
             return res.status(400).json({ error: 'File wajib diupload' });
         }
 
+        let categoryName = category || "Umum";
+        if (folderId) {
+            const folder = await prisma.sarprasFolder.findUnique({ where: { id: parseInt(folderId) } });
+            if (folder) categoryName = folder.name;
+        }
+
         const rule = await prisma.sarprasRule.create({
             data: {
                 title: title || file.originalname,
-                category: category || "Umum",
+                category: categoryName,
+                folderId: folderId ? parseInt(folderId) : null,
                 description,
                 fileName: file.originalname,
                 fileUrl: `/uploads/rules/${file.filename}`,
