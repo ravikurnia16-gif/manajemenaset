@@ -24,7 +24,7 @@ exports.getAllRules = async (req, res) => {
 // Create new rule (Upload)
 exports.createRule = async (req, res) => {
     try {
-        const { title, description } = req.body;
+        const { title, description, category } = req.body;
         const file = req.file;
 
         if (!file) {
@@ -34,6 +34,7 @@ exports.createRule = async (req, res) => {
         const rule = await prisma.sarprasRule.create({
             data: {
                 title: title || file.originalname,
+                category: category || "Umum",
                 description,
                 fileName: file.originalname,
                 fileUrl: `/uploads/rules/${file.filename}`,

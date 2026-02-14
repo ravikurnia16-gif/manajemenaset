@@ -633,6 +633,7 @@ model AssetDisposal {
 model SarprasRule {
   id            Int      @id @default(autoincrement())
   title         String
+  category      String   @default("Umum")
   description   String?  @db.Text
   fileUrl       String   @db.LongText
   fileName      String
