@@ -361,59 +361,70 @@ const PersonnelReports = () => {
                             Belum ada laporan yang dikirimkan.
                         </div>
                     ) : (
-                        reports.map(report => (
-                            <div key={report.id} className="p-4 hover:bg-slate-50 transition-colors">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm bg-blue-500">
-                                            H
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-slate-800">{report.user?.name || report.user?.username}</div>
-                                            <div className="text-[10px] text-slate-500 flex items-center gap-1">
-                                                <Calendar size={12} /> {new Date(report.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                                                {report.metadata?.startTime && report.metadata?.endTime && (
-                                                    <span className="ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">
-                                                        {report.metadata.startTime} - {report.metadata.endTime}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">
-                                        HARIAN
-                                    </span>
-                                </div>
-                                <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 whitespace-pre-wrap">
-                                    {report.content}
-                                    {Array.isArray(report.metadata?.items) && report.metadata.items.length > 0 && (
-                                        <div className="mt-3 pt-3 border-t border-slate-200">
-                                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Rincian Pekerjaan:</div>
-                                            <div className="space-y-1">
-                                                {report.metadata.items.map((item, i) => (
-                                                    <div key={i} className="text-xs flex items-center gap-2">
-                                                        <span className="w-5 h-5 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[10px]">{i + 1}</span>
-                                                        <span className="font-semibold">{item?.name || '-'}</span>
-                                                        <span className="text-slate-400">({item?.qty || '-'})</span>
-                                                        {item?.target && <span className="text-blue-500 flex items-center gap-1"><ChevronRight size={12} /> {item.target}</span>}
+                        reports.map(report => {
+                            try {
+                                return (
+                                    <div key={report.id} className="p-4 hover:bg-slate-50 transition-colors">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm bg-blue-500">
+                                                    H
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-slate-800">{report.user?.name || report.user?.username || 'Unknown'}</div>
+                                                    <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                                                        <Calendar size={12} /> {new Date(report.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                                        {report.metadata?.startTime && report.metadata?.endTime && (
+                                                            <span className="ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">
+                                                                {report.metadata.startTime} - {report.metadata.endTime}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                ))}
+                                                </div>
                                             </div>
-                                            {report.metadata.checks && (
-                                                <div className="mt-3 flex flex-wrap gap-2">
-                                                    {report.metadata.checks.bast && <span className="px-1.5 py-0.5 bg-green-50 text-green-600 rounded text-[9px] font-bold border border-green-100 flex items-center gap-1"><CheckCircle2 size={10} /> BAST</span>}
-                                                    {report.metadata.checks.photo && <span className="px-1.5 py-0.5 bg-green-50 text-green-600 rounded text-[9px] font-bold border border-green-100 flex items-center gap-1"><CheckCircle2 size={10} /> FOTO</span>}
-                                                    {report.metadata.checks.database && <span className="px-1.5 py-0.5 bg-green-50 text-green-600 rounded text-[9px] font-bold border border-green-100 flex items-center gap-1"><CheckCircle2 size={10} /> DATABASE</span>}
+                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">
+                                                HARIAN
+                                            </span>
+                                        </div>
+                                        <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 whitespace-pre-wrap">
+                                            {report.content}
+                                            {Array.isArray(report.metadata?.items) && report.metadata.items.length > 0 && (
+                                                <div className="mt-3 pt-3 border-t border-slate-200">
+                                                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Rincian Pekerjaan:</div>
+                                                    <div className="space-y-1">
+                                                        {report.metadata.items.map((item, i) => (
+                                                            <div key={i} className="text-xs flex items-center gap-2">
+                                                                <span className="w-5 h-5 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[10px]">{i + 1}</span>
+                                                                <span className="font-semibold">{item?.name || '-'}</span>
+                                                                <span className="text-slate-400">({item?.qty || '-'})</span>
+                                                                {item?.target && <span className="text-blue-500 flex items-center gap-1"><ChevronRight size={12} /> {item.target}</span>}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    {report.metadata.checks && (
+                                                        <div className="mt-3 flex flex-wrap gap-2">
+                                                            {report.metadata.checks.bast && <span className="px-1.5 py-0.5 bg-green-50 text-green-600 rounded text-[9px] font-bold border border-green-100 flex items-center gap-1"><CheckCircle2 size={10} /> BAST</span>}
+                                                            {report.metadata.checks.photo && <span className="px-1.5 py-0.5 bg-green-50 text-green-600 rounded text-[9px] font-bold border border-green-100 flex items-center gap-1"><CheckCircle2 size={10} /> FOTO</span>}
+                                                            {report.metadata.checks.database && <span className="px-1.5 py-0.5 bg-green-50 text-green-600 rounded text-[9px] font-bold border border-green-100 flex items-center gap-1"><CheckCircle2 size={10} /> DATABASE</span>}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
-                                    )}
-                                </div>
-                                <div className="mt-2 text-[10px] text-slate-400 text-right">
-                                    Dikirim pada {new Date(report.createdAt).toLocaleString('id-ID')}
-                                </div>
-                            </div>
-                        ))
+                                        <div className="mt-2 text-[10px] text-slate-400 text-right">
+                                            Dikirim pada {new Date(report.createdAt).toLocaleString('id-ID')}
+                                        </div>
+                                    </div>
+                                );
+                            } catch (error) {
+                                console.error('Error rendering report:', error, report);
+                                return (
+                                    <div key={report.id || Math.random()} className="p-4 bg-red-50 text-red-500 border-b border-red-100 text-xs">
+                                        Error menampilkan laporan. ID: {report.id}
+                                    </div>
+                                );
+                            }
+                        })
                     )}
                 </div>
             </div>
