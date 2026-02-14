@@ -620,6 +620,7 @@ exports.batchImportAssets = async (req, res) => {
                         usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)']),
                         condition: String(item['Kondisi Aset']).toUpperCase().includes('RUSAK') ? 'RUSAK_RINGAN' : 'BAIK',
                         sourceOfFunds: String(item['Sumber Dana Aset']),
+                        picName: item['PIC (Nama Manual)'] ? String(item['PIC (Nama Manual)']) : null,
                         specification: null, // Kosongkan saat import
                         quantity: 1
                     }
