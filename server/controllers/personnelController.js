@@ -99,14 +99,10 @@ exports.getReports = async (req, res) => {
         }
 
         // Access Control: 
-        // - KEPALA_BIDANG or ADMIN_UNIT can see all reports in their unit.
-        // - Regular USER/Staff sees only their own.
-        if (['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN'].includes(user.role)) {
+        // - SUPER_ADMIN can see all reports.
+        // - All other roles see only their own.
+        if (user.role === 'SUPER_ADMIN') {
             if (userId) where.userId = parseInt(userId);
-            // Additionally ensure they only see Sarpras unit reports if not SUPER_ADMIN
-            if (user.role !== 'SUPER_ADMIN') {
-                where.user = { unitId: user.unitId };
-            }
         } else {
             where.userId = user.id;
         }
