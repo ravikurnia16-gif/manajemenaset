@@ -262,7 +262,7 @@ const UniformOrderPage = () => {
                 </div>
 
                 {/* 5. ITEM ORDER SECTION */}
-                <div className={`transition duration-300 ${!identity.unit ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
+                <div id="input-section" className={`transition duration-300 ${!identity.unit ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
                     <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                         <div className="bg-slate-800 text-white p-3 font-bold flex items-center gap-2">
                             <Shirt size={20} /> 5. Input Pesanan
@@ -379,11 +379,19 @@ const UniformOrderPage = () => {
             {/* FLOATING SUBMIT BUTTON */}
             {cart.length > 0 && (
                 <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-lg z-50">
-                    <div className="max-w-xl mx-auto">
+                    <div className="max-w-xl mx-auto flex gap-3">
+                        <button
+                            onClick={() => {
+                                document.getElementById('input-section')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-4 rounded-xl font-bold flex justify-center items-center gap-2 transition active:scale-95"
+                        >
+                            <Plus size={20} /> TAMBAH PESANAN
+                        </button>
                         <button
                             onClick={handleSubmit}
                             disabled={loading}
-                            className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold shadow-green-200 shadow-lg flex justify-center items-center gap-2 text-lg transform transition active:scale-95"
+                            className="flex-[2] bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold shadow-green-200 shadow-lg flex justify-center items-center gap-2 text-lg transform transition active:scale-95 disabled:opacity-50"
                         >
                             {loading ? <Loader2 className="animate-spin" /> : <Save />} KIRIM PESANAN
                         </button>
