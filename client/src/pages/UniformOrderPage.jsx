@@ -357,6 +357,7 @@ const UniformOrderPage = () => {
                                     className="flex-1 bg-green-600 text-white py-3.5 rounded-lg font-bold hover:bg-green-700 transition flex justify-center items-center gap-2 disabled:opacity-50 disabled:grayscale"
                                 >
                                     {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />} KIRIM PESANAN
+                                </button>
                             </div>
                             <div className="mt-3 space-y-1">
                                 <p className="text-[10px] text-center text-indigo-600 font-bold animate-pulse">
