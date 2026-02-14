@@ -4,8 +4,8 @@ import api from '../lib/axios';
 
 const PersonnelReports = () => {
     const [reports, setReports] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [typeFilter, setTypeFilter] = useState('ALL');
+    const [loading, setLoading] = true;
+    // const [typeFilter, setTypeFilter] = useState('ALL'); // Removed filter
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
@@ -22,7 +22,6 @@ const PersonnelReports = () => {
             checks: { bast: false, photo: false, database: false }
         },
         warehouse: { in: '', out: '', remaining: '' },
-        warehouse: { in: '', out: '', remaining: '' },
         vehicle: { kmStart: '', kmEnd: '', fuel: '', condition: 'BAIK' },
         // New fields for generic report
         startTime: '08:00',
@@ -35,8 +34,7 @@ const PersonnelReports = () => {
     const fetchReports = async () => {
         try {
             setLoading(true);
-            const params = {};
-            if (typeFilter !== 'ALL') params.type = typeFilter;
+            const params = { type: 'DAILY' }; // Force DAILY
             const res = await api.get('/personnel/reports', { params });
             setReports(res.data);
         } catch (err) {
@@ -48,7 +46,7 @@ const PersonnelReports = () => {
 
     useEffect(() => {
         fetchReports();
-    }, [typeFilter]);
+    }, []); // Run once on mount
 
     const addAssetItem = () => {
         setForm({
@@ -92,50 +90,29 @@ const PersonnelReports = () => {
         let details = '';
         let metadata = null;
 
-        if (form.category === 'KEUANGAN') {
-            details = `💰 *Pemasukan*: Rp ${form.finance.income || '-'}\n💸 *Pengeluaran*: Rp ${form.finance.outcome || '-'}\n⚖️ *Saldo*: Rp ${form.finance.balance || '-'}`;
-        } else if (form.category === 'ASET') {
-            const itemsList = form.assets.items.map(it => `- ${it.name} (${it.qty})${it.target ? ' -> ' + it.target : ''}`).join('\n');
-            const checksList = [
-                form.assets.checks.bast ? '✓ BAST Lengkap' : '✗ BAST Belum',
-                form.assets.checks.photo ? '✓ Foto Fisik Ada' : '✗ Foto Fisik Belum',
-                form.assets.checks.database ? '✓ Master Data Terupdate' : '✗ Master Data Belum'
-            ].join(', ');
+        // Force category to UMUM for DAILY reports in this simplified version
+        // Logic for Generic/General reports
+        if (form.generalItems.length > 0 && form.generalItems[0].activity) {
+            const itemsList = form.generalItems
+                .filter(it => it.activity.trim())
+                .map(it => `- ${it.activity} [${it.status}]`)
+                .join('\n');
+            details = `🕒 *Jam Kerja*: ${form.startTime} - ${form.endTime}\n📋 *Aktivitas*:\n${itemsList}`;
 
-            details = `📦 *Aktivitas*: ${form.assets.activityType}\n📊 *Daftar Barang*:\n${itemsList || '-'}\n📝 *Dokumen*: ${checksList}`;
             metadata = {
-                activityType: form.assets.activityType,
-                items: form.assets.items.filter(it => it.name.trim() !== ''),
-                checks: form.assets.checks
+                startTime: form.startTime,
+                endTime: form.endTime,
+                // Map to 'items' structure so existing display logic works (name=activity, qty=status)
+                items: form.generalItems.filter(it => it.activity.trim()).map(it => ({
+                    name: it.activity,
+                    qty: it.status,
+                    target: ''
+                }))
             };
-        } else if (form.category === 'GUDANG') {
-            details = `🏠 *Stok Masuk*: ${form.warehouse.in || '-'}\n📦 *Stok Keluar*: ${form.warehouse.out || '-'}\n📊 *Sisa Stok*: ${form.warehouse.remaining || '-'}`;
-        } else if (form.category === 'KENDARAAN') {
-            details = `🚗 *KM Awal*: ${form.vehicle.kmStart || '-'}\n🏁 *KM Akhir*: ${form.vehicle.kmEnd || '-'}\n⛽ *BBM*: ${form.vehicle.fuel || '-'}\n🛠️ *Kondisi*: ${form.vehicle.condition}`;
-        } else if (form.category === 'UMUM') {
-            // New logic for Generic/General reports
-            if (form.generalItems.length > 0 && form.generalItems[0].activity) {
-                const itemsList = form.generalItems
-                    .filter(it => it.activity.trim())
-                    .map(it => `- ${it.activity} [${it.status}]`)
-                    .join('\n');
-                details = `🕒 *Jam Kerja*: ${form.startTime} - ${form.endTime}\n📋 *Aktivitas*:\n${itemsList}`;
-
-                metadata = {
-                    startTime: form.startTime,
-                    endTime: form.endTime,
-                    // Map to 'items' structure so existing display logic works (name=activity, qty=status)
-                    items: form.generalItems.filter(it => it.activity.trim()).map(it => ({
-                        name: it.activity,
-                        qty: it.status,
-                        target: ''
-                    }))
-                };
-            } else {
-                // Fallback for simple textarea
-                details = `🕒 *Jam Kerja*: ${form.startTime} - ${form.endTime}\n📝 ${form.content}`;
-                metadata = { startTime: form.startTime, endTime: form.endTime };
-            }
+        } else {
+            // Fallback for simple textarea
+            details = `🕒 *Jam Kerja*: ${form.startTime} - ${form.endTime}\n📝 ${form.content}`;
+            metadata = { startTime: form.startTime, endTime: form.endTime };
         }
 
         if (!form.content.trim() && !details) return alert('Isi laporan tidak boleh kosong');
@@ -144,6 +121,8 @@ const PersonnelReports = () => {
             setSubmitting(true);
             await api.post('/personnel/reports', {
                 ...form,
+                type: 'DAILY', // Ensure type is DAILY
+                category: 'UMUM', // Ensure category is UMUM
                 details: details.replace(/\*/g, ''), // Send clean text to backend
                 metadata
             });
@@ -160,7 +139,6 @@ const PersonnelReports = () => {
                     checks: { bast: false, photo: false, database: false }
                 },
                 warehouse: { in: '', out: '', remaining: '' },
-                warehouse: { in: '', out: '', remaining: '' },
                 vehicle: { kmStart: '', kmEnd: '', fuel: '', condition: 'BAIK' },
                 startTime: '08:00',
                 endTime: '17:00',
@@ -175,17 +153,17 @@ const PersonnelReports = () => {
         }
     };
 
-    const filteredReports = reports;
+    const filteredReports = reports.filter(report => typeFilter === 'ALL' || report.type === typeFilter);
 
     return (
         <div className="p-4 md:p-6 space-y-6">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                        <FileText className="text-blue-600" /> Laporan Personalia
+                        <FileText className="text-blue-600" /> Laporan Harian
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Manajemen laporan harian dan mingguan staf Sarpras
+                        Input laporan kinerja harian staf Sarpras
                     </p>
                 </div>
                 <button
@@ -198,37 +176,9 @@ const PersonnelReports = () => {
 
             {showForm && (
                 <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4">Input Laporan Baru</h3>
+                    <h3 className="text-lg font-bold text-slate-800 mb-4">Input Laporan Harian</h3>
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className={`grid grid-cols-1 ${form.type === 'WEEKLY' ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Jenis Laporan</label>
-                                <select
-                                    value={form.type}
-                                    onChange={e => setForm({ ...form, type: e.target.value, category: e.target.value === 'DAILY' ? 'UMUM' : form.category })}
-                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                >
-                                    <option value="DAILY">Harian</option>
-                                    <option value="WEEKLY">Mingguan</option>
-                                </select>
-                            </div>
-                            {form.type === 'WEEKLY' && (
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Kategori Bidang</label>
-                                    <select
-                                        value={form.category}
-                                        onChange={e => setForm({ ...form, category: e.target.value })}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-600"
-                                    >
-                                        <option value="UMUM">Umum / Lainnya</option>
-                                        <option value="KEUANGAN">📦 Staf Keuangan (Syafrian)</option>
-                                        <option value="ASET">🏢 Staf Manajemen Aset (Eldo)</option>
-                                        <option value="GUDANG">🏠 Staf Gudang & Logistik (Jeri)</option>
-                                        <option value="KENDARAAN">🚗 Staf Kendaraan (Ringgo/Wegi)</option>
-                                        <option value="LAPORAN_MINGGUAN_KENDARAAN">🗓️ Laporan Mingguan Kendaraan</option>
-                                    </select>
-                                </div>
-                            )}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tanggal</label>
                                 <input
@@ -258,218 +208,68 @@ const PersonnelReports = () => {
                             </div>
                         </div>
 
-                        {/* Category Specific Fields (ONLY for WEEKLY) */}
-                        {form.type === 'WEEKLY' && form.category === 'KEUANGAN' && (
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Pemasukan (Rp)</label>
-                                    <input type="number" value={form.finance.income} onChange={e => setForm({ ...form, finance: { ...form.finance, income: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Pengeluaran (Rp)</label>
-                                    <input type="number" value={form.finance.outcome} onChange={e => setForm({ ...form, finance: { ...form.finance, outcome: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Saldo Akhir (Rp)</label>
-                                    <input type="number" value={form.finance.balance} onChange={e => setForm({ ...form, finance: { ...form.finance, balance: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
-                                </div>
-                            </div>
-                        )}
-
-                        {form.type === 'WEEKLY' && form.category === 'ASET' && (
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Jenis Aktivitas</label>
-                                        <select
-                                            value={form.assets.activityType}
-                                            onChange={e => setForm({ ...form, assets: { ...form.assets, activityType: e.target.value } })}
-                                            className="w-full p-2 border border-slate-200 rounded-lg text-sm font-bold text-blue-700"
-                                        >
-                                            <option value="PENERIMAAN">PENERIMAAN ASET</option>
-                                            <option value="DISTRIBUSI">DISTRIBUSI / PENGIRIMAN</option>
-                                            <option value="MUTASI">MUTASI ANTAR RUANG</option>
-                                            <option value="LABELING">LABELING / KODIFIKASI</option>
-                                            <option value="AUDIT">AUDIT / STOK OPNAME</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex items-center gap-4 pt-5">
-                                        <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
-                                            <input type="checkbox" checked={form.assets.checks.bast} onChange={e => setForm({ ...form, assets: { ...form.assets, checks: { ...form.assets.checks, bast: e.target.checked } } })} /> BAST LENGKAP
-                                        </label>
-                                        <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
-                                            <input type="checkbox" checked={form.assets.checks.photo} onChange={e => setForm({ ...form, assets: { ...form.assets, checks: { ...form.assets.checks, photo: e.target.checked } } })} /> FOTO FISIK
-                                        </label>
-                                        <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
-                                            <input type="checkbox" checked={form.assets.checks.database} onChange={e => setForm({ ...form, assets: { ...form.assets, checks: { ...form.assets.checks, database: e.target.checked } } })} /> MASTER DATA OK
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <label className="block text-xs font-bold text-slate-500 uppercase">Daftar Rincian Barang</label>
-                                        <button type="button" onClick={addAssetItem} className="text-blue-600 hover:text-blue-700 text-xs font-bold flex items-center gap-1">
-                                            <Plus size={14} /> Tambah Baris
-                                        </button>
-                                    </div>
-                                    {form.assets.items.map((item, idx) => (
-                                        <div key={idx} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end group">
-                                            <div className="md:col-span-1">
-                                                <input placeholder="Nama Barang" value={item.name} onChange={e => handleAssetItemChange(idx, 'name', e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
-                                            </div>
-                                            <div className="md:col-span-1">
-                                                <input placeholder="Jumlah / Qty" value={item.qty} onChange={e => handleAssetItemChange(idx, 'qty', e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
-                                            </div>
-                                            <div className="md:col-span-2 flex gap-2">
-                                                <input placeholder="Tujuan / Asal" value={item.target} onChange={e => handleAssetItemChange(idx, 'target', e.target.value)} className="flex-1 p-2 border border-slate-200 rounded-lg text-sm" />
-                                                {form.assets.items.length > 1 && (
-                                                    <button type="button" onClick={() => removeAssetItem(idx)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {form.type === 'WEEKLY' && form.category === 'GUDANG' && (
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Stok Masuk</label>
-                                    <input type="text" value={form.warehouse.in} onChange={e => setForm({ ...form, warehouse: { ...form.warehouse, in: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Stok Keluar</label>
-                                    <input type="text" value={form.warehouse.out} onChange={e => setForm({ ...form, warehouse: { ...form.warehouse, out: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Sisa Stok</label>
-                                    <input type="text" value={form.warehouse.remaining} onChange={e => setForm({ ...form, warehouse: { ...form.warehouse, remaining: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
-                                </div>
-                            </div>
-                        )}
-
-                        {form.type === 'WEEKLY' && form.category === 'KENDARAAN' && (
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">KM Awal</label>
-                                    <input type="number" value={form.vehicle.kmStart} onChange={e => setForm({ ...form, vehicle: { ...form.vehicle, kmStart: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">KM Akhir</label>
-                                    <input type="number" value={form.vehicle.kmEnd} onChange={e => setForm({ ...form, vehicle: { ...form.vehicle, kmEnd: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">BBM (Liter)</label>
-                                    <input type="number" value={form.vehicle.fuel} onChange={e => setForm({ ...form, vehicle: { ...form.vehicle, fuel: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Kondisi</label>
-                                    <select value={form.vehicle.condition} onChange={e => setForm({ ...form, vehicle: { ...form.vehicle, condition: e.target.value } })} className="w-full p-2 border border-slate-200 rounded-lg text-sm">
-                                        <option value="BAIK">BAIK</option>
-                                        <option value="SERVIS">PERLU SERVIS</option>
-                                        <option value="RUSAK">RUSAK</option>
-                                    </select>
-                                </div>
-                            </div>
-                        )}
-
-                        {form.category === 'LAPORAN_MINGGUAN_KENDARAAN' ? (
-                            <div className="p-10 bg-blue-50 rounded-2xl border border-dashed border-blue-200 text-center">
-                                <Car size={40} className="mx-auto text-blue-400 mb-3" />
-                                <h4 className="text-blue-800 font-bold mb-1">Input Laporan Per Kendaraan</h4>
-                                <p className="text-blue-600 text-sm mb-6">Laporan mingguan diinput langsung pada masing-masing unit kendaraan.</p>
-                                <button
-                                    type="button"
-                                    onClick={() => navigate('/kendaraan/data')}
-                                    className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20"
-                                >
-                                    Pilih Kendaraan Sekarang
+                        {/* Always show General Activity Input */}
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="block text-sm font-semibold text-slate-700">Daftar Aktivitas / Pekerjaan</label>
+                                <button type="button" onClick={addGeneralItem} className="text-blue-600 hover:text-blue-700 text-xs font-bold flex items-center gap-1">
+                                    <Plus size={14} /> Tambah Aktivitas
                                 </button>
                             </div>
-                        ) : (
-                            <div>
-                                <div className="flex justify-between items-center mb-2">
-                                    <label className="block text-sm font-semibold text-slate-700">Daftar Aktivitas / Pekerjaan</label>
-                                    <button type="button" onClick={addGeneralItem} className="text-blue-600 hover:text-blue-700 text-xs font-bold flex items-center gap-1">
-                                        <Plus size={14} /> Tambah Aktivitas
-                                    </button>
-                                </div>
-                                <div className="space-y-3 mb-4">
-                                    {form.generalItems.map((item, idx) => (
-                                        <div key={idx} className="flex gap-2 items-start">
-                                            <div className="flex-1">
-                                                <input
-                                                    placeholder="Deskripsi Aktivitas"
-                                                    value={item.activity}
-                                                    onChange={e => handleGeneralItemChange(idx, 'activity', e.target.value)}
-                                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                                                />
-                                            </div>
-                                            <div className="w-32">
-                                                <select
-                                                    value={item.status}
-                                                    onChange={e => handleGeneralItemChange(idx, 'status', e.target.value)}
-                                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-600"
-                                                >
-                                                    <option value="SELESAI">SELESAI</option>
-                                                    <option value="PROSES">PROSES</option>
-                                                    <option value="PENDING">PENDING</option>
-                                                </select>
-                                            </div>
-                                            {form.generalItems.length > 1 && (
-                                                <button type="button" onClick={() => removeGeneralItem(idx)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg">
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            )}
+                            <div className="space-y-3 mb-4">
+                                {form.generalItems.map((item, idx) => (
+                                    <div key={idx} className="flex gap-2 items-start">
+                                        <div className="flex-1">
+                                            <input
+                                                placeholder="Deskripsi Aktivitas"
+                                                value={item.activity}
+                                                onChange={e => handleGeneralItemChange(idx, 'activity', e.target.value)}
+                                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                            />
                                         </div>
-                                    ))}
-                                </div>
-
-                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Catatan Tambahan (Opsional)</label>
-                                <textarea
-                                    value={form.content}
-                                    onChange={e => setForm({ ...form, content: e.target.value })}
-                                    rows={2}
-                                    placeholder="Catatan lain atau kendala yang dihadapi..."
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                ></textarea>
+                                        <div className="w-32">
+                                            <select
+                                                value={item.status}
+                                                onChange={e => handleGeneralItemChange(idx, 'status', e.target.value)}
+                                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-600"
+                                            >
+                                                <option value="SELESAI">SELESAI</option>
+                                                <option value="PROSES">PROSES</option>
+                                                <option value="PENDING">PENDING</option>
+                                            </select>
+                                        </div>
+                                        {form.generalItems.length > 1 && (
+                                            <button type="button" onClick={() => removeGeneralItem(idx)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
-                        )}
 
-                        {form.category !== 'LAPORAN_MINGGUAN_KENDARAAN' && (
-                            <div className="flex justify-end">
-                                <button
-                                    type="submit"
-                                    disabled={submitting}
-                                    className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20"
-                                >
-                                    {submitting ? 'Mengirim...' : 'Kirim Laporan'}
-                                </button>
-                            </div>
-                        )}
+                            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Catatan Tambahan (Opsional)</label>
+                            <textarea
+                                value={form.content}
+                                onChange={e => setForm({ ...form, content: e.target.value })}
+                                rows={2}
+                                placeholder="Catatan lain atau kendala yang dihadapi..."
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            ></textarea>
+                        </div>
+                        <div className="flex justify-end">
+                            <button
+                                type="submit"
+                                disabled={submitting}
+                                className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20"
+                            >
+                                {submitting ? 'Mengirim...' : 'Kirim Laporan'}
+                            </button>
+                        </div>
                     </form>
                 </div>
             )}
 
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div className="flex bg-slate-100 p-1 rounded-lg">
-                        {['ALL', 'DAILY', 'WEEKLY'].map(t => (
-                            <button
-                                key={t}
-                                onClick={() => setTypeFilter(t)}
-                                className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${typeFilter === t ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                {t === 'ALL' ? 'Semua' : t === 'DAILY' ? 'Harian' : 'Mingguan'}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
                 <div className="divide-y divide-slate-100">
                     {loading ? (
                         <div className="p-10 text-center text-slate-400">Memuat laporan...</div>
@@ -483,8 +283,8 @@ const PersonnelReports = () => {
                             <div key={report.id} className="p-4 hover:bg-slate-50 transition-colors">
                                 <div className="flex justify-between items-start mb-2">
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ${report.type === 'DAILY' ? 'bg-blue-500' : 'bg-purple-500'}`}>
-                                            {report.type === 'DAILY' ? 'H' : 'M'}
+                                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm bg-blue-500">
+                                            H
                                         </div>
                                         <div>
                                             <div className="font-bold text-slate-800">{report.user?.name || report.user?.username}</div>
@@ -498,15 +298,15 @@ const PersonnelReports = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${report.type === 'DAILY' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
-                                        {report.type === 'DAILY' ? 'HARIAN' : 'MINGGUAN'}
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">
+                                        HARIAN
                                     </span>
                                 </div>
                                 <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 whitespace-pre-wrap">
                                     {report.content}
                                     {report.metadata?.items && report.metadata.items.length > 0 && (
                                         <div className="mt-3 pt-3 border-t border-slate-200">
-                                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Rincian Barang:</div>
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Rincian Pekerjaan:</div>
                                             <div className="space-y-1">
                                                 {report.metadata.items.map((item, i) => (
                                                     <div key={i} className="text-xs flex items-center gap-2">
