@@ -146,9 +146,14 @@ const UniformOrderPage = () => {
                 customerPhone: identity.phone,
                 customerUnit: identity.unit,
                 customerName: '', // Optional
-                items: [], // EMPTY ITEMS ARRAY -> Decoupled from DB
                 note: fullNote,
-                gender: identity.gender // Add Gender for WA
+                gender: identity.gender, // Add Gender for WA
+                items: finalCart.map(c => ({
+                    name: c.name,
+                    size: c.size,
+                    quantity: c.quantity,
+                    price: 0
+                }))
             };
 
             const res = await fetch(`${API_BASE}/api/uniform-order`, {

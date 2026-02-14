@@ -561,13 +561,17 @@ model UniformOrder {
 }
 
 model UniformOrderItem {
-  id          Int      @id @default(autoincrement())
-  orderId     Int
-  order       UniformOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  itemId      Int
-  item        WarehouseItem @relation(fields: [itemId], references: [id])
-  quantity    Int
-  price       Float    // Harga saat pesan
+  id            Int      @id @default(autoincrement())
+  orderId       Int
+  order         UniformOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemId        Int?     // Made optional for decoupled orders
+  item          WarehouseItem? @relation(fields: [itemId], references: [id])
+  itemName      String?  // For decoupled orders
+  size          String?  // For decoupled orders
+  quantity      Int
+  price         Float    @default(0)
+  status        String   @default("PENDING") // PENDING, READY, NO_STOCK, DONE
+  pickupDetails String?  // Info like "Senin, 07.30 - 16.00"
 }
 
 enum ReportType {

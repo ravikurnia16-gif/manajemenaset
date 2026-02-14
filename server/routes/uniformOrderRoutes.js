@@ -89,9 +89,11 @@ const createOrder = async (req, res) => {
                 totalAmount,
                 items: {
                     create: (items || []).map(item => ({
-                        itemId: parseInt(item.itemId),
-                        quantity: parseInt(item.quantity),
-                        price: item.price
+                        itemId: item.itemId ? parseInt(item.itemId) : null,
+                        itemName: item.name || null,
+                        size: item.size || null,
+                        quantity: parseInt(item.quantity || 1),
+                        price: item.price || 0
                     }))
                 }
             },
@@ -122,7 +124,7 @@ const createOrder = async (req, res) => {
                         `Pesanan seragam atas nama *${order.studentName}* telah kami terima.\n` +
                         `📋 Kode Pesanan: *${order.code}*\n\n` +
                         `*Rincian Pesanan:*\n${itemListText}\n\n` +
-                        `InsyaaAllah akan kami hubungi segera.\n` +
+                        `InsyaaAllah akan segera diproses.\n` +
                         `Jazaakumullahu khairan.`;
 
                     await sendWhatsAppMessage(order.customerPhone, customerMsg);
@@ -220,6 +222,66 @@ const deleteOrder = async (req, res) => {
     } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
 };
 
+// --- ADMIN: UPDATE ITEM STATUS & NOTIFY ---
+
+const updateItemStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, pickupDetails } = req.body;
+
+        const item = await prisma.uniformOrderItem.update({
+            where: { id: parseInt(id) },
+            data: { status, pickupDetails },
+            include: { order: true }
+        });
+
+        res.json(item);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+};
+
+const notifyItemStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { type, day } = req.body; // type: 'READY' or 'NO_STOCK'
+
+        const item = await prisma.uniformOrderItem.findUnique({
+            where: { id: parseInt(id) },
+            include: { order: true }
+        });
+
+        if (!item || !item.order.customerPhone) return res.status(404).json({ error: 'Data tidak lengkap' });
+
+        const waService = require('../services/whatsappService');
+        let message = '';
+
+        if (type === 'READY') {
+            message = `Assalamu’alaikum warahmatullahi wabarakatuh (SARPRAS DEI).\n\n` +
+                `Kami informasikan kepada Abu/Ummu *${item.order.studentName}* bahwa penjemputan seragam (*${item.itemName || 'Pesanan'}*) dapat dilakukan Pada :\n` +
+                `Waktu : *${day}*, 07.30 – 16.00 WIB.\n` +
+                `Alamat: *Kantor Sarpras, Gunung Juaro, Surau Gadang, Nanggalo, Kota Padang*\n\n` +
+                `Demikian pengumuman ini kami sampaikan. Atas perhatian dan kerja samanya kami ucapkan terima kasih.\n\n` +
+                `Jazakumullahu khairan.\n\n` +
+                `Wassalamu’alaikum warahmatullahi wabarakatuh.`;
+        } else if (type === 'NO_STOCK') {
+            message = `Assalamu’alaikum warahmatullahi wabarakatuh (SARPRAS DEI).\n\n` +
+                `Kami informasikan kepada Abu/Ummu *${item.order.studentName}* bahwa pesanan seragam (*${item.itemName || 'Pesanan'} - Ukuran ${item.size || '-'}*) saat ini sedang *Tidak Tersedia / Kosong*.\n\n` +
+                `Mohon konfirmasinya apakah seragam tersebut ingin tetap *Dipesankan (Indent)* atau *Dibatalkan*?\n\n` +
+                `Syukran, Jazakumullahu khairan.\n\n` +
+                `Wassalamu’alaikum warahmatullahi wabarakatuh.`;
+        }
+
+        if (message) {
+            await waService.sendMessage(item.order.customerPhone, message);
+        }
+
+        res.json({ message: 'Notifikasi terkirim' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+};
+
 // ======================== ROUTES ========================
 
 // Public routes
@@ -228,8 +290,13 @@ router.post('/', createOrder);
 router.get('/check/:code', checkOrder);
 
 // Admin routes
+router.get('/items/all', authMiddleware, getAllItems); // Changed from /items to /items/all
 router.get('/admin/orders', authMiddleware, getAllOrders);
 router.put('/admin/:id', authMiddleware, updateOrderStatus);
 router.delete('/admin/:id', authMiddleware, deleteOrder);
+
+// New Processing Routes
+router.put('/admin/items/:id/status', authMiddleware, updateItemStatus);
+router.post('/admin/items/:id/notify', authMiddleware, notifyItemStatus);
 
 module.exports = router;
