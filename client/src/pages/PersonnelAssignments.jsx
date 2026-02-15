@@ -19,6 +19,7 @@ const PersonnelAssignments = () => {
         description: '',
         category: 'UMUM',
         location: '',
+        startDate: '',
         dueDate: ''
     });
 
@@ -63,7 +64,7 @@ const PersonnelAssignments = () => {
             setSubmitting(true);
             await api.post('/personnel/assignments', form);
             setShowForm(false);
-            setForm({ assigneeId: '', title: '', description: '', category: 'UMUM', location: '', dueDate: '' });
+            setForm({ assigneeId: '', title: '', description: '', category: 'UMUM', location: '', startDate: '', dueDate: '' });
             fetchAssignments();
             alert('Tugas berhasil diberikan dan disinkronkan ke Kalender');
         } catch (err) {
@@ -122,7 +123,19 @@ const PersonnelAssignments = () => {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tanggal / Deadline Kalender</label>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tanggal Mulai</label>
+                                <input
+                                    type="date"
+                                    value={form.startDate}
+                                    onChange={e => setForm({ ...form, startDate: e.target.value })}
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Deadline / Batas Waktu</label>
                                 <input
                                     type="date"
                                     value={form.dueDate}
@@ -210,11 +223,18 @@ const PersonnelAssignments = () => {
                                         {statusConfig[a.status].icon}
                                         {statusConfig[a.status].label}
                                     </span>
-                                    {a.dueDate && (
-                                        <span className="text-[10px] text-slate-400 flex items-center gap-1.5 font-medium">
-                                            <Calendar size={12} /> {new Date(a.dueDate).toLocaleDateString('id-ID')}
-                                        </span>
-                                    )}
+                                    <div className="text-right space-y-0.5">
+                                        {a.startDate && (
+                                            <span className="text-[10px] text-blue-400 flex items-center gap-1 font-medium justify-end">
+                                                <Calendar size={10} /> Mulai: {new Date(a.startDate).toLocaleDateString('id-ID')}
+                                            </span>
+                                        )}
+                                        {a.dueDate && (
+                                            <span className="text-[10px] text-slate-400 flex items-center gap-1 font-medium justify-end">
+                                                <Clock size={10} /> Deadline: {new Date(a.dueDate).toLocaleDateString('id-ID')}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 <h3 className="text-base font-bold text-slate-800 mb-1">{a.title}</h3>
                                 <p className="text-sm text-slate-500 mb-4 line-clamp-2">{a.description}</p>

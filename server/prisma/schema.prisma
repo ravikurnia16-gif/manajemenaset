@@ -619,6 +619,7 @@ model PersonnelAssignment {
   description String   @db.Text
   category    String   @default("UMUM")
   location    String?
+  startDate   DateTime?
   dueDate     DateTime?
   status      AssignmentStatus @default(PENDING)
   

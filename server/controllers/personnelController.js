@@ -124,7 +124,7 @@ exports.getReports = async (req, res) => {
 // --- ASSIGNMENTS ---
 
 exports.createAssignment = async (req, res) => {
-    const { assigneeId, title, description, dueDate, category, location } = req.body;
+    const { assigneeId, title, description, startDate, dueDate, category, location } = req.body;
     const user = req.user;
 
     try {
@@ -145,6 +145,7 @@ exports.createAssignment = async (req, res) => {
                 description,
                 category: category || 'UMUM',
                 location: location || null,
+                startDate: startDate ? new Date(startDate) : null,
                 dueDate: dueDate ? new Date(dueDate) : null,
                 status: 'PENDING'
             }
