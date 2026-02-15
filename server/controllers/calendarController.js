@@ -153,7 +153,7 @@ const getSummary = async (req, res) => {
 // POST /api/calendar
 const createEvent = async (req, res) => {
     try {
-        const { title, description, category, date, endDate, isPinned, location, picId, isRecurring, recurringType, recurringEndDate, maintenanceId } = req.body;
+        const { title, description, category, date, endDate, isPinned, location, picId, isRecurring, recurringType, recurringEndDate } = req.body;
 
         if (!title || !date) return res.status(400).json({ error: 'Judul dan tanggal wajib diisi' });
 
@@ -165,7 +165,6 @@ const createEvent = async (req, res) => {
                 picId: picId || null,
                 isRecurring: isRecurring || false, recurringType: recurringType || null,
                 recurringEndDate: recurringEndDate ? new Date(recurringEndDate) : null,
-                maintenanceId: maintenanceId || null,
                 createdById: req.user.id
             },
             include: { pic: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } }
