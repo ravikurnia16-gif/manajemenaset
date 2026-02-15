@@ -124,7 +124,7 @@ exports.getReports = async (req, res) => {
 // --- ASSIGNMENTS ---
 
 exports.createAssignment = async (req, res) => {
-    const { assigneeId, title, description, dueDate } = req.body;
+    const { assigneeId, title, description, dueDate, category, location } = req.body;
     const user = req.user;
 
     try {

@@ -394,88 +394,93 @@ const sendCalendarReminders = async () => {
                 console.error(`[Calendar Reminder] Failed to send to ${data.picName}:`, err.message);
             }
         }
-        const sendWeeklyCalendarSummary = async () => {
-            try {
-                const ravi = await prisma.user.findUnique({ where: { nip: '24071613' } });
-                if (!ravi || !ravi.phone) {
-                    console.log('[Weekly Summary] Ravi Kurnia not found or has no phone.');
-                    return;
+    } catch (error) {
+        console.error('[Calendar Reminder] Error:', error);
+    }
+};
+
+const sendWeeklyCalendarSummary = async () => {
+    try {
+        const ravi = await prisma.user.findUnique({ where: { nip: '24071613' } });
+        if (!ravi || !ravi.phone) {
+            console.log('[Weekly Summary] Ravi Kurnia not found or has no phone.');
+            return;
+        }
+
+        // 1. Calculate this week's range (Monday - Sunday)
+        const today = new Date();
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
+        monday.setHours(0, 0, 0, 0);
+
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        sunday.setHours(23, 59, 59, 999);
+
+        // 2. Fetch events
+        const regularEvents = await prisma.sarprasCalendarEvent.findMany({
+            where: { isRecurring: false, date: { gte: monday, lte: sunday } },
+            include: { pics: { select: { name: true } } },
+            orderBy: { date: 'asc' }
+        });
+
+        const recurringEvents = await prisma.sarprasCalendarEvent.findMany({
+            where: {
+                isRecurring: true,
+                date: { lte: sunday },
+                OR: [{ recurringEndDate: null }, { recurringEndDate: { gte: monday } }]
+            },
+            include: { pics: { select: { name: true } } }
+        });
+
+        // 3. Expand recurring
+        let allWeekly = [...regularEvents];
+        recurringEvents.forEach(ev => {
+            const evDate = new Date(ev.date);
+            for (let d = new Date(monday); d <= sunday; d.setDate(d.getDate() + 1)) {
+                if (d < evDate) continue;
+                let match = false;
+                if (ev.recurringType === 'DAILY') match = true;
+                else if (ev.recurringType === 'WEEKLY') match = d.getDay() === evDate.getDay();
+                else if (ev.recurringType === 'MONTHLY') match = d.getDate() === evDate.getDate();
+                if (match) {
+                    allWeekly.push({ ...ev, date: new Date(d) });
                 }
-
-                // 1. Calculate this week's range (Monday - Sunday)
-                const today = new Date();
-                const monday = new Date(today);
-                monday.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
-                monday.setHours(0, 0, 0, 0);
-
-                const sunday = new Date(monday);
-                sunday.setDate(monday.getDate() + 6);
-                sunday.setHours(23, 59, 59, 999);
-
-                // 2. Fetch events
-                const regularEvents = await prisma.sarprasCalendarEvent.findMany({
-                    where: { isRecurring: false, date: { gte: monday, lte: sunday } },
-                    include: { pics: { select: { name: true } } },
-                    orderBy: { date: 'asc' }
-                });
-
-                const recurringEvents = await prisma.sarprasCalendarEvent.findMany({
-                    where: {
-                        isRecurring: true,
-                        date: { lte: sunday },
-                        OR: [{ recurringEndDate: null }, { recurringEndDate: { gte: monday } }]
-                    },
-                    include: { pics: { select: { name: true } } }
-                });
-
-                // 3. Expand recurring
-                let allWeekly = [...regularEvents];
-                recurringEvents.forEach(ev => {
-                    const evDate = new Date(ev.date);
-                    for (let d = new Date(monday); d <= sunday; d.setDate(d.getDate() + 1)) {
-                        if (d < evDate) continue;
-                        let match = false;
-                        if (ev.recurringType === 'DAILY') match = true;
-                        else if (ev.recurringType === 'WEEKLY') match = d.getDay() === evDate.getDay();
-                        else if (ev.recurringType === 'MONTHLY') match = d.getDate() === evDate.getDate();
-                        if (match) {
-                            allWeekly.push({ ...ev, date: new Date(d) });
-                        }
-                    }
-                });
-
-                allWeekly.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-                if (allWeekly.length === 0) {
-                    console.log('[Weekly Summary] No events for this week.');
-                    return;
-                }
-
-                // 4. Format Message
-                let msg = `📅 *LAPORAN KEGIATAN PEKAN INI*\n`;
-                msg += `Periode: ${monday.toLocaleDateString('id-ID')} - ${sunday.toLocaleDateString('id-ID')}\n\n`;
-
-                let currentDayStr = '';
-                allWeekly.forEach(ev => {
-                    const dayStr = new Date(ev.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' });
-                    if (dayStr !== currentDayStr) {
-                        msg += `📌 *${dayStr}*\n`;
-                        currentDayStr = dayStr;
-                    }
-                    const pics = ev.pics?.map(p => p.name).join(', ') || 'Semua Staf';
-                    msg += `• [${ev.category}] *${ev.title}*\n`;
-                    msg += `  👤 PIC: ${pics}\n`;
-                    if (ev.location) msg += `  📍 Lokasi: ${ev.location}\n`;
-                    msg += `\n`;
-                });
-
-                msg += `Terima kasih.`;
-
-                await whatsappService.sendMessage(ravi.phone, msg);
-                console.log(`[Weekly Summary] Sent to Ravi Kurnia (${allWeekly.length} events)`);
-            } catch (error) {
-                console.error('[Weekly Summary] Error:', error);
             }
-        };
+        });
 
-        module.exports = { getEvents, getPinnedEvents, getSummary, createEvent, updateEvent, deleteEvent, sendCalendarReminders, sendWeeklyCalendarSummary };
+        allWeekly.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        if (allWeekly.length === 0) {
+            console.log('[Weekly Summary] No events for this week.');
+            return;
+        }
+
+        // 4. Format Message
+        let msg = `📅 *LAPORAN KEGIATAN PEKAN INI*\n`;
+        msg += `Periode: ${monday.toLocaleDateString('id-ID')} - ${sunday.toLocaleDateString('id-ID')}\n\n`;
+
+        let currentDayStr = '';
+        allWeekly.forEach(ev => {
+            const dayStr = new Date(ev.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' });
+            if (dayStr !== currentDayStr) {
+                msg += `📌 *${dayStr}*\n`;
+                currentDayStr = dayStr;
+            }
+            const pics = ev.pics?.map(p => p.name).join(', ') || 'Semua Staf';
+            msg += `• [${ev.category}] *${ev.title}*\n`;
+            msg += `  👤 PIC: ${pics}\n`;
+            if (ev.location) msg += `  📍 Lokasi: ${ev.location}\n`;
+            msg += `\n`;
+        });
+
+        msg += `Terima kasih.`;
+
+        await whatsappService.sendMessage(ravi.phone, msg);
+        console.log(`[Weekly Summary] Sent to Ravi Kurnia (${allWeekly.length} events)`);
+    } catch (error) {
+        console.error('[Weekly Summary] Error:', error);
+    }
+};
+
+module.exports = { getEvents, getPinnedEvents, getSummary, createEvent, updateEvent, deleteEvent, sendCalendarReminders, sendWeeklyCalendarSummary };
