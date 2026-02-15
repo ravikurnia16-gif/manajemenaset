@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Pin, MapPin, Clock, Repeat, Trash2, Edit3, X, BarChart3, Wrench, User } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Pin, MapPin, Clock, Repeat, Trash2, Edit3, X, BarChart3, Wrench, User, Search } from 'lucide-react';
 import api from '../lib/axios';
 
 const CATEGORIES = [
