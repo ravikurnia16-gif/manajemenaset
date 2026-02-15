@@ -33,6 +33,7 @@ import PersonnelReports from './pages/PersonnelReports';
 import PersonnelAssignments from './pages/PersonnelAssignments';
 import DisposalList from './pages/DisposalList';
 import SarprasRules from './pages/SarprasRules';
+import SarprasCalendar from './pages/SarprasCalendar';
 import ModulePlaceholder from './components/ModulePlaceholder';
 
 // Komponen untuk melindungi route yang butuh login
@@ -104,6 +105,7 @@ function App() {
           <Route path="personalia/struktur" element={<ModulePlaceholder title="Struktur Organisasi" moduleName="Manajemen Personalia" />} />
           <Route path="personalia/staf" element={<ModulePlaceholder title="Data Staf" moduleName="Manajemen Personalia" />} />
           <Route path="personalia/detail/:id" element={<ModulePlaceholder title="Detail Staf" moduleName="Manajemen Personalia" />} />
+          <Route path="personalia/kalender" element={<SarprasCalendar />} />
 
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />
         </Route>

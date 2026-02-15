@@ -60,6 +60,8 @@ model User {
   proposedDisposals   AssetDisposal[] @relation("Proposer")
   sarprasRules        SarprasRule[]
   assetsPIC           Asset[]         @relation("AssetPIC")
+  calendarEventsCreated SarprasCalendarEvent[] @relation("CalendarCreator")
+  calendarEventsPIC     SarprasCalendarEvent[] @relation("CalendarPIC")
 }
 
 model Unit {
@@ -237,6 +239,7 @@ model Maintenance {
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  calendarEvent SarprasCalendarEvent?
 }
 
 model Log {
@@ -663,4 +666,34 @@ model SarprasFolder {
   rules     SarprasRule[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+}
+
+model SarprasCalendarEvent {
+  id              Int      @id @default(autoincrement())
+  title           String
+  description     String?  @db.Text
+  category        String   @default("Lainnya")
+  date            DateTime
+  endDate         DateTime?
+  isPinned        Boolean  @default(false)
+  location        String?
+
+  // PIC (Person In Charge)
+  picId           Int?
+  pic             User?    @relation("CalendarPIC", fields: [picId], references: [id])
+
+  // Recurring fields
+  isRecurring     Boolean  @default(false)
+  recurringType   String?  // DAILY, WEEKLY, MONTHLY, YEARLY
+  recurringEndDate DateTime?
+
+  // Maintenance integration
+  maintenanceId   Int?     @unique
+  maintenance     Maintenance? @relation(fields: [maintenanceId], references: [id])
+
+  // Audit
+  createdById     Int
+  createdBy       User     @relation("CalendarCreator", fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

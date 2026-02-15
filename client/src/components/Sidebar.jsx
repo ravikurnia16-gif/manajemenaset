@@ -187,6 +187,11 @@ const Sidebar = ({ isOpen = true }) => {
                                     </Link>
                                 </>
                             )}
+                            {['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && (
+                                <Link to="/personalia/kalender" className={subNavItemClass('/personalia/kalender')}>
+                                    <Calendar size={16} /> Kalender Kerja
+                                </Link>
+                            )}
                             <Link to="/personalia/struktur" className={subNavItemClass('/personalia/struktur')}>
                                 <Users size={16} /> Struktur Organisasi
                             </Link>
