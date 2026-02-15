@@ -617,8 +617,14 @@ model PersonnelAssignment {
   assignee    User     @relation("Assignee", fields: [assigneeId], references: [id])
   title       String
   description String   @db.Text
+  category    String   @default("UMUM")
+  location    String?
   dueDate     DateTime?
   status      AssignmentStatus @default(PENDING)
+  
+  calendarEventId Int?
+  calendarEvent   SarprasCalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -684,6 +690,9 @@ model SarprasCalendarEvent {
   isRecurring     Boolean  @default(false)
   recurringType   String?  // DAILY, WEEKLY, MONTHLY, YEARLY
   recurringEndDate DateTime?
+
+  // Assignments linked to this event
+  assignments     PersonnelAssignment[]
 
   // Audit
   createdById     Int

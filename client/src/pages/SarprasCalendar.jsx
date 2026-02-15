@@ -45,6 +45,7 @@ const SarprasCalendar = () => {
         endDate: '', isPinned: false, location: '', picIds: [],
         isRecurring: false, recurringType: '', recurringEndDate: ''
     });
+    const [picSearch, setPicSearch] = useState('');
 
     useEffect(() => { fetchAll(); }, [currentMonth, currentYear]);
     useEffect(() => { fetchUsers(); }, []);
@@ -116,6 +117,7 @@ const SarprasCalendar = () => {
         const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         setForm({ title: '', description: '', category: 'Lainnya', date: dateStr, endDate: '', isPinned: false, location: '', picIds: [], isRecurring: false, recurringType: '', recurringEndDate: '' });
         setEditingEvent(null);
+        setPicSearch('');
         setShowModal(true);
     };
 
@@ -129,6 +131,7 @@ const SarprasCalendar = () => {
             recurringEndDate: event.recurringEndDate?.split('T')[0] || ''
         });
         setEditingEvent(event);
+        setPicSearch('');
         setShowModal(true);
     };
 
@@ -338,10 +341,25 @@ const SarprasCalendar = () => {
                                                 <div className="flex flex-wrap gap-3 ml-4.5 text-[11px] text-slate-500">
                                                     {ev.location && <span className="flex items-center gap-1"><MapPin size={10} /> {ev.location}</span>}
                                                     {ev.pics && ev.pics.length > 0 && (
-                                                        <span className="flex items-center gap-1">
-                                                            <User size={10} />
-                                                            PIC: {ev.pics.map(p => p.name).join(', ')}
-                                                        </span>
+                                                        <div className="flex flex-wrap gap-2 mt-1 ml-4.5">
+                                                            <span className="text-[11px] text-slate-500 flex items-center gap-1 self-center">
+                                                                <User size={10} /> PIC:
+                                                            </span>
+                                                            {ev.pics.map(p => {
+                                                                const ass = ev.assignments?.find(a => a.assigneeId === p.id);
+                                                                const statusMap = {
+                                                                    'PENDING': 'bg-slate-100 text-slate-500',
+                                                                    'IN_PROGRESS': 'bg-blue-100 text-blue-600',
+                                                                    'COMPLETED': 'bg-green-100 text-green-600',
+                                                                    'CANCELLED': 'bg-red-100 text-red-600'
+                                                                };
+                                                                return (
+                                                                    <span key={p.id} className={`text-[10px] px-2 py-0.5 rounded-full font-bold border border-current opacity-80 ${ass ? statusMap[ass.status] : 'bg-slate-50 text-slate-400'}`}>
+                                                                        {p.name} {ass?.status === 'COMPLETED' && '✓'}
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     )}
                                                     {ev.isRecurring && <span className="flex items-center gap-1"><Repeat size={10} /> {RECURRING_TYPES.find(r => r.value === ev.recurringType)?.label}</span>}
                                                 </div>
@@ -415,11 +433,23 @@ const SarprasCalendar = () => {
                                 <label className="block text-xs font-bold text-slate-500 mb-1">Lokasi</label>
                                 <input type="text" className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Contoh: Gedung A Lt. 2" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
                             </div>
-                            {/* PICs Multi-select using checkboxes for simplicity and better UX */}
+                            {/* PICs Multi-select with Search */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-2">PIC (Penanggung Jawab)</label>
-                                <div className="grid grid-cols-2 gap-2 border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto bg-slate-50">
-                                    {users.map(u => (
+                                <div className="mb-2">
+                                    <div className="relative">
+                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Cari nama staff..."
+                                            className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50/50"
+                                            value={picSearch}
+                                            onChange={(e) => setPicSearch(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto bg-slate-50 shadow-inner">
+                                    {users.filter(u => u.name.toLowerCase().includes(picSearch.toLowerCase())).map(u => (
                                         <label key={u.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-1 rounded transition">
                                             <input
                                                 type="checkbox"
@@ -432,10 +462,14 @@ const SarprasCalendar = () => {
                                                     setForm({ ...form, picIds: newIds });
                                                 }}
                                             />
-                                            <span className="text-xs text-slate-700">{u.name}</span>
+                                            <span className="text-xs text-slate-700 truncate">{u.name}</span>
                                         </label>
                                     ))}
-                                    {users.length === 0 && <div className="col-span-2 text-center py-2 text-slate-400 text-[10px] italic">Tidak ada staf ditemukan</div>}
+                                    {users.filter(u => u.name.toLowerCase().includes(picSearch.toLowerCase())).length === 0 && (
+                                        <div className="col-span-2 text-center py-2 text-slate-400 text-[10px] italic">
+                                            {picSearch ? 'Nama tidak ditemukan' : 'Tidak ada staff ditemukan'}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             {/* Description */}

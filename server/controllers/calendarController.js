@@ -66,7 +66,11 @@ const getEvents = async (req, res) => {
                     { AND: [{ date: { lte: monthStart } }, { endDate: { gte: monthEnd } }] }
                 ]
             },
-            include: { pics: { select: { id: true, name: true, phone: true } }, createdBy: { select: { id: true, name: true } } },
+            include: {
+                pics: { select: { id: true, name: true, phone: true } },
+                createdBy: { select: { id: true, name: true } },
+                assignments: { select: { id: true, status: true, assigneeId: true } }
+            },
             orderBy: { date: 'asc' }
         });
 
@@ -80,7 +84,11 @@ const getEvents = async (req, res) => {
                     { recurringEndDate: { gte: monthStart } }
                 ]
             },
-            include: { pics: { select: { id: true, name: true, phone: true } }, createdBy: { select: { id: true, name: true } } }
+            include: {
+                pics: { select: { id: true, name: true, phone: true } },
+                createdBy: { select: { id: true, name: true } },
+                assignments: { select: { id: true, status: true, assigneeId: true } }
+            }
         });
 
         // 3. Expand recurring events
@@ -172,6 +180,25 @@ const createEvent = async (req, res) => {
             include: { pics: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } }
         });
 
+        // AUTO-ASSIGNMENT SYNC: Create assignments for each PIC
+        if (Array.isArray(picIds) && picIds.length > 0) {
+            await Promise.all(picIds.map(async (pId) => {
+                return prisma.personnelAssignment.create({
+                    data: {
+                        assignerId: req.user.id,
+                        assigneeId: parseInt(pId),
+                        title: `[KALENDER] ${title}`,
+                        description: description || 'Tugas otomatis dari Kalender Kerja',
+                        category: category || 'UMUM',
+                        location: location || null,
+                        dueDate: new Date(date),
+                        calendarEventId: event.id,
+                        status: 'PENDING'
+                    }
+                });
+            }));
+        }
+
         res.status(201).json(event);
     } catch (error) {
         console.error('[Calendar] Create error:', error);
@@ -199,6 +226,57 @@ const updateEvent = async (req, res) => {
             },
             include: { pics: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } }
         });
+
+        // AUTO-ASSIGNMENT SYNC:
+        // 1. Get existing assignments for this calendar event
+        const existingAssignments = await prisma.personnelAssignment.findMany({
+            where: { calendarEventId: parseInt(id) }
+        });
+        const currentAssigneeIds = existingAssignments.map(a => a.assigneeId);
+        const newAssigneeIds = (Array.isArray(picIds) ? picIds : []).map(pid => parseInt(pid));
+
+        // 2. Remove assignments for PICs who are no longer selected
+        const toDelete = existingAssignments.filter(a => !newAssigneeIds.includes(a.assigneeId));
+        if (toDelete.length > 0) {
+            await prisma.personnelAssignment.deleteMany({
+                where: { id: { in: toDelete.map(a => a.id) } }
+            });
+        }
+
+        // 3. Add assignments for new PICs
+        const toAdd = newAssigneeIds.filter(pid => !currentAssigneeIds.includes(pid));
+        if (toAdd.length > 0) {
+            await Promise.all(toAdd.map(pid => {
+                return prisma.personnelAssignment.create({
+                    data: {
+                        assignerId: req.user.id,
+                        assigneeId: pid,
+                        title: `[KALENDER] ${title}`,
+                        description: description || 'Tugas otomatis dari Kalender Kerja',
+                        category: category || 'UMUM',
+                        location: location || null,
+                        dueDate: new Date(date),
+                        calendarEventId: parseInt(id),
+                        status: 'PENDING'
+                    }
+                });
+            }));
+        }
+
+        // 4. Update existing assignments (title/date/location change)
+        const toUpdate = existingAssignments.filter(a => newAssigneeIds.includes(a.assigneeId));
+        if (toUpdate.length > 0) {
+            await prisma.personnelAssignment.updateMany({
+                where: { id: { in: toUpdate.map(a => a.id) } },
+                data: {
+                    title: `[KALENDER] ${title}`,
+                    description: description || 'Tugas otomatis dari Kalender Kerja',
+                    category: category || 'UMUM',
+                    location: location || null,
+                    dueDate: new Date(date)
+                }
+            });
+        }
 
         res.json(event);
     } catch (error) {
@@ -316,9 +394,88 @@ const sendCalendarReminders = async () => {
                 console.error(`[Calendar Reminder] Failed to send to ${data.picName}:`, err.message);
             }
         }
-    } catch (error) {
-        console.error('[Calendar Reminder] Error:', error);
-    }
-};
+        const sendWeeklyCalendarSummary = async () => {
+            try {
+                const ravi = await prisma.user.findUnique({ where: { nip: '24071613' } });
+                if (!ravi || !ravi.phone) {
+                    console.log('[Weekly Summary] Ravi Kurnia not found or has no phone.');
+                    return;
+                }
 
-module.exports = { getEvents, getPinnedEvents, getSummary, createEvent, updateEvent, deleteEvent, sendCalendarReminders };
+                // 1. Calculate this week's range (Monday - Sunday)
+                const today = new Date();
+                const monday = new Date(today);
+                monday.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
+                monday.setHours(0, 0, 0, 0);
+
+                const sunday = new Date(monday);
+                sunday.setDate(monday.getDate() + 6);
+                sunday.setHours(23, 59, 59, 999);
+
+                // 2. Fetch events
+                const regularEvents = await prisma.sarprasCalendarEvent.findMany({
+                    where: { isRecurring: false, date: { gte: monday, lte: sunday } },
+                    include: { pics: { select: { name: true } } },
+                    orderBy: { date: 'asc' }
+                });
+
+                const recurringEvents = await prisma.sarprasCalendarEvent.findMany({
+                    where: {
+                        isRecurring: true,
+                        date: { lte: sunday },
+                        OR: [{ recurringEndDate: null }, { recurringEndDate: { gte: monday } }]
+                    },
+                    include: { pics: { select: { name: true } } }
+                });
+
+                // 3. Expand recurring
+                let allWeekly = [...regularEvents];
+                recurringEvents.forEach(ev => {
+                    const evDate = new Date(ev.date);
+                    for (let d = new Date(monday); d <= sunday; d.setDate(d.getDate() + 1)) {
+                        if (d < evDate) continue;
+                        let match = false;
+                        if (ev.recurringType === 'DAILY') match = true;
+                        else if (ev.recurringType === 'WEEKLY') match = d.getDay() === evDate.getDay();
+                        else if (ev.recurringType === 'MONTHLY') match = d.getDate() === evDate.getDate();
+                        if (match) {
+                            allWeekly.push({ ...ev, date: new Date(d) });
+                        }
+                    }
+                });
+
+                allWeekly.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                if (allWeekly.length === 0) {
+                    console.log('[Weekly Summary] No events for this week.');
+                    return;
+                }
+
+                // 4. Format Message
+                let msg = `📅 *LAPORAN KEGIATAN PEKAN INI*\n`;
+                msg += `Periode: ${monday.toLocaleDateString('id-ID')} - ${sunday.toLocaleDateString('id-ID')}\n\n`;
+
+                let currentDayStr = '';
+                allWeekly.forEach(ev => {
+                    const dayStr = new Date(ev.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' });
+                    if (dayStr !== currentDayStr) {
+                        msg += `📌 *${dayStr}*\n`;
+                        currentDayStr = dayStr;
+                    }
+                    const pics = ev.pics?.map(p => p.name).join(', ') || 'Semua Staf';
+                    msg += `• [${ev.category}] *${ev.title}*\n`;
+                    msg += `  👤 PIC: ${pics}\n`;
+                    if (ev.location) msg += `  📍 Lokasi: ${ev.location}\n`;
+                    msg += `\n`;
+                });
+
+                msg += `Terima kasih.`;
+
+                await whatsappService.sendMessage(ravi.phone, msg);
+                console.log(`[Weekly Summary] Sent to Ravi Kurnia (${allWeekly.length} events)`);
+            } catch (error) {
+                console.error('[Weekly Summary] Error:', error);
+            }
+        };
+
+        module.exports = { getEvents, getPinnedEvents, getSummary, createEvent, updateEvent, deleteEvent, sendCalendarReminders, sendWeeklyCalendarSummary };

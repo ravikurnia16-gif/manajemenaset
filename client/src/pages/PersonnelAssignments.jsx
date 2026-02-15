@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileCheck, Plus, Clock, CheckCircle2, AlertCircle, Calendar, User, Search } from 'lucide-react';
+import { FileCheck, Plus, Clock, CheckCircle2, AlertCircle, Calendar, User, Search, MapPin, Tag } from 'lucide-react';
 import api from '../lib/axios';
 
 const PersonnelAssignments = () => {
@@ -17,6 +17,8 @@ const PersonnelAssignments = () => {
         assigneeId: '',
         title: '',
         description: '',
+        category: 'UMUM',
+        location: '',
         dueDate: ''
     });
 
@@ -61,9 +63,9 @@ const PersonnelAssignments = () => {
             setSubmitting(true);
             await api.post('/personnel/assignments', form);
             setShowForm(false);
-            setForm({ assigneeId: '', title: '', description: '', dueDate: '' });
+            setForm({ assigneeId: '', title: '', description: '', category: 'UMUM', location: '', dueDate: '' });
             fetchAssignments();
-            alert('Tugas berhasil diberikan');
+            alert('Tugas berhasil diberikan dan disinkronkan ke Kalender');
         } catch (err) {
             alert(err.response?.data?.error || 'Gagal memberikan tugas');
         } finally {
@@ -88,7 +90,7 @@ const PersonnelAssignments = () => {
                         <FileCheck className="text-blue-600" /> Penugasan Personalia
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Pemberian tugas dan pelacakan aktivitas staf Sarpras
+                        Pemberian tugas dan pelacakan aktivitas staf Sarpras (Terhubung Kalender Kerja)
                     </p>
                 </div>
                 {canAssign && (
@@ -120,7 +122,7 @@ const PersonnelAssignments = () => {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tenggat Waktu (Optional)</label>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tanggal / Deadline Kalender</label>
                                 <input
                                     type="date"
                                     value={form.dueDate}
@@ -129,6 +131,35 @@ const PersonnelAssignments = () => {
                                 />
                             </div>
                         </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Kategori</label>
+                                <select
+                                    value={form.category}
+                                    onChange={e => setForm({ ...form, category: e.target.value })}
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                    <option value="UMUM">Umum</option>
+                                    <option value="Servis">Servis</option>
+                                    <option value="Perbaikan">Perbaikan</option>
+                                    <option value="Pengadaan">Pengadaan</option>
+                                    <option value="Pengecekan">Pengecekan</option>
+                                    <option value="Lainnya">Lainnya</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Lokasi (Opsional)</label>
+                                <input
+                                    type="text"
+                                    value={form.location}
+                                    onChange={e => setForm({ ...form, location: e.target.value })}
+                                    placeholder="Misal: Gedung A Lt. 1"
+                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                        </div>
+
                         <div>
                             <label className="block text-sm font-semibold text-slate-700 mb-1.5">Judul Tugas</label>
                             <input
@@ -155,7 +186,7 @@ const PersonnelAssignments = () => {
                                 disabled={submitting}
                                 className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:opacity-50"
                             >
-                                {submitting ? 'Memproses...' : 'Tugaskan Sekarang'}
+                                {submitting ? 'Memproses...' : 'Tugaskan & Jadwalkan'}
                             </button>
                         </div>
                     </form>
@@ -181,20 +212,30 @@ const PersonnelAssignments = () => {
                                     </span>
                                     {a.dueDate && (
                                         <span className="text-[10px] text-slate-400 flex items-center gap-1.5 font-medium">
-                                            <Calendar size={12} /> Deadline: {new Date(a.dueDate).toLocaleDateString('id-ID')}
+                                            <Calendar size={12} /> {new Date(a.dueDate).toLocaleDateString('id-ID')}
                                         </span>
                                     )}
                                 </div>
                                 <h3 className="text-base font-bold text-slate-800 mb-1">{a.title}</h3>
                                 <p className="text-sm text-slate-500 mb-4 line-clamp-2">{a.description}</p>
 
-                                <div className="flex flex-col gap-2 pt-4 border-t border-slate-50">
+                                <div className="space-y-2 pt-4 border-t border-slate-50">
                                     <div className="flex items-center gap-2 text-xs text-slate-600">
-                                        <span className="font-semibold">Pemberi Tugas:</span> {a.assigner?.name}
+                                        <CategoryIcon category={a.category} />
+                                        <span className="font-semibold">Kategori:</span> {a.category}
                                     </div>
+                                    {a.location && (
+                                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                                            <MapPin size={14} className="text-slate-400" />
+                                            <span className="font-semibold">Lokasi:</span> {a.location}
+                                        </div>
+                                    )}
                                     <div className="flex items-center gap-2 text-xs text-slate-600">
-                                        <CheckCircle2 size={14} className="text-slate-400" />
-                                        <span className="font-semibold">Untuk:</span> {a.assignee?.name}
+                                        <User size={14} className="text-slate-400" />
+                                        <span className="font-semibold">PIC:</span> {a.assignee?.name}
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-slate-400 italic">
+                                        <span className="font-semibold text-slate-500">Oleh:</span> {a.assigner?.name}
                                     </div>
                                 </div>
                             </div>
@@ -217,8 +258,8 @@ const PersonnelAssignments = () => {
                                     </button>
                                 )}
                                 {a.status === 'COMPLETED' && (
-                                    <div className="w-full text-center py-2 text-[10px] text-green-600 font-bold bg-green-50 rounded-lg border border-green-100 italic">
-                                        Tugas ini telah diselesaikan
+                                    <div className="w-full text-center py-2 text-[10px] text-green-600 font-bold bg-green-50 rounded-lg border border-green-100 italic flex items-center justify-center gap-1">
+                                        <CheckCircle2 size={12} /> Tugas ini telah diselesaikan
                                     </div>
                                 )}
                             </div>
@@ -228,6 +269,10 @@ const PersonnelAssignments = () => {
             </div>
         </div>
     );
+};
+
+const CategoryIcon = ({ category }) => {
+    return <Tag size={14} className="text-slate-400" />;
 };
 
 export default PersonnelAssignments;

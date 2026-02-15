@@ -143,10 +143,37 @@ exports.createAssignment = async (req, res) => {
                 assigneeId: parseInt(assigneeId),
                 title,
                 description,
+                category: category || 'UMUM',
+                location: location || null,
                 dueDate: dueDate ? new Date(dueDate) : null,
                 status: 'PENDING'
             }
         });
+
+        // AUTO-SYNC TO CALENDAR: Create a calendar event for this assignment
+        try {
+            const calEvent = await prisma.sarprasCalendarEvent.create({
+                data: {
+                    title,
+                    description: `[PENUGASAN] ${description}`,
+                    category: category || 'UMUM',
+                    date: dueDate ? new Date(dueDate) : new Date(),
+                    location: location || null,
+                    createdById: user.id,
+                    pics: {
+                        connect: { id: parseInt(assigneeId) }
+                    }
+                }
+            });
+
+            // Link the assignment back to the calendar event
+            await prisma.personnelAssignment.update({
+                where: { id: assignment.id },
+                data: { calendarEventId: calEvent.id }
+            });
+        } catch (calErr) {
+            console.error('[Personnel -> Calendar Sync] Failed:', calErr.message);
+        }
 
         res.json({ message: 'Tugas berhasil diberikan', data: assignment });
 
