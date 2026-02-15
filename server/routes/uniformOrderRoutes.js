@@ -275,6 +275,17 @@ const notifyItemStatus = async (req, res) => {
                 `Mohon konfirmasinya apakah seragam tersebut ingin tetap *Dipesankan (Indent)* atau *Dibatalkan*?\n\n` +
                 `Syukran, Jazakumullahu khairan.\n\n` +
                 `Wassalamu’alaikum warahmatullahi wabarakatuh.`;
+        } else if (type === 'INDENT') {
+            message = `Assalamu’alaikum warahmatullahi wabarakatuh (SARPRAS DEI).\n\n` +
+                `Kami informasikan kepada Abu/Ummu *${item.order.studentName}* bahwa pesanan seragam (*${item.itemName || 'Pesanan'}*) saat ini kami catat sebagai *Indent (Sedang Dipesankan)*.\n\n` +
+                `Kami akan segera menginformasikan kembali jika barang sudah tersedia.\n\n` +
+                `Syukran, Jazakumullahu khairan.\n\n` +
+                `Wassalamu’alaikum warahmatullahi wabarakatuh.`;
+        } else if (type === 'CANCEL') {
+            message = `Assalamu’alaikum warahmatullahi wabarakatuh (SARPRAS DEI).\n\n` +
+                `Kami informasikan kepada Abu/Ummu *${item.order.studentName}* bahwa pesanan seragam (*${item.itemName || 'Pesanan'}*) telah *Dibatalkan*.\n\n` +
+                `Jazakumullahu khairan.\n\n` +
+                `Wassalamu’alaikum warahmatullahi wabarakatuh.`;
         }
 
         if (message) {
