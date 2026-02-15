@@ -61,31 +61,39 @@ const UniformOrderPage = () => {
 
     // --- HANDLERS ---
     const handleAddItem = () => {
-        let newItem = null;
-
         if (activeTab === 'Seragam') {
             if (!seragamGroup || !seragamType || !seragamSize) return alert('Lengkapi data seragam (Jenis, Tipe, Ukuran)');
 
-            newItem = {
-                id: Date.now(), // Temporary ID
-                name: `Seragam ${seragamGroup} - ${seragamType}`,
+            // Split composite items (e.g., "Baju dan Celana")
+            let types = [seragamType];
+            if (seragamType.includes(' dan ')) {
+                types = seragamType.split(' dan ');
+            } else if (seragamType.includes(', ') && seragamType.includes(' dan ')) {
+                // For "Baju, Rok Celana dan Jilbab"
+                types = seragamType.split(/, | dan /);
+            }
+
+            const newItems = types.map((t, idx) => ({
+                id: Date.now() + idx, // Unique temporary ID
+                name: `Seragam ${seragamGroup} - ${t.trim()}`,
                 size: seragamSize,
                 quantity: seragamQty,
                 type: 'Seragam'
-            };
+            }));
+
+            setCart(prev => [...prev, ...newItems]);
         } else {
             if (!peciSize) return alert('Pilih ukuran Peci');
 
-            newItem = {
+            const newPeci = {
                 id: Date.now(),
                 name: `Peci / Songkok`,
                 size: peciSize,
                 quantity: peciQty,
                 type: 'Peci'
             };
+            setCart(prev => [...prev, newPeci]);
         }
-
-        setCart(prev => [...prev, newItem]);
 
         // Reset Inputs
         setSeragamGroup('');
@@ -111,24 +119,30 @@ const UniformOrderPage = () => {
 
         if (activeTab === 'Seragam') {
             if (seragamGroup && seragamType && seragamSize) {
-                pendingItem = {
-                    name: `Seragam ${seragamGroup} - ${seragamType}`,
-                    size: seragamSize,
-                    quantity: seragamQty
-                };
+                // Split composite items if any
+                let types = [seragamType];
+                if (seragamType.includes(' dan ')) {
+                    types = seragamType.split(' dan ');
+                } else if (seragamType.includes(', ') && seragamType.includes(' dan ')) {
+                    types = seragamType.split(/, | dan /);
+                }
+
+                types.forEach(t => {
+                    finalCart.push({
+                        name: `Seragam ${seragamGroup} - ${t.trim()}`,
+                        size: seragamSize,
+                        quantity: seragamQty
+                    });
+                });
             }
         } else {
             if (peciSize) {
-                pendingItem = {
+                finalCart.push({
                     name: `Peci / Songkok`,
                     size: peciSize,
                     quantity: peciQty
-                };
+                });
             }
-        }
-
-        if (pendingItem) {
-            finalCart.push(pendingItem);
         }
 
         if (finalCart.length === 0) return alert('Keranjang pesanan kosong. Silakan pilih seragam/peci terlebih dahulu.');

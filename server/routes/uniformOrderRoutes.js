@@ -262,20 +262,20 @@ const notifyItemStatus = async (req, res) => {
         let message = '';
 
         if (type === 'READY') {
-            message = `*(SARPRAS DEI)*\n\n` +
+            message = `*Bismillah*\n\n` +
                 `Kami informasikan kepada Abu/Ummu *${item.order.studentName}* bahwa penjemputan seragam (*${item.itemName || 'Pesanan'}*) dapat dilakukan Pada:\n\n` +
                 `Waktu : *${day}*, 07.30 – 16.00 WIB.\n` +
                 `Alamat: *Kantor Sarpras, Gunung Juaro, Surau Gadang, Nanggalo, Kota Padang*\n\n` +
                 `Demikian pengumuman ini kami sampaikan. Terima kasih.`;
         } else if (type === 'NO_STOCK') {
-            message = `*(SARPRAS DEI)*\n\n` +
+            message = `*Bismillah*\n\n` +
                 `Kami informasikan kepada Abu/Ummu *${item.order.studentName}* bahwa pesanan seragam (*${item.itemName || 'Pesanan'} - Ukuran ${item.size || '-'}*) saat ini sedang *Tidak Tersedia / Kosong*.\n\n` +
                 `Syukron Jazakumullah khairan.`;
         } else if (type === 'INDENT') {
-            message = `*(SARPRAS DEI)*\n\n` +
+            message = `*Bismillah*\n\n` +
                 `Kami informasikan kepada Abu/Ummu *${item.order.studentName}* bahwa pesanan seragam (*${item.itemName || 'Pesanan'}*) saat ini kami catat sebagai *Indent (Sedang Dipesankan)*.\n\n` +
                 `Kami akan segera menginformasikan kembali jika barang sudah tersedia.\n\n` +
-                `Terima kasih.`;
+                `Jazakumullahu khairan.`;
         }
 
         if (message) {
