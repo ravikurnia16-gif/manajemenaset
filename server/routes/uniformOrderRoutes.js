@@ -116,7 +116,7 @@ const createOrder = async (req, res) => {
                 let itemListText = '';
                 if (order.items && order.items.length > 0) {
                     itemListText = order.items.map((oi, i) =>
-                        `- ${oi.item.name} (${oi.item.size || '-'}) x${oi.quantity}`
+                        `- ${oi.itemName || oi.item?.name || 'Item'} (${oi.size || oi.item?.size || '-'}) x${oi.quantity}`
                     ).join('\n');
                 } else if (order.note && order.note.includes('ITEM PESANAN:')) {
                     const parts = order.note.split('ITEM PESANAN:');

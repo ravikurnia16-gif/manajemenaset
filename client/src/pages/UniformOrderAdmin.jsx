@@ -59,7 +59,7 @@ const UniformOrderAdmin = () => {
         // 2. Legacy/Standard Mode: Check items array
         if (order.items && order.items.length > 0) {
             return order.items.map(oi =>
-                `${oi.item?.name || 'Item'} (${oi.item?.size || '-'}) x${oi.quantity}`
+                `${oi.itemName || oi.item?.name || 'Item'} (${oi.size || oi.item?.size || '-'}) x${oi.quantity}`
             ).join('\n');
         }
 
