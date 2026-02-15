@@ -51,13 +51,24 @@ const UniformOrderPage = () => {
     const [peciSize, setPeciSize] = useState('');
     const [peciQty, setPeciQty] = useState(1);
 
+    // Nama State
+    const [namaText, setNamaText] = useState('');
+    const [namaQty, setNamaQty] = useState(1);
+
+    // Sync studentName to namaText if namaText is empty
+    useEffect(() => {
+        if (!namaText && identity.studentName) {
+            setNamaText(identity.studentName);
+        }
+    }, [identity.studentName]);
+
     // System
     const [orderResult, setOrderResult] = useState(null);
     const [checkCode, setCheckCode] = useState('');
     const [checkResult, setCheckResult] = useState(null);
     const [showCheck, setShowCheck] = useState(false);
 
-    const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:5000' : '';
+    const API_BASE = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'http://localhost:5000' : '';
 
     // --- HANDLERS ---
     const handleAddItem = () => {
@@ -82,7 +93,7 @@ const UniformOrderPage = () => {
             }));
 
             setCart(prev => [...prev, ...newItems]);
-        } else {
+        } else if (activeTab === 'Peci') {
             if (!peciSize) return alert('Pilih ukuran Peci');
 
             const newPeci = {
@@ -93,6 +104,17 @@ const UniformOrderPage = () => {
                 type: 'Peci'
             };
             setCart(prev => [...prev, newPeci]);
+        } else if (activeTab === 'Nama') {
+            if (!namaText) return alert('Isi teks nama');
+
+            const newNama = {
+                id: Date.now(),
+                name: `Nama Dada: ${namaText}`,
+                size: 'Set',
+                quantity: namaQty,
+                type: 'Nama'
+            };
+            setCart(prev => [...prev, newNama]);
         }
 
         // Reset Inputs
@@ -102,6 +124,8 @@ const UniformOrderPage = () => {
         setSeragamQty(1);
         setPeciSize('');
         setPeciQty(1);
+        setNamaText(identity.studentName); // Reset to studentName
+        setNamaQty(1);
     };
 
     const handleRemoveItem = (id) => setCart(prev => prev.filter(c => c.id !== id));
@@ -135,12 +159,20 @@ const UniformOrderPage = () => {
                     });
                 });
             }
-        } else {
+        } else if (activeTab === 'Peci') {
             if (peciSize) {
                 finalCart.push({
                     name: `Peci / Songkok`,
                     size: peciSize,
                     quantity: peciQty
+                });
+            }
+        } else if (activeTab === 'Nama') {
+            if (namaText) {
+                finalCart.push({
+                    name: `Nama Dada: ${namaText}`,
+                    size: 'Set',
+                    quantity: namaQty
                 });
             }
         }
@@ -321,7 +353,7 @@ const UniformOrderPage = () => {
 
                         {/* TABS */}
                         <div className="flex border-b">
-                            {['Seragam', 'Peci'].map(tab => (
+                            {['Seragam', 'Peci', 'Nama'].map(tab => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
@@ -371,7 +403,7 @@ const UniformOrderPage = () => {
                                         <input type="number" min="1" className="w-24 border p-2 rounded text-center font-bold" value={seragamQty} onChange={e => setSeragamQty(parseInt(e.target.value) || 1)} />
                                     </div>
                                 </>
-                            ) : (
+                            ) : activeTab === 'Peci' ? (
                                 <>
                                     {/* Peci - Ukuran */}
                                     <div>
@@ -385,6 +417,26 @@ const UniformOrderPage = () => {
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 mb-1">Jumlah</label>
                                         <input type="number" min="1" className="w-24 border p-2 rounded text-center font-bold" value={peciQty} onChange={e => setPeciQty(parseInt(e.target.value) || 1)} />
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    {/* Nama - Teks */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Teks Nama Dada</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            placeholder="Contoh: AISYAH AZ-ZAHRA"
+                                            value={namaText}
+                                            onChange={e => setNamaText(e.target.value)}
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1">* Pastikan ejaan nama sudah benar.</p>
+                                    </div>
+                                    {/* Nama - Jumlah */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 mb-1">Jumlah</label>
+                                        <input type="number" min="1" className="w-24 border p-2 rounded text-center font-bold" value={namaQty} onChange={e => setNamaQty(parseInt(e.target.value) || 1)} />
                                     </div>
                                 </>
                             )}
