@@ -290,7 +290,6 @@ router.post('/', createOrder);
 router.get('/check/:code', checkOrder);
 
 // Admin routes
-router.get('/items/all', authMiddleware, getAllItems); // Changed from /items to /items/all
 router.get('/admin/orders', authMiddleware, getAllOrders);
 router.put('/admin/:id', authMiddleware, updateOrderStatus);
 router.delete('/admin/:id', authMiddleware, deleteOrder);
