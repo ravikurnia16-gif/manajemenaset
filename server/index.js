@@ -75,17 +75,11 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`   - Frontend Path: ${distPath}`);
 
     // Run vehicle notifications on start
-    // Run vehicle notifications on start
+    // Initialize Scheduler for Cron Jobs (Reminders, Summaries, Checks)
     try {
-        const { checkMaintenanceNotifications, checkKmServiceNotifications } = require('./controllers/vehicleMaintenanceController');
-        const { checkTaxNotifications } = require('./controllers/vehicleController');
-
-        setTimeout(() => {
-            checkMaintenanceNotifications();
-            checkKmServiceNotifications();
-            checkTaxNotifications();
-        }, 10000); // Wait 10s after start
+        const { initScheduler } = require('./utils/scheduler');
+        initScheduler();
     } catch (e) {
-        console.error('Failed to load vehicle notification checkers:', e.message);
+        console.error('Failed to initialize scheduler:', e.message);
     }
 });
