@@ -66,7 +66,7 @@ const getEvents = async (req, res) => {
                     { AND: [{ date: { lte: monthStart } }, { endDate: { gte: monthEnd } }] }
                 ]
             },
-            include: { pic: { select: { id: true, name: true, phone: true } }, createdBy: { select: { id: true, name: true } } },
+            include: { pics: { select: { id: true, name: true, phone: true } }, createdBy: { select: { id: true, name: true } } },
             orderBy: { date: 'asc' }
         });
 
@@ -80,7 +80,7 @@ const getEvents = async (req, res) => {
                     { recurringEndDate: { gte: monthStart } }
                 ]
             },
-            include: { pic: { select: { id: true, name: true, phone: true } }, createdBy: { select: { id: true, name: true } } }
+            include: { pics: { select: { id: true, name: true, phone: true } }, createdBy: { select: { id: true, name: true } } }
         });
 
         // 3. Expand recurring events
@@ -108,7 +108,7 @@ const getPinnedEvents = async (req, res) => {
 
         const pinned = await prisma.sarprasCalendarEvent.findMany({
             where: { isPinned: true, date: { gte: today } },
-            include: { pic: { select: { id: true, name: true } } },
+            include: { pics: { select: { id: true, name: true } } },
             orderBy: { date: 'asc' },
             take: 10
         });
@@ -153,7 +153,7 @@ const getSummary = async (req, res) => {
 // POST /api/calendar
 const createEvent = async (req, res) => {
     try {
-        const { title, description, category, date, endDate, isPinned, location, picId, isRecurring, recurringType, recurringEndDate } = req.body;
+        const { title, description, category, date, endDate, isPinned, location, picIds, isRecurring, recurringType, recurringEndDate } = req.body;
 
         if (!title || !date) return res.status(400).json({ error: 'Judul dan tanggal wajib diisi' });
 
@@ -162,12 +162,14 @@ const createEvent = async (req, res) => {
                 title, description, category: category || 'Lainnya',
                 date: new Date(date), endDate: endDate ? new Date(endDate) : null,
                 isPinned: isPinned || false, location,
-                picId: picId || null,
+                pics: {
+                    connect: (Array.isArray(picIds) ? picIds : []).map(id => ({ id: parseInt(id) }))
+                },
                 isRecurring: isRecurring || false, recurringType: recurringType || null,
                 recurringEndDate: recurringEndDate ? new Date(recurringEndDate) : null,
                 createdById: req.user.id
             },
-            include: { pic: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } }
+            include: { pics: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } }
         });
 
         res.status(201).json(event);
@@ -181,7 +183,7 @@ const createEvent = async (req, res) => {
 const updateEvent = async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, description, category, date, endDate, isPinned, location, picId, isRecurring, recurringType, recurringEndDate } = req.body;
+        const { title, description, category, date, endDate, isPinned, location, picIds, isRecurring, recurringType, recurringEndDate } = req.body;
 
         const event = await prisma.sarprasCalendarEvent.update({
             where: { id: parseInt(id) },
@@ -190,10 +192,12 @@ const updateEvent = async (req, res) => {
                 date: date ? new Date(date) : undefined,
                 endDate: endDate ? new Date(endDate) : null,
                 isPinned, location,
-                picId: picId || null,
+                pics: {
+                    set: (Array.isArray(picIds) ? picIds : []).map(id => ({ id: parseInt(id) }))
+                },
                 isRecurring: isRecurring || false, recurringType, recurringEndDate: recurringEndDate ? new Date(recurringEndDate) : null
             },
-            include: { pic: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } }
+            include: { pics: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } }
         });
 
         res.json(event);
@@ -233,7 +237,7 @@ const sendCalendarReminders = async () => {
         // 1. Regular events tomorrow
         const regularEvents = await prisma.sarprasCalendarEvent.findMany({
             where: { isRecurring: false, date: { gte: tomorrow, lte: tomorrowEnd } },
-            include: { pic: { select: { id: true, name: true, phone: true } } }
+            include: { pics: { select: { id: true, name: true, phone: true } } }
         });
 
         // 2. Recurring events - check if tomorrow matches
@@ -243,7 +247,7 @@ const sendCalendarReminders = async () => {
                 date: { lte: tomorrowEnd },
                 OR: [{ recurringEndDate: null }, { recurringEndDate: { gte: tomorrow } }]
             },
-            include: { pic: { select: { id: true, name: true, phone: true } } }
+            include: { pics: { select: { id: true, name: true, phone: true } } }
         });
 
         const allUpcoming = [...regularEvents];
@@ -263,18 +267,22 @@ const sendCalendarReminders = async () => {
             return;
         }
 
-        // Group events by PIC to avoid spamming the same person multiple times
+        // Group events by PIC (handle multiple PICs per event)
         const groupedByPIC = {};
         allUpcoming.forEach(event => {
-            if (!event.pic || !event.pic.phone) return;
-            if (!groupedByPIC[event.pic.id]) {
-                groupedByPIC[event.pic.id] = {
-                    picName: event.pic.name,
-                    phone: event.pic.phone,
-                    events: []
-                };
-            }
-            groupedByPIC[event.pic.id].events.push(event);
+            if (!event.pics || event.pics.length === 0) return;
+
+            event.pics.forEach(p => {
+                if (!p.phone) return;
+                if (!groupedByPIC[p.id]) {
+                    groupedByPIC[p.id] = {
+                        picName: p.name,
+                        phone: p.phone,
+                        events: []
+                    };
+                }
+                groupedByPIC[p.id].events.push(event);
+            });
         });
 
         console.log(`[Calendar Reminder] Sending reminders to ${Object.keys(groupedByPIC).length} PICs...`);

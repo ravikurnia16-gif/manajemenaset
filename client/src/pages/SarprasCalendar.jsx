@@ -42,7 +42,7 @@ const SarprasCalendar = () => {
     // Form State
     const [form, setForm] = useState({
         title: '', description: '', category: 'Lainnya', date: '',
-        endDate: '', isPinned: false, location: '', picId: '',
+        endDate: '', isPinned: false, location: '', picIds: [],
         isRecurring: false, recurringType: '', recurringEndDate: ''
     });
 
@@ -114,7 +114,7 @@ const SarprasCalendar = () => {
 
     const openAddModal = (day) => {
         const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        setForm({ title: '', description: '', category: 'Lainnya', date: dateStr, endDate: '', isPinned: false, location: '', picId: '', isRecurring: false, recurringType: '', recurringEndDate: '' });
+        setForm({ title: '', description: '', category: 'Lainnya', date: dateStr, endDate: '', isPinned: false, location: '', picIds: [], isRecurring: false, recurringType: '', recurringEndDate: '' });
         setEditingEvent(null);
         setShowModal(true);
     };
@@ -124,7 +124,7 @@ const SarprasCalendar = () => {
             title: event.title, description: event.description || '',
             category: event.category, date: event.date?.split('T')[0] || '',
             endDate: event.endDate?.split('T')[0] || '', isPinned: event.isPinned,
-            location: event.location || '', picId: event.picId || '',
+            location: event.location || '', picIds: event.pics?.map(p => p.id) || [],
             isRecurring: event.isRecurring, recurringType: event.recurringType || '',
             recurringEndDate: event.recurringEndDate?.split('T')[0] || ''
         });
@@ -137,7 +137,7 @@ const SarprasCalendar = () => {
         try {
             const payload = {
                 ...form,
-                picId: form.picId ? parseInt(form.picId) : null,
+                picIds: (form.picIds || []).map(id => parseInt(id)),
                 isRecurring: form.isRecurring,
                 recurringType: form.isRecurring ? form.recurringType : null,
                 recurringEndDate: form.isRecurring && form.recurringEndDate ? form.recurringEndDate : null
@@ -337,7 +337,12 @@ const SarprasCalendar = () => {
                                                 {ev.description && <p className="text-xs text-slate-600 ml-4.5 mb-1">{ev.description}</p>}
                                                 <div className="flex flex-wrap gap-3 ml-4.5 text-[11px] text-slate-500">
                                                     {ev.location && <span className="flex items-center gap-1"><MapPin size={10} /> {ev.location}</span>}
-                                                    {ev.pic && <span className="flex items-center gap-1"><User size={10} /> PIC: {ev.pic.name}</span>}
+                                                    {ev.pics && ev.pics.length > 0 && (
+                                                        <span className="flex items-center gap-1">
+                                                            <User size={10} />
+                                                            PIC: {ev.pics.map(p => p.name).join(', ')}
+                                                        </span>
+                                                    )}
                                                     {ev.isRecurring && <span className="flex items-center gap-1"><Repeat size={10} /> {RECURRING_TYPES.find(r => r.value === ev.recurringType)?.label}</span>}
                                                 </div>
                                             </div>
@@ -410,13 +415,28 @@ const SarprasCalendar = () => {
                                 <label className="block text-xs font-bold text-slate-500 mb-1">Lokasi</label>
                                 <input type="text" className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Contoh: Gedung A Lt. 2" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
                             </div>
-                            {/* PIC */}
+                            {/* PICs Multi-select using checkboxes for simplicity and better UX */}
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">PIC (Penanggung Jawab)</label>
-                                <select className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={form.picId} onChange={e => setForm({ ...form, picId: e.target.value })}>
-                                    <option value="">-- Tidak ada PIC --</option>
-                                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                                </select>
+                                <label className="block text-xs font-bold text-slate-500 mb-2">PIC (Penanggung Jawab)</label>
+                                <div className="grid grid-cols-2 gap-2 border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto bg-slate-50">
+                                    {users.map(u => (
+                                        <label key={u.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-1 rounded transition">
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4 text-indigo-600 rounded"
+                                                checked={form.picIds.includes(u.id)}
+                                                onChange={(e) => {
+                                                    const newIds = e.target.checked
+                                                        ? [...form.picIds, u.id]
+                                                        : form.picIds.filter(id => id !== u.id);
+                                                    setForm({ ...form, picIds: newIds });
+                                                }}
+                                            />
+                                            <span className="text-xs text-slate-700">{u.name}</span>
+                                        </label>
+                                    ))}
+                                    {users.length === 0 && <div className="col-span-2 text-center py-2 text-slate-400 text-[10px] italic">Tidak ada staf ditemukan</div>}
+                                </div>
                             </div>
                             {/* Description */}
                             <div>

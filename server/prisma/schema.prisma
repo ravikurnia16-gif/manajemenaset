@@ -61,7 +61,7 @@ model User {
   sarprasRules        SarprasRule[]
   assetsPIC           Asset[]         @relation("AssetPIC")
   calendarEventsCreated SarprasCalendarEvent[] @relation("CalendarCreator")
-  calendarEventsPIC     SarprasCalendarEvent[] @relation("CalendarPIC")
+  calendarEventsPIC     SarprasCalendarEvent[] @relation("CalendarPICs")
 }
 
 model Unit {
@@ -678,8 +678,7 @@ model SarprasCalendarEvent {
   location        String?
 
   // PIC (Person In Charge)
-  picId           Int?
-  pic             User?    @relation("CalendarPIC", fields: [picId], references: [id])
+  pics            User[]   @relation("CalendarPICs")
 
   // Recurring fields
   isRecurring     Boolean  @default(false)
