@@ -68,8 +68,7 @@ const getEvents = async (req, res) => {
             },
             include: {
                 pics: { select: { id: true, name: true, phone: true } },
-                createdBy: { select: { id: true, name: true } },
-                assignments: { select: { id: true, status: true, assigneeId: true } }
+                createdBy: { select: { id: true, name: true } }
             },
             orderBy: { date: 'asc' }
         });
@@ -86,8 +85,7 @@ const getEvents = async (req, res) => {
             },
             include: {
                 pics: { select: { id: true, name: true, phone: true } },
-                createdBy: { select: { id: true, name: true } },
-                assignments: { select: { id: true, status: true, assigneeId: true } }
+                createdBy: { select: { id: true, name: true } }
             }
         });
 
@@ -100,6 +98,21 @@ const getEvents = async (req, res) => {
 
         const allEvents = [...regularEvents, ...expandedRecurring];
         allEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        // 4. Try to enrich with assignment statuses (safe - won't crash if schema not migrated)
+        try {
+            const eventIds = allEvents.filter(e => e.id).map(e => e.id);
+            const assignments = await prisma.personnelAssignment.findMany({
+                where: { calendarEventId: { in: eventIds } },
+                select: { id: true, status: true, assigneeId: true, calendarEventId: true }
+            });
+            allEvents.forEach(ev => {
+                ev.assignments = assignments.filter(a => a.calendarEventId === ev.id);
+            });
+        } catch (e) {
+            // Schema not yet migrated - assignments will be empty
+            allEvents.forEach(ev => { ev.assignments = []; });
+        }
 
         res.json(allEvents);
     } catch (error) {
@@ -180,23 +193,27 @@ const createEvent = async (req, res) => {
             include: { pics: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } }
         });
 
-        // AUTO-ASSIGNMENT SYNC: Create assignments for each PIC
-        if (Array.isArray(picIds) && picIds.length > 0) {
-            await Promise.all(picIds.map(async (pId) => {
-                return prisma.personnelAssignment.create({
-                    data: {
-                        assignerId: req.user.id,
-                        assigneeId: parseInt(pId),
-                        title: `[KALENDER] ${title}`,
-                        description: description || 'Tugas otomatis dari Kalender Kerja',
-                        category: category || 'UMUM',
-                        location: location || null,
-                        dueDate: new Date(date),
-                        calendarEventId: event.id,
-                        status: 'PENDING'
-                    }
-                });
-            }));
+        // AUTO-ASSIGNMENT SYNC: Create assignments for each PIC (safe - won't crash if schema not migrated)
+        try {
+            if (Array.isArray(picIds) && picIds.length > 0) {
+                await Promise.all(picIds.map(async (pId) => {
+                    return prisma.personnelAssignment.create({
+                        data: {
+                            assignerId: req.user.id,
+                            assigneeId: parseInt(pId),
+                            title: `[KALENDER] ${title}`,
+                            description: description || 'Tugas otomatis dari Kalender Kerja',
+                            category: category || 'UMUM',
+                            location: location || null,
+                            dueDate: new Date(date),
+                            calendarEventId: event.id,
+                            status: 'PENDING'
+                        }
+                    });
+                }));
+            }
+        } catch (syncErr) {
+            console.error('[Calendar -> Assignment Sync] Skipped (schema not migrated?):', syncErr.message);
         }
 
         res.status(201).json(event);
@@ -227,55 +244,59 @@ const updateEvent = async (req, res) => {
             include: { pics: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } }
         });
 
-        // AUTO-ASSIGNMENT SYNC:
-        // 1. Get existing assignments for this calendar event
-        const existingAssignments = await prisma.personnelAssignment.findMany({
-            where: { calendarEventId: parseInt(id) }
-        });
-        const currentAssigneeIds = existingAssignments.map(a => a.assigneeId);
-        const newAssigneeIds = (Array.isArray(picIds) ? picIds : []).map(pid => parseInt(pid));
-
-        // 2. Remove assignments for PICs who are no longer selected
-        const toDelete = existingAssignments.filter(a => !newAssigneeIds.includes(a.assigneeId));
-        if (toDelete.length > 0) {
-            await prisma.personnelAssignment.deleteMany({
-                where: { id: { in: toDelete.map(a => a.id) } }
+        // AUTO-ASSIGNMENT SYNC (safe - won't crash if schema not migrated):
+        try {
+            // 1. Get existing assignments for this calendar event
+            const existingAssignments = await prisma.personnelAssignment.findMany({
+                where: { calendarEventId: parseInt(id) }
             });
-        }
+            const currentAssigneeIds = existingAssignments.map(a => a.assigneeId);
+            const newAssigneeIds = (Array.isArray(picIds) ? picIds : []).map(pid => parseInt(pid));
 
-        // 3. Add assignments for new PICs
-        const toAdd = newAssigneeIds.filter(pid => !currentAssigneeIds.includes(pid));
-        if (toAdd.length > 0) {
-            await Promise.all(toAdd.map(pid => {
-                return prisma.personnelAssignment.create({
+            // 2. Remove assignments for PICs who are no longer selected
+            const toDelete = existingAssignments.filter(a => !newAssigneeIds.includes(a.assigneeId));
+            if (toDelete.length > 0) {
+                await prisma.personnelAssignment.deleteMany({
+                    where: { id: { in: toDelete.map(a => a.id) } }
+                });
+            }
+
+            // 3. Add assignments for new PICs
+            const toAdd = newAssigneeIds.filter(pid => !currentAssigneeIds.includes(pid));
+            if (toAdd.length > 0) {
+                await Promise.all(toAdd.map(pid => {
+                    return prisma.personnelAssignment.create({
+                        data: {
+                            assignerId: req.user.id,
+                            assigneeId: pid,
+                            title: `[KALENDER] ${title}`,
+                            description: description || 'Tugas otomatis dari Kalender Kerja',
+                            category: category || 'UMUM',
+                            location: location || null,
+                            dueDate: new Date(date),
+                            calendarEventId: parseInt(id),
+                            status: 'PENDING'
+                        }
+                    });
+                }));
+            }
+
+            // 4. Update existing assignments (title/date/location change)
+            const toUpdate = existingAssignments.filter(a => newAssigneeIds.includes(a.assigneeId));
+            if (toUpdate.length > 0) {
+                await prisma.personnelAssignment.updateMany({
+                    where: { id: { in: toUpdate.map(a => a.id) } },
                     data: {
-                        assignerId: req.user.id,
-                        assigneeId: pid,
                         title: `[KALENDER] ${title}`,
                         description: description || 'Tugas otomatis dari Kalender Kerja',
                         category: category || 'UMUM',
                         location: location || null,
-                        dueDate: new Date(date),
-                        calendarEventId: parseInt(id),
-                        status: 'PENDING'
+                        dueDate: new Date(date)
                     }
                 });
-            }));
-        }
-
-        // 4. Update existing assignments (title/date/location change)
-        const toUpdate = existingAssignments.filter(a => newAssigneeIds.includes(a.assigneeId));
-        if (toUpdate.length > 0) {
-            await prisma.personnelAssignment.updateMany({
-                where: { id: { in: toUpdate.map(a => a.id) } },
-                data: {
-                    title: `[KALENDER] ${title}`,
-                    description: description || 'Tugas otomatis dari Kalender Kerja',
-                    category: category || 'UMUM',
-                    location: location || null,
-                    dueDate: new Date(date)
-                }
-            });
+            }
+        } catch (syncErr) {
+            console.error('[Calendar -> Assignment Sync] Skipped (schema not migrated?):', syncErr.message);
         }
 
         res.json(event);
