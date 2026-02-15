@@ -216,6 +216,14 @@ const deleteEvent = async (req, res) => {
 // ====== WA H-1 REMINDER ======
 const sendCalendarReminders = async () => {
     try {
+        // Spam prevention: Only send between 08:00 and 20:00
+        const now = new Date();
+        const hour = now.getHours();
+        if (hour < 8 || hour >= 20) {
+            console.log(`[Calendar Reminder] Outside working hours (${hour}:00). Skipping...`);
+            return;
+        }
+
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         tomorrow.setHours(0, 0, 0, 0);
@@ -238,8 +246,7 @@ const sendCalendarReminders = async () => {
             include: { pic: { select: { id: true, name: true, phone: true } } }
         });
 
-        const tomorrowEvents = [...regularEvents];
-
+        const allUpcoming = [...regularEvents];
         recurringEvents.forEach(ev => {
             const eventDate = new Date(ev.date);
             const d = tomorrow;
@@ -248,34 +255,57 @@ const sendCalendarReminders = async () => {
             else if (ev.recurringType === 'WEEKLY') match = d.getDay() === eventDate.getDay();
             else if (ev.recurringType === 'MONTHLY') match = d.getDate() === eventDate.getDate();
             else if (ev.recurringType === 'YEARLY') match = d.getDate() === eventDate.getDate() && d.getMonth() === eventDate.getMonth();
-            if (match) tomorrowEvents.push(ev);
+            if (match) allUpcoming.push(ev);
         });
 
-        if (tomorrowEvents.length === 0) {
+        if (allUpcoming.length === 0) {
             console.log('[Calendar Reminder] No events for tomorrow.');
             return;
         }
 
-        console.log(`[Calendar Reminder] Sending ${tomorrowEvents.length} reminder(s)...`);
+        // Group events by PIC to avoid spamming the same person multiple times
+        const groupedByPIC = {};
+        allUpcoming.forEach(event => {
+            if (!event.pic || !event.pic.phone) return;
+            if (!groupedByPIC[event.pic.id]) {
+                groupedByPIC[event.pic.id] = {
+                    picName: event.pic.name,
+                    phone: event.pic.phone,
+                    events: []
+                };
+            }
+            groupedByPIC[event.pic.id].events.push(event);
+        });
+
+        console.log(`[Calendar Reminder] Sending reminders to ${Object.keys(groupedByPIC).length} PICs...`);
 
         const { sendMessage } = whatsappService;
 
-        for (const event of tomorrowEvents) {
-            if (!event.pic || !event.pic.phone) continue;
+        for (const picId in groupedByPIC) {
+            const data = groupedByPIC[picId];
 
-            const msg = `📅 REMINDER BESOK\n\n` +
-                `Kegiatan: ${event.title}\n` +
-                `Kategori: ${event.category}\n` +
-                (event.location ? `Lokasi: ${event.location}\n` : '') +
-                (event.description ? `Detail: ${event.description}\n` : '') +
-                `\nMohon dipersiapkan. Terima kasih.`;
+            let msg = `📅 *REMINDER KEGIATAN BESOK*\n`;
+            msg += `Halo ${data.picName}, berikut agenda Sarpras untuk besok:\n\n`;
 
-            await new Promise(resolve => setTimeout(resolve, 30000 + Math.random() * 30000)); // 30-60s delay
+            data.events.forEach((event, idx) => {
+                msg += `${idx + 1}. *${event.title}*\n`;
+                msg += `   📂 Kategori: ${event.category}\n`;
+                if (event.location) msg += `   📍 Lokasi: ${event.location}\n`;
+                if (event.description) msg += `   📝 Detail: ${event.description}\n`;
+                msg += `\n`;
+            });
+
+            msg += `Mohon dipersiapkan dengan baik. Terima kasih.`;
+
+            // Random delay between 30-120 seconds per PIC to mimic human behavior
+            const delay = 30000 + Math.random() * 90000;
+            await new Promise(resolve => setTimeout(resolve, delay));
+
             try {
-                await sendMessage(event.pic.phone, msg);
-                console.log(`[Calendar Reminder] Sent to ${event.pic.name} (${event.pic.phone})`);
+                await sendMessage(data.phone, msg);
+                console.log(`[Calendar Reminder] Sent to ${data.picName} (${data.phone}) - ${data.events.length} events`);
             } catch (err) {
-                console.error(`[Calendar Reminder] Failed to send to ${event.pic.name}:`, err.message);
+                console.error(`[Calendar Reminder] Failed to send to ${data.picName}:`, err.message);
             }
         }
     } catch (error) {
