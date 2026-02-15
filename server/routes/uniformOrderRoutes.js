@@ -68,12 +68,17 @@ const createOrder = async (req, res) => {
         // Only process items if they exist (Coupled Mode)
         if (items && items.length > 0) {
             for (const item of items) {
-                const warehouseItem = await prisma.warehouseItem.findUnique({ where: { id: parseInt(item.itemId) } });
-                if (!warehouseItem) return res.status(400).json({ error: `Item ID ${item.itemId} tidak ditemukan` });
+                // If itemId is provided, look up price in DB
+                if (item.itemId) {
+                    const warehouseItem = await prisma.warehouseItem.findUnique({ where: { id: parseInt(item.itemId) } });
+                    if (warehouseItem) {
+                        item.price = warehouseItem.purchasePrice || 0;
+                    }
+                }
 
-                // Stock check is disabled per previous logic, but price calc remains
-                item.price = warehouseItem.purchasePrice || 0;
-                totalAmount += item.price * parseInt(item.quantity);
+                // If price still not set, use default 0
+                const price = item.price || 0;
+                totalAmount += price * parseInt(item.quantity || 1);
             }
         }
 
