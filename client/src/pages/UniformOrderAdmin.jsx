@@ -239,9 +239,8 @@ const UniformOrderAdmin = () => {
                                                             {(item.status === 'NO_STOCK' || item.status === 'INDENT') && (
                                                                 <button
                                                                     onClick={() => {
-                                                                        if (confirm('Batalkan pesanan item ini dan kirim notifikasi?')) {
+                                                                        if (confirm('Batalkan pesanan item ini? (Tanpa notifikasi WA)')) {
                                                                             handleItemStatus(item.id, 'CANCEL_ITEM');
-                                                                            handleItemNotify(item.id, 'CANCEL');
                                                                         }
                                                                     }}
                                                                     className="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-1 rounded hover:bg-slate-500 hover:text-white font-bold transition"
