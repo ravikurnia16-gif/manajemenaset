@@ -86,9 +86,17 @@ const SarprasCalendar = () => {
 
     const getEventsForDay = (day) => {
         if (!day) return [];
+        const targetDate = new Date(currentYear, currentMonth - 1, day);
+        targetDate.setHours(0, 0, 0, 0);
+
         return events.filter(e => {
-            const ed = new Date(e.date);
-            return ed.getDate() === day && ed.getMonth() === currentMonth - 1 && ed.getFullYear() === currentYear;
+            const start = new Date(e.date);
+            start.setHours(0, 0, 0, 0);
+            const end = e.endDate ? new Date(e.endDate) : start;
+            const finalEnd = new Date(end);
+            finalEnd.setHours(23, 59, 59, 999);
+
+            return targetDate >= start && targetDate <= finalEnd;
         });
     };
 
@@ -112,7 +120,6 @@ const SarprasCalendar = () => {
     };
 
     const openEditModal = (event) => {
-        if (event.isMaintenanceEvent) return; // Can't edit maintenance events
         setForm({
             title: event.title, description: event.description || '',
             category: event.category, date: event.date?.split('T')[0] || '',
@@ -279,7 +286,7 @@ const SarprasCalendar = () => {
                                                 const style = getCategoryStyle(ev.category);
                                                 return (
                                                     <div key={`${ev.id}-${idx}`} className={`text-[9px] px-1 py-0.5 rounded truncate font-medium ${style.bg} ${style.text} ${style.border} border`} title={ev.title}>
-                                                        {ev.isPinned && '📌 '}{ev.isMaintenanceEvent && '🔧 '}{ev.title}
+                                                        {ev.isPinned && '📌 '}{ev.title}
                                                     </div>
                                                 );
                                             })}
@@ -326,17 +333,15 @@ const SarprasCalendar = () => {
                                                     <span className={`text-sm font-bold ${style.text}`}>{ev.title}</span>
                                                     {ev.isPinned && <Pin size={12} className="text-amber-500" />}
                                                     {ev.isRecurring && <Repeat size={12} className="text-slate-400" />}
-                                                    {ev.isMaintenanceEvent && <Wrench size={12} className="text-blue-500" />}
                                                 </div>
                                                 {ev.description && <p className="text-xs text-slate-600 ml-4.5 mb-1">{ev.description}</p>}
                                                 <div className="flex flex-wrap gap-3 ml-4.5 text-[11px] text-slate-500">
                                                     {ev.location && <span className="flex items-center gap-1"><MapPin size={10} /> {ev.location}</span>}
                                                     {ev.pic && <span className="flex items-center gap-1"><User size={10} /> PIC: {ev.pic.name}</span>}
                                                     {ev.isRecurring && <span className="flex items-center gap-1"><Repeat size={10} /> {RECURRING_TYPES.find(r => r.value === ev.recurringType)?.label}</span>}
-                                                    {ev.isMaintenanceEvent && <span className="flex items-center gap-1"><Wrench size={10} /> {ev.maintenanceCode} ({ev.maintenanceStatus})</span>}
                                                 </div>
                                             </div>
-                                            {canEdit && !ev.isMaintenanceEvent && !ev.isRecurringInstance && (
+                                            {canEdit && !ev.isRecurringInstance && (
                                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
                                                     <button onClick={() => openEditModal(ev)} className="p-1.5 hover:bg-white rounded text-slate-400 hover:text-indigo-600"><Edit3 size={14} /></button>
                                                     <button onClick={() => handleDelete(ev.id)} className="p-1.5 hover:bg-white rounded text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
@@ -360,7 +365,7 @@ const SarprasCalendar = () => {
                     </div>
                 ))}
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                    <Wrench size={10} /> Maintenance (Auto)
+                    <Pin size={12} className="text-amber-500" /> Penting
                 </div>
             </div>
 

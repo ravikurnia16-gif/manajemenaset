@@ -239,7 +239,6 @@ model Maintenance {
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  calendarEvent SarprasCalendarEvent?
 }
 
 model Log {
@@ -686,10 +685,6 @@ model SarprasCalendarEvent {
   isRecurring     Boolean  @default(false)
   recurringType   String?  // DAILY, WEEKLY, MONTHLY, YEARLY
   recurringEndDate DateTime?
-
-  // Maintenance integration
-  maintenanceId   Int?     @unique
-  maintenance     Maintenance? @relation(fields: [maintenanceId], references: [id])
 
   // Audit
   createdById     Int

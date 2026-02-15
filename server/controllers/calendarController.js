@@ -56,13 +56,17 @@ const getEvents = async (req, res) => {
         const monthStart = new Date(year, month - 1, 1);
         const monthEnd = new Date(year, month, 0, 23, 59, 59);
 
-        // 1. Get non-recurring events in the month
+        // 1. Get non-recurring events in the month (including those that overlap)
         const regularEvents = await prisma.sarprasCalendarEvent.findMany({
             where: {
                 isRecurring: false,
-                date: { gte: monthStart, lte: monthEnd }
+                OR: [
+                    { date: { gte: monthStart, lte: monthEnd } },
+                    { endDate: { gte: monthStart, lte: monthEnd } },
+                    { AND: [{ date: { lte: monthStart } }, { endDate: { gte: monthEnd } }] }
+                ]
             },
-            include: { pic: { select: { id: true, name: true, phone: true } }, createdBy: { select: { id: true, name: true } }, maintenance: { select: { id: true, code: true, title: true, status: true } } },
+            include: { pic: { select: { id: true, name: true, phone: true } }, createdBy: { select: { id: true, name: true } } },
             orderBy: { date: 'asc' }
         });
 
@@ -86,35 +90,7 @@ const getEvents = async (req, res) => {
             expandedRecurring = expandedRecurring.concat(expandRecurringEvents(serialized, year, month));
         });
 
-        // 4. Get active maintenance items (auto-import)
-        const maintenanceEvents = await prisma.maintenance.findMany({
-            where: {
-                status: { in: ['ASSIGNED', 'IN_PROGRESS'] },
-                OR: [
-                    { createdAt: { gte: monthStart, lte: monthEnd } },
-                    { completionDate: { gte: monthStart, lte: monthEnd } }
-                ]
-            },
-            include: { user: { select: { id: true, name: true } }, unit: { select: { name: true } } }
-        });
-
-        const mappedMaintenance = maintenanceEvents.map(m => ({
-            id: `mt-${m.id}`,
-            title: `🔧 ${m.title}`,
-            description: m.description,
-            category: 'Pemeliharaan',
-            date: m.createdAt.toISOString(),
-            endDate: m.completionDate?.toISOString(),
-            isPinned: false,
-            location: m.location || m.unit?.name,
-            isMaintenanceEvent: true,
-            maintenanceId: m.id,
-            maintenanceCode: m.code,
-            maintenanceStatus: m.status,
-            pic: m.user ? { id: m.user.id, name: m.user.name } : null
-        }));
-
-        const allEvents = [...regularEvents, ...expandedRecurring, ...mappedMaintenance];
+        const allEvents = [...regularEvents, ...expandedRecurring];
         allEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
 
         res.json(allEvents);
@@ -151,7 +127,14 @@ const getSummary = async (req, res) => {
         const monthEnd = new Date(year, month, 0, 23, 59, 59);
 
         const events = await prisma.sarprasCalendarEvent.findMany({
-            where: { date: { gte: monthStart, lte: monthEnd }, isRecurring: false }
+            where: {
+                isRecurring: false,
+                OR: [
+                    { date: { gte: monthStart, lte: monthEnd } },
+                    { endDate: { gte: monthStart, lte: monthEnd } },
+                    { AND: [{ date: { lte: monthStart } }, { endDate: { gte: monthEnd } }] }
+                ]
+            }
         });
 
         const categories = {};
