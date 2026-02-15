@@ -124,7 +124,7 @@ exports.getReports = async (req, res) => {
 // --- ASSIGNMENTS ---
 
 exports.createAssignment = async (req, res) => {
-    const { assigneeId, title, description, startDate, dueDate, category, location } = req.body;
+    const { assigneeId, title, description, startDate, dueDate, category, location, addToCalendar } = req.body;
     const user = req.user;
 
     try {
@@ -151,29 +151,31 @@ exports.createAssignment = async (req, res) => {
             }
         });
 
-        // AUTO-SYNC TO CALENDAR: Create a calendar event for this assignment
-        try {
-            const calEvent = await prisma.sarprasCalendarEvent.create({
-                data: {
-                    title,
-                    description: `[PENUGASAN] ${description}`,
-                    category: category || 'UMUM',
-                    date: dueDate ? new Date(dueDate) : new Date(),
-                    location: location || null,
-                    createdById: user.id,
-                    pics: {
-                        connect: { id: parseInt(assigneeId) }
+        // AUTO-SYNC TO CALENDAR: Create a calendar event for this assignment (ONLY IF REQUESTED)
+        if (addToCalendar) {
+            try {
+                const calEvent = await prisma.sarprasCalendarEvent.create({
+                    data: {
+                        title,
+                        description: `[PENUGASAN] ${description}`,
+                        category: category || 'UMUM',
+                        date: dueDate ? new Date(dueDate) : new Date(),
+                        location: location || null,
+                        createdById: user.id,
+                        pics: {
+                            connect: { id: parseInt(assigneeId) }
+                        }
                     }
-                }
-            });
+                });
 
-            // Link the assignment back to the calendar event
-            await prisma.personnelAssignment.update({
-                where: { id: assignment.id },
-                data: { calendarEventId: calEvent.id }
-            });
-        } catch (calErr) {
-            console.error('[Personnel -> Calendar Sync] Failed:', calErr.message);
+                // Link the assignment back to the calendar event
+                await prisma.personnelAssignment.update({
+                    where: { id: assignment.id },
+                    data: { calendarEventId: calEvent.id }
+                });
+            } catch (calErr) {
+                console.error('[Personnel -> Calendar Sync] Failed:', calErr.message);
+            }
         }
 
         res.json({ message: 'Tugas berhasil diberikan', data: assignment });

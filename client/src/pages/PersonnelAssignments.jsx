@@ -20,7 +20,8 @@ const PersonnelAssignments = () => {
         category: 'UMUM',
         location: '',
         startDate: '',
-        dueDate: ''
+        dueDate: '',
+        addToCalendar: true
     });
 
     const statusConfig = {
@@ -64,9 +65,9 @@ const PersonnelAssignments = () => {
             setSubmitting(true);
             await api.post('/personnel/assignments', form);
             setShowForm(false);
-            setForm({ assigneeId: '', title: '', description: '', category: 'UMUM', location: '', startDate: '', dueDate: '' });
+            setForm({ assigneeId: '', title: '', description: '', category: 'UMUM', location: '', startDate: '', dueDate: '', addToCalendar: true });
             fetchAssignments();
-            alert('Tugas berhasil diberikan dan disinkronkan ke Kalender');
+            alert(`Tugas berhasil diberikan${form.addToCalendar ? ' dan masuk Kalender' : ''}`);
         } catch (err) {
             alert(err.response?.data?.error || 'Gagal memberikan tugas');
         } finally {
@@ -193,6 +194,20 @@ const PersonnelAssignments = () => {
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                             ></textarea>
                         </div>
+
+                        <div className="flex items-center gap-2 mb-4">
+                            <input
+                                type="checkbox"
+                                id="addToCalendar"
+                                checked={form.addToCalendar}
+                                onChange={e => setForm({ ...form, addToCalendar: e.target.checked })}
+                                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                            />
+                            <label htmlFor="addToCalendar" className="text-sm text-slate-700 font-medium cursor-pointer">
+                                Tampilkan di Kalender Sarpras
+                            </label>
+                        </div>
+
                         <div className="flex justify-end">
                             <button
                                 type="submit"
