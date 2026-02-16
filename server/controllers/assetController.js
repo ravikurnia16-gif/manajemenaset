@@ -65,12 +65,21 @@ exports.createAsset = async (req, res) => {
 
             // 2. Handle New Room
             if (roomId === 'other') {
+                const unit = await tx.unit.findUnique({ where: { id: parseInt(unitId) } });
+                let finalRoomCode = newRoomCode;
+
+                if (!finalRoomCode && unit) {
+                    const count = await tx.room.count({ where: { unitId: unit.id } });
+                    const seq = (count + 1).toString().padStart(2, '0');
+                    finalRoomCode = `${unit.code}-${seq}`;
+                }
+
                 const newRoom = await tx.room.create({
                     data: {
                         name: newRoomName,
-                        code: newRoomCode || newRoomName.substring(0, 3).toUpperCase(),
+                        code: finalRoomCode || `RM-${Math.floor(Math.random() * 9000) + 1000}`,
                         floor: newRoomFloor || '1',
-                        building: newRoomBuilding || 'Utama',
+                        building: newRoomBuilding || '-',
                         unitId: unitId ? parseInt(unitId) : null
                     }
                 });

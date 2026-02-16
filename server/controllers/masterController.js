@@ -107,13 +107,24 @@ exports.getAllRooms = async (req, res) => {
 
 exports.createRoom = async (req, res) => {
     try {
-        const { name, code, floor, building, unitId } = req.body;
+        const { name, code: manualCode, floor, building, unitId } = req.body;
+
+        let finalCode = manualCode;
+        if (!finalCode && unitId) {
+            const unit = await prisma.unit.findUnique({ where: { id: parseInt(unitId) } });
+            if (unit) {
+                const count = await prisma.room.count({ where: { unitId: unit.id } });
+                const seq = (count + 1).toString().padStart(2, '0');
+                finalCode = `${unit.code}-${seq}`;
+            }
+        }
+
         const room = await prisma.room.create({
             data: {
                 name,
-                code,
-                floor,
-                building,
+                code: finalCode || `RM-${Math.floor(Math.random() * 9000) + 1000}`,
+                floor: floor || '1',
+                building: building || '-',
                 unitId: unitId ? parseInt(unitId) : null
             }
         });

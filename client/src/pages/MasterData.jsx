@@ -389,18 +389,17 @@ const MasterData = () => {
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-slate-500 mb-1">Nama Ruangan</label>
-                                <input required value={newRoom.name} onChange={e => setNewRoom({ ...newRoom, name: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ruang Rapat 1" />
+                                <input required value={newRoom.name} onChange={e => setNewRoom({ ...newRoom, name: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Contoh: Ruang Rapat" />
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Kode</label>
-                                    <input required value={newRoom.code} onChange={e => setNewRoom({ ...newRoom, code: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="RR1" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-500 mb-1">Lantai</label>
-                                    <input required value={newRoom.floor} onChange={e => setNewRoom({ ...newRoom, floor: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="1" />
-                                </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-blue-600 mb-1 uppercase tracking-wider">Lokasi (Misal: Lapai / Gedung A)</label>
+                                <input required value={newRoom.building} onChange={e => setNewRoom({ ...newRoom, building: e.target.value })} className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Contoh: Lapai" />
                             </div>
+                            {!editingItem && (
+                                <p className="text-[10px] text-blue-500 italic">
+                                    * Kode ruangan otomatis (KodeUnit-xx) dan Lantai diset '1'.
+                                </p>
+                            )}
                             <button className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
                                 <Save size={16} /> {editingItem ? 'Perbarui' : 'Simpan'} Ruangan
                             </button>
@@ -465,6 +464,7 @@ const MasterData = () => {
                                     </th>
                                     <th className="px-6 py-3">Nama</th>
                                     {activeTab === 'vendors' ? <th className="px-6 py-3">Kontak</th> : <th className="px-6 py-3">Kode</th>}
+                                    {activeTab === 'rooms' && <th className="px-6 py-3">Lokasi</th>}
                                     {activeTab === 'rooms' && <th className="px-6 py-3">Unit</th>}
                                     <th className="px-6 py-3 text-center">Aksi</th>
                                 </tr>
@@ -501,7 +501,8 @@ const MasterData = () => {
                                             />
                                         </td>
                                         <td className="px-6 py-3 font-medium text-slate-800">{r.name}</td>
-                                        <td className="px-6 py-3 text-slate-600 font-mono">{r.code}</td>
+                                        <td className="px-6 py-3 text-slate-600 font-mono italic">{r.code}</td>
+                                        <td className="px-6 py-3 text-blue-600 font-semibold">{r.building || '-'}</td>
                                         <td className="px-6 py-3 text-slate-500 text-xs">{r.unit?.name || '-'}</td>
                                         <td className="px-6 py-3 text-center">
                                             <div className="flex items-center justify-center gap-2">

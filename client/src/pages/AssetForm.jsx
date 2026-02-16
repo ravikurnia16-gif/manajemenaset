@@ -13,7 +13,7 @@ const AssetForm = () => {
         defaultValues: {
             condition: 'BAIK',
             usefulLife: 5,
-            sourceOfFunds: 'Mandiri',
+            sourceOfFunds: 'Yayasan',
             acquisitionStatus: 'Pembelian',
             purchaseDate: new Date().toISOString().split('T')[0]
         }
@@ -26,7 +26,7 @@ const AssetForm = () => {
         vendors: [],
         users: []
     });
-    const [settings, setSettings] = useState({ assetCodePrefix: 'AST' });
+    const [settings, setSettings] = useState({ assetCodePrefix: 'DEI' });
     const [isAutoCode, setIsAutoCode] = useState(true);
     const [loading, setLoading] = useState(false);
 
@@ -42,7 +42,7 @@ const AssetForm = () => {
                     api.get('/master/categories'),
                     api.get('/master/vendors'),
                     api.get('/users').catch(() => ({ data: [] })),
-                    api.get('/settings').catch(() => ({ data: { assetCodePrefix: 'AST' } }))
+                    api.get('/settings').catch(() => ({ data: { assetCodePrefix: 'DEI' } }))
                 ]);
                 setMasterData({
                     units: rUnits.data,
@@ -106,7 +106,7 @@ const AssetForm = () => {
 
         const year = purchaseDate ? new Date(purchaseDate).getFullYear() : 'YYYY';
 
-        return `${settings.assetCodePrefix || 'AST'}.${unit?.code || '???'}.${catCode}.${year}.xxxx`;
+        return `${settings.assetCodePrefix || 'DEI'}.${unit?.code || '???'}.${catCode}.${year}.xxxx`;
     };
 
     const onSubmit = async (data) => {
@@ -312,15 +312,28 @@ const AssetForm = () => {
 
                         {selectedRoomId === 'other' && (
                             <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-3 animate-in slide-in-from-top-2 duration-300">
-                                <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Ruangan Baru</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <input {...register('newRoomName', { required: selectedRoomId === 'other' })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Nama Ruangan" />
-                                    <input {...register('newRoomCode')} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Kode Ruang (ex: R101)" />
+                                <p className="text-xs font-bold text-blue-600 uppercase tracking-wider text-center">Data Ruangan Baru</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Nama Ruangan</label>
+                                        <input
+                                            {...register('newRoomName', { required: selectedRoomId === 'other' })}
+                                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
+                                            placeholder="Contoh: Ruang Rapat"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase text-blue-600">Lokasi (Misal: Lapai)</label>
+                                        <input
+                                            {...register('newRoomBuilding')}
+                                            className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
+                                            placeholder="Gedung / Area / Lokasi"
+                                        />
+                                    </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <input {...register('newRoomFloor')} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Lantai (ex: 1)" />
-                                    <input {...register('newRoomBuilding')} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Gedung (ex: Utama)" />
-                                </div>
+                                <p className="text-[10px] text-blue-500 italic font-medium px-1">
+                                    * Kode ruangan akan dibuat otomatis (KodeUnit-xx) dan Lantai diset ke '1' secara default.
+                                </p>
                             </div>
                         )}
 
