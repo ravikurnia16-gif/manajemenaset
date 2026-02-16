@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Upload, FileSpreadsheet, Download } from 'lucide-react';
-import * as XLSX from 'xlsx'; // Import XLSX
+import * as XLSX from 'xlsx'; // Import XLSX for reading
+import ExcelJS from 'exceljs'; // Import ExcelJS for writing with validation
 import api from '../lib/axios';
 
 const ProcurementForm = () => {
@@ -107,15 +108,53 @@ const ProcurementForm = () => {
         reader.readAsBinaryString(file);
     };
 
-    const handleDownloadTemplate = () => {
-        const template = [
-            { "Nama Barang": "Laptop", "Spesifikasi": "RAM 8GB", "Jumlah": 1, "Satuan": "Unit", "Estimasi Harga": 5000000, "Sumber Dana": "Mandiri", "Jenis": "Aset" },
-            { "Nama Barang": "Kertas A4", "Spesifikasi": "70gr", "Jumlah": 10, "Satuan": "Rim", "Estimasi Harga": 55000, "Sumber Dana": "Mandiri", "Jenis": "Non-Aset" }
+    const handleDownloadTemplate = async () => {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Template');
+
+        worksheet.columns = [
+            { header: 'Nama Barang', key: 'name', width: 25 },
+            { header: 'Spesifikasi', key: 'spec', width: 30 },
+            { header: 'Jumlah', key: 'qty', width: 10 },
+            { header: 'Satuan', key: 'unit', width: 10 },
+            { header: 'Estimasi Harga', key: 'estPrice', width: 15 },
+            { header: 'Sumber Dana', key: 'fundingSource', width: 15 },
+            { header: 'Jenis', key: 'type', width: 15 }
         ];
-        const ws = XLSX.utils.json_to_sheet(template);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Template");
-        XLSX.writeFile(wb, "Template_Request.xlsx");
+
+        // Style the header
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFE0E0E0' }
+        };
+
+        // Add sample data
+        worksheet.addRow({ name: 'Laptop', spec: 'RAM 16GB', qty: 1, unit: 'Unit', estPrice: 15000000, fundingSource: 'Mandiri', type: 'Aset' });
+        worksheet.addRow({ name: 'Kertas A4', spec: '70gr', qty: 10, unit: 'Rim', estPrice: 55000, fundingSource: 'Mandiri', type: 'Non-Aset' });
+
+        // Add data validation for "Jenis" column (Column G)
+        for (let i = 2; i <= 100; i++) {
+            worksheet.getCell(`G${i}`).dataValidation = {
+                type: 'list',
+                allowBlank: true,
+                formulae: ['"Aset,Non-Aset"'],
+                showErrorMessage: true,
+                errorStyle: 'stop',
+                errorTitle: 'Input Tidak Valid',
+                error: 'Mohon pilih kategori yang sesuai: Aset atau Non-Aset'
+            };
+        }
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Template_Request_${new Date().toISOString().split('T')[0]}.xlsx`;
+        a.click();
+        window.URL.revokeObjectURL(url);
     };
 
     const handleSubmit = async (e) => {
