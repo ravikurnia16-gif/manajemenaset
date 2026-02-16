@@ -422,11 +422,27 @@ const sendCalendarReminders = async () => {
 
 const sendWeeklyCalendarSummary = async () => {
     try {
-        const ravi = await prisma.user.findUnique({ where: { nip: '24071613' } });
+        console.log('[Weekly Summary] Starting summary generation...');
+
+        // Find Ravi Kurnia - Try NIP first, then Name as fallback
+        let ravi = await prisma.user.findUnique({ where: { nip: '24071613' } });
+
+        if (!ravi) {
+            console.log('[Weekly Summary] NIP lookup failed, trying name search...');
+            ravi = await prisma.user.findFirst({
+                where: {
+                    name: { contains: 'Ravi Kurnia' },
+                    phone: { not: null, not: '' }
+                }
+            });
+        }
+
         if (!ravi || !ravi.phone) {
-            console.log('[Weekly Summary] Ravi Kurnia not found or has no phone.');
+            console.error('[Weekly Summary] ERROR: Ravi Kurnia not found or has no phone number in database.');
             return;
         }
+
+        console.log(`[Weekly Summary] Found recipient: ${ravi.name} (${ravi.phone})`);
 
         // 1. Calculate this week's range (Monday - Sunday)
         const today = new Date();
@@ -471,9 +487,12 @@ const sendWeeklyCalendarSummary = async () => {
         });
 
         allWeekly.sort((a, b) => new Date(a.date) - new Date(b.date));
+        console.log(`[Weekly Summary] Found ${allWeekly.length} events for this week.`);
 
         if (allWeekly.length === 0) {
-            console.log('[Weekly Summary] No events for this week.');
+            console.log('[Weekly Summary] No events for this week. Sending empty report.');
+            const emptyMsg = `📅 *LAPORAN KEGIATAN PEKAN INI*\nPeriode: ${monday.toLocaleDateString('id-ID')} - ${sunday.toLocaleDateString('id-ID')}\n\n*Tidak ada agenda kegiatan yang tercatat untuk pekan ini.*\n\nTerima kasih.`;
+            await whatsappService.sendMessage(ravi.phone, emptyMsg);
             return;
         }
 
@@ -498,9 +517,10 @@ const sendWeeklyCalendarSummary = async () => {
         msg += `Terima kasih.`;
 
         await whatsappService.sendMessage(ravi.phone, msg);
-        console.log(`[Weekly Summary] Sent to Ravi Kurnia (${allWeekly.length} events)`);
+        console.log(`[Weekly Summary] SUCCESS: Message sent to ${ravi.name}`);
     } catch (error) {
-        console.error('[Weekly Summary] Error:', error);
+        console.error('[Weekly Summary] CRITICAL ERROR:', error);
+        if (error.stack) console.error(error.stack);
     }
 };
 

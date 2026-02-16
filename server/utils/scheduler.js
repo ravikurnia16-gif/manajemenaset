@@ -9,10 +9,11 @@ const initScheduler = () => {
         clearInterval(schedulerInterval);
     }
 
-    console.log('[Scheduler] Initialized. Checking tasks every 60 seconds...');
+    console.log(`[${new Date().toLocaleString()}] [Scheduler] Initialized. Checking tasks every 60 seconds...`);
 
     schedulerInterval = setInterval(async () => {
         const now = new Date();
+        const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
         const day = now.getDay(); // 0 = Sunday, 1 = Monday
         const hour = now.getHours();
         const minute = now.getMinutes();

@@ -192,7 +192,7 @@ exports.createAssignment = async (req, res) => {
                 });
 
                 if (assignee?.phone) {
-                    const msg = `*Info Penugasan Sarpras*\n\n` +
+                    const msg = `*Bismillah*\n\n` +
                         `Telah masuk permintaan dari Kepala Bidang Sarana dan Prasarana Dengan Rinciannya:\n\n` +
                         `📌 *Judul* : ${title}\n` +
                         `📅 *Deadline* : ${dueDate ? new Date(dueDate).toLocaleDateString('id-ID') : '-'}\n` +
