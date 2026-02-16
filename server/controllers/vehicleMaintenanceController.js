@@ -1,6 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { sendWhatsAppMessage } = require('../services/whatsappService');
+const { sendMessage } = require('../services/whatsappService');
 
 // Get all maintenance logs
 exports.getAllMaintenanceLogs = async (req, res) => {
@@ -161,7 +161,7 @@ exports.checkMaintenanceNotifications = async () => {
 
                 setTimeout(async () => {
                     try {
-                        await sendWhatsAppMessage(person.phone, message);
+                        await sendMessage(person.phone, message);
                         console.log(`Notification sent for ${log.vehicle.name} to ${person.name} (${person.phone})`);
                     } catch (e) {
                         console.error(`[Vehicle Maintenance] Failed to notify ${person.name}:`, e.message);
@@ -265,7 +265,7 @@ exports.checkKmServiceNotifications = async () => {
 
                 setTimeout(async () => {
                     try {
-                        await sendWhatsAppMessage(person.phone, message);
+                        await sendMessage(person.phone, message);
                         console.log(`[KM Service] Notification sent for ${vehicle.name} to ${person.name} (${person.phone})`);
                     } catch (e) {
                         console.error(`[KM Service] Failed to notify ${person.name}:`, e.message);
