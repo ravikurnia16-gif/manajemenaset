@@ -19,7 +19,7 @@ const ProcurementForm = () => {
             .then(res => {
                 if (Array.isArray(res.data)) {
                     // Merge defaults with API data, convert to Set to remove duplicates
-                    const defaults = ['Yayasan', 'Hibah', 'Wakaf'];
+                    const defaults = ['Yayasan', 'Hibah', 'Wakaf', 'BOS', 'Cashback', 'Lainnya'];
                     const uniqueSources = [...new Set([...defaults, ...res.data])];
                     setFundingSources(uniqueSources);
                 } else {
