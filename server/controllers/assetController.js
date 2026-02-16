@@ -27,6 +27,7 @@ exports.createAsset = async (req, res) => {
             quantity,
             acquisitionStatus,
             picId, picName,
+            vendorId, usefulLife, specification, sourceOfFunds,
             // Additional fields for "Other" options
             newCategoryName, newCategoryCode,
             newVendorName, newVendorContact,
