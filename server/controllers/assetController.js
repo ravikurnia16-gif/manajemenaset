@@ -562,13 +562,16 @@ exports.batchImportAssets = async (req, res) => {
                 const roomName = String(item['Ruangan Aset']).trim();
                 let room = await tx.room.findFirst({ where: { name: { equals: roomName } } });
                 if (!room) {
-                    const baseCode = roomName.substring(0, 3).toUpperCase();
+                    const count = await tx.room.count({ where: { unitId: unit.id } });
+                    const seq = (count + 1).toString().padStart(2, '0');
+                    const finalRoomCode = `${unit.code}-${seq}`;
+
                     room = await tx.room.create({
                         data: {
                             name: roomName,
-                            code: `${baseCode}-${Math.floor(Math.random() * 900) + 100}`,
+                            code: finalRoomCode,
                             floor: '1',
-                            building: 'Utama',
+                            building: '-',
                             unitId: unit.id
                         }
                     });
