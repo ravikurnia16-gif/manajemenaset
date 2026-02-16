@@ -105,11 +105,10 @@ const createOrder = async (req, res) => {
             include: { items: { include: { item: true } } }
         });
 
-        // Send WhatsApp notifications with 1-minute interval
-        setTimeout(async () => {
+        // Send WhatsApp notifications via global staggered queue
+        (async () => {
             const waService = require('../services/whatsappService');
-            const sendWhatsAppMessage = waService.sendMessage;
-            if (!sendWhatsAppMessage) return;
+            if (!waService.sendMessage) return;
 
             try {
                 // Generate Item List String
@@ -123,7 +122,7 @@ const createOrder = async (req, res) => {
                     itemListText = parts[1]?.trim() || '_Detail di catatan_';
                 }
 
-                // 1. Send to Customer first
+                // 1. Send to Customer
                 if (order.customerPhone) {
                     const customerMsg = `Assalamu'alaikum Warahmatullahi Wabarakatuh Abu/Ummu *${order.studentName}*\n\n` +
                         `Pesanan seragam atas nama *${order.studentName}* telah kami terima.\n` +
@@ -132,41 +131,32 @@ const createOrder = async (req, res) => {
                         `InsyaaAllah akan segera diproses.\n` +
                         `Jazaakumullahu khairan.`;
 
-                    await sendWhatsAppMessage(order.customerPhone, customerMsg);
-                    console.log(`[WhatsApp] Sent to customer. Waiting 60s for next message...`);
+                    await waService.sendMessage(order.customerPhone, customerMsg);
                 }
 
-                // 2. Wait 60 seconds before sending to Jeri Saputra
-                setTimeout(async () => {
-                    try {
-                        const targetNip = '18121079';
-                        const targetUser = await prisma.user.findFirst({ where: { nip: targetNip } });
+                // 2. Send to Jeri Saputra
+                const targetNip = '18121079';
+                const targetUser = await prisma.user.findFirst({ where: { nip: targetNip } });
 
-                        if (targetUser && targetUser.phone) {
-                            const gender = req.body.gender || '-';
-                            const specificMsg = `Assalamu'alaikum Warrahmatullahi Wabarakatuh Bapak *${targetUser.name || 'Jeri Saputra'}*,\n\n` +
-                                `Telah masuk pesanan baru dengan rincian:\n\n` +
-                                `📋 Kode: *${order.code}*\n` +
-                                `👨‍🎓 Nama Siswa: *${order.studentName}*\n` +
-                                `🚻 Jenis Kelamin: ${gender}\n` +
-                                `🏫 Unit: ${order.customerUnit}\n` +
-                                `📱 No HP (WA): ${order.customerPhone}\n\n` +
-                                `📦 *Pesanan:*\n${itemListText}\n\n` +
-                                `📝 Catatan: ${order.note?.split('\n\n')[1]?.replace('ITEM PESANAN:', '')?.trim() || '-'}\n\n` +
-                                `Mohon segera diproses. Syukran.`;
+                if (targetUser && targetUser.phone) {
+                    const gender = req.body.gender || '-';
+                    const specificMsg = `Assalamu'alaikum Warrahmatullahi Wabarakatuh Bapak *${targetUser.name || 'Jeri Saputra'}*,\n\n` +
+                        `Telah masuk pesanan baru dengan rincian:\n\n` +
+                        `📋 Kode: *${order.code}*\n` +
+                        `👨‍🎓 Nama Siswa: *${order.studentName}*\n` +
+                        `🚻 Jenis Kelamin: ${gender}\n` +
+                        `🏫 Unit: ${order.customerUnit}\n` +
+                        `📱 No HP (WA): ${order.customerPhone}\n\n` +
+                        `📦 *Pesanan:*\n${itemListText}\n\n` +
+                        `📝 Catatan: ${order.note?.split('\n\n')[1]?.replace('ITEM PESANAN:', '')?.trim() || '-'}\n\n` +
+                        `Mohon segera diproses. Syukran.`;
 
-                            await sendWhatsAppMessage(targetUser.phone, specificMsg);
-                            console.log(`[WhatsApp] Sent to Jeri Saputra.`);
-                        }
-                    } catch (err) {
-                        console.error('WA delivery to Jeri failed:', err.message);
-                    }
-                }, 60000); // 1 minute interval
-
+                    await waService.sendMessage(targetUser.phone, specificMsg);
+                }
             } catch (waError) {
                 console.error('WA notification delivery failed:', waError.message);
             }
-        }, 5000); // 5s initial delay before starting the flow
+        })();
 
         res.json({ message: 'Pesanan berhasil dibuat!', order });
     } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }

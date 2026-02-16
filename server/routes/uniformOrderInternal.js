@@ -87,7 +87,7 @@ const createOrder = async (req, res) => {
 
         // Send WhatsApp notification
         try {
-            const { sendWhatsAppMessage } = require('../services/whatsappService');
+            const { sendMessage } = require('../services/whatsappService');
             const settings = await prisma.setting.findFirst();
             if (settings?.waGroupId) {
                 const itemList = order.items.map((oi, i) =>
@@ -104,7 +104,7 @@ const createOrder = async (req, res) => {
                     `💰 Total: Rp ${order.totalAmount.toLocaleString('id-ID')}\n` +
                     `📝 Catatan: ${order.note || '-'}`;
 
-                await sendWhatsAppMessage(settings.waGroupId, msg);
+                await sendMessage(settings.waGroupId, msg);
             }
         } catch (waError) {
             console.error('WA notification failed:', waError.message);
