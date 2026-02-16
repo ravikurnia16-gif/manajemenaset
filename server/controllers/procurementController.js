@@ -119,26 +119,27 @@ exports.createProcurement = async (req, res) => {
             }
         }
 
-        const code = await generateCode();
+        const results = [];
 
-        const result = await prisma.$transaction(async (prisma) => {
-            // Create Header
-            const procurement = await prisma.procurement.create({
-                data: {
-                    code,
-                    title: title || `Permintaan Pengadaan ${type} - ${new Date().toLocaleDateString('id-ID')}`,
-                    userId: user.id,
-                    unitId: user.unitId,
-                    type,
-                    status: 'SUBMITTED',
-                    rkbId: rkbId ? parseInt(rkbId) : null
-                }
-            });
+        for (const item of items) {
+            const code = await generateCode();
+            const result = await prisma.$transaction(async (prisma) => {
+                // Create Header
+                const procurement = await prisma.procurement.create({
+                    data: {
+                        code,
+                        title: title ? `${title} - ${item.name}` : `Permintaan: ${item.name}`,
+                        userId: user.id,
+                        unitId: user.unitId,
+                        type,
+                        status: 'SUBMITTED',
+                        rkbId: rkbId ? parseInt(rkbId) : null
+                    }
+                });
 
-            // Create Items
-            if (items && items.length > 0) {
-                await prisma.procurementItem.createMany({
-                    data: items.map(item => ({
+                // Create Item (single)
+                await prisma.procurementItem.create({
+                    data: {
                         procurementId: procurement.id,
                         name: item.name,
                         spec: item.spec,
@@ -146,19 +147,19 @@ exports.createProcurement = async (req, res) => {
                         unit: item.unit,
                         estPrice: parseFloat(item.estPrice || 0),
                         fundingSource: item.fundingSource || 'Mandiri'
-                    }))
+                    }
                 });
-            }
 
-            return procurement;
-        });
+                return procurement;
+            });
+            results.push(result);
+        }
 
-        res.json({ message: 'Request submitted', data: result });
+        res.json({ message: `${results.length} Request(s) submitted`, data: results });
 
         // --- WhatsApp Notification (Async) ---
         (async () => {
             try {
-                // 1. Fetch Submitter Details (Name, NIP, Unit)
                 const submitter = await prisma.user.findUnique({
                     where: { id: user.id },
                     include: { unit: true }
@@ -166,22 +167,22 @@ exports.createProcurement = async (req, res) => {
 
                 if (!submitter) return;
 
-                // Format Item List
+                // For split Requests, we send a summary to Submitter or individual?
+                // Grouping them for the notification is better to avoid spamming the requester.
                 const itemList = (items || []).map((item, index) =>
                     `${index + 1}. ${item.name} (${item.qty} ${item.unit})`
                 ).join('\n');
 
-                // 2. Send Confirmation to Submitter
                 if (submitter.phone) {
                     const msgSubmitter = `*Info Request Pengadaan*\n\n` +
-                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*, permintaan anda telah kami terima dengan rincian:\n\n` +
+                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*, ${results.length} permintaan anda telah kami terima dengan rincian:\n\n` +
                         `${itemList}\n\n` +
                         `Pesanan Ustadz/Ustadzah akan segera kami proses.`;
 
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
 
-                // 3. Notify Admins: Ravi Kurnia (24071613), Eldo (26021760), and Syafrian (25041676)
+                // 3. Notify Admins
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
@@ -195,7 +196,7 @@ exports.createProcurement = async (req, res) => {
 
                 if (admins.length > 0) {
                     const msgAdm = `*Info Request Pengadaan*\n\n` +
-                        `Pesanan telah masuk dari:\n` +
+                        `Ada ${results.length} pesanan baru dari:\n` +
                         `\u{1F464} *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
                         `\u{1F194} *NIY* : ${submitter.username || '-'}\n` +
                         `\u{1F3E2} *Unit* : ${submitter.unit?.name || '-'}\n\n` +
@@ -203,6 +204,7 @@ exports.createProcurement = async (req, res) => {
                         `${itemList}\n\n` +
                         `Mohon segera di proses.`;
 
+                    // Simple delay then staggering
                     setTimeout(async () => {
                         let cumulativeDelay = 0;
                         for (const admin of admins) {
@@ -211,7 +213,6 @@ exports.createProcurement = async (req, res) => {
 
                             setTimeout(async () => {
                                 try {
-                                    console.log(`Sending WA to Admin ${admin.username} (${admin.phone})...`);
                                     await whatsappService.sendMessage(admin.phone, msgAdm);
                                 } catch (e) {
                                     console.error(`Failed sending to ${admin.username}:`, e);
@@ -220,7 +221,6 @@ exports.createProcurement = async (req, res) => {
                         }
                     }, 30000);
                 }
-
             } catch (err) {
                 console.error("WA Notification Error:", err);
             }
@@ -247,38 +247,41 @@ exports.importProcurement = async (req, res) => {
             }
         }
 
-        const code = await generateCode();
+        const results = [];
+        for (const item of items) {
+            const code = await generateCode();
+            const result = await prisma.$transaction(async (prisma) => {
+                // 1. Create Header
+                const procurement = await prisma.procurement.create({
+                    data: {
+                        code,
+                        title: title ? `${title} - ${item.name}` : `Import: ${item.name}`,
+                        userId: user.id,
+                        unitId: user.unitId,
+                        type,
+                        status: 'SUBMITTED'
+                    }
+                });
 
-        const result = await prisma.$transaction(async (prisma) => {
-            // 1. Create Header
-            const procurement = await prisma.procurement.create({
-                data: {
-                    code,
-                    title: title || `Import Request ${type} - ${new Date().toLocaleDateString('id-ID')}`,
-                    userId: user.id,
-                    unitId: user.unitId,
-                    type,
-                    status: 'SUBMITTED'
-                }
+                // 2. Create Item (single)
+                await prisma.procurementItem.create({
+                    data: {
+                        procurementId: procurement.id,
+                        name: item.name,
+                        spec: item.spec ? String(item.spec) : '-',
+                        qty: parseInt(item.qty),
+                        unit: item.unit ? String(item.unit) : 'Unit',
+                        estPrice: parseFloat(item.estPrice || 0),
+                        fundingSource: item.fundingSource || 'Mandiri'
+                    }
+                });
+
+                return procurement;
             });
+            results.push(result);
+        }
 
-            // 2. Create Items
-            await prisma.procurementItem.createMany({
-                data: items.map(item => ({
-                    procurementId: procurement.id,
-                    name: item.name,
-                    spec: item.spec ? String(item.spec) : '-',
-                    qty: parseInt(item.qty),
-                    unit: item.unit ? String(item.unit) : 'Unit',
-                    estPrice: parseFloat(item.estPrice || 0),
-                    fundingSource: item.fundingSource || 'Mandiri'
-                }))
-            });
-
-            return procurement;
-        });
-
-        res.json({ message: 'Import berhasil!', data: result });
+        res.json({ message: `Import berhasil! ${results.length} Request(s) dibuat.`, data: results });
 
         // --- WhatsApp Notification (Async) ---
         (async () => {
@@ -296,7 +299,7 @@ exports.importProcurement = async (req, res) => {
                     `${index + 1}. ${item.name} (${item.qty} ${item.unit})`
                 ).join('\n');
 
-                // 2. Notify Admins: Ravi Kurnia (24071613), Eldo (26021760), and Syafrian (25041676)
+                // 2. Notify Admins
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
@@ -310,7 +313,7 @@ exports.importProcurement = async (req, res) => {
 
                 if (admins.length > 0) {
                     const msgAdm = `*[IMPORT REQUEST PENGADAAN]* 📥\n\n` +
-                        `Pesanan telah di-import dari Excel oleh:\n` +
+                        `Ada ${results.length} pesanan baru di-import dari Excel oleh:\n` +
                         `\u{1F464} *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
                         `\u{1F194} *NIY* : ${submitter.username || '-'}\n` +
                         `\u{1F3E2} *Unit* : ${submitter.unit?.name || '-'}\n\n` +

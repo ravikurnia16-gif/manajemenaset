@@ -239,6 +239,24 @@ const ProcurementDetail = () => {
                                         setLoading(false);
                                     }
 
+                                    // If moving from Finalisasi (tab 4) to subsequent tabs
+                                    if (activeTab === 4 && s.step > 4) {
+                                        const incomplete = req.items.find(item => !item.vendorId || !item.finalPrice);
+                                        if (incomplete) {
+                                            return alert(`Harap lengkapi Vendor dan Harga Final untuk item: ${incomplete.name}`);
+                                        }
+                                        setLoading(true);
+                                        try {
+                                            for (const item of req.items) {
+                                                await handleSaveItem(item, true);
+                                            }
+                                        } catch (e) {
+                                            setLoading(false);
+                                            return alert('Gagal simpan otomatis.');
+                                        }
+                                        setLoading(false);
+                                    }
+
                                     setActiveTab(s.step);
                                 }}
                                 className={`flex-1 min-w-[120px] py-4 text-xs font-bold flex flex-col items-center gap-1 border-b-2 transition-colors ${activeTab === s.step ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-500 hover:bg-slate-50'} ${isDisabled ? 'opacity-30 cursor-not-allowed' : ''}`}
@@ -553,8 +571,28 @@ const ProcurementDetail = () => {
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                     <DollarSign size={18} /> Tahap 4: Finalisasi Harga & Vendor
                                 </h3>
-                                {(isAdmin || isAssignedToAny) && req.status === 'PROCESS' && (
-                                    <button onClick={() => setActiveTab(5)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm">
+                                {isAdmin && req.status === 'PROCESS' && (
+                                    <button
+                                        onClick={async () => {
+                                            const incomplete = req.items.find(item => !item.vendorId || !item.finalPrice);
+                                            if (incomplete) {
+                                                return alert(`Harap lengkapi Vendor dan Harga Final untuk item: ${incomplete.name}`);
+                                            }
+                                            // Auto-save all items
+                                            setLoading(true);
+                                            try {
+                                                for (const item of req.items) {
+                                                    await handleSaveItem(item, true);
+                                                }
+                                                setActiveTab(5);
+                                            } catch (error) {
+                                                alert('Gagal menyimpan data final. Periksa koneksi.');
+                                            } finally {
+                                                setLoading(false);
+                                            }
+                                        }}
+                                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm"
+                                    >
                                         Lanjut ke Serah Terima &rsaquo;
                                     </button>
                                 )}
@@ -569,8 +607,7 @@ const ProcurementDetail = () => {
                                             <th className="p-3">Harga Final</th>
                                             <th className="p-3">Brand</th>
                                             {req.type === 'ASSET' && <th className="p-3">Umur</th>}
-                                            <th className="p-3">Sumber Dana</th>
-                                            <th className="p-3 rounded-r-lg text-center">Aksi</th>
+                                            <th className="p-3 rounded-r-lg">Sumber Dana</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
@@ -635,7 +672,7 @@ const ProcurementDetail = () => {
                                                         />
                                                     </td>
                                                 )}
-                                                <td className="p-3 w-32">
+                                                <td className="p-3">
                                                     <select
                                                         className="w-full border border-slate-300 rounded p-1.5 text-xs bg-white focus:border-blue-500 outline-none"
                                                         value={item.fundingSource || 'Mandiri'}
@@ -647,13 +684,6 @@ const ProcurementDetail = () => {
                                                         <option value="Wakaf">Wakaf</option>
                                                         <option value="Mandiri">Mandiri</option>
                                                     </select>
-                                                </td>
-                                                <td className="p-3 text-center">
-                                                    {(isAdmin || isAssignedToItem(item)) && req.status === 'PROCESS' && (
-                                                        <button onClick={() => handleSaveItem(item)} className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded text-xs font-bold shadow-sm">
-                                                            Simpan
-                                                        </button>
-                                                    )}
                                                 </td>
                                             </tr>
                                         ))}
