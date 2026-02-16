@@ -4,6 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const whatsappService = require('../services/whatsappService');
 
+// Debounce map for assignment notifications: { "userId-procId": Timer }
+const assignmentTimers = new Map();
+
 // Helper to generate Request Code
 const generateCode = async () => {
     const year = new Date().getFullYear();
@@ -451,38 +454,55 @@ exports.updateItemDetail = async (req, res) => {
         });
         res.json(item);
 
-        // --- WhatsApp Notification: Penugasan (Async) ---
+        // --- WhatsApp Notification: Penugasan (Async & Debounced) ---
         if (assignedToId) {
-            (async () => {
+            const key = `${assignedToId}-${item.procurementId}`;
+
+            // Clear existing timer if any
+            if (assignmentTimers.has(key)) {
+                clearTimeout(assignmentTimers.get(key));
+            }
+
+            // Set new timer (60 seconds debounce)
+            const timer = setTimeout(async () => {
                 try {
+                    assignmentTimers.delete(key);
+
                     const assignedUser = await prisma.user.findUnique({
                         where: { id: parseInt(assignedToId) }
                     });
 
                     if (!assignedUser || !assignedUser.phone) return;
 
-                    const procInfo = await prisma.procurement.findUnique({
+                    const procurement = await prisma.procurement.findUnique({
                         where: { id: item.procurementId },
-                        include: { user: true }
+                        include: {
+                            items: {
+                                where: { assignedToId: parseInt(assignedToId) }
+                            }
+                        }
                     });
+
+                    if (!procurement || procurement.items.length === 0) return;
+
+                    const itemListMsg = procurement.items.map((it, idx) =>
+                        `${idx + 1}. *${it.name}*` + (it.spec && it.spec !== '-' ? ` (${it.spec})` : '')
+                    ).join('\n');
 
                     const msg = `*Info Penugasan Pengadaan*\n\n` +
                         `Ustadz/Ustadzah *${assignedUser.name || assignedUser.username}*,\n\n` +
-                        `Anda telah ditugaskan untuk mengelola item *"${item.name}"* pada pengajuan pengadaan *"${procInfo?.title || procInfo?.code || '-'}"*.\n\n` +
+                        `Anda telah ditugaskan untuk mengelola item berikut pada pengajuan *"${procurement.title || procurement.code}"*:\n\n` +
+                        `${itemListMsg}\n\n` +
                         `Mohon segera ditindaklanjuti. Terima kasih.`;
 
-                    setTimeout(async () => {
-                        try {
-                            await whatsappService.sendMessage(assignedUser.phone, msg);
-                            console.log(`[WA] Assignment notification sent to ${assignedUser.username}`);
-                        } catch (e) {
-                            console.error('[WA] Failed assignment notification:', e);
-                        }
-                    }, 30000);
+                    await whatsappService.sendMessage(assignedUser.phone, msg);
+                    console.log(`[WA] Consolidated assignment notification sent to ${assignedUser.username} for ${procurement.items.length} items`);
                 } catch (err) {
                     console.error('WA Assignment Notification Error:', err);
                 }
-            })();
+            }, 60000);
+
+            assignmentTimers.set(key, timer);
         }
 
         // --- WhatsApp Notification: Vendor Terpilih (Async) ---
