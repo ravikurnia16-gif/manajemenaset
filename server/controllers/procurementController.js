@@ -131,7 +131,7 @@ exports.createProcurement = async (req, res) => {
                         title: title ? `${title} - ${item.name}` : `Permintaan: ${item.name}`,
                         userId: user.id,
                         unitId: user.unitId,
-                        type,
+                        type: item.type || type || 'ASSET',
                         status: 'SUBMITTED',
                         rkbId: rkbId ? parseInt(rkbId) : null
                     }
@@ -258,7 +258,7 @@ exports.importProcurement = async (req, res) => {
                         title: title ? `${title} - ${item.name}` : `Import: ${item.name}`,
                         userId: user.id,
                         unitId: user.unitId,
-                        type,
+                        type: item.type || type || 'ASSET',
                         status: 'SUBMITTED'
                     }
                 });

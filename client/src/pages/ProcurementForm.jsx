@@ -6,10 +6,10 @@ import api from '../lib/axios';
 
 const ProcurementForm = () => {
     const navigate = useNavigate();
-    const [header, setHeader] = useState({ title: '', type: 'ASSET', rkbId: '' });
+    const [header, setHeader] = useState({ title: '', rkbId: '' });
     const [fundingSources, setFundingSources] = useState(['Yayasan', 'Hibah', 'Wakaf', 'Mandiri']);
     const [items, setItems] = useState([
-        { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan' }
+        { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan', type: 'ASSET' }
     ]);
     const [loading, setLoading] = useState(false);
     const fileInputRef = useRef(null);
@@ -39,7 +39,7 @@ const ProcurementForm = () => {
     };
 
     const addItem = () => {
-        setItems([...items, { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan' }]);
+        setItems([...items, { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan', type: 'ASSET' }]);
     };
 
     const removeItem = (index) => {
@@ -72,13 +72,17 @@ const ProcurementForm = () => {
                 if (!qty || qty <= 0) errors.push(`Baris ${rowNum}: Jumlah harus lebih dari 0.`);
                 if (!unit) errors.push(`Baris ${rowNum}: Satuan wajib diisi (Pcs/Unit/dll).`);
 
+                const rawType = row['Jenis'] || row['Type'] || 'Aset';
+                const type = (rawType.toLowerCase().includes('non')) ? 'NON_ASSET' : 'ASSET';
+
                 return {
                     name,
                     spec: row['Spesifikasi'] || row['Spec'] || '-',
                     qty,
                     unit,
                     estPrice: parseFloat(row['Harga'] || row['Estimasi Harga'] || 0) || 0,
-                    fundingSource: row['Sumber Dana'] || row['Funding'] || 'Mandiri'
+                    fundingSource: row['Sumber Dana'] || row['Funding'] || 'Mandiri',
+                    type
                 };
             });
 
@@ -105,7 +109,8 @@ const ProcurementForm = () => {
 
     const handleDownloadTemplate = () => {
         const template = [
-            { "Nama Barang": "Laptop", "Spesifikasi": "RAM 8GB", "Jumlah": 1, "Satuan": "Unit", "Estimasi Harga": 5000000, "Sumber Dana": "Mandiri" }
+            { "Nama Barang": "Laptop", "Spesifikasi": "RAM 8GB", "Jumlah": 1, "Satuan": "Unit", "Estimasi Harga": 5000000, "Sumber Dana": "Mandiri", "Jenis": "Aset" },
+            { "Nama Barang": "Kertas A4", "Spesifikasi": "70gr", "Jumlah": 10, "Satuan": "Rim", "Estimasi Harga": 55000, "Sumber Dana": "Mandiri", "Jenis": "Non-Aset" }
         ];
         const ws = XLSX.utils.json_to_sheet(template);
         const wb = XLSX.utils.book_new();
@@ -146,28 +151,15 @@ const ProcurementForm = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-8">
                     {/* Header Section */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-xl border border-slate-200">
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Judul Pengajuan (Wajib)</label>
-                            <input
-                                className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-700"
-                                placeholder="Contoh: Pengadaan Laptop Baru untuk Divisi IT"
-                                value={header.title}
-                                onChange={e => setHeader({ ...header, title: e.target.value })}
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">Jenis Pengadaan</label>
-                            <select
-                                className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
-                                value={header.type}
-                                onChange={e => setHeader({ ...header, type: e.target.value })}
-                            >
-                                <option value="ASSET">Aset (Barang Modal/Investasi)</option>
-                                <option value="NON_ASSET">Non-Aset (Habis Pakai)</option>
-                            </select>
-                        </div>
+                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                        <label className="block text-sm font-bold text-slate-700 mb-2">Judul Pengajuan (Wajib)</label>
+                        <input
+                            className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-700"
+                            placeholder="Contoh: Pengadaan Alat TIK untuk Unit IT"
+                            value={header.title}
+                            onChange={e => setHeader({ ...header, title: e.target.value })}
+                            required
+                        />
                     </div>
 
                     {/* Items Section */}
@@ -204,8 +196,8 @@ const ProcurementForm = () => {
                                         {index + 1}
                                     </div>
                                     <div className="flex-1 space-y-3">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="md:col-span-1">
                                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Nama Barang</label>
                                                 <input
                                                     placeholder="Contoh: Laptop Dell XPS"
@@ -215,7 +207,7 @@ const ProcurementForm = () => {
                                                     required
                                                 />
                                             </div>
-                                            <div>
+                                            <div className="md:col-span-1">
                                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Spesifikasi</label>
                                                 <input
                                                     placeholder="Contoh: RAM 16GB, SSD 512GB"
@@ -223,6 +215,17 @@ const ProcurementForm = () => {
                                                     value={item.spec}
                                                     onChange={e => handleItemChange(index, 'spec', e.target.value)}
                                                 />
+                                            </div>
+                                            <div className="md:col-span-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Jenis</label>
+                                                <select
+                                                    className="border border-slate-300 p-2 rounded text-sm w-full focus:border-blue-500 outline-none bg-white font-bold text-blue-800"
+                                                    value={item.type}
+                                                    onChange={e => handleItemChange(index, 'type', e.target.value)}
+                                                >
+                                                    <option value="ASSET">Aset</option>
+                                                    <option value="NON_ASSET">Non-Aset</option>
+                                                </select>
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-4 gap-4">
