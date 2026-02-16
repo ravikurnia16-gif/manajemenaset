@@ -145,16 +145,25 @@ exports.createAsset = async (req, res) => {
         // --- WhatsApp Notification (Async - Non Blocking) ---
         (async () => {
             try {
-                // 1. Get Users with Phone Numbers
-                const users = await prisma.user.findMany({
-                    where: { phone: { not: null } },
-                    select: { phone: true, username: true }
-                });
+                // 1. Find Ravi Kurnia specifically (Try NIP first, then Name as fallback)
+                let ravi = await prisma.user.findUnique({ where: { nip: '24071613' } });
 
-                if (users.length === 0) return;
+                if (!ravi) {
+                    ravi = await prisma.user.findFirst({
+                        where: {
+                            name: { contains: 'Ravi Kurnia' },
+                            phone: { not: null, not: '' }
+                        }
+                    });
+                }
+
+                if (!ravi || !ravi.phone) {
+                    console.log("[WhatsApp Notification] Skip: Ravi Kurnia not found or no phone.");
+                    return;
+                }
 
                 // 2. Prepare Message
-                const asset = result; // The created asset (or the first one if multiple)
+                const asset = result;
                 const message = `*[INFO ASET BARU]*\n\n` +
                     `Telah ditambahkan aset baru ke dalam sistem:\n\n` +
                     `📦 *Nama*: ${asset.name}\n` +
@@ -163,12 +172,9 @@ exports.createAsset = async (req, res) => {
                     `👤 *Input Oleh*: ${req.user ? req.user.username : 'System'}\n\n` +
                     `_Pesan otomatis dari Sistem Manajemen Aset_`;
 
-                // 3. Send to All Users
-                for (const user of users) {
-                    if (user.phone) {
-                        await whatsappService.sendMessage(user.phone, message);
-                    }
-                }
+                // 3. Send to Ravi Only
+                await whatsappService.sendMessage(ravi.phone, message);
+                console.log(`[WhatsApp Notification] New asset info sent to ${ravi.name}`);
             } catch (waError) {
                 console.error("[WhatsApp Notification Error]", waError);
             }

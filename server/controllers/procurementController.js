@@ -264,6 +264,58 @@ exports.importProcurement = async (req, res) => {
         });
 
         res.json({ message: 'Import berhasil!', data: result });
+
+        // --- WhatsApp Notification (Async) ---
+        (async () => {
+            try {
+                // 1. Fetch Submitter Details
+                const submitter = await prisma.user.findUnique({
+                    where: { id: user.id },
+                    include: { unit: true }
+                });
+
+                if (!submitter) return;
+
+                // Format Item List
+                const itemList = (items || []).map((item, index) =>
+                    `${index + 1}. ${item.name} (${item.qty} ${item.unit})`
+                ).join('\n');
+
+                // 2. Notify Admins: Ravi Kurnia (24071613), Eldo (26021760), and Syafrian (25041676)
+                const admins = await prisma.user.findMany({
+                    where: {
+                        OR: [
+                            { nip: '24071613' }, // Ravi Kurnia
+                            { nip: '26021760' }, // Eldo
+                            { nip: '25041676' }  // Syafrian
+                        ],
+                        phone: { not: null, not: '' }
+                    }
+                });
+
+                if (admins.length > 0) {
+                    const msgAdm = `*[IMPORT REQUEST PENGADAAN]* 📥\n\n` +
+                        `Pesanan telah di-import dari Excel oleh:\n` +
+                        `\u{1F464} *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
+                        `\u{1F194} *NIY* : ${submitter.username || '-'}\n` +
+                        `\u{1F3E2} *Unit* : ${submitter.unit?.name || '-'}\n\n` +
+                        `*Rincian Permintaan:*\n` +
+                        `${itemList}\n\n` +
+                        `Mohon segera di proses.`;
+
+                    // The global queue handles staggering (30-60s)
+                    for (const admin of admins) {
+                        try {
+                            await whatsappService.sendMessage(admin.phone, msgAdm);
+                        } catch (e) {
+                            console.error(`[WA Import] Failed sending to ${admin.username}:`, e);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("WA Import Notification Error:", err);
+            }
+        })();
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
