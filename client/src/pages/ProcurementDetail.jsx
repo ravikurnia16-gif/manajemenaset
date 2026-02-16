@@ -38,7 +38,7 @@ const ProcurementDetail = () => {
             const res = await api.get('/users');
             setUsers(res.data.map(u => ({
                 id: u.id,
-                name: `${u.name || u.username} [${u.role}]`
+                name: u.name || u.username
             })));
             console.log('--- USER DEBUG ---');
             console.log('Total users from API:', res.data.length);
@@ -218,7 +218,29 @@ const ProcurementDetail = () => {
                         return (
                             <button
                                 key={s.step}
-                                onClick={() => !isDisabled && setActiveTab(s.step)}
+                                onClick={async () => {
+                                    if (isDisabled) return;
+
+                                    // If moving from Penugasan (tab 2) to subsequent tabs
+                                    if (activeTab === 2 && s.step > 2) {
+                                        const missing = req.items.find(item => !item.assignedToId);
+                                        if (missing) {
+                                            return alert(`Harap pilih petugas untuk item: ${missing.name}`);
+                                        }
+                                        setLoading(true);
+                                        try {
+                                            for (const item of req.items) {
+                                                await handleSaveItem(item, true);
+                                            }
+                                        } catch (e) {
+                                            setLoading(false);
+                                            return alert('Gagal simpan otomatis.');
+                                        }
+                                        setLoading(false);
+                                    }
+
+                                    setActiveTab(s.step);
+                                }}
                                 className={`flex-1 min-w-[120px] py-4 text-xs font-bold flex flex-col items-center gap-1 border-b-2 transition-colors ${activeTab === s.step ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-500 hover:bg-slate-50'} ${isDisabled ? 'opacity-30 cursor-not-allowed' : ''}`}
                                 disabled={isDisabled}
                             >
@@ -328,8 +350,28 @@ const ProcurementDetail = () => {
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                     <UserCheck size={18} /> Tahap 2: Penugasan Internal
                                 </h3>
-                                {(isAdmin || isAssignedToAny) && ['APPROVED', 'PROCESS'].includes(req.status) && (
-                                    <button onClick={() => setActiveTab(3)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm">
+                                {isAdmin && ['APPROVED', 'PROCESS'].includes(req.status) && (
+                                    <button
+                                        onClick={async () => {
+                                            const missing = req.items.find(item => !item.assignedToId);
+                                            if (missing) {
+                                                return alert(`Harap pilih petugas untuk item: ${missing.name}`);
+                                            }
+                                            // Auto-save all items
+                                            setLoading(true);
+                                            try {
+                                                for (const item of req.items) {
+                                                    await handleSaveItem(item, true);
+                                                }
+                                                setActiveTab(3);
+                                            } catch (error) {
+                                                alert('Gagal menyimpan penugasan. Periksa koneksi.');
+                                            } finally {
+                                                setLoading(false);
+                                            }
+                                        }}
+                                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm"
+                                    >
                                         Lanjut ke Pemilihan Vendor &rsaquo;
                                     </button>
                                 )}
@@ -345,8 +387,7 @@ const ProcurementDetail = () => {
                                         <tr>
                                             <th className="p-3 rounded-l-lg w-10 text-center">No</th>
                                             <th className="p-3">Item</th>
-                                            <th className="p-3">Ditugaskan Kepada (Akun Sistem)</th>
-                                            <th className="p-3 rounded-r-lg text-center">Simpan</th>
+                                            <th className="p-3 rounded-r-lg">Ditugaskan Kepada (Akun Sistem)</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
@@ -357,7 +398,7 @@ const ProcurementDetail = () => {
                                                     <div className="font-bold text-slate-700">{item.name}</div>
                                                     <div className="text-xs text-slate-500">{item.spec}</div>
                                                 </td>
-                                                <td className="p-3 w-72">
+                                                <td className="p-3">
                                                     <select
                                                         className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
                                                         value={item.assignedToId || ''}
@@ -376,17 +417,6 @@ const ProcurementDetail = () => {
                                                     </select>
                                                     {users.length === 0 && (
                                                         <p className="text-xs text-red-500 mt-1">⚠ Daftar pengguna kosong. Periksa koneksi database.</p>
-                                                    )}
-                                                </td>
-                                                <td className="p-3 text-center">
-                                                    {isAdmin && ['APPROVED', 'PROCESS'].includes(req.status) && (
-                                                        <button
-                                                            onClick={() => handleSaveItem(item)}
-                                                            className="text-green-600 hover:bg-green-50 p-2 rounded-full transition-colors"
-                                                            title="Simpan Penugasan"
-                                                        >
-                                                            <CheckCircle size={20} />
-                                                        </button>
                                                     )}
                                                 </td>
                                             </tr>
