@@ -14,6 +14,7 @@ const MaintenanceDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [report, setReport] = useState(null);
+    const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(user.role);
@@ -22,6 +23,7 @@ const MaintenanceDetail = () => {
     const [actionModal, setActionModal] = useState({ show: false, type: '', nextStatus: '' });
     const [actionNote, setActionNote] = useState('');
     const [technicianName, setTechnicianName] = useState('');
+    const [technicianType, setTechnicianType] = useState('external'); // 'internal' or 'external'
     const [actionTaken, setActionTaken] = useState('');
     const [costInput, setCostInput] = useState('');
 
@@ -37,8 +39,18 @@ const MaintenanceDetail = () => {
         }
     };
 
+    const fetchUsers = async () => {
+        try {
+            const res = await api.get('/users');
+            setUsers(res.data);
+        } catch (err) {
+            console.error("Failed to fetch users:", err);
+        }
+    };
+
     useEffect(() => {
         fetchReport();
+        if (isAdmin) fetchUsers();
     }, [id]);
 
     const handleStatusUpdate = async () => {
@@ -218,15 +230,49 @@ const MaintenanceDetail = () => {
                         </h3>
 
                         {actionModal.type === 'assignment' && (
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Nama Teknisi / Vendor *</label>
-                                <input
-                                    type="text"
-                                    value={technicianName}
-                                    onChange={e => setTechnicianName(e.target.value)}
-                                    placeholder="Misal: Pak Ahmad / CV Maju Jaya"
-                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                />
+                            <div className="space-y-4">
+                                <div className="flex bg-slate-100 p-1 rounded-lg">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setTechnicianType('external'); setTechnicianName(''); }}
+                                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${technicianType === 'external' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        Eksternal / Vendor
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setTechnicianType('internal'); setTechnicianName(''); }}
+                                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${technicianType === 'internal' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        Pegawai (Internal)
+                                    </button>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1">
+                                        {technicianType === 'internal' ? 'Pilih Pegawai *' : 'Nama Teknisi / Vendor *'}
+                                    </label>
+                                    {technicianType === 'internal' ? (
+                                        <select
+                                            value={technicianName}
+                                            onChange={e => setTechnicianName(e.target.value)}
+                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        >
+                                            <option value="">-- Pilih Pegawai --</option>
+                                            {users.map(u => (
+                                                <option key={u.id} value={u.name || u.username}>{u.name || u.username}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            value={technicianName}
+                                            onChange={e => setTechnicianName(e.target.value)}
+                                            placeholder="Misal: Pak Ahmad / CV Maju Jaya"
+                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        />
+                                    )}
+                                </div>
                             </div>
                         )}
 
