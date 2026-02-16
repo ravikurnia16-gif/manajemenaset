@@ -61,14 +61,32 @@ const ProcurementForm = () => {
             const data = XLSX.utils.sheet_to_json(ws);
 
             // Map Excel columns to Item format (Flexible support)
-            const importedItems = data.map(row => ({
-                name: row['Mq'] || row['Nama Barang'] || row['Nama'] || '',
-                spec: row['Spesifikasi'] || row['Spec'] || '',
-                qty: parseInt(row['Jumlah'] || row['Qty'] || 1) || 1,
-                unit: row['Satuan'] || row['Unit'] || 'Pcs',
-                estPrice: parseFloat(row['Harga'] || row['Estimasi Harga'] || 0) || 0,
-                fundingSource: row['Sumber Dana'] || row['Funding'] || 'Mandiri'
-            })).filter(item => item.name); // Filter empty rows
+            const errors = [];
+            const importedItems = data.map((row, index) => {
+                const rowNum = index + 2; // Header is row 1
+                const name = row['Mq'] || row['Nama Barang'] || row['Nama'] || '';
+                const qty = parseInt(row['Jumlah'] || row['Qty'] || 0);
+                const unit = row['Satuan'] || row['Unit'] || '';
+
+                if (!name) errors.push(`Baris ${rowNum}: Nama Barang wajib diisi.`);
+                if (!qty || qty <= 0) errors.push(`Baris ${rowNum}: Jumlah harus lebih dari 0.`);
+                if (!unit) errors.push(`Baris ${rowNum}: Satuan wajib diisi (Pcs/Unit/dll).`);
+
+                return {
+                    name,
+                    spec: row['Spesifikasi'] || row['Spec'] || '-',
+                    qty,
+                    unit,
+                    estPrice: parseFloat(row['Harga'] || row['Estimasi Harga'] || 0) || 0,
+                    fundingSource: row['Sumber Dana'] || row['Funding'] || 'Mandiri'
+                };
+            });
+
+            if (errors.length > 0) {
+                alert(`Import Gagal! Mohon lengkapi data berikut di Excel:\n\n${errors.slice(0, 10).join('\n')}${errors.length > 10 ? '\n...dan ' + (errors.length - 10) + ' error lainnya' : ''}`);
+                e.target.value = null;
+                return;
+            }
 
             if (importedItems.length > 0) {
                 // Confirm overwrite or append? Let's overwrite for simplicity or valid usecase

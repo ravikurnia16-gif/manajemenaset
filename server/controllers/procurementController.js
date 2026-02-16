@@ -105,121 +105,126 @@ exports.createProcurement = async (req, res) => {
     const { title, type, items, rkbId } = req.body;
     const user = req.user;
 
-    try {
-        if (!user.unitId) {
-            return res.status(400).json({ error: 'Akun Anda belum terdaftar di Unit manapun. Harap hubungi Admin untuk setting Unit.' });
+    if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Daftar barang tidak boleh kosong.' });
+    }
+
+    for (const [idx, item] of items.entries()) {
+        if (!item.name || !item.qty || !item.unit) {
+            return res.status(400).json({ error: `Baris ${idx + 1}: Nama, Jumlah, dan Satuan wajib diisi.` });
+        }
+    }
+
+    const code = await generateCode();
+
+    const result = await prisma.$transaction(async (prisma) => {
+        // Create Header
+        const procurement = await prisma.procurement.create({
+            data: {
+                code,
+                title: title || `Permintaan Pengadaan ${type} - ${new Date().toLocaleDateString('id-ID')}`,
+                userId: user.id,
+                unitId: user.unitId,
+                type,
+                status: 'SUBMITTED',
+                rkbId: rkbId ? parseInt(rkbId) : null
+            }
+        });
+
+        // Create Items
+        if (items && items.length > 0) {
+            await prisma.procurementItem.createMany({
+                data: items.map(item => ({
+                    procurementId: procurement.id,
+                    name: item.name,
+                    spec: item.spec,
+                    qty: parseInt(item.qty),
+                    unit: item.unit,
+                    estPrice: parseFloat(item.estPrice || 0),
+                    fundingSource: item.fundingSource || 'Mandiri'
+                }))
+            });
         }
 
-        const code = await generateCode();
+        return procurement;
+    });
 
-        const result = await prisma.$transaction(async (prisma) => {
-            // Create Header
-            const procurement = await prisma.procurement.create({
-                data: {
-                    code,
-                    title: title || `Permintaan Pengadaan ${type} - ${new Date().toLocaleDateString('id-ID')}`,
-                    userId: user.id,
-                    unitId: user.unitId,
-                    type,
-                    status: 'SUBMITTED',
-                    rkbId: rkbId ? parseInt(rkbId) : null
+    res.json({ message: 'Request submitted', data: result });
+
+    // --- WhatsApp Notification (Async) ---
+    (async () => {
+        try {
+            // 1. Fetch Submitter Details (Name, NIP, Unit)
+            const submitter = await prisma.user.findUnique({
+                where: { id: user.id },
+                include: { unit: true }
+            });
+
+            if (!submitter) return;
+
+            // Format Item List
+            const itemList = (items || []).map((item, index) =>
+                `${index + 1}. ${item.name} (${item.qty} ${item.unit})`
+            ).join('\n');
+
+            // 2. Send Confirmation to Submitter
+            if (submitter.phone) {
+                const msgSubmitter = `*Info Request Pengadaan*\n\n` +
+                    `Ustadz/Ustadzah *${submitter.name || submitter.username}*, permintaan anda telah kami terima dengan rincian:\n\n` +
+                    `${itemList}\n\n` +
+                    `Pesanan Ustadz/Ustadzah akan segera kami proses.`;
+
+                await whatsappService.sendMessage(submitter.phone, msgSubmitter);
+            }
+
+            // 3. Notify Admins: Ravi Kurnia (24071613), Eldo (26021760), and Syafrian (25041676)
+            const admins = await prisma.user.findMany({
+                where: {
+                    OR: [
+                        { nip: '24071613' }, // Ravi Kurnia
+                        { nip: '26021760' }, // Eldo
+                        { nip: '25041676' }  // Syafrian
+                    ],
+                    phone: { not: null, not: '' }
                 }
             });
 
-            // Create Items
-            if (items && items.length > 0) {
-                await prisma.procurementItem.createMany({
-                    data: items.map(item => ({
-                        procurementId: procurement.id,
-                        name: item.name,
-                        spec: item.spec,
-                        qty: parseInt(item.qty),
-                        unit: item.unit,
-                        estPrice: parseFloat(item.estPrice || 0),
-                        fundingSource: item.fundingSource || 'Mandiri'
-                    }))
-                });
-            }
+            if (admins.length > 0) {
+                const msgAdm = `*Info Request Pengadaan*\n\n` +
+                    `Pesanan telah masuk dari:\n` +
+                    `\u{1F464} *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
+                    `\u{1F194} *NIY* : ${submitter.username || '-'}\n` +
+                    `\u{1F3E2} *Unit* : ${submitter.unit?.name || '-'}\n\n` +
+                    `*Rincian Permintaan:*\n` +
+                    `${itemList}\n\n` +
+                    `Mohon segera di proses.`;
 
-            return procurement;
-        });
+                setTimeout(async () => {
+                    let cumulativeDelay = 0;
+                    for (const admin of admins) {
+                        const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
+                        cumulativeDelay += randomGap;
 
-        res.json({ message: 'Request submitted', data: result });
-
-        // --- WhatsApp Notification (Async) ---
-        (async () => {
-            try {
-                // 1. Fetch Submitter Details (Name, NIP, Unit)
-                const submitter = await prisma.user.findUnique({
-                    where: { id: user.id },
-                    include: { unit: true }
-                });
-
-                if (!submitter) return;
-
-                // Format Item List
-                const itemList = (items || []).map((item, index) =>
-                    `${index + 1}. ${item.name} (${item.qty} ${item.unit})`
-                ).join('\n');
-
-                // 2. Send Confirmation to Submitter
-                if (submitter.phone) {
-                    const msgSubmitter = `*Info Request Pengadaan*\n\n` +
-                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*, permintaan anda telah kami terima dengan rincian:\n\n` +
-                        `${itemList}\n\n` +
-                        `Pesanan Ustadz/Ustadzah akan segera kami proses.`;
-
-                    await whatsappService.sendMessage(submitter.phone, msgSubmitter);
-                }
-
-                // 3. Notify Admins: Ravi Kurnia (24071613), Eldo (26021760), and Syafrian (25041676)
-                const admins = await prisma.user.findMany({
-                    where: {
-                        OR: [
-                            { nip: '24071613' }, // Ravi Kurnia
-                            { nip: '26021760' }, // Eldo
-                            { nip: '25041676' }  // Syafrian
-                        ],
-                        phone: { not: null, not: '' }
+                        setTimeout(async () => {
+                            try {
+                                console.log(`Sending WA to Admin ${admin.username} (${admin.phone})...`);
+                                await whatsappService.sendMessage(admin.phone, msgAdm);
+                            } catch (e) {
+                                console.error(`Failed sending to ${admin.username}:`, e);
+                            }
+                        }, cumulativeDelay);
                     }
-                });
-
-                if (admins.length > 0) {
-                    const msgAdm = `*Info Request Pengadaan*\n\n` +
-                        `Pesanan telah masuk dari:\n` +
-                        `\u{1F464} *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
-                        `\u{1F194} *NIY* : ${submitter.username || '-'}\n` +
-                        `\u{1F3E2} *Unit* : ${submitter.unit?.name || '-'}\n\n` +
-                        `*Rincian Permintaan:*\n` +
-                        `${itemList}\n\n` +
-                        `Mohon segera di proses.`;
-
-                    setTimeout(async () => {
-                        let cumulativeDelay = 0;
-                        for (const admin of admins) {
-                            const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
-                            cumulativeDelay += randomGap;
-
-                            setTimeout(async () => {
-                                try {
-                                    console.log(`Sending WA to Admin ${admin.username} (${admin.phone})...`);
-                                    await whatsappService.sendMessage(admin.phone, msgAdm);
-                                } catch (e) {
-                                    console.error(`Failed sending to ${admin.username}:`, e);
-                                }
-                            }, cumulativeDelay);
-                        }
-                    }, 30000);
-                }
-
-            } catch (err) {
-                console.error("WA Notification Error:", err);
+                }, 30000);
             }
-        })();
 
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+        } catch (err) {
+            console.error("WA Notification Error:", err);
+        }
+    })();
+
+} catch (error) {
+    res.status(500).json({ error: error.message });
+}
 };
 
 // Import Request from Excel
@@ -229,6 +234,12 @@ exports.importProcurement = async (req, res) => {
 
     if (!items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ error: 'Data items kosong.' });
+    }
+
+    for (const [idx, item] of items.entries()) {
+        if (!item.name || !item.qty || !item.unit) {
+            return res.status(400).json({ error: `Baris ${idx + 2}: Nama, Jumlah, dan Satuan wajib diisi (Header dihitung baris 1).` });
+        }
     }
 
     try {
