@@ -104,7 +104,7 @@ model Unit {
   rooms         Room[]
   targetLoans   AssetLoan[] @relation("TargetUnit")
   
-  loans         AssetLoan[] // Add this if missing for the original relation
+  loans         AssetLoan[] @relation("UnitLoans")
   users       User[]
   requests    Request[]
   rkbs        RKB[]
@@ -739,6 +739,7 @@ model AssetLoan {
   borrower        User       @relation("Borrower", fields: [borrowerId], references: [id])
   
   unitId          Int        // Unit of the asset at the time of loan
+  unit            Unit       @relation("UnitLoans", fields: [unitId], references: [id])
   targetUnitId    Int?       // Destination unit
   targetUnit      Unit?      @relation("TargetUnit", fields: [targetUnitId], references: [id])
   
