@@ -129,8 +129,8 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/penghapusan" className={subNavItemClass('/penghapusan')}>
                             <Trash2 size={16} /> Penghapusan
                         </Link>
-                        <Link to="/denah" className={subNavItemClass('/denah')}>
-                            <MapPin size={16} /> Denah Lokasi
+                        <Link to="/peminjaman" className={subNavItemClass('/peminjaman')}>
+                            <ArrowLeftRight size={16} /> Peminjaman Aset
                         </Link>
                     </>
                 ))}
@@ -184,9 +184,6 @@ const Sidebar = ({ isOpen = true }) => {
                                 <>
                                     <Link to="/personalia/laporan" className={subNavItemClass('/personalia/laporan')}>
                                         <FileText size={16} /> Laporan Staff
-                                    </Link>
-                                    <Link to="/peminjaman" className={subNavItemClass('/peminjaman')}>
-                                        <ArrowLeftRight size={16} /> Peminjaman Aset
                                     </Link>
                                     <Link to="/personalia/penugasan" className={subNavItemClass('/personalia/penugasan')}>
                                         <FileCheck size={16} /> Penugasan
