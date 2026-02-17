@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, Search, Calendar, User, Info, AlertCircle, CheckCircle, XCircle, Clock, ArrowRightLeft, Building2 } from 'lucide-react';
+import { BookOpen, Search, Calendar, User, Info, AlertCircle, CheckCircle, XCircle, Clock, ArrowRightLeft, Building2, Plus, ChevronDown } from 'lucide-react';
 import api from '../lib/axios';
 
 const LoanList = () => {
@@ -18,6 +18,7 @@ const LoanList = () => {
     const [units, setUnits] = useState([]);
     const [assets, setAssets] = useState([]);
     const [assetSearch, setAssetSearch] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isSuperAdmin = user.role === 'SUPER_ADMIN';
@@ -386,33 +387,79 @@ const LoanList = () => {
 
                             <div>
                                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Pilih Aset (Kondisi Baik)</label>
-                                <div className="space-y-3">
-                                    <div className="relative">
-                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                <div className="relative">
+                                    <div className="relative group">
+                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
                                         <input
                                             type="text"
-                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-3 text-sm font-bold focus:border-blue-500 outline-none transition-all"
-                                            placeholder="Cari aset..."
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-12 py-3 text-sm font-bold focus:border-blue-500 outline-none transition-all"
+                                            placeholder="Cari atau pilih aset..."
                                             value={assetSearch}
-                                            onChange={(e) => setAssetSearch(e.target.value)}
+                                            onChange={(e) => {
+                                                setAssetSearch(e.target.value);
+                                                setIsDropdownOpen(true);
+                                            }}
+                                            onFocus={() => setIsDropdownOpen(true)}
                                         />
-                                    </div>
-                                    {assetSearch && assets.length > 0 && (
-                                        <div className="max-h-40 overflow-y-auto border-2 border-slate-100 rounded-2xl bg-white p-2 space-y-1 shadow-lg absolute z-10 w-[calc(100%-4rem)] custom-scrollbar">
-                                            {assets.map(a => (
+                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                            {assetSearch && (
                                                 <button
-                                                    key={a.id}
-                                                    onClick={() => {
-                                                        addToCart(a);
-                                                        setAssetSearch('');
-                                                    }}
-                                                    className="w-full text-left px-4 py-3 rounded-xl transition-all hover:bg-blue-50 text-slate-700 border border-transparent hover:border-blue-200"
+                                                    onClick={() => { setAssetSearch(''); setIsDropdownOpen(false); }}
+                                                    className="text-slate-300 hover:text-slate-500 transition-colors"
                                                 >
-                                                    <div className="font-bold text-sm">{a.name}</div>
-                                                    <div className="text-[10px] text-slate-400 font-mono">{a.code} • {a.unit?.name}</div>
+                                                    <XCircle size={16} />
                                                 </button>
-                                            ))}
+                                            )}
+                                            <button
+                                                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                                className={`text-slate-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}
+                                            >
+                                                <ChevronDown size={18} />
+                                            </button>
                                         </div>
+                                    </div>
+
+                                    {isDropdownOpen && (
+                                        <>
+                                            <div
+                                                className="fixed inset-0 z-10"
+                                                onClick={() => setIsDropdownOpen(false)}
+                                            ></div>
+                                            <div className="max-h-60 overflow-y-auto border-2 border-slate-100 rounded-2xl bg-white p-2 space-y-1 shadow-2xl absolute z-20 w-full mt-2 animate-in slide-in-from-top-2 duration-200 custom-scrollbar">
+                                                {assets.length === 0 ? (
+                                                    <div className="px-4 py-8 text-center text-slate-400">
+                                                        <Info className="mx-auto mb-2 opacity-20" size={32} />
+                                                        <p className="text-xs font-bold uppercase tracking-widest">Tidak ada aset tersedia</p>
+                                                    </div>
+                                                ) : (
+                                                    assets.map(a => {
+                                                        const isInCart = cart.find(i => i.id === a.id);
+                                                        return (
+                                                            <button
+                                                                key={a.id}
+                                                                onClick={() => {
+                                                                    if (!isInCart) addToCart(a);
+                                                                    setIsDropdownOpen(false);
+                                                                }}
+                                                                className={`w-full text-left px-4 py-3 rounded-xl transition-all border flex items-center justify-between ${isInCart
+                                                                    ? 'bg-blue-50 border-blue-100 opacity-60 cursor-not-allowed'
+                                                                    : 'hover:bg-slate-50 border-transparent hover:border-slate-100 text-slate-700'
+                                                                    }`}
+                                                            >
+                                                                <div>
+                                                                    <div className="font-bold text-sm flex items-center gap-2">
+                                                                        {a.name}
+                                                                        {isInCart && <CheckCircle className="text-blue-500" size={14} />}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-slate-400 font-mono tracking-tight">{a.code} • {a.unit?.name}</div>
+                                                                </div>
+                                                                {!isInCart && <Plus size={14} className="text-slate-300" />}
+                                                            </button>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             </div>
