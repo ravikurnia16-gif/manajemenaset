@@ -130,6 +130,15 @@ const LoanList = () => {
         }
     };
 
+    const addToCart = (asset) => {
+        if (cart.find(a => a.id === asset.id)) return;
+        setCart([...cart, asset]);
+    };
+
+    const removeFromCart = (id) => {
+        setCart(cart.filter(a => a.id !== id));
+    };
+
     const filteredLoans = Array.isArray(loans) ? loans.filter(l =>
         l.asset?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         l.borrower?.name?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -349,81 +358,83 @@ const LoanList = () => {
             {/* Add Loan Modal */}
             {addModal.isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 text-slate-800">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 animate-in zoom-in-95 duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 animate-in zoom-in-95 duration-200 focus:outline-none">
                         <div className="flex items-center justify-between mb-8">
                             <div className="flex items-center gap-3 text-blue-600">
                                 <ArrowRightLeft size={28} />
                                 <h3 className="text-2xl font-black tracking-tight">Pinjam Aset</h3>
                             </div>
-                            <button onClick={() => setAddModal(prev => ({ ...prev, isOpen: false }))} className="text-slate-300 hover:text-slate-500 transition-colors"><XCircle size={28} /></button>
+                            <button onClick={() => setAddModal(prev => ({ ...prev, isOpen: false }))} className="text-slate-300 hover:text-slate-500 transition-colors">
+                                <XCircle size={28} />
+                            </button>
                         </div>
 
-                                <div>
-                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Unit Tujuan (Lokasi Penggunaan)</label>
-                                    <select
-                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 text-sm font-bold focus:border-blue-500 outline-none"
-                                        value={targetUnitId}
-                                        onChange={(e) => setTargetUnitId(e.target.value)}
-                                    >
-                                        <option value="">Pilih Unit Tujuan...</option>
-                                        {units.map(u => (
-                                            <option key={u.id} value={u.id}>{u.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Unit Tujuan (Lokasi Penggunaan)</label>
+                                <select
+                                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 text-sm font-bold focus:border-blue-500 outline-none"
+                                    value={targetUnitId}
+                                    onChange={(e) => setTargetUnitId(e.target.value)}
+                                >
+                                    <option value="">Pilih Unit Tujuan...</option>
+                                    {units.map(u => (
+                                        <option key={u.id} value={u.id}>{u.name}</option>
+                                    ))}
+                                </select>
+                            </div>
 
-                                <div>
-                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Pilih Aset (Kondisi Baik)</label>
-                                    <div className="space-y-3">
-                                        <div className="relative">
-                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                            <input
-                                                type="text"
-                                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-3 text-sm font-bold focus:border-blue-500 outline-none transition-all"
-                                                placeholder="Cari aset..."
-                                                value={assetSearch}
-                                                onChange={(e) => setAssetSearch(e.target.value)}
-                                            />
-                                        </div>
-                                        {assetSearch && assets.length > 0 && (
-                                            <div className="max-h-40 overflow-y-auto border-2 border-slate-100 rounded-2xl bg-white p-2 space-y-1 shadow-lg absolute z-10 w-[calc(100%-4rem)] custom-scrollbar">
-                                                {assets.map(a => (
-                                                    <button
-                                                        key={a.id}
-                                                        onClick={() => {
-                                                            addToCart(a);
-                                                            setAssetSearch('');
-                                                        }}
-                                                        className="w-full text-left px-4 py-3 rounded-xl transition-all hover:bg-blue-50 text-slate-700 border border-transparent hover:border-blue-200"
-                                                    >
-                                                        <div className="font-bold text-sm">{a.name}</div>
-                                                        <div className="text-[10px] text-slate-400 font-mono">{a.code} • {a.unit?.name}</div>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
+                            <div>
+                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Pilih Aset (Kondisi Baik)</label>
+                                <div className="space-y-3">
+                                    <div className="relative">
+                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                        <input
+                                            type="text"
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-3 text-sm font-bold focus:border-blue-500 outline-none transition-all"
+                                            placeholder="Cari aset..."
+                                            value={assetSearch}
+                                            onChange={(e) => setAssetSearch(e.target.value)}
+                                        />
                                     </div>
-                                </div>
-
-                                {cart.length > 0 && (
-                                    <div className="bg-slate-50 rounded-2xl p-4 border-2 border-slate-100">
-                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Daftar Peminjaman ({cart.length})</label>
-                                        <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
-                                            {cart.map(item => (
-                                                <div key={item.id} className="flex items-center justify-between bg-white p-3 rounded-xl shadow-sm border border-slate-100">
-                                                    <div>
-                                                        <div className="font-bold text-xs text-slate-800">{item.name}</div>
-                                                        <div className="text-[9px] text-slate-400 font-mono">{item.code}</div>
-                                                    </div>
-                                                    <button onClick={() => removeFromCart(item.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors">
-                                                        <XCircle size={16} />
-                                                    </button>
-                                                </div>
+                                    {assetSearch && assets.length > 0 && (
+                                        <div className="max-h-40 overflow-y-auto border-2 border-slate-100 rounded-2xl bg-white p-2 space-y-1 shadow-lg absolute z-10 w-[calc(100%-4rem)] custom-scrollbar">
+                                            {assets.map(a => (
+                                                <button
+                                                    key={a.id}
+                                                    onClick={() => {
+                                                        addToCart(a);
+                                                        setAssetSearch('');
+                                                    }}
+                                                    className="w-full text-left px-4 py-3 rounded-xl transition-all hover:bg-blue-50 text-slate-700 border border-transparent hover:border-blue-200"
+                                                >
+                                                    <div className="font-bold text-sm">{a.name}</div>
+                                                    <div className="text-[10px] text-slate-400 font-mono">{a.code} • {a.unit?.name}</div>
+                                                </button>
                                             ))}
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
+
+                            {cart.length > 0 && (
+                                <div className="bg-slate-50 rounded-2xl p-4 border-2 border-slate-100">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Daftar Peminjaman ({cart.length})</label>
+                                    <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                        {cart.map(item => (
+                                            <div key={item.id} className="flex items-center justify-between bg-white p-3 rounded-xl shadow-sm border border-slate-100">
+                                                <div>
+                                                    <div className="font-bold text-xs text-slate-800">{item.name}</div>
+                                                    <div className="text-[9px] text-slate-400 font-mono">{item.code}</div>
+                                                </div>
+                                                <button onClick={() => removeFromCart(item.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors">
+                                                    <XCircle size={16} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
@@ -468,7 +479,7 @@ const LoanList = () => {
                             </button>
                         </div>
                     </div>
-                </div >
+                </div>
             )}
         </div >
     );
