@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Download, Trash2, Plus, X, Upload, Calendar, User, Folder, FolderOpen, ChevronRight, Search, FolderPlus } from 'lucide-react';
+import { FileText, Download, Trash2, Plus, X, Upload, Calendar, User, Folder, FolderOpen, ChevronRight, Search, FolderPlus, Eye } from 'lucide-react';
 import api from '../lib/axios';
 
 const SarprasRules = () => {
@@ -274,14 +274,25 @@ const SarprasRules = () => {
                                         <span className="text-[10px] font-bold text-slate-400 uppercase">
                                             {formatSize(rule.fileSize)} • {rule.fileType?.split('/')[1]?.toUpperCase() || 'FILE'}
                                         </span>
-                                        <a
-                                            href={`${import.meta.env.VITE_API_URL}${rule.fileUrl}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all shadow-sm"
-                                        >
-                                            <Download size={14} /> Download
-                                        </a>
+                                        <div className="flex gap-2">
+                                            <a
+                                                href={rule.fileUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition-all shadow-sm"
+                                            >
+                                                <Eye size={14} /> Lihat
+                                            </a>
+                                            <a
+                                                href={rule.fileUrl}
+                                                download
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-2 bg-blue-600 text-white border border-transparent px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 transition-all shadow-sm shadow-blue-200"
+                                            >
+                                                <Download size={14} /> Download
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
