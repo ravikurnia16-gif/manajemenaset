@@ -356,7 +356,7 @@ model Procurement {
   rejectionReason String?
   
   bastDate    DateTime?
-  bastFile    String?
+  bastFile    String?   @db.LongText
   
   items       ProcurementItem[]
   offers      VendorOffer[]
