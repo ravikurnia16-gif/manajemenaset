@@ -2,74 +2,110 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { createNotification } = require('./notificationController');
 const whatsappService = require('../services/whatsappService');
+const { v4: uuidv4 } = require('uuid');
 
 exports.requestLoan = async (req, res) => {
     try {
-        const { assetId, expectedReturnDate, purpose } = req.body;
+        const { assetIds, expectedReturnDate, purpose, targetUnitId } = req.body;
         const borrowerId = req.user.id;
+        const requestId = uuidv4();
 
-        const asset = await prisma.asset.findUnique({
-            where: { id: parseInt(assetId) },
+        if (!assetIds || !Array.isArray(assetIds) || assetIds.length === 0) {
+            return res.status(400).json({ error: 'Pilih setidaknya satu aset' });
+        }
+
+        const assets = await prisma.asset.findMany({
+            where: { id: { in: assetIds.map(id => parseInt(id)) } },
             include: { unit: true }
         });
 
-        if (!asset) {
-            return res.status(404).json({ error: 'Asset not found' });
+        if (assets.length !== assetIds.length) {
+            return res.status(404).json({ error: 'Beberapa aset tidak ditemukan' });
         }
 
-        if (asset.condition === 'DISPOSED') {
-            return res.status(400).json({ error: 'Asset is already disposed' });
-        }
-
-        if (!asset.isLendable) {
-            return res.status(400).json({ error: 'Aset ini tidak diizinkan untuk dipinjam oleh unit pemilik' });
-        }
-
-        // Create loan request
-        const loan = await prisma.assetLoan.create({
-            data: {
-                assetId: parseInt(assetId),
-                borrowerId,
-                unitId: asset.unitId,
-                expectedReturnDate: new Date(expectedReturnDate),
-                purpose,
-                status: 'PENDING'
-            },
-            include: {
-                borrower: true,
-                asset: true
+        const loans = await Promise.all(assets.map(async (asset) => {
+            if (asset.condition === 'DISPOSED') {
+                throw new Error(`Aset ${asset.name} sudah dihapus/disposed`);
             }
-        });
+            if (!asset.isLendable) {
+                throw new Error(`Aset ${asset.name} tidak diizinkan untuk dipinjam`);
+            }
 
-        // Notify Sarpras Unit (ADMIN_UNIT)
-        try {
-            const sarprasUnit = await prisma.user.findFirst({
-                where: {
+            return prisma.assetLoan.create({
+                data: {
+                    assetId: asset.id,
+                    borrowerId,
                     unitId: asset.unitId,
-                    role: 'ADMIN_UNIT'
+                    targetUnitId: targetUnitId ? parseInt(targetUnitId) : null,
+                    expectedReturnDate: new Date(expectedReturnDate),
+                    purpose,
+                    status: 'PENDING',
+                    requestId
+                },
+                include: {
+                    borrower: true,
+                    asset: { include: { unit: true } }
                 }
             });
+        }));
 
-            if (sarprasUnit) {
-                await createNotification(
-                    sarprasUnit.id,
-                    'Permohonan Peminjaman Aset',
-                    `User ${loan.borrower.name} mengajukan peminjaman aset "${loan.asset.name}".`,
-                    'INFO',
-                    '/loans'
-                );
+        // Notify Sarpras Units (Group by unitId to avoid spam)
+        const unitIds = [...new Set(assets.map(a => a.unitId))];
+        for (const unitId of unitIds) {
+            try {
+                const sarprasUnit = await prisma.user.findFirst({
+                    where: { unitId, role: 'ADMIN_UNIT' }
+                });
 
-                // Optional: WhatsApp notification
-                if (sarprasUnit.phone) {
-                    const message = `Halo Sarpras ${asset.unit.name},\nAda permohonan peminjaman aset baru:\n\nAset: ${loan.asset.name}\nPeminjam: ${loan.borrower.name}\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
-                    await whatsappService.sendDirectMessage(sarprasUnit.phone, message);
+                const unitAssets = assets.filter(a => a.unitId === unitId);
+                const isYayasan = unitAssets[0]?.unit?.name?.toLowerCase().includes('kantor yayasan');
+
+                if (isYayasan) {
+                    // Notify Ravi Kurnia & Eldo specifically for Yayasan assets
+                    const specialAdmins = await prisma.user.findMany({
+                        where: {
+                            nip: { in: ['24071613', '26021760'] }
+                        }
+                    });
+
+                    for (const admin of specialAdmins) {
+                        try {
+                            await createNotification(
+                                admin.id,
+                                'Permohonan Peminjaman (Yayasan)',
+                                `User ${req.user.name} mengajukan peminjaman ${unitAssets.length} aset Yayasan.`,
+                                'INFO',
+                                '/peminjaman'
+                            );
+
+                            if (admin.phone) {
+                                const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
+                                const message = `Halo Mas/Bapak,\nAda permohonan peminjaman aset Yayasan baru dari ${req.user.name}:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
+                                await whatsappService.sendDirectMessage(admin.phone, message);
+                            }
+                        } catch (e) { console.error(e); }
+                    }
+                } else if (sarprasUnit) {
+                    await createNotification(
+                        sarprasUnit.id,
+                        'Permohonan Peminjaman Baru',
+                        `User ${req.user.name} mengajukan peminjaman ${unitAssets.length} aset.`,
+                        'INFO',
+                        '/peminjaman'
+                    );
+
+                    if (sarprasUnit.phone) {
+                        const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
+                        const message = `Halo Sarpras,\nAda permohonan peminjaman baru dari ${req.user.name}:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
+                        await whatsappService.sendDirectMessage(sarprasUnit.phone, message);
+                    }
                 }
+            } catch (notifErr) {
+                console.error('Failed to send loan notification for unit:', unitId, notifErr);
             }
-        } catch (notifErr) {
-            console.error('Failed to send loan notification:', notifErr);
         }
 
-        res.status(201).json(loan);
+        res.status(201).json({ message: 'Permohonan berhasil dikirim', requestId, count: loans.length });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -165,9 +201,10 @@ exports.getAllLoans = async (req, res) => {
         const loans = await prisma.assetLoan.findMany({
             where,
             include: {
-                asset: true,
+                asset: { include: { unit: true } },
                 borrower: { select: { name: true, nip: true } },
-                reviewedBy: { select: { name: true } }
+                reviewedBy: { select: { name: true } },
+                targetUnit: true
             },
             orderBy: { createdAt: 'desc' }
         });
@@ -184,9 +221,10 @@ exports.getLoanDetail = async (req, res) => {
         const loan = await prisma.assetLoan.findUnique({
             where: { id: parseInt(id) },
             include: {
-                asset: true,
+                asset: { include: { unit: true } },
                 borrower: true,
-                reviewedBy: true
+                reviewedBy: true,
+                targetUnit: true
             }
         });
         res.json(loan);

@@ -101,7 +101,10 @@ model Unit {
   logo        String?   @db.LongText // Logo Unit (Base64)
   
   assets      Asset[]
-  rooms       Room[]
+  rooms         Room[]
+  targetLoans   AssetLoan[] @relation("TargetUnit")
+  
+  loans         AssetLoan[] // Add this if missing for the original relation
   users       User[]
   requests    Request[]
   rkbs        RKB[]
@@ -736,6 +739,10 @@ model AssetLoan {
   borrower        User       @relation("Borrower", fields: [borrowerId], references: [id])
   
   unitId          Int        // Unit of the asset at the time of loan
+  targetUnitId    Int?       // Destination unit
+  targetUnit      Unit?      @relation("TargetUnit", fields: [targetUnitId], references: [id])
+  
+  requestId       String?    // UUID to group multiple assets in one request
   
   borrowDate      DateTime?
   expectedReturnDate DateTime

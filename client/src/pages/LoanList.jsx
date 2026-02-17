@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, Search, Calendar, User, Info, AlertCircle, CheckCircle, XCircle, Clock, ArrowRightLeft } from 'lucide-react';
+import { BookOpen, Search, Calendar, User, Info, AlertCircle, CheckCircle, XCircle, Clock, ArrowRightLeft, Building2 } from 'lucide-react';
 import api from '../lib/axios';
 
 const LoanList = () => {
@@ -10,10 +10,12 @@ const LoanList = () => {
     const [reviewModal, setReviewModal] = useState({ isOpen: false, data: null, status: '', reason: '' });
     const [addModal, setAddModal] = useState({
         isOpen: false,
-        assetId: '',
         purpose: '',
         expectedReturnDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     });
+    const [cart, setCart] = useState([]); // List of selected assets
+    const [targetUnitId, setTargetUnitId] = useState('');
+    const [units, setUnits] = useState([]);
     const [assets, setAssets] = useState([]);
     const [assetSearch, setAssetSearch] = useState('');
 
@@ -28,8 +30,18 @@ const LoanList = () => {
     useEffect(() => {
         if (addModal.isOpen) {
             fetchAvailableAssets(assetSearch);
+            fetchUnits();
         }
     }, [assetSearch, addModal.isOpen]);
+
+    const fetchUnits = async () => {
+        try {
+            const res = await api.get('/master/units');
+            setUnits(res.data);
+        } catch (error) {
+            console.error('Fetch units error:', error);
+        }
+    };
 
     const fetchAvailableAssets = async (query = '') => {
         try {
@@ -63,18 +75,21 @@ const LoanList = () => {
 
     const handleRequestLoan = async () => {
         try {
-            if (!addModal.assetId || !addModal.purpose) {
-                alert('Pilih aset dan masukkan tujuan peminjaman');
+            if (cart.length === 0 || !addModal.purpose || !targetUnitId) {
+                alert('Pilih setidaknya satu aset, unit tujuan, dan masukkan tujuan peminjaman');
                 return;
             }
             setLoading(true);
             await api.post('/api/loans/request', {
-                assetId: addModal.assetId,
+                assetIds: cart.map(a => a.id),
                 purpose: addModal.purpose,
-                expectedReturnDate: addModal.expectedReturnDate
+                expectedReturnDate: addModal.expectedReturnDate,
+                targetUnitId: parseInt(targetUnitId)
             });
             alert('Permohonan peminjaman berhasil diajukan');
-            setAddModal({ isOpen: false, assetId: '', purpose: '', expectedReturnDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] });
+            setAddModal({ isOpen: false, purpose: '', expectedReturnDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] });
+            setCart([]);
+            setTargetUnitId('');
             setAssetSearch('');
             fetchLoans();
         } catch (error) {
@@ -180,6 +195,7 @@ const LoanList = () => {
                             <tr>
                                 <th className="px-6 py-4">Aset</th>
                                 <th className="px-6 py-4">Peminjam</th>
+                                <th className="px-6 py-4">Tujuan (Unit)</th>
                                 <th className="px-6 py-4">Waktu</th>
                                 <th className="px-6 py-4">Status</th>
                                 <th className="px-6 py-4 text-center">Aksi</th>
@@ -205,6 +221,14 @@ const LoanList = () => {
                                                 <div className="font-medium text-slate-700">{l.borrower?.name}</div>
                                                 <div className="text-[10px] text-slate-400 uppercase tracking-tight">{l.purpose}</div>
                                             </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="flex flex-col">
+                                            <div className="flex items-center gap-1.5 text-blue-600 font-bold text-[11px]">
+                                                <Building2 size={12} /> {l.targetUnit?.name || 'Unit Internal'}
+                                            </div>
+                                            <div className="text-[10px] text-slate-400 italic max-w-[150px] truncate">{l.purpose}</div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -334,39 +358,74 @@ const LoanList = () => {
                             <button onClick={() => setAddModal(prev => ({ ...prev, isOpen: false }))} className="text-slate-300 hover:text-slate-500 transition-colors"><XCircle size={28} /></button>
                         </div>
 
-                        <div className="space-y-6">
-                            <div>
-                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Pilih Aset (Kondisi Baik)</label>
-                                <div className="space-y-3">
-                                    <div className="relative">
-                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                        <input
-                                            type="text"
-                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-3 text-sm font-bold focus:border-blue-500 outline-none transition-all"
-                                            placeholder="Cari aset..."
-                                            value={assetSearch}
-                                            onChange={(e) => setAssetSearch(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="max-h-40 overflow-y-auto border-2 border-slate-100 rounded-2xl bg-slate-50/50 p-2 space-y-1 custom-scrollbar">
-                                        {assets.map(a => (
-                                            <button
-                                                key={a.id}
-                                                onClick={() => {
-                                                    setAddModal(prev => ({ ...prev, assetId: a.id }));
-                                                    setAssetSearch(`${a.code} - ${a.name}`);
-                                                }}
-                                                className={`w-full text-left px-4 py-3 rounded-xl transition-all ${addModal.assetId === a.id ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-white text-slate-700 shadow-sm border border-transparent hover:border-slate-200'}`}
-                                            >
-                                                <div className="font-bold text-sm">{a.name}</div>
-                                                <div className={`text-[10px] ${addModal.assetId === a.id ? 'text-blue-100' : 'text-slate-400'} font-mono`}>{a.code} • {a.room?.name}</div>
-                                            </button>
+                                <div>
+                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Unit Tujuan (Lokasi Penggunaan)</label>
+                                    <select
+                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 text-sm font-bold focus:border-blue-500 outline-none"
+                                        value={targetUnitId}
+                                        onChange={(e) => setTargetUnitId(e.target.value)}
+                                    >
+                                        <option value="">Pilih Unit Tujuan...</option>
+                                        {units.map(u => (
+                                            <option key={u.id} value={u.id}>{u.name}</option>
                                         ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Pilih Aset (Kondisi Baik)</label>
+                                    <div className="space-y-3">
+                                        <div className="relative">
+                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                            <input
+                                                type="text"
+                                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-3 text-sm font-bold focus:border-blue-500 outline-none transition-all"
+                                                placeholder="Cari aset..."
+                                                value={assetSearch}
+                                                onChange={(e) => setAssetSearch(e.target.value)}
+                                            />
+                                        </div>
+                                        {assetSearch && assets.length > 0 && (
+                                            <div className="max-h-40 overflow-y-auto border-2 border-slate-100 rounded-2xl bg-white p-2 space-y-1 shadow-lg absolute z-10 w-[calc(100%-4rem)] custom-scrollbar">
+                                                {assets.map(a => (
+                                                    <button
+                                                        key={a.id}
+                                                        onClick={() => {
+                                                            addToCart(a);
+                                                            setAssetSearch('');
+                                                        }}
+                                                        className="w-full text-left px-4 py-3 rounded-xl transition-all hover:bg-blue-50 text-slate-700 border border-transparent hover:border-blue-200"
+                                                    >
+                                                        <div className="font-bold text-sm">{a.name}</div>
+                                                        <div className="text-[10px] text-slate-400 font-mono">{a.code} • {a.unit?.name}</div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
+
+                                {cart.length > 0 && (
+                                    <div className="bg-slate-50 rounded-2xl p-4 border-2 border-slate-100">
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Daftar Peminjaman ({cart.length})</label>
+                                        <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                            {cart.map(item => (
+                                                <div key={item.id} className="flex items-center justify-between bg-white p-3 rounded-xl shadow-sm border border-slate-100">
+                                                    <div>
+                                                        <div className="font-bold text-xs text-slate-800">{item.name}</div>
+                                                        <div className="text-[9px] text-slate-400 font-mono">{item.code}</div>
+                                                    </div>
+                                                    <button onClick={() => removeFromCart(item.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors">
+                                                        <XCircle size={16} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="grid grid-cols-1 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Rencana Pengembalian</label>
                                     <input
@@ -376,12 +435,12 @@ const LoanList = () => {
                                         onChange={(e) => setAddModal(prev => ({ ...prev, expectedReturnDate: e.target.value }))}
                                     />
                                 </div>
-                                <div>
+                                <div className="md:col-span-2">
                                     <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Alasan / Keperluan</label>
                                     <textarea
                                         className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold focus:border-blue-500 outline-none"
-                                        rows={3}
-                                        placeholder="Contoh: Digunakan untuk kegiatan outbound di area lapangan..."
+                                        rows={2}
+                                        placeholder="Contoh: Digunakan untuk kegiatan outbound..."
                                         value={addModal.purpose}
                                         onChange={(e) => setAddModal(prev => ({ ...prev, purpose: e.target.value }))}
                                     />
@@ -389,25 +448,29 @@ const LoanList = () => {
                             </div>
                         </div>
 
-                        <div className="flex justify-end gap-3 mt-10">
+                        <div className="flex justify-end gap-3 mt-8">
                             <button
-                                onClick={() => setAddModal(prev => ({ ...prev, isOpen: false }))}
+                                onClick={() => {
+                                    setAddModal(prev => ({ ...prev, isOpen: false }));
+                                    setCart([]);
+                                    setTargetUnitId('');
+                                }}
                                 className="px-6 py-3 text-slate-500 hover:text-slate-700 font-bold"
                             >
                                 Batal
                             </button>
                             <button
                                 onClick={handleRequestLoan}
-                                disabled={loading || !addModal.assetId || !addModal.purpose}
+                                disabled={loading || cart.length === 0 || !addModal.purpose || !targetUnitId}
                                 className="px-8 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all active:scale-95 disabled:opacity-50"
                             >
                                 {loading ? 'Memproses...' : 'Kirim Permohonan'}
                             </button>
                         </div>
                     </div>
-                </div>
+                </div >
             )}
-        </div>
+        </div >
     );
 };
 
