@@ -90,7 +90,7 @@ const Layout = () => {
                         >
                             <Menu size={24} />
                         </button>
-                        <h2 className="text-lg font-bold text-slate-800 hidden sm:block tracking-tight">SIMA SARPRAS</h2>
+                        <h2 className="text-lg font-bold text-slate-800 hidden sm:block tracking-tight">SARANA DAN PRASARANA</h2>
                         <h2 className="text-lg font-bold text-slate-800 sm:hidden">SARPRAS</h2>
                     </div>
 
