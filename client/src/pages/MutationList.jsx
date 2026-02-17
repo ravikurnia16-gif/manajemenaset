@@ -43,6 +43,17 @@ const MutationList = () => {
         }
     };
 
+    const handleApproval = async (id, action) => {
+        if (!confirm(`Konfirmasi ${action === 'approve' ? 'Persetujuan' : 'Penolakan'} mutasi ini?`)) return;
+        try {
+            await api.post(`/assets/movements/${id}/${action}`, { note: `Diproses oleh ${user.username}` });
+            alert(`Mutasi berhasil ${action === 'approve' ? 'disetujui' : 'ditolak'}.`);
+            fetchMovements();
+        } catch (error) {
+            alert('Gagal memproses mutasi: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
     const isOnlyPendingSelected = selectedItems.length > 0 && selectedItems.every(id => {
         const item = movements.find(m => m.id === id);
         return item?.status === 'PENDING';
