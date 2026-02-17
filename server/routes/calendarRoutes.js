@@ -27,4 +27,7 @@ router.put('/:id', calendar.updateEvent);
 // DELETE event
 router.delete('/:id', calendar.deleteEvent);
 
+// POST manual trigger reminders
+router.post('/reminders', calendar.sendCalendarReminders);
+
 module.exports = router;

@@ -21,7 +21,7 @@ const initScheduler = () => {
         // ----------------------------------------------------
         // 1. DAILY CALENDAR REMINDER (Every Day at 19:00 / 7 PM)
         // ----------------------------------------------------
-        if (hour === 19 && minute === 0) {
+        if (hour === 10 && minute === 0) {
             console.log('[Scheduler] Executing Daily Calendar Reminder...');
             try {
                 await sendCalendarReminders();

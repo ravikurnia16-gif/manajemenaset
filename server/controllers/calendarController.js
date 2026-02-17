@@ -190,31 +190,66 @@ const createEvent = async (req, res) => {
                 recurringEndDate: recurringEndDate ? new Date(recurringEndDate) : null,
                 createdById: req.user.id
             },
-            include: { pics: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } }
+            include: { pics: { select: { id: true, name: true, phone: true } }, createdBy: { select: { id: true, name: true } } }
         });
 
-        // AUTO-ASSIGNMENT SYNC: Create assignments for each PIC (safe - won't crash if schema not migrated)
-        try {
-            if (Array.isArray(picIds) && picIds.length > 0) {
-                await Promise.all(picIds.map(async (pId) => {
-                    return prisma.personnelAssignment.create({
-                        data: {
-                            assignerId: req.user.id,
-                            assigneeId: parseInt(pId),
-                            title: `[KALENDER] ${title}`,
-                            description: description || 'Tugas otomatis dari Kalender Kerja',
-                            category: category || 'UMUM',
-                            location: location || null,
-                            dueDate: new Date(date),
-                            calendarEventId: event.id,
-                            status: 'PENDING'
+        // AUTO-ASSIGNMENT SYNC & NOTIFICATION
+        (async () => {
+            try {
+                // 1. Sync Assignments
+                if (Array.isArray(picIds) && picIds.length > 0) {
+                    await Promise.all(picIds.map(async (pId) => {
+                        return prisma.personnelAssignment.create({
+                            data: {
+                                assignerId: req.user.id,
+                                assigneeId: parseInt(pId),
+                                title: `[KALENDER] ${title}`,
+                                description: description || 'Tugas otomatis dari Kalender Kerja',
+                                category: category || 'UMUM',
+                                location: location || null,
+                                dueDate: new Date(date),
+                                calendarEventId: event.id,
+                                status: 'PENDING'
+                            }
+                        });
+                    }));
+                }
+
+                // 2. Send WhatsApp Notification to PICs
+                if (event.pics && event.pics.length > 0) {
+                    const { sendMessage } = whatsappService;
+                    console.log(`[Calendar Create] Sending notifications to ${event.pics.length} PICs...`);
+
+                    for (const pic of event.pics) {
+                        if (!pic.phone) continue;
+
+                        const dateStr = new Date(date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                        let msg = `📅 *TUGAS BARU: KALENDER SARPRASDev*\n\n`;
+                        msg += `Halo ${pic.name}, Anda ditunjuk sebagai PIC untuk kegiatan berikut:\n\n`;
+                        msg += `📌 *${title}*\n`;
+                        msg += `📅 Tanggal: ${dateStr}\n`;
+                        msg += `📂 Kategori: ${category || '-'}\n`;
+                        if (location) msg += `📍 Lokasi: ${location}\n`;
+                        if (description) msg += `📝 Detail: ${description}\n`;
+                        msg += `\nMohon dicek di aplikasi Manajemen Aset. Terima kasih.`;
+
+                        // Jeda Random 5-15 detik (sesuai request)
+                        const delay = 5000 + Math.random() * 10000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+
+                        try {
+                            await sendMessage(pic.phone, msg);
+                            console.log(`[Calendar Create] Sent WA to ${pic.name}`);
+                        } catch (err) {
+                            console.error(`[Calendar Create] Failed WA to ${pic.name}:`, err.message);
                         }
-                    });
-                }));
+                    }
+                }
+
+            } catch (bgError) {
+                console.error('[Calendar Create] Background Task Error:', bgError);
             }
-        } catch (syncErr) {
-            console.error('[Calendar -> Assignment Sync] Skipped (schema not migrated?):', syncErr.message);
-        }
+        })();
 
         res.status(201).json(event);
     } catch (error) {
@@ -241,63 +276,100 @@ const updateEvent = async (req, res) => {
                 },
                 isRecurring: isRecurring || false, recurringType, recurringEndDate: recurringEndDate ? new Date(recurringEndDate) : null
             },
-            include: { pics: { select: { id: true, name: true } }, createdBy: { select: { id: true, name: true } } }
+            include: { pics: { select: { id: true, name: true, phone: true } }, createdBy: { select: { id: true, name: true } } }
         });
 
-        // AUTO-ASSIGNMENT SYNC (safe - won't crash if schema not migrated):
-        try {
-            // 1. Get existing assignments for this calendar event
-            const existingAssignments = await prisma.personnelAssignment.findMany({
-                where: { calendarEventId: parseInt(id) }
-            });
-            const currentAssigneeIds = existingAssignments.map(a => a.assigneeId);
-            const newAssigneeIds = (Array.isArray(picIds) ? picIds : []).map(pid => parseInt(pid));
-
-            // 2. Remove assignments for PICs who are no longer selected
-            const toDelete = existingAssignments.filter(a => !newAssigneeIds.includes(a.assigneeId));
-            if (toDelete.length > 0) {
-                await prisma.personnelAssignment.deleteMany({
-                    where: { id: { in: toDelete.map(a => a.id) } }
+        // AUTO-ASSIGNMENT SYNC & NOTIFICATION FOR NEW PICS
+        (async () => {
+            try {
+                // 1. Get existing assignments for this calendar event
+                const existingAssignments = await prisma.personnelAssignment.findMany({
+                    where: { calendarEventId: parseInt(id) }
                 });
-            }
+                const currentAssigneeIds = existingAssignments.map(a => a.assigneeId);
+                const newAssigneeIds = (Array.isArray(picIds) ? picIds : []).map(pid => parseInt(pid));
 
-            // 3. Add assignments for new PICs
-            const toAdd = newAssigneeIds.filter(pid => !currentAssigneeIds.includes(pid));
-            if (toAdd.length > 0) {
-                await Promise.all(toAdd.map(pid => {
-                    return prisma.personnelAssignment.create({
+                // 2. Remove assignments for PICs who are no longer selected
+                const toDelete = existingAssignments.filter(a => !newAssigneeIds.includes(a.assigneeId));
+                if (toDelete.length > 0) {
+                    await prisma.personnelAssignment.deleteMany({
+                        where: { id: { in: toDelete.map(a => a.id) } }
+                    });
+                }
+
+                // 3. Add assignments for new PICs AND Notify them
+                const toAddIds = newAssigneeIds.filter(pid => !currentAssigneeIds.includes(pid));
+
+                if (toAddIds.length > 0) {
+                    // Create Assignments
+                    await Promise.all(toAddIds.map(pid => {
+                        return prisma.personnelAssignment.create({
+                            data: {
+                                assignerId: req.user.id,
+                                assigneeId: pid,
+                                title: `[KALENDER] ${title}`,
+                                description: description || 'Tugas otomatis dari Kalender Kerja',
+                                category: category || 'UMUM',
+                                location: location || null,
+                                dueDate: new Date(date),
+                                calendarEventId: parseInt(id),
+                                status: 'PENDING'
+                            }
+                        });
+                    }));
+
+                    // Send Notifications to NEW PICs only
+                    const { sendMessage } = whatsappService;
+                    const newPics = await prisma.user.findMany({
+                        where: { id: { in: toAddIds } },
+                        select: { id: true, name: true, phone: true }
+                    });
+
+                    console.log(`[Calendar Update] Sending notifications to ${newPics.length} NEW PICs...`);
+
+                    for (const pic of newPics) {
+                        if (!pic.phone) continue;
+
+                        const dateStr = new Date(date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                        let msg = `📅 *TUGAS BARU (KALENDER)*\n\n`;
+                        msg += `Halo ${pic.name}, Anda baru saja ditambahkan sebagai PIC untuk kegiatan:\n\n`;
+                        msg += `📌 *${title}*\n`;
+                        msg += `📅 Tanggal: ${dateStr}\n`;
+                        msg += `📂 Kategori: ${category || '-'}\n`;
+                        if (location) msg += `📍 Lokasi: ${location}\n`;
+                        msg += `\nMohon dicek di aplikasi. Terima kasih.`;
+
+                        // Jeda Random 5-15 detik
+                        const delay = 5000 + Math.random() * 10000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+
+                        try {
+                            await sendMessage(pic.phone, msg);
+                            console.log(`[Calendar Update] Sent WA to ${pic.name}`);
+                        } catch (err) {
+                            console.error(`[Calendar Update] Failed WA to ${pic.name}:`, err.message);
+                        }
+                    }
+                }
+
+                // 4. Update existing assignments (title/date/location change)
+                const toUpdate = existingAssignments.filter(a => newAssigneeIds.includes(a.assigneeId));
+                if (toUpdate.length > 0) {
+                    await prisma.personnelAssignment.updateMany({
+                        where: { id: { in: toUpdate.map(a => a.id) } },
                         data: {
-                            assignerId: req.user.id,
-                            assigneeId: pid,
                             title: `[KALENDER] ${title}`,
                             description: description || 'Tugas otomatis dari Kalender Kerja',
                             category: category || 'UMUM',
                             location: location || null,
-                            dueDate: new Date(date),
-                            calendarEventId: parseInt(id),
-                            status: 'PENDING'
+                            dueDate: new Date(date)
                         }
                     });
-                }));
+                }
+            } catch (bgError) {
+                console.error('[Calendar Update] Background Task Error:', bgError);
             }
-
-            // 4. Update existing assignments (title/date/location change)
-            const toUpdate = existingAssignments.filter(a => newAssigneeIds.includes(a.assigneeId));
-            if (toUpdate.length > 0) {
-                await prisma.personnelAssignment.updateMany({
-                    where: { id: { in: toUpdate.map(a => a.id) } },
-                    data: {
-                        title: `[KALENDER] ${title}`,
-                        description: description || 'Tugas otomatis dari Kalender Kerja',
-                        category: category || 'UMUM',
-                        location: location || null,
-                        dueDate: new Date(date)
-                    }
-                });
-            }
-        } catch (syncErr) {
-            console.error('[Calendar -> Assignment Sync] Skipped (schema not migrated?):', syncErr.message);
-        }
+        })();
 
         res.json(event);
     } catch (error) {
@@ -317,12 +389,14 @@ const deleteEvent = async (req, res) => {
 };
 
 // ====== WA H-1 REMINDER ======
-const sendCalendarReminders = async () => {
+const sendCalendarReminders = async (req = null, res = null) => {
     try {
-        // Spam prevention: Only send between 08:00 and 20:00
+        const isManual = !!req;
+
+        // Spam prevention: Only send between 08:00 and 20:00 (unless manual)
         const now = new Date();
         const hour = now.getHours();
-        if (hour < 8 || hour >= 20) {
+        if (!isManual && (hour < 8 || hour >= 20)) {
             console.log(`[Calendar Reminder] Outside working hours (${hour}:00). Skipping...`);
             return;
         }
@@ -363,6 +437,7 @@ const sendCalendarReminders = async () => {
 
         if (allUpcoming.length === 0) {
             console.log('[Calendar Reminder] No events for tomorrow.');
+            if (isManual && res) return res.json({ message: 'No events found for tomorrow.' });
             return;
         }
 
@@ -384,39 +459,50 @@ const sendCalendarReminders = async () => {
             });
         });
 
-        console.log(`[Calendar Reminder] Sending reminders to ${Object.keys(groupedByPIC).length} PICs...`);
+        const picCount = Object.keys(groupedByPIC).length;
+        console.log(`[Calendar Reminder] Sending reminders to ${picCount} PICs...`);
+
+        // If manual, respond immediately then process in background
+        if (isManual && res) {
+            res.json({ message: `Sending reminders to ${picCount} PICs (Background Process Started)`, recipientCount: picCount });
+        }
 
         const { sendMessage } = whatsappService;
 
-        for (const picId in groupedByPIC) {
-            const data = groupedByPIC[picId];
+        // Async Background Sending
+        (async () => {
+            for (const picId in groupedByPIC) {
+                const data = groupedByPIC[picId];
 
-            let msg = `📅 *REMINDER KEGIATAN BESOK*\n`;
-            msg += `Halo ${data.picName}, berikut agenda Sarpras untuk besok:\n\n`;
+                let msg = `📅 *REMINDER KEGIATAN BESOK*\n`;
+                msg += `Halo ${data.picName}, berikut agenda Sarpras untuk besok:\n\n`;
 
-            data.events.forEach((event, idx) => {
-                msg += `${idx + 1}. *${event.title}*\n`;
-                msg += `   📂 Kategori: ${event.category}\n`;
-                if (event.location) msg += `   📍 Lokasi: ${event.location}\n`;
-                if (event.description) msg += `   📝 Detail: ${event.description}\n`;
-                msg += `\n`;
-            });
+                data.events.forEach((event, idx) => {
+                    msg += `${idx + 1}. *${event.title}*\n`;
+                    msg += `   📂 Kategori: ${event.category}\n`;
+                    if (event.location) msg += `   📍 Lokasi: ${event.location}\n`;
+                    if (event.description) msg += `   📝 Detail: ${event.description}\n`;
+                    msg += `\n`;
+                });
 
-            msg += `Mohon dipersiapkan dengan baik. Terima kasih.`;
+                msg += `Mohon dipersiapkan dengan baik. Terima kasih.`;
 
-            // Random delay between 30-120 seconds per PIC to mimic human behavior
-            const delay = 30000 + Math.random() * 90000;
-            await new Promise(resolve => setTimeout(resolve, delay));
+                // Random delay between 30-120 seconds per PIC to ensure staggered sending (10-11 range approx)
+                const delay = 30000 + Math.random() * 90000;
+                await new Promise(resolve => setTimeout(resolve, delay));
 
-            try {
-                await sendMessage(data.phone, msg);
-                console.log(`[Calendar Reminder] Sent to ${data.picName} (${data.phone}) - ${data.events.length} events`);
-            } catch (err) {
-                console.error(`[Calendar Reminder] Failed to send to ${data.picName}:`, err.message);
+                try {
+                    await sendMessage(data.phone, msg);
+                    console.log(`[Calendar Reminder] Sent to ${data.picName} (${data.phone}) - ${data.events.length} events`);
+                } catch (err) {
+                    console.error(`[Calendar Reminder] Failed to send to ${data.picName}:`, err.message);
+                }
             }
-        }
+        })();
+
     } catch (error) {
         console.error('[Calendar Reminder] Error:', error);
+        if (req && res && !res.headersSent) res.status(500).json({ error: error.message });
     }
 };
 
