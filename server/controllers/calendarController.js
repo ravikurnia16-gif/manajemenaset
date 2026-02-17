@@ -224,14 +224,14 @@ const createEvent = async (req, res) => {
                         if (!pic.phone) continue;
 
                         const dateStr = new Date(date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-                        let msg = `📅 *TUGAS BARU: KALENDER SARPRASDev*\n\n`;
-                        msg += `Halo ${pic.name}, Anda ditunjuk sebagai PIC untuk kegiatan berikut:\n\n`;
+                        let msg = `📅 *Assalamu'alaykum Warahmatullahi Wabarakatuh*\n\n`;
+                        msg += `Ustadz/Ustadzah ${pic.name}, ditunjuk sebagai PIC kegiatan berikut:\n\n`;
                         msg += `📌 *${title}*\n`;
                         msg += `📅 Tanggal: ${dateStr}\n`;
                         msg += `📂 Kategori: ${category || '-'}\n`;
                         if (location) msg += `📍 Lokasi: ${location}\n`;
                         if (description) msg += `📝 Detail: ${description}\n`;
-                        msg += `\nMohon dicek di aplikasi Manajemen Aset. Terima kasih.`;
+                        msg += `\nMohon dicek di aplikasi Sarpras. Syukron Jazakumullahu Khairan.`;
 
                         // Jeda Random 5-15 detik (sesuai request)
                         const delay = 5000 + Math.random() * 10000;
