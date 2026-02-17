@@ -29,6 +29,14 @@ enum DisposalStatus {
   REJECTED
 }
 
+enum LoanStatus {
+  PENDING
+  APPROVED
+  BORROWED
+  RETURNED
+  REJECTED
+}
+
 model User {
   id        Int      @id @default(autoincrement())
   username  String   @unique
@@ -63,6 +71,9 @@ model User {
   calendarEventsCreated SarprasCalendarEvent[] @relation("CalendarCreator")
   calendarEventsPIC     SarprasCalendarEvent[] @relation("CalendarPICs")
   notifications       Notification[]
+  
+  loans               AssetLoan[]     @relation("Borrower")
+  reviewedLoans       AssetLoan[]     @relation("LoanReviewer")
 }
 
 model Notification {
@@ -150,6 +161,7 @@ model Asset {
   condition       Condition
   sourceOfFunds   String?  @default("Mandiri")
   acquisitionStatus String? @default("Pembelian")
+  isLendable      Boolean  @default(false)
   
   image           String?
   invoice         String?
@@ -165,6 +177,7 @@ model Asset {
   movements       Movement[]
   maintenances    Maintenance[]
   disposal        AssetDisposal?
+  loans           AssetLoan[]
   
   // Validation Fields
   validationStatus ValidationStatus @default(UNVERIFIED)
@@ -713,4 +726,29 @@ model SarprasCalendarEvent {
   createdBy       User     @relation("CalendarCreator", fields: [createdById], references: [id])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model AssetLoan {
+  id              Int        @id @default(autoincrement())
+  assetId         Int
+  asset           Asset      @relation(fields: [assetId], references: [id])
+  borrowerId      Int
+  borrower        User       @relation("Borrower", fields: [borrowerId], references: [id])
+  
+  unitId          Int        // Unit of the asset at the time of loan
+  
+  borrowDate      DateTime?
+  expectedReturnDate DateTime
+  actualReturnDate DateTime?
+  
+  purpose         String     @db.Text
+  status          LoanStatus @default(PENDING)
+  
+  reviewedById    Int?
+  reviewedBy      User?      @relation("LoanReviewer", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  rejectionReason String?    @db.Text
+  
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 }

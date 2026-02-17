@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Save, X } from 'lucide-react';
+import { Save, X, ArrowRightLeft } from 'lucide-react';
 import api from '../lib/axios';
 import SearchableSelect from '../components/SearchableSelect';
 
@@ -15,7 +15,8 @@ const AssetForm = () => {
             usefulLife: 5,
             sourceOfFunds: 'Yayasan',
             acquisitionStatus: 'Pembelian',
-            purchaseDate: new Date().toISOString().split('T')[0]
+            purchaseDate: new Date().toISOString().split('T')[0],
+            isLendable: false
         }
     });
 
@@ -350,6 +351,26 @@ const AssetForm = () => {
                                     <option value="RUSAK_BERAT">Rusak Berat</option>
                                 </select>
                             </div>
+                        </div>
+
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${watch('isLendable') ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
+                                    <ArrowRightLeft size={20} />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-slate-800">Bisa Dipinjam?</p>
+                                    <p className="text-[10px] text-slate-500">Izinkan aset ini untuk dipinjam oleh unit lain/staf.</p>
+                                </div>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    {...register('isLendable')}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                            </label>
                         </div>
 
                         <div>

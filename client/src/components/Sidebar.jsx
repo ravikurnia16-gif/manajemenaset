@@ -185,6 +185,9 @@ const Sidebar = ({ isOpen = true }) => {
                                     <Link to="/personalia/laporan" className={subNavItemClass('/personalia/laporan')}>
                                         <FileText size={16} /> Laporan Staff
                                     </Link>
+                                    <Link to="/peminjaman" className={subNavItemClass('/peminjaman')}>
+                                        <ArrowLeftRight size={16} /> Peminjaman Aset
+                                    </Link>
                                     <Link to="/personalia/penugasan" className={subNavItemClass('/personalia/penugasan')}>
                                         <FileCheck size={16} /> Penugasan
                                     </Link>

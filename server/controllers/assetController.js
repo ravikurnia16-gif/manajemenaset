@@ -28,6 +28,7 @@ exports.createAsset = async (req, res) => {
             acquisitionStatus,
             picId, picName,
             vendorId, usefulLife, specification, sourceOfFunds,
+            isLendable,
             // Additional fields for "Other" options
             newCategoryName, newCategoryCode,
             newVendorName, newVendorContact,
@@ -138,6 +139,7 @@ exports.createAsset = async (req, res) => {
                         specification,
                         sourceOfFunds: sourceOfFunds || "Mandiri",
                         acquisitionStatus: acquisitionStatus || "Pembelian",
+                        isLendable: isLendable === true || isLendable === 'true',
                         quantity: 1,
                         picId: picId ? parseInt(picId) : null,
                         picName: picName || null
@@ -206,7 +208,9 @@ exports.getAllAssets = async (req, res) => {
             unitId: filterUnitId,
             roomId: filterRoomId,
             startDate,
-            endDate
+            endDate,
+            isLendable,
+            condition
         } = req.query;
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -235,6 +239,16 @@ exports.getAllAssets = async (req, res) => {
         // 3. Validation Filter
         if (validationStatus && validationStatus !== 'ALL') {
             where.validationStatus = validationStatus;
+        }
+
+        // 4. Lendable Filter
+        if (isLendable === 'true' || isLendable === true) {
+            where.isLendable = true;
+        }
+
+        // 5. Condition Filter (if needed by frontend)
+        if (condition) {
+            where.condition = condition;
         }
 
         // 4. Search (Name, Code, Unit, or Room)
@@ -398,7 +412,8 @@ exports.updateAsset = async (req, res) => {
             price, purchaseDate, condition, brand,
             usefulLife, vendorId, specification, sourceOfFunds,
             acquisitionStatus,
-            picId, picName
+            picId, picName,
+            isLendable
         } = req.body;
 
         const asset = await prisma.asset.update({
@@ -419,7 +434,8 @@ exports.updateAsset = async (req, res) => {
                 usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
                 acquisitionStatus,
                 picId: picId ? parseInt(picId) : null,
-                picName: picName || null
+                picName: picName || null,
+                isLendable: isLendable === true || isLendable === 'true'
             }
         });
         res.json(asset);
