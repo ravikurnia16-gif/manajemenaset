@@ -35,6 +35,7 @@ import PersonnelAssignments from './pages/PersonnelAssignments';
 import DisposalList from './pages/DisposalList';
 import SarprasRules from './pages/SarprasRules';
 import SarprasCalendar from './pages/SarprasCalendar';
+import FloorPlan from './pages/FloorPlan';
 import ModulePlaceholder from './components/ModulePlaceholder';
 
 // Komponen untuk melindungi route yang butuh login
@@ -79,6 +80,7 @@ function App() {
           <Route path="mutasi" element={<MutationList />} />
           <Route path="mutasi/request" element={<MutationForm />} />
           <Route path="penghapusan" element={<DisposalList />} />
+          <Route path="denah" element={<FloorPlan />} />
           <Route path="sarpras/rules" element={<SarprasRules />} />
 
           {/* Module: Manajemen Kendaraan */}

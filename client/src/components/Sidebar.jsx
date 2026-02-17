@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus } from 'lucide-react';
+import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const Sidebar = ({ isOpen = true }) => {
@@ -128,6 +128,9 @@ const Sidebar = ({ isOpen = true }) => {
                         </Link>
                         <Link to="/penghapusan" className={subNavItemClass('/penghapusan')}>
                             <Trash2 size={16} /> Penghapusan
+                        </Link>
+                        <Link to="/denah" className={subNavItemClass('/denah')}>
+                            <MapPin size={16} /> Denah Lokasi
                         </Link>
                     </>
                 ))}
