@@ -18,6 +18,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 // Routes API
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/assets', require('./routes/assetRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/master', require('./routes/masterRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/settings', require('./routes/settingRoutes'));

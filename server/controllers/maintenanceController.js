@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
+const { createNotification } = require('./notificationController');
 
 // Helper to generate Maintenance Code
 const generateCode = async () => {
@@ -190,6 +191,25 @@ exports.updateStatus = async (req, res) => {
                 unit: { select: { name: true } }
             }
         });
+
+        // --- In-App Notification (Phase 3) ---
+        const statusLabels = {
+            'APPROVED': 'Disetujui',
+            'ASSIGNED': `Ditugaskan ke Teknisi: ${technician || '-'}`,
+            'COMPLETED': 'Selesai Dikerjakan',
+            'REJECTED': 'Ditolak'
+        };
+
+        const notifMsg = `Laporan pemeliharaan "${report.title}" statusnya kini: ${statusLabels[status] || status}.`;
+        const notifType = status === 'REJECTED' ? 'WARNING' : (status === 'COMPLETED' ? 'SUCCESS' : 'INFO');
+
+        await createNotification(
+            report.userId,
+            'Update Pemeliharaan',
+            notifMsg,
+            notifType,
+            `/maintenance/view/${id}`
+        );
 
         res.json(report);
 

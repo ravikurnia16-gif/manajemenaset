@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendMessage } = require('../services/whatsappService');
+const { createNotification } = require('./notificationController');
 
 /**
  * Request a new asset mutation (Status: PENDING)
@@ -203,6 +204,17 @@ exports.approveMutation = async (req, res) => {
                     return updatedMovement;
                 });
                 results.push(result);
+
+                // --- In-App Notification (Phase 3) ---
+                if (movement.requesterId) {
+                    await createNotification(
+                        movement.requesterId,
+                        'Mutasi Aset Disetujui',
+                        `Mutasi aset "${movement.asset?.name || 'Aset'}" telah disetujui ke ${movement.toLocation}.`,
+                        'SUCCESS',
+                        `/mutasi`
+                    );
+                }
             } catch (err) {
                 errors.push({ id: targetId, error: err.message });
             }
@@ -230,6 +242,11 @@ exports.rejectMutation = async (req, res) => {
         const idsToProcess = ids && Array.isArray(ids) ? ids : (id ? [id] : []);
         if (idsToProcess.length === 0) return res.status(400).json({ error: 'No IDs provided' });
 
+        const movements = await prisma.movement.findMany({
+            where: { id: { in: idsToProcess.map(i => parseInt(i)) } },
+            include: { asset: true }
+        });
+
         const updatedMovements = await prisma.movement.updateMany({
             where: {
                 id: { in: idsToProcess.map(i => parseInt(i)) },
@@ -242,6 +259,19 @@ exports.rejectMutation = async (req, res) => {
                 approvalNote: note || 'Ditolak masal'
             }
         });
+
+        // --- In-App Notification (Phase 3) ---
+        for (const m of movements.filter(m => m.status === 'PENDING')) {
+            if (m.requesterId) {
+                await createNotification(
+                    m.requesterId,
+                    'Mutasi Aset Ditolak',
+                    `Mutasi aset "${m.asset?.name || 'Aset'}" ditolak. Alasan: ${note || '-'}`,
+                    'WARNING',
+                    '/mutasi'
+                );
+            }
+        }
 
         res.json({ message: `${updatedMovements.count} mutations rejected`, count: updatedMovements.count });
     } catch (error) {

@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import AssetList from './pages/AssetList';
 import AssetForm from './pages/AssetForm';
+import AssetDetail from './pages/AssetDetail';
 import MasterData from './pages/MasterData';
 import RKBList from './pages/RKBList';
 import RKBDetail from './pages/RKBDetail';
@@ -62,6 +63,7 @@ function App() {
           <Route index element={<Navigate to="/dashboard" />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="aset" element={<AssetList />} />
+          <Route path="aset/view/:id" element={<AssetDetail />} />
           <Route path="aset/input" element={<AssetForm />} />
           <Route path="aset/edit/:id" element={<AssetForm />} />
           <Route path="master" element={<MasterData />} />

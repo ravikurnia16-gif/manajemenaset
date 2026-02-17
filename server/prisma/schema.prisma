@@ -62,6 +62,19 @@ model User {
   assetsPIC           Asset[]         @relation("AssetPIC")
   calendarEventsCreated SarprasCalendarEvent[] @relation("CalendarCreator")
   calendarEventsPIC     SarprasCalendarEvent[] @relation("CalendarPICs")
+  notifications       Notification[]
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String   @db.Text
+  type      String   // INFO, WARNING, SUCCESS, URGENT
+  isRead    Boolean  @default(false)
+  link      String?  // URL to redirect when clicked
+  createdAt DateTime @default(now())
 }
 
 model Unit {

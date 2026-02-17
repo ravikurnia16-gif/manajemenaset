@@ -3,6 +3,7 @@ const prisma = new PrismaClient();
 const fs = require('fs');
 const path = require('path');
 const whatsappService = require('../services/whatsappService');
+const { createNotification } = require('./notificationController');
 
 // Debounce map for assignment notifications: { "userId-procId": Timer }
 const assignmentTimers = new Map();
@@ -146,7 +147,7 @@ exports.createProcurement = async (req, res) => {
                         qty: parseInt(item.qty),
                         unit: item.unit,
                         estPrice: parseFloat(item.estPrice || 0),
-                        fundingSource: item.fundingSource || 'Mandiri'
+                        fundingSource: item.fundingSource || 'Yayasan'
                     }
                 });
 
@@ -272,7 +273,7 @@ exports.importProcurement = async (req, res) => {
                         qty: parseInt(item.qty),
                         unit: item.unit ? String(item.unit) : 'Unit',
                         estPrice: parseFloat(item.estPrice || 0),
-                        fundingSource: item.fundingSource || 'Mandiri'
+                        fundingSource: item.fundingSource || 'Yayasan'
                     }
                 });
 
@@ -354,6 +355,30 @@ exports.updateStatus = async (req, res) => {
             data: updateData,
             include: { user: true, items: true }
         });
+
+        // --- In-App Notification (Phase 3) ---
+        const title = procurement.title || procurement.code;
+        let notifType = 'INFO';
+        let notifMsg = '';
+
+        if (status === 'VALIDATED' || status === 'APPROVED') {
+            notifType = 'SUCCESS';
+            notifMsg = `Permintaan pengadaan "${title}" telah disetujui.`;
+        } else if (status === 'REJECTED') {
+            notifType = 'WARNING';
+            notifMsg = `Permintaan pengadaan "${title}" ditolak. Alasan: ${rejectionReason || '-'}`;
+        }
+
+        if (notifMsg) {
+            await createNotification(
+                procurement.userId,
+                'Status Pengadaan Diperbarui',
+                notifMsg,
+                notifType,
+                `/procurement/view/${id}`
+            );
+        }
+
         res.json(procurement);
 
         // --- WhatsApp Notification to Submitter (Async) ---
@@ -671,6 +696,15 @@ exports.processBAST = async (req, res) => {
                 }
             }
         });
+
+        // --- In-App Notification (Phase 3) ---
+        await createNotification(
+            procurement.userId,
+            'Aset Telah Diterima',
+            `Proses BAST untuk "${procurement.title || procurement.code}" selesai. Aset telah masuk ke inventaris.`,
+            'SUCCESS',
+            '/aset'
+        );
 
         res.json({ message: 'BAST processed and Assets created.' });
 

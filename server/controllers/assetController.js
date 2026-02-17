@@ -308,10 +308,82 @@ exports.getAssetById = async (req, res) => {
         const { id } = req.params;
         const asset = await prisma.asset.findUnique({
             where: { id: parseInt(id) },
-            include: { category: true, room: true, unit: true, vendor: true, movements: true, maintenances: true }
+            include: {
+                category: true,
+                room: true,
+                unit: true,
+                vendor: true,
+                movements: {
+                    include: { requester: { select: { name: true } } },
+                    orderBy: { date: 'asc' }
+                },
+                maintenances: {
+                    orderBy: { createdAt: 'asc' }
+                },
+                disposal: true,
+                pic: { select: { name: true } }
+            }
         });
+
         if (!asset) return res.status(404).json({ error: 'Asset not found' });
-        res.json(asset);
+
+        // Build Timeline
+        const history = [];
+
+        // 1. Creation
+        history.push({
+            type: 'CREATION',
+            date: asset.purchaseDate || asset.createdAt,
+            title: 'Aset Terdaftar',
+            description: `Aset pertama kali didaftarkan dengan harga Rp ${asset.price.toLocaleString()}`,
+            icon: 'Plus'
+        });
+
+        // 2. Movements (Mutasi)
+        asset.movements.forEach(m => {
+            history.push({
+                type: 'MOVEMENT',
+                date: m.date,
+                title: 'Mutasi Aset',
+                description: `Aset dipindahkan dari ${m.fromLocation} ke ${m.toLocation}. Alasan: ${m.reason || '-'}`,
+                subTitle: `Diajukan oleh: ${m.requester?.name || 'System'}`,
+                status: m.status,
+                icon: 'ArrowLeftRight'
+            });
+        });
+
+        // 3. Maintenances (Pemeliharaan)
+        asset.maintenances.forEach(m => {
+            history.push({
+                type: 'MAINTENANCE',
+                date: m.createdAt,
+                title: 'Pemeliharaan / Perbaikan',
+                description: m.title,
+                subTitle: m.technician ? `Teknisi: ${m.technician}` : null,
+                status: m.status,
+                icon: 'Wrench'
+            });
+        });
+
+        // 4. Disposal (Penghapusan)
+        if (asset.disposal) {
+            history.push({
+                type: 'DISPOSAL',
+                date: asset.disposal.disposalDate,
+                title: 'Penghapusan Aset',
+                description: `Metode: ${asset.disposal.method}. Alasan: ${asset.disposal.reason}`,
+                status: asset.disposal.status,
+                icon: 'Trash2'
+            });
+        }
+
+        // Sort history by date descending (Newest first)
+        history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        res.json({
+            ...asset,
+            timeline: history
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

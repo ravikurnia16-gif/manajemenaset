@@ -70,8 +70,9 @@ exports.getDashboardStats = async (req, res) => {
             value: c.assets.length
         })).filter(d => d.value > 0);
 
-        // 4. Monthly Statistics (Bar Chart - Last 6 Months)
+        // 4. Monthly Statistics (Last 6 Months)
         const chartData = [];
+        const spendingData = [];
         for (let i = 5; i >= 0; i--) {
             const date = new Date();
             date.setMonth(date.getMonth() - i);
@@ -82,20 +83,37 @@ exports.getDashboardStats = async (req, res) => {
             const startOfMonth = new Date(year, month, 1);
             const endOfMonth = new Date(year, month + 1, 0);
 
-            const count = await prisma.asset.count({
+            const assetsInMonth = await prisma.asset.findMany({
                 where: {
                     ...where,
                     purchaseDate: {
                         gte: startOfMonth,
                         lte: endOfMonth
                     }
-                }
+                },
+                select: { price: true }
             });
 
+            const count = assetsInMonth.length;
+            const totalSpent = assetsInMonth.reduce((sum, a) => sum + (a.price || 0), 0);
+
             chartData.push({ name: monthName, value: count });
+            spendingData.push({ name: monthName, value: totalSpent });
         }
 
-        // 5. Unit Statistics (Table Data) - Only useful if no specific unit filter is applied
+        // 5. Maintenance Statistics
+        const maintenanceStats = await prisma.maintenance.groupBy({
+            by: ['status'],
+            where: where.unitId ? { unitId: where.unitId } : {},
+            _count: { _all: true }
+        });
+
+        const maintenanceData = maintenanceStats.map(s => ({
+            name: s.status,
+            value: s._count._all
+        }));
+
+        // 6. Unit Statistics (Table Data) - Only useful if no specific unit filter is applied
         const unitStats = [];
         if (role === 'SUPER_ADMIN' || role === 'ADMIN_ASET') {
             const unitsWithAssets = await prisma.unit.findMany({
@@ -141,6 +159,8 @@ exports.getDashboardStats = async (req, res) => {
             },
             pieData,
             chartData,
+            spendingData,
+            maintenanceData,
             unitStats,
             units: (role === 'SUPER_ADMIN' || role === 'ADMIN_ASET') ? units : []
         });

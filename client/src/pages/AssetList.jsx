@@ -815,7 +815,9 @@ const AssetList = ({ validationMode = false }) => {
                                         />
                                     </td>
                                     <td className="px-6 py-4 font-medium text-blue-600 font-mono tracking-tight">
-                                        {asset.code}
+                                        <Link to={`/aset/view/${asset.id}`} className="hover:underline">
+                                            {asset.code}
+                                        </Link>
                                         <div className="mt-1">
                                             {asset.validationStatus === 'VALIDATED' ? (
                                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-700 border border-green-200 font-bold uppercase">
