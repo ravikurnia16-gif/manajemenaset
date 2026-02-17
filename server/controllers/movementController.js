@@ -62,6 +62,29 @@ exports.requestMutation = async (req, res) => {
 
         res.status(201).json({ message: `${processedMovements.length} permintaan mutasi berhasil dikirim`, data: processedMovements });
 
+        // --- In-App Notification (Phase 3) ---
+        (async () => {
+            try {
+                const admins = await prisma.user.findMany({
+                    where: {
+                        OR: [{ nip: '24071613' }, { nip: '26021760' }]
+                    }
+                });
+
+                for (const admin of admins) {
+                    await createNotification(
+                        admin.id,
+                        'Permintaan Mutasi Baru',
+                        `${processedMovements[0].requester.username} mengajukan mutasi untuk ${processedMovements.length} aset.`,
+                        'INFO',
+                        '/mutasi'
+                    );
+                }
+            } catch (err) {
+                console.error('Failed to send in-app notification for movement:', err);
+            }
+        })();
+
         // --- Delayed Notification (30-60s) ---
         setTimeout(async () => {
             try {

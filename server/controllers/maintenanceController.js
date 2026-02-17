@@ -94,6 +94,29 @@ exports.createReport = async (req, res) => {
 
         res.json({ message: 'Laporan berhasil dibuat', data: report });
 
+        // --- In-App Notification (Phase 3) ---
+        (async () => {
+            try {
+                const admins = await prisma.user.findMany({
+                    where: {
+                        OR: [{ nip: '24071613' }, { nip: '26021760' }]
+                    }
+                });
+
+                for (const admin of admins) {
+                    await createNotification(
+                        admin.id,
+                        'Laporan Pemeliharaan Baru',
+                        `${user.name || user.username} melaporkan masalah: "${title}".`,
+                        'URGENT',
+                        '/maintenance'
+                    );
+                }
+            } catch (err) {
+                console.error('Failed to send in-app notification for maintenance:', err);
+            }
+        })();
+
         // --- WhatsApp Notification (Async) ---
         (async () => {
             try {

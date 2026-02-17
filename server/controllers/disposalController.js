@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const waService = require('../services/whatsappService');
+const { createNotification } = require('./notificationController');
 
 /**
  * Create a disposal proposal (Set status to PENDING)
@@ -60,6 +61,30 @@ exports.createDisposal = async (req, res) => {
             return res.status(400).json({ error: 'Semua aset terpilih sudah memiliki usulan aktif' });
         }
 
+        // --- In-App Notification (Phase 3) ---
+        try {
+            const ravi = await prisma.user.findFirst({
+                where: { nip: '24071613' }
+            });
+
+            if (ravi) {
+                const notifTitle = 'Usulan Penghapusan Baru';
+                const notifMsg = results.processed.length === 1
+                    ? `Usulan penghapusan baru untuk aset "${results.processed[0].asset.name}" (${results.processed[0].asset.code}).`
+                    : `Ada ${results.processed.length} usulan penghapusan aset baru yang perlu ditinjau.`;
+
+                await createNotification(
+                    ravi.id,
+                    notifTitle,
+                    notifMsg,
+                    'URGENT',
+                    '/disposals' // Assuming this is the list page
+                );
+            }
+        } catch (notifErr) {
+            console.error('Failed to send in-app notification for disposal:', notifErr);
+        }
+
         // Send WA Notification to Ravi Kurnia (24071613)
         try {
             const ravi = await prisma.user.findFirst({
@@ -111,7 +136,8 @@ exports.reviewDisposal = async (req, res) => {
     try {
         const result = await prisma.$transaction(async (tx) => {
             const proposal = await tx.assetDisposal.findUnique({
-                where: { id: parseInt(id) }
+                where: { id: parseInt(id) },
+                include: { asset: true }
             });
 
             if (!proposal) throw new Error('Usulan tidak ditemukan');
@@ -135,6 +161,19 @@ exports.reviewDisposal = async (req, res) => {
                     data: { condition: 'DISPOSED' }
                 });
             }
+
+            // --- In-App Notification (Phase 3) ---
+            const notifTitle = `Penghapusan Aset ${status === 'APPROVED' ? 'Disetujui' : 'Ditolak'}`;
+            const notifMsg = `Usulan penghapusan aset "${proposal.asset.name}" Anda telah ${status === 'APPROVED' ? 'disetujui' : 'ditolak'}.${status === 'REJECTED' ? ` Alasan: ${rejectionReason || '-'}` : ''}`;
+            const notifType = status === 'APPROVED' ? 'SUCCESS' : 'WARNING';
+
+            await createNotification(
+                proposal.proposedById,
+                notifTitle,
+                notifMsg,
+                notifType,
+                '/disposals' // Or detail page if exists
+            );
 
             return updatedDisposal;
         });

@@ -158,6 +158,29 @@ exports.createProcurement = async (req, res) => {
 
         res.json({ message: `${results.length} Request(s) submitted`, data: results });
 
+        // --- In-App Notification (Phase 3) ---
+        (async () => {
+            try {
+                const admins = await prisma.user.findMany({
+                    where: {
+                        OR: [{ nip: '24071613' }, { nip: '26021760' }, { nip: '25041676' }]
+                    }
+                });
+
+                for (const admin of admins) {
+                    await createNotification(
+                        admin.id,
+                        'Permintaan Pengadaan Baru',
+                        `${user.name || user.username} mengajukan ${results.length} permintaan pengadaan baru.`,
+                        'URGENT',
+                        '/procurement'
+                    );
+                }
+            } catch (err) {
+                console.error('Failed to send in-app notification for procurement:', err);
+            }
+        })();
+
         // --- WhatsApp Notification (Async) ---
         (async () => {
             try {
@@ -283,6 +306,29 @@ exports.importProcurement = async (req, res) => {
         }
 
         res.json({ message: `Import berhasil! ${results.length} Request(s) dibuat.`, data: results });
+
+        // --- In-App Notification (Phase 3) ---
+        (async () => {
+            try {
+                const admins = await prisma.user.findMany({
+                    where: {
+                        OR: [{ nip: '24071613' }, { nip: '26021760' }, { nip: '25041676' }]
+                    }
+                });
+
+                for (const admin of admins) {
+                    await createNotification(
+                        admin.id,
+                        'Import Pengadaan Baru',
+                        `${user.name || user.username} melakukan import ${results.length} permintaan pengadaan.`,
+                        'INFO',
+                        '/procurement'
+                    );
+                }
+            } catch (err) {
+                console.error('Failed to send in-app notification for procurement import:', err);
+            }
+        })();
 
         // --- WhatsApp Notification (Async) ---
         (async () => {
