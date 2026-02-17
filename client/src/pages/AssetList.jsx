@@ -494,7 +494,7 @@ const AssetList = ({ validationMode = false }) => {
                                         })}
                                         className="flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold hover:bg-red-100 transition-colors border border-red-100"
                                     >
-                                        <Trash2 size={12} /> Hapus {selectedIds.length} Item
+                                        <Trash2 size={12} /> Ajukan Penghapusan {selectedIds.length} Item
                                     </button>
                                 )}
                                 <button
