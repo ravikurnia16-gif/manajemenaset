@@ -682,7 +682,9 @@ const ProcurementDetail = () => {
                                                         <option value="Yayasan">Yayasan</option>
                                                         <option value="Hibah">Hibah</option>
                                                         <option value="Wakaf">Wakaf</option>
-                                                        <option value="Mandiri">Mandiri</option>
+                                                        <option value="Cashback">Cashback</option>
+                                                        <option value="BOS">BOS</option>
+                                                        <option value="Lainnya">Lainnya</option>
                                                     </select>
                                                 </td>
                                             </tr>
