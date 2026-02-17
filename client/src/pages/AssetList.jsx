@@ -250,16 +250,37 @@ const AssetList = ({ validationMode = false }) => {
     const handleDisposalSubmit = async () => {
         try {
             setLoading(true);
-            const { asset, reason, method, notes, disposalDate } = disposalModal;
-            await api.post('/disposals', {
-                assetId: asset.id,
+            const { asset, assetIds, reason, method, notes, disposalDate } = disposalModal;
+
+            const payload = {
                 reason,
                 method,
                 notes,
                 disposalDate
+            };
+
+            if (assetIds && assetIds.length > 0) {
+                payload.assetIds = assetIds;
+            } else if (asset) {
+                payload.assetId = asset.id;
+            }
+
+            await api.post('/disposals', payload);
+
+            alert(assetIds?.length > 1
+                ? `${assetIds.length} Usulan penghapusan berhasil diajukan`
+                : 'Usulan penghapusan berhasil diajukan dan sedang menunggu persetujuan');
+
+            setDisposalModal({
+                isOpen: false,
+                asset: null,
+                assetIds: [],
+                reason: '',
+                method: 'DIMUSNAHKAN',
+                notes: '',
+                disposalDate: new Date().toISOString().split('T')[0]
             });
-            alert('Usulan penghapusan berhasil diajukan dan sedang menunggu persetujuan');
-            setDisposalModal({ isOpen: false, asset: null, reason: '', method: 'DIMUSNAHKAN', notes: '', disposalDate: new Date().toISOString().split('T')[0] });
+            setSelectedIds([]); // Clear selection after bulk action
             fetchData();
         } catch (error) {
             console.error('Disposal error:', error);
@@ -461,6 +482,21 @@ const AssetList = ({ validationMode = false }) => {
                                 >
                                     <CheckCircle size={12} /> Validasi {selectedIds.length} Item
                                 </button>
+                                {canProposeDisposal && (
+                                    <button
+                                        onClick={() => setDisposalModal({
+                                            isOpen: true,
+                                            assetIds: selectedIds,
+                                            reason: '',
+                                            method: 'DIMUSNAHKAN',
+                                            notes: '',
+                                            disposalDate: new Date().toISOString().split('T')[0]
+                                        })}
+                                        className="flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold hover:bg-red-100 transition-colors border border-red-100"
+                                    >
+                                        <Trash2 size={12} /> Hapus {selectedIds.length} Item
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => navigate(`/mutasi/request?ids=${selectedIds.join(',')}`)}
                                     className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-bold shadow-sm shadow-blue-200"
@@ -955,7 +991,11 @@ const AssetList = ({ validationMode = false }) => {
 
                             <div className="p-3 bg-red-50 border border-red-100 rounded-lg mb-6">
                                 <p className="text-xs text-red-700 leading-relaxed font-medium">
-                                    Anda mengajukan <span className="font-bold underline">usulan</span> untuk menghapus <span className="font-bold underline">{disposalModal.asset?.name}</span> ({disposalModal.asset?.code}) dari inventaris aktif.
+                                    {disposalModal.assetIds && disposalModal.assetIds.length > 0 ? (
+                                        <>Anda mengajukan <span className="font-bold underline">usulan penghapusan masal</span> untuk <span className="font-bold underline text-sm">{disposalModal.assetIds.length} aset</span> terpilih.</>
+                                    ) : (
+                                        <>Anda mengajukan <span className="font-bold underline">usulan</span> untuk menghapus <span className="font-bold underline">{disposalModal.asset?.name}</span> ({disposalModal.asset?.code}) dari inventaris aktif.</>
+                                    )}
                                 </p>
                             </div>
 
@@ -1011,7 +1051,7 @@ const AssetList = ({ validationMode = false }) => {
 
                             <div className="flex justify-end gap-3 mt-8">
                                 <button
-                                    onClick={() => setDisposalModal({ isOpen: false, asset: null, reason: '', method: 'DIMUSNAHKAN', notes: '', disposalDate: '' })}
+                                    onClick={() => setDisposalModal({ isOpen: false, asset: null, assetIds: [], reason: '', method: 'DIMUSNAHKAN', notes: '', disposalDate: '' })}
                                     className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold transition-colors"
                                 >
                                     Batal

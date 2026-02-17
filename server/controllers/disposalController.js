@@ -6,39 +6,59 @@ const waService = require('../services/whatsappService');
  * Create a disposal proposal (Set status to PENDING)
  */
 exports.createDisposal = async (req, res) => {
-    const { assetId, reason, method, notes, disposalDate } = req.body;
+    const { assetId, assetIds, reason, method, notes, disposalDate } = req.body;
     const userId = req.user.id;
 
-    try {
-        const result = await prisma.$transaction(async (tx) => {
-            // Check if there is already a PENDING proposal for this asset
-            const existingProposal = await tx.assetDisposal.findFirst({
-                where: { assetId: parseInt(assetId), status: 'PENDING' }
-            });
+    // Support both single assetId and bulk assetIds
+    const idsToProcess = assetIds && Array.isArray(assetIds) ? assetIds : (assetId ? [assetId] : []);
 
-            if (existingProposal) {
-                throw new Error('Aset ini sudah memiliki usulan penghapusan yang sedang diproses');
+    if (idsToProcess.length === 0) {
+        return res.status(400).json({ error: 'Tidak ada aset yang dipilih' });
+    }
+
+    try {
+        const results = await prisma.$transaction(async (tx) => {
+            const processed = [];
+            const skipped = [];
+
+            for (const id of idsToProcess) {
+                const numericId = parseInt(id);
+
+                // Check if there is already a PENDING proposal for this asset
+                const existingProposal = await tx.assetDisposal.findFirst({
+                    where: { assetId: numericId, status: 'PENDING' }
+                });
+
+                if (existingProposal) {
+                    skipped.push(numericId);
+                    continue;
+                }
+
+                // Create Disposal Record as PENDING
+                const disposal = await tx.assetDisposal.create({
+                    data: {
+                        assetId: numericId,
+                        reason,
+                        method,
+                        notes,
+                        disposalDate: disposalDate ? new Date(disposalDate) : null,
+                        proposedById: userId,
+                        status: 'PENDING'
+                    },
+                    include: {
+                        asset: true,
+                        proposedBy: { select: { name: true, username: true } }
+                    }
+                });
+                processed.push(disposal);
             }
 
-            // Create Disposal Record as PENDING
-            const disposal = await tx.assetDisposal.create({
-                data: {
-                    assetId: parseInt(assetId),
-                    reason,
-                    method,
-                    notes,
-                    disposalDate: disposalDate ? new Date(disposalDate) : null,
-                    proposedById: userId,
-                    status: 'PENDING'
-                },
-                include: {
-                    asset: true,
-                    proposedBy: { select: { name: true, username: true } }
-                }
-            });
-
-            return disposal;
+            return { processed, skipped };
         });
+
+        if (results.processed.length === 0) {
+            return res.status(400).json({ error: 'Semua aset terpilih sudah memiliki usulan aktif' });
+        }
 
         // Send WA Notification to Ravi Kurnia (24071613)
         try {
@@ -47,12 +67,20 @@ exports.createDisposal = async (req, res) => {
             });
 
             if (ravi?.phone) {
-                const waMessage = `*USULAN PENGHAPUSAN BARU*\n\n` +
-                    `Aset: ${result.asset.name}\n` +
-                    `Kode: ${result.asset.code}\n` +
-                    `Alasan: ${reason}\n` +
+                let waMessage = `*USULAN PENGHAPUSAN BARU*\n\n`;
+
+                if (results.processed.length === 1) {
+                    const item = results.processed[0];
+                    waMessage += `Aset: ${item.asset.name}\n` +
+                        `Kode: ${item.asset.code}\n`;
+                } else {
+                    waMessage += `Jumlah Aset: ${results.processed.length} Item\n` +
+                        `Daftar: ${results.processed.slice(0, 5).map(p => p.asset.name).join(', ')}${results.processed.length > 5 ? '...' : ''}\n`;
+                }
+
+                waMessage += `Alasan: ${reason}\n` +
                     `Metode: ${method || '-'}\n` +
-                    `Diajukan oleh: ${result.proposedBy.name || result.proposedBy.username}\n\n` +
+                    `Diajukan oleh: ${results.processed[0].proposedBy.name || results.processed[0].proposedBy.username}\n\n` +
                     `_Mohon segera tinjau di dashboard Sistem Manajemen Aset._`;
 
                 await waService.sendMessage(ravi.phone, waMessage);
@@ -61,7 +89,11 @@ exports.createDisposal = async (req, res) => {
             console.error('[WA Error] Failed to send notification for disposal proposal:', waError.message);
         }
 
-        res.json({ message: 'Usulan penghapusan berhasil diajukan', data: result });
+        res.json({
+            message: `Usulan penghapusan berhasil diajukan untuk ${results.processed.length} aset.`,
+            data: results.processed,
+            skippedCount: results.skipped.length
+        });
     } catch (error) {
         console.error('Create Disposal Proposal Error:', error);
         res.status(500).json({ error: error.message });
