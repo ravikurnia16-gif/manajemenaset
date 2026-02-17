@@ -86,26 +86,32 @@ const PersonnelReports = () => {
         setForm({ ...form, generalItems: newItems });
     };
 
-    const generateSummary = () => {
+    const handleCopySummary = () => {
+        if (!summaryResult) return;
+        navigator.clipboard.writeText(summaryResult.replace(/\*\*/g, '').replace(/🤖 /g, ''));
+        alert('Rangkuman berhasil disalin ke clipboard!');
+    };
+
+    const generateSummary = async () => {
         if (!summaryDate.start || !summaryDate.end) return alert('Pilih rentang tanggal terlebih dahulu');
 
         setIsGenerating(true);
         setSummaryResult('');
 
-        setTimeout(() => {
-            // Filter reports client-side
-            const start = new Date(summaryDate.start);
-            const end = new Date(summaryDate.end);
-            end.setHours(23, 59, 59); // Include end date fully
-
-            const filtered = reports.filter(r => {
-                const d = new Date(r.date);
-                return d >= start && d <= end;
+        try {
+            // Fetch reports from backend for the specific range
+            const res = await api.get('/personnel/reports', {
+                params: {
+                    type: 'DAILY',
+                    startDate: summaryDate.start,
+                    endDate: summaryDate.end
+                }
             });
+
+            const filtered = Array.isArray(res.data) ? res.data : (res.data?.data || []);
 
             if (filtered.length === 0) {
                 setSummaryResult('❌ Tidak ada laporan ditemukan pada rentang tanggal tersebut.');
-                setIsGenerating(false);
                 return;
             }
 
@@ -116,21 +122,24 @@ const PersonnelReports = () => {
                 if (!grouped[name]) grouped[name] = { count: 0, activities: [] };
                 grouped[name].count++;
 
-                // Collect activities
+                // Collect activities from metadata
                 if (r.metadata?.items && Array.isArray(r.metadata.items)) {
                     r.metadata.items.forEach(item => {
-                        if (item.name && item.name.trim()) grouped[name].activities.push(item.name.trim());
+                        if (item.name && item.name.trim()) {
+                            const status = item.qty ? `[${item.qty}]` : '';
+                            grouped[name].activities.push(`${item.name.trim()} ${status}`.trim());
+                        }
                     });
                 }
 
-                // Fallback to content if no items but content exists
+                // Fallback to content
                 if (r.content && (!r.metadata?.items || r.metadata.items.length === 0)) {
                     grouped[name].activities.push(r.content.trim());
                 }
             });
 
             // Format Output
-            let text = `🤖 **Rangkuman Aktivitas Staff (AI Generated)**\n`;
+            let text = `🤖 **Rangkuman Aktivitas Staff (AI Aggregator)**\n`;
             text += `📅 Periode: ${new Date(summaryDate.start).toLocaleDateString('id-ID')} s/d ${new Date(summaryDate.end).toLocaleDateString('id-ID')}\n`;
             text += `📊 Total Laporan: ${filtered.length}\n\n`;
 
@@ -146,8 +155,12 @@ const PersonnelReports = () => {
             });
 
             setSummaryResult(text);
+        } catch (err) {
+            console.error('AI Summary Error:', err);
+            setSummaryResult('❌ Gagal menggenerate rangkuman. Silakan coba lagi.');
+        } finally {
             setIsGenerating(false);
-        }, 1500); // Simulation delay
+        }
     };
 
     const handleAssetItemChange = (index, field, value) => {
@@ -483,9 +496,17 @@ const PersonnelReports = () => {
 
                                 {summaryResult && (
                                     <div className="animate-in slide-in-from-bottom-2 duration-500">
-                                        <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
-                                            <FileText size={16} className="text-purple-600" /> Hasil Rangkuman:
-                                        </h4>
+                                        <div className="flex justify-between items-center mb-2">
+                                            <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                                                <FileText size={16} className="text-purple-600" /> Hasil Rangkuman:
+                                            </h4>
+                                            <button
+                                                onClick={handleCopySummary}
+                                                className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-100 transition-colors"
+                                            >
+                                                Salin Rangkuman
+                                            </button>
+                                        </div>
                                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed font-medium">
                                             {summaryResult}
                                         </div>
