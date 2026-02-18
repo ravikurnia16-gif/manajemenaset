@@ -166,8 +166,8 @@ model Asset {
   acquisitionStatus String? @default("Pembelian")
   isLendable      Boolean  @default(false)
   
-  image           String?
-  invoice         String?
+  image           String?  @db.LongText
+  invoice         String?  @db.LongText
   
   // PIC (Person In Charge)
   picId           Int?

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Save, X, ArrowRightLeft } from 'lucide-react';
@@ -34,6 +34,10 @@ const AssetForm = () => {
     const [currentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
     const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(currentUser.role);
 
+    // Image Upload State
+    const [imagePreview, setImagePreview] = useState(null);
+    const fileInputRef = useRef(null);
+
     useEffect(() => {
         const fetchMaster = async () => {
             try {
@@ -68,6 +72,10 @@ const AssetForm = () => {
                         ...asset,
                         purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split('T')[0] : ''
                     });
+
+                    if (asset.image) {
+                        setImagePreview(asset.image);
+                    }
                 }
             } catch (err) {
                 console.error("Fetch error:", err);
@@ -108,6 +116,24 @@ const AssetForm = () => {
         const year = purchaseDate ? new Date(purchaseDate).getFullYear() : 'YYYY';
 
         return `${settings.assetCodePrefix || 'DEI'}.${unit?.code || '???'}.${catCode}.${year}.xxxx`;
+    };
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Ukuran file maksimal 5MB');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64String = reader.result;
+                setImagePreview(base64String);
+                setValue('image', base64String); // Set to form data
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const onSubmit = async (data) => {
@@ -375,10 +401,48 @@ const AssetForm = () => {
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Upload Foto</label>
-                            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors cursor-pointer">
-                                <p className="text-sm text-slate-500">Klik untuk upload foto aset atau invoice</p>
-                                <p className="text-xs text-slate-400 mt-1">JPG, PNG, PDF max 5MB</p>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                accept="image/jpeg,image/png,application/pdf"
+                                onChange={handleFileChange}
+                            />
+                            <div
+                                onClick={() => fileInputRef.current.click()}
+                                className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors cursor-pointer relative overflow-hidden group"
+                            >
+                                {imagePreview ? (
+                                    <div className="relative">
+                                        <img src={imagePreview} alt="Preview" className="h-48 mx-auto object-contain rounded-lg" />
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <p className="text-white font-bold">Ganti Foto</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="mx-auto w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 mb-3 group-hover:scale-110 transition-transform">
+                                            <Save size={24} />
+                                        </div>
+                                        <p className="text-sm text-slate-500">Klik untuk upload foto aset</p>
+                                        <p className="text-xs text-slate-400 mt-1">JPG, PNG, PDF max 5MB</p>
+                                    </>
+                                )}
                             </div>
+                            {imagePreview && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setImagePreview(null);
+                                        setValue('image', null);
+                                        if (fileInputRef.current) fileInputRef.current.value = '';
+                                    }}
+                                    className="text-xs text-red-500 mt-2 hover:underline"
+                                >
+                                    Hapus Foto
+                                </button>
+                            )}
                         </div>
 
                         <div className="pt-2">
