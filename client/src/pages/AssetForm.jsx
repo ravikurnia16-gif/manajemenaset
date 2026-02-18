@@ -429,6 +429,8 @@ const AssetForm = () => {
                                     </>
                                 )}
                             </div>
+                            {/* Hidden input to ensure image is registered in RHF */}
+                            <input type="hidden" {...register('image')} />
                             {imagePreview && (
                                 <button
                                     type="button"
