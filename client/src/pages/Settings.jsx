@@ -601,12 +601,13 @@ const Settings = () => {
                                             { label: 'Sekretaris Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
                                             { label: 'Bendahara Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
                                             { label: 'Kepala Bidang Sarana dan Prasarana', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
-                                            { label: 'Staff Bidang IT', role: 'BIDANG_IT', scope: 'GLOBAL' },
-                                            { label: 'Kepala Bidang (Non-super)', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
+                                            { label: 'Bidang IT', role: 'BIDANG_IT', scope: 'GLOBAL' },
+                                            { label: 'Kepala Bidang Keuangan (Non Super)', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
                                             { label: 'Staf Bidang Sarana dan Prasarana', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                             { label: 'Kepala Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
-                                            { label: 'Bendahara Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
-                                            { label: 'Sarpras Unit', role: 'USER', scope: 'UNIT' }
+                                            { label: 'Sarpras Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
+                                            { label: 'Bendahara Unit', role: 'USER', scope: 'UNIT' },
+                                            { label: 'Staff Unit/divisi/bidang', role: 'USER', scope: 'UNIT' }
                                         ].find(p => p.label === e.target.value);
 
                                         if (pos) {
@@ -630,14 +631,15 @@ const Settings = () => {
                                     </optgroup>
                                     <optgroup label="Bidang Sarana Prasarana & IT (Global Access)">
                                         <option value="Kepala Bidang Sarana dan Prasarana">Kepala Bidang Sarana dan Prasarana</option>
-                                        <option value="Staff Bidang IT">Staff Bidang IT</option>
-                                        <option value="Kepala Bidang (Non-super)">Kepala Bidang (Non-super)</option>
+                                        <option value="Bidang IT">Bidang IT</option>
+                                        <option value="Kepala Bidang Keuangan (Non Super)">Kepala Bidang Keuangan (Non Super)</option>
                                         <option value="Staf Bidang Sarana dan Prasarana">Staf Bidang Sarana dan Prasarana</option>
                                     </optgroup>
-                                    <optgroup label="Unit Sekolah / Lembaga (Unit Access)">
+                                    <optgroup label="Unit / Divisi / Bidang (Unit Access)">
                                         <option value="Kepala Unit">Kepala Unit</option>
-                                        <option value="Bendahara Unit">Bendahara Unit</option>
                                         <option value="Sarpras Unit">Sarpras Unit</option>
+                                        <option value="Bendahara Unit">Bendahara Unit</option>
+                                        <option value="Staff Unit/divisi/bidang">Staff Unit/divisi/bidang</option>
                                     </optgroup>
                                 </select>
                                 <div className="mt-1 text-[10px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
