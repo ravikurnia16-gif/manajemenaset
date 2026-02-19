@@ -603,7 +603,10 @@ const Settings = () => {
                                             { label: 'Kepala Bidang Sarana dan Prasarana', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
                                             { label: 'Bidang IT', role: 'BIDANG_IT', scope: 'GLOBAL' },
                                             { label: 'Kepala Bidang Keuangan (Non Super)', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
-                                            { label: 'Staf Bidang Sarana dan Prasarana', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+                                            { label: 'Staff Keuangan', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+                                            { label: 'Staf Manajemen Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+                                            { label: 'Staff Gudang dan Logistik', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+                                            { label: 'Staff Kendaraan', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                             { label: 'Kepala Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
                                             { label: 'Sarpras Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
                                             { label: 'Bendahara Unit', role: 'USER', scope: 'UNIT' },
@@ -633,7 +636,10 @@ const Settings = () => {
                                         <option value="Kepala Bidang Sarana dan Prasarana">Kepala Bidang Sarana dan Prasarana</option>
                                         <option value="Bidang IT">Bidang IT</option>
                                         <option value="Kepala Bidang Keuangan (Non Super)">Kepala Bidang Keuangan (Non Super)</option>
-                                        <option value="Staf Bidang Sarana dan Prasarana">Staf Bidang Sarana dan Prasarana</option>
+                                        <option value="Staff Keuangan">Staff Keuangan</option>
+                                        <option value="Staf Manajemen Aset">Staf Manajemen Aset</option>
+                                        <option value="Staff Gudang dan Logistik">Staff Gudang dan Logistik</option>
+                                        <option value="Staff Kendaraan">Staff Kendaraan</option>
                                     </optgroup>
                                     <optgroup label="Unit / Divisi / Bidang (Unit Access)">
                                         <option value="Kepala Unit">Kepala Unit</option>

@@ -24,7 +24,7 @@ const MONTH_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Ju
 
 const SarprasCalendar = () => {
     const user = JSON.parse(localStorage.getItem('user')) || {};
-    const canEdit = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN_ASET';
+    const canEdit = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user.role);
 
     const today = new Date();
     const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1);

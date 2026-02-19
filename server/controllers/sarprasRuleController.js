@@ -76,7 +76,7 @@ exports.deleteRule = async (req, res) => {
             return res.status(404).json({ error: 'Aturan tidak ditemukan' });
         }
 
-        if (user.role !== 'SUPER_ADMIN' && rule.uploadedById !== user.id) {
+        if (!['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role) && rule.uploadedById !== user.id) {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 

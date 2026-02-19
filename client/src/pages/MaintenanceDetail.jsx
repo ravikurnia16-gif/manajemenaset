@@ -17,7 +17,7 @@ const MaintenanceDetail = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const user = JSON.parse(localStorage.getItem('user')) || {};
-    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(user.role);
+    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(user.role);
 
     // Modal state for actions
     const [actionModal, setActionModal] = useState({ show: false, type: '', nextStatus: '' });

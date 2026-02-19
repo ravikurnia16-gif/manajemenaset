@@ -132,10 +132,10 @@ exports.reviewLoan = async (req, res) => {
         // Permission check: Must be Sarpras Unit (ADMIN_UNIT) of the asset's unit OR Super Admin
         const reviewer = await prisma.user.findUnique({ where: { id: reviewerId } });
         const isSarpras = reviewer.unitId === loan.asset.unitId && reviewer.role === 'ADMIN_UNIT';
-        const isSuperAdmin = reviewer.role === 'SUPER_ADMIN';
+        const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(reviewer.role);
 
         if (!isSarpras && !isSuperAdmin) {
-            return res.status(403).json({ error: 'Hanya Sarpras Unit (Admin Unit) yang dapat menyetujui/menolak peminjaman ini' });
+            return res.status(403).json({ error: 'Hanya Sarpras Unit (Admin Unit) atau Super Admin yang dapat menyetujui/menolak peminjaman ini' });
         }
 
         const updatedLoan = await prisma.assetLoan.update({

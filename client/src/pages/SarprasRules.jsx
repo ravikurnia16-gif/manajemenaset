@@ -17,7 +17,7 @@ const SarprasRules = () => {
 
     const userStr = localStorage.getItem('user');
     const currentUser = userStr ? JSON.parse(userStr) : {};
-    const isAdmin = ['SUPER_ADMIN'].includes(currentUser.role);
+    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(currentUser.role);
 
     useEffect(() => {
         initData();

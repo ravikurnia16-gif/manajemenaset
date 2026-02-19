@@ -18,7 +18,7 @@ const ProcurementDetail = () => {
     const [activeTab, setActiveTab] = useState(1); // 1: Verifikasi, 2: Penugasan, 3: Vendor, 4: Finalisasi, 5: BAST/Handover
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
-    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user?.role);
+    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user?.role);
 
     // Check if current user is assigned to ANY item in this procurement
     const isAssignedToAny = req?.items?.some(item => item.assignedToId === user?.id) || false;

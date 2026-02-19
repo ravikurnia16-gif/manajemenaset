@@ -16,8 +16,8 @@ exports.createReport = async (req, res) => {
     const user = req.user;
 
     try {
-        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
-            return res.status(403).json({ error: 'Akses ditolak. Hanya unit Sarana dan Prasarana yang dapat mengisi laporan.' });
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
+            return res.status(403).json({ error: 'Akses ditolak. Hanya unit Sarana dan Prasarana atau Admin Global yang dapat mengisi laporan.' });
         }
 
         const report = await prisma.personnelReport.create({
@@ -89,7 +89,7 @@ exports.getReports = async (req, res) => {
     const user = req.user;
 
     try {
-        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
@@ -104,9 +104,9 @@ exports.getReports = async (req, res) => {
         }
 
         // Access Control: 
-        // - SUPER_ADMIN can see all reports.
+        // - SUPER_ADMIN and BIDANG_IT can see all reports.
         // - All other roles see only their own.
-        if (user.role === 'SUPER_ADMIN') {
+        if (['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role)) {
             if (userId) where.userId = parseInt(userId);
         } else {
             where.userId = user.id;
@@ -134,11 +134,11 @@ exports.createAssignment = async (req, res) => {
 
     try {
         // Only Head or Admin can assign
-        if (!['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
+        if (!['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role)) {
             return res.status(403).json({ error: 'Anda tidak memiliki wewenang untuk memberikan tugas.' });
         }
 
-        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
@@ -220,12 +220,12 @@ exports.getAssignments = async (req, res) => {
     const user = req.user;
 
     try {
-        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
         const where = {};
-        if (user.role !== 'SUPER_ADMIN') {
+        if (!['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role)) {
             where.OR = [
                 { assigneeId: user.id },
                 { assignerId: user.id }
@@ -260,7 +260,7 @@ exports.updateAssignmentStatus = async (req, res) => {
         if (!assignment) return res.status(404).json({ error: 'Tugas tidak ditemukan' });
 
         // Only assignee or assigner can update
-        if (assignment.assigneeId !== user.id && assignment.assignerId !== user.id && user.role !== 'SUPER_ADMIN') {
+        if (assignment.assigneeId !== user.id && assignment.assignerId !== user.id && !['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role)) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
@@ -304,7 +304,7 @@ exports.updateAssignmentStatus = async (req, res) => {
 exports.getStaffSarpras = async (req, res) => {
     const user = req.user;
     try {
-        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
@@ -313,6 +313,7 @@ exports.getStaffSarpras = async (req, res) => {
                 OR: [
                     { role: 'ADMIN_ASET' },
                     { role: 'SUPER_ADMIN' },
+                    { role: 'BIDANG_IT' },
                     { name: { contains: 'Syaf' } },
                     { name: { contains: 'Wegi' } },
                     { name: { contains: 'Ringgo' } },
