@@ -49,73 +49,57 @@ exports.requestLoan = async (req, res) => {
             });
         }));
 
-        // Notify Approvers (Group by unitId)
+        // Notify Sarpras Units (Group by unitId to avoid spam)
         const unitIds = [...new Set(assets.map(a => a.unitId))];
-
-        // Hardcoded NIPs
-        const RAVI_NIP = '24071613';
-        const SYAFRIAN_NIP = '25041676';
-
         for (const unitId of unitIds) {
             try {
-                const unitAssets = assets.filter(a => a.unitId === unitId);
-                const unit = unitAssets[0].unit;
-                const isYayasan = unit?.name?.toLowerCase().includes('yayasan');
+                const sarprasUnit = await prisma.user.findFirst({
+                    where: { unitId, role: 'ADMIN_UNIT' }
+                });
 
-                let recipients = [];
+                const unitAssets = assets.filter(a => a.unitId === unitId);
+                const isYayasan = unitAssets[0]?.unit?.name?.toLowerCase().includes('kantor yayasan');
 
                 if (isYayasan) {
-                    // Rule: Notifikasi ke Syafrian dan Ravi Kurnia
-                    const admins = await prisma.user.findMany({
-                        where: { nip: { in: [RAVI_NIP, SYAFRIAN_NIP] } }
-                    });
-                    recipients = admins;
-                } else {
-                    // Rule: Notifikasi ke Ravi Kurnia, Sarpras Unit dan Kepala Unit
-
-                    // 1. Sarpras Unit (Admin Unit)
-                    const sarpras = await prisma.user.findFirst({
-                        where: { unitId, role: 'ADMIN_UNIT' }
-                    });
-                    if (sarpras) recipients.push(sarpras);
-
-                    // 2. Kepala Unit (Head NIP)
-                    if (unit.headNip) {
-                        const head = await prisma.user.findUnique({
-                            where: { nip: unit.headNip }
-                        });
-                        if (head) recipients.push(head);
-                    }
-
-                    // 3. Ravi Kurnia
-                    const ravi = await prisma.user.findUnique({
-                        where: { nip: RAVI_NIP }
-                    });
-                    if (ravi) recipients.push(ravi);
-                }
-
-                // Remove duplicates
-                recipients = [...new Map(recipients.map(item => [item['id'], item])).values()];
-
-                // Send Notifications
-                for (const recipient of recipients) {
-                    try {
-                        await createNotification(
-                            recipient.id,
-                            `Permohonan Peminjaman (${isYayasan ? 'Yayasan' : unit.name})`,
-                            `User ${req.user.name} mengajukan peminjaman ${unitAssets.length} aset.`,
-                            'INFO',
-                            '/peminjaman' // Adjusted to likely frontend route
-                        );
-
-                        if (recipient.phone) {
-                            const assetListStr = unitAssets.map(a => `- ${a.name}`).join('\n');
-                            const message = `Halo ${recipient.name},\nAda permohonan peminjaman aset dari ${req.user.name}:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
-                            await whatsappService.sendDirectMessage(recipient.phone, message);
+                    // Notify Ravi Kurnia & Eldo specifically for Yayasan assets
+                    const specialAdmins = await prisma.user.findMany({
+                        where: {
+                            nip: { in: ['24071613', '26021760'] }
                         }
-                    } catch (e) { console.error(`Failed to notify ${recipient.name}:`, e); }
-                }
+                    });
 
+                    for (const admin of specialAdmins) {
+                        try {
+                            await createNotification(
+                                admin.id,
+                                'Permohonan Peminjaman (Yayasan)',
+                                `User ${req.user.name} mengajukan peminjaman ${unitAssets.length} aset Yayasan.`,
+                                'INFO',
+                                '/peminjaman'
+                            );
+
+                            if (admin.phone) {
+                                const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
+                                const message = `Halo Mas/Bapak,\nAda permohonan peminjaman aset Yayasan baru dari ${req.user.name}:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
+                                await whatsappService.sendDirectMessage(admin.phone, message);
+                            }
+                        } catch (e) { console.error(e); }
+                    }
+                } else if (sarprasUnit) {
+                    await createNotification(
+                        sarprasUnit.id,
+                        'Permohonan Peminjaman Baru',
+                        `User ${req.user.name} mengajukan peminjaman ${unitAssets.length} aset.`,
+                        'INFO',
+                        '/peminjaman'
+                    );
+
+                    if (sarprasUnit.phone) {
+                        const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
+                        const message = `Halo Sarpras,\nAda permohonan peminjaman baru dari ${req.user.name}:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
+                        await whatsappService.sendDirectMessage(sarprasUnit.phone, message);
+                    }
+                }
             } catch (notifErr) {
                 console.error('Failed to send loan notification for unit:', unitId, notifErr);
             }
@@ -145,30 +129,13 @@ exports.reviewLoan = async (req, res) => {
             return res.status(404).json({ error: 'Loan request not found' });
         }
 
+        // Permission check: Must be Sarpras Unit (ADMIN_UNIT) of the asset's unit OR Super Admin
         const reviewer = await prisma.user.findUnique({ where: { id: reviewerId } });
-        const RAVI_NIP = '24071613';
+        const isSarpras = reviewer.unitId === loan.asset.unitId && reviewer.role === 'ADMIN_UNIT';
+        const isSuperAdmin = reviewer.role === 'SUPER_ADMIN';
 
-        const isYayasan = loan.asset.unit.name.toLowerCase().includes('yayasan');
-        let isAuthorized = false;
-
-        if (isYayasan) {
-            // Khusus Yayasan: Hanya Ravi Kurnia
-            if (reviewer.nip === RAVI_NIP) {
-                isAuthorized = true;
-            }
-        } else {
-            // Umum: Sarpras Unit ATAU Kepala Unit
-            const isSarpras = reviewer.unitId === loan.asset.unitId && reviewer.role === 'ADMIN_UNIT';
-            const isHead = reviewer.nip === loan.asset.unit.headNip;
-            // Ravi/SuperAdmin as fallback/override? User said "Persetujuan oleh Sarpras Unit atau Kepala Unit". 
-            // Typically SuperAdmin can do anything, but adhering strictly to request:
-            if (isSarpras || isHead || reviewer.role === 'SUPER_ADMIN') {
-                isAuthorized = true;
-            }
-        }
-
-        if (!isAuthorized) {
-            return res.status(403).json({ error: 'Anda tidak memiliki hak akses untuk memproses peminjaman ini.' });
+        if (!isSarpras && !isSuperAdmin) {
+            return res.status(403).json({ error: 'Hanya Sarpras Unit (Admin Unit) yang dapat menyetujui/menolak peminjaman ini' });
         }
 
         const updatedLoan = await prisma.assetLoan.update({
@@ -189,15 +156,8 @@ exports.reviewLoan = async (req, res) => {
             `Permohonan Peminjaman ${status === 'APPROVED' ? 'Disetujui' : 'Ditolak'}`,
             `Permohonan peminjaman aset "${loan.asset.name}" Anda telah ${status === 'APPROVED' ? 'disetujui' : 'ditolak'}.`,
             status === 'APPROVED' ? 'SUCCESS' : 'WARNING',
-            '/peminjaman'
+            '/loans'
         );
-
-        // Also whatsapp borrower if possible
-        const borrower = await prisma.user.findUnique({ where: { id: loan.borrowerId } });
-        if (borrower && borrower.phone) {
-            const message = `Halo ${borrower.name},\nPermohonan peminjaman aset "${loan.asset.name}" telah ${status === 'APPROVED' ? 'DISETUJUI' : 'DITOLAK'}.\n\nCek aplikasi untuk detail.`;
-            await whatsappService.sendDirectMessage(borrower.phone, message);
-        }
 
         res.json(updatedLoan);
     } catch (error) {

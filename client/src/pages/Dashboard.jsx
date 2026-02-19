@@ -51,7 +51,7 @@ const Dashboard = () => {
 
     const stats = [
         { title: "Total Aset", value: data?.stats?.totalAssets?.toLocaleString() || '0', icon: Box, color: "bg-blue-500", desc: "Total item terdaftar" },
-        { title: "Nilai Buku (Terkini)", value: `Rp ${(data?.stats?.totalValue || 0).toLocaleString()}`, icon: DollarSign, color: "bg-emerald-500", desc: "Estimasi nilai buku saat ini" },
+        { title: "Nilai Buku (Terkini)", value: `Rp ${(data?.stats?.totalValue || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`, icon: DollarSign, color: "bg-emerald-500", desc: "Estimasi nilai buku saat ini" },
         { title: "Aset Rusak", value: data?.stats?.damagedAssets?.toLocaleString() || '0', icon: AlertTriangle, color: "bg-red-500", desc: "Perlu perhatian" },
         { title: "Habis Umur", value: data?.stats?.expiredAssets?.toLocaleString() || '0', icon: TrendingDown, color: "bg-orange-500", desc: "Melewati masa manfaat" },
     ];
