@@ -92,7 +92,7 @@ exports.createReport = async (req, res) => {
 };
 
 exports.getReports = async (req, res) => {
-    const { type, category, startDate, endDate, userId } = req.query;
+    const { type, category, startDate, endDate, userId, limit } = req.query;
     const user = req.user;
 
     try {
@@ -111,21 +111,32 @@ exports.getReports = async (req, res) => {
         }
 
         // Access Control: 
-        // - SUPER_ADMIN and BIDANG_IT can see all reports.
-        // - All other roles see only their own.
-        if (['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role)) {
-            if (userId) where.userId = parseInt(userId);
+        // - SUPER_ADMIN can see all reports or filter by staff (userId).
+        // - All other roles (ADMIN_ASET, BIDANG_IT, etc.) see ONLY their own.
+        if (user.role === 'SUPER_ADMIN') {
+            if (userId && userId !== 'all') {
+                where.userId = parseInt(userId);
+            }
         } else {
             where.userId = user.id;
         }
 
-        const reports = await prisma.personnelReport.findMany({
+        const queryOptions = {
             where,
             include: {
                 user: { select: { name: true, username: true, position: true } }
             },
-            orderBy: { date: 'desc' }
-        });
+            orderBy: [
+                { date: 'desc' },
+                { createdAt: 'desc' }
+            ]
+        };
+
+        if (limit && limit !== 'all') {
+            queryOptions.take = parseInt(limit);
+        }
+
+        const reports = await prisma.personnelReport.findMany(queryOptions);
 
         res.json(reports);
     } catch (error) {

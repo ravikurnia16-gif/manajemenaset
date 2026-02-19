@@ -9,6 +9,12 @@ const PersonnelReports = () => {
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
+    // Filter State
+    const [filterDate, setFilterDate] = useState({ start: '', end: '' });
+    const [filterStaff, setFilterStaff] = useState('all');
+    const [limit, setLimit] = useState(25);
+    const [staffList, setStaffList] = useState([]);
+
     // AI Summary State
     const [showSummaryModal, setShowSummaryModal] = useState(false);
     const [summaryDate, setSummaryDate] = useState({ start: '', end: '' });
@@ -40,9 +46,14 @@ const PersonnelReports = () => {
     const fetchReports = async () => {
         try {
             setLoading(true);
-            const params = { type: 'DAILY' }; // Force DAILY
+            const params = {
+                type: 'DAILY',
+                limit: limit,
+                startDate: filterDate.start,
+                endDate: filterDate.end,
+                userId: filterStaff !== 'all' ? filterStaff : undefined
+            };
             const res = await api.get('/personnel/reports', { params });
-            // Ensure data is array to prevent crash
             const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
             setReports(Array.isArray(data) ? data : []);
         } catch (err) {
@@ -52,9 +63,25 @@ const PersonnelReports = () => {
         }
     };
 
+    const fetchStaff = async () => {
+        if (user.role !== 'SUPER_ADMIN') return;
+        try {
+            const res = await api.get('/personnel/staff');
+            setStaffList(res.data || []);
+        } catch (err) {
+            console.error('Failed to fetch staff:', err);
+        }
+    };
+
     useEffect(() => {
         fetchReports();
-    }, []); // Run once on mount
+    }, [limit]); // Re-fetch on limit change
+
+    useEffect(() => {
+        if (user.role === 'SUPER_ADMIN') {
+            fetchStaff();
+        }
+    }, []);
 
     const addAssetItem = () => {
         setForm({
@@ -251,6 +278,67 @@ const PersonnelReports = () => {
                     </p>
                 </div>
             </div>
+            <div className="flex flex-wrap items-end gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                {user.role === 'SUPER_ADMIN' && (
+                    <>
+                        <div className="flex-1 min-w-[200px]">
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Pilih Staf</label>
+                            <select
+                                value={filterStaff}
+                                onChange={e => setFilterStaff(e.target.value)}
+                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="all">Semua Staf</option>
+                                {staffList.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="flex gap-2 min-w-[300px]">
+                            <div className="flex-1">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Dari</label>
+                                <input
+                                    type="date"
+                                    value={filterDate.start}
+                                    onChange={e => setFilterDate({ ...filterDate, start: e.target.value })}
+                                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Sampai</label>
+                                <input
+                                    type="date"
+                                    value={filterDate.end}
+                                    onChange={e => setFilterDate({ ...filterDate, end: e.target.value })}
+                                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                        </div>
+                        <button
+                            onClick={fetchReports}
+                            className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-700 transition-all"
+                        >
+                            Filter
+                        </button>
+                    </>
+                )}
+
+                <div className="ml-auto w-32">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tampilkan</label>
+                    <select
+                        value={limit}
+                        onChange={e => setLimit(e.target.value)}
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="10">10 Data</option>
+                        <option value="25">25 Data</option>
+                        <option value="50">50 Data</option>
+                        <option value="100">100 Data</option>
+                        <option value="all">Semua</option>
+                    </select>
+                </div>
+            </div>
+
             <div className="flex gap-2">
                 <button
                     onClick={() => setShowSummaryModal(true)}
