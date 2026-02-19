@@ -1,22 +1,32 @@
 import { useState, useMemo, useEffect } from 'react';
 import { ShoppingBag, Plus, Trash2, Save, Loader2, Check, User, Shirt } from 'lucide-react';
 
-const USERS_UNITS = ['TK', 'TAUD', 'SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'MIT', 'Yayasan'];
+const USERS_UNITS = ['SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri'];
 
 // --- CONFIGURATION V2 ---
-const UNIFORM_GROUPS = ['Nasional', 'Muslim', 'Olahraga', 'Batik', 'Pramuka', 'Jubah'];
-
-const UNIFORM_TYPES = [
-    'Baju',
-    'Celana',
-    'Jilbab',
-    'Rok Celana',
-    'Baju dan Celana', // Stel
-    'Baju dan Jilbab', // Stel
-    'Baju, Rok Celana dan Jilbab', // Set Olahraga Akhwat
-    'Jubah Hitam',
-    'Jubah Putih'
-];
+const UNIFORM_LOGIC = {
+    Ikhwan: {
+        groups: ['Nasional', 'Muslim', 'Olahraga', 'Batik', 'Pramuka', 'Jubah'],
+        types: {
+            Nasional: ['Baju', 'Celana', 'Baju dan Celana'],
+            Muslim: ['Baju', 'Celana', 'Baju dan Celana'],
+            Batik: ['Baju', 'Celana', 'Baju dan Celana'],
+            Pramuka: ['Baju', 'Celana', 'Baju dan Celana'],
+            Olahraga: ['Baju', 'Celana', 'Baju dan Celana'],
+            Jubah: ['Jubah Hitam', 'Jubah Putih']
+        }
+    },
+    Akhwat: {
+        groups: ['Nasional', 'Muslim', 'Olahraga', 'Batik', 'Pramuka'],
+        types: {
+            Nasional: ['Baju', 'Jilbab', 'Baju dan Jilbab'],
+            Muslim: ['Baju', 'Jilbab', 'Baju dan Jilbab'],
+            Batik: ['Baju', 'Jilbab', 'Baju dan Jilbab'],
+            Pramuka: ['Baju', 'Jilbab', 'Baju dan Jilbab'],
+            Olahraga: ['Baju', 'Jilbab', 'Rok Celana', 'Baju dan Jilbab dan Rok Celana']
+        }
+    }
+};
 
 const SIZES_STD = ['SS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
 const SIZES_JUBAH = ['38', '40', '42', '44', '46', '48', '50/20', '50/22', '50/24', '52/20', '52/22', '52/24', '54/20', '54/22', '54/24'];
@@ -61,6 +71,27 @@ const UniformOrderPage = () => {
             setNamaText(identity.studentName);
         }
     }, [identity.studentName]);
+
+    // Reset Dependent Selection on Gender/Group change
+    useEffect(() => {
+        setSeragamGroup('');
+        setSeragamType('');
+    }, [identity.gender]);
+
+    useEffect(() => {
+        setSeragamType('');
+    }, [seragamGroup]);
+
+    // Memoized Filtered Options
+    const availableGroups = useMemo(() => {
+        if (!identity.gender) return [];
+        return UNIFORM_LOGIC[identity.gender]?.groups || [];
+    }, [identity.gender]);
+
+    const availableTypes = useMemo(() => {
+        if (!identity.gender || !seragamGroup) return [];
+        return UNIFORM_LOGIC[identity.gender]?.types[seragamGroup] || [];
+    }, [identity.gender, seragamGroup]);
 
     // System
     const [orderResult, setOrderResult] = useState(null);
@@ -373,7 +404,7 @@ const UniformOrderPage = () => {
                                         <label className="block text-xs font-bold text-slate-500 mb-1">Jenis Seragam</label>
                                         <select className="w-full border p-2 rounded" value={seragamGroup} onChange={e => setSeragamGroup(e.target.value)}>
                                             <option value="">-- Pilih Jenis --</option>
-                                            {UNIFORM_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
+                                            {availableGroups.map(g => <option key={g} value={g}>{g}</option>)}
                                         </select>
                                     </div>
 
@@ -382,7 +413,7 @@ const UniformOrderPage = () => {
                                         <label className="block text-xs font-bold text-slate-500 mb-1">Tipe</label>
                                         <select className="w-full border p-2 rounded" value={seragamType} onChange={e => setSeragamType(e.target.value)}>
                                             <option value="">-- Pilih Tipe --</option>
-                                            {UNIFORM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                                            {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
                                         </select>
                                     </div>
 

@@ -174,13 +174,22 @@ exports.createAsset = async (req, res) => {
                     where: { id: req.user.id || req.user.userId }
                 });
 
+                // Fetch Room Name if not a new room
+                let roomDisplay = newRoomName;
+                if (!roomDisplay && asset.roomId) {
+                    const roomObj = await prisma.room.findUnique({
+                        where: { id: asset.roomId },
+                        select: { name: true }
+                    });
+                    roomDisplay = roomObj?.name || `Ruangan ID ${asset.roomId}`;
+                }
+
                 // 2. Prepare Message
-                const asset = result;
                 const message = `*[INFO ASET BARU]*\n\n` +
                     `Telah ditambahkan aset baru ke dalam sistem:\n\n` +
                     `📦 *Nama*: ${asset.name}\n` +
                     `🏷️ *Kode*: ${asset.code}\n` +
-                    `📍 *Lokasi*: ${newRoomName || (asset.roomId ? 'Ruangan ID ' + asset.roomId : '-')}\n` +
+                    `📍 *Lokasi*: ${roomDisplay || '-'}\n` +
                     `👤 *Input Oleh*: ${creator ? (creator.name || creator.username) : 'System'}\n\n` +
                     `_Pesan otomatis dari Sistem Manajemen Aset_`;
 

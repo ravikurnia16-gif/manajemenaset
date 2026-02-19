@@ -66,7 +66,7 @@ exports.requestLoan = async (req, res) => {
                         where: {
                             OR: [
                                 { position: 'Kepala Bidang Sarana dan Prasarana' },
-                                { nip: '26021760' }
+                                { position: 'Staff Manajemen Aset' }
                             ]
                         }
                     });

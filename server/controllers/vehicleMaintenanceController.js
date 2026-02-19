@@ -136,7 +136,8 @@ exports.checkMaintenanceNotifications = async () => {
             where: {
                 OR: [
                     { position: 'Kepala Bidang Sarana dan Prasarana' },
-                    { nip: '26021760' } // Eldo's NIP
+                    { position: 'Staff Manajemen Aset' }
+                    // Eldo's position
                 ],
                 phone: { not: null, not: '' }
             }
@@ -231,7 +232,7 @@ exports.checkKmServiceNotifications = async () => {
             where: {
                 OR: [
                     { position: 'Kepala Bidang Sarana dan Prasarana' },
-                    { nip: '25041676' }
+                    { position: 'Staff Keuangan' }
                 ],
                 phone: { not: null, not: '' }
             }

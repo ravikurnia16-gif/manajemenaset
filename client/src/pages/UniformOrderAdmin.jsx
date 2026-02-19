@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ClipboardList, Filter, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../lib/axios';
 
-const UNITS = ['TK', 'TAUD', 'SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'MIT', 'Yayasan'];
+const UNITS = ['SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'Yayasan'];
 
 const statusFlow = ['PENDING', 'CONFIRMED', 'READY', 'PICKED_UP'];
 const statusLabel = { PENDING: 'Menunggu', CONFIRMED: 'Dikonfirmasi', READY: 'Siap', PICKED_UP: 'Diambil', CANCELLED: 'Batal' };

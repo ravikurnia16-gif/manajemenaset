@@ -151,7 +151,8 @@ exports.checkTaxNotifications = async () => {
             where: {
                 OR: [
                     { position: 'Kepala Bidang Sarana dan Prasarana' },
-                    { nip: '26021760' }
+                    { position: 'Staff Manajemen Aset' }
+                    // Eldo replaced by position
                 ],
                 phone: { not: null, not: '' }
             }
@@ -216,7 +217,8 @@ exports.sendTestWA = async (req, res) => {
             where: {
                 OR: [
                     { position: 'Kepala Bidang Sarana dan Prasarana' },
-                    { nip: '26021760' }
+                    { position: 'Staff Manajemen Aset' }
+                    // Eldo replaced by position
                 ],
                 phone: { not: null, not: '' }
             }

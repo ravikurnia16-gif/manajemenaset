@@ -136,7 +136,7 @@ const WarehouseStockForm = () => {
                                 <label className="block text-xs font-semibold text-slate-600 mb-1">Unit Seragam</label>
                                 <select value={form.itemUnit} onChange={e => setForm(prev => ({ ...prev, itemUnit: e.target.value }))} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm">
                                     <option value="">Pilih Unit</option>
-                                    {['TK', 'TAUD', 'SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'MIT', 'Yayasan'].map(u => <option key={u} value={u}>{u}</option>)}
+                                    {['SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'Yayasan'].map(u => <option key={u} value={u}>{u}</option>)}
                                 </select>
                             </div>
                         </div>

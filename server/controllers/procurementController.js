@@ -165,8 +165,8 @@ exports.createProcurement = async (req, res) => {
                     where: {
                         OR: [
                             { position: 'Kepala Bidang Sarana dan Prasarana' },
-                            { nip: '26021760' },
-                            { nip: '25041676' }
+                            { position: 'Staff Manajemen Aset' },
+                            { position: 'Staff Keuangan' }
                         ]
                     }
                 });
@@ -215,8 +215,8 @@ exports.createProcurement = async (req, res) => {
                     where: {
                         OR: [
                             { position: 'Kepala Bidang Sarana dan Prasarana' }, // Ravi Kurnia
-                            { nip: '26021760' }, // Eldo
-                            { nip: '25041676' }  // Syafrian
+                            { position: 'Staff Manajemen Aset' }, // Eldo
+                            { position: 'Staff Keuangan' }  // Syafrian
                         ],
                         phone: { not: null, not: '' }
                     }
@@ -318,8 +318,8 @@ exports.importProcurement = async (req, res) => {
                     where: {
                         OR: [
                             { position: 'Kepala Bidang Sarana dan Prasarana' },
-                            { nip: '26021760' },
-                            { nip: '25041676' }
+                            { position: 'Staff Manajemen Aset' },
+                            { position: 'Staff Keuangan' }
                         ]
                     }
                 });
@@ -359,8 +359,8 @@ exports.importProcurement = async (req, res) => {
                     where: {
                         OR: [
                             { position: 'Kepala Bidang Sarana dan Prasarana' }, // Ravi Kurnia
-                            { nip: '26021760' }, // Eldo
-                            { nip: '25041676' }  // Syafrian
+                            { position: 'Staff Manajemen Aset' }, // Eldo
+                            { position: 'Staff Keuangan' }  // Syafrian
                         ],
                         phone: { not: null, not: '' }
                     }
