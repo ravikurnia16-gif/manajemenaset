@@ -197,7 +197,6 @@ const Layout = () => {
                         <div className="flex items-center gap-3 pl-2">
                             <div className="flex flex-col items-end hidden sm:flex">
                                 <span className="text-xs font-black text-slate-800 uppercase tracking-tight">{user.name || user.username}</span>
-                                <span className="text-[9px] font-bold text-blue-600 uppercase tracking-widest bg-blue-50 px-1.5 py-0.5 rounded leading-none">{user.role?.replace('_', ' ')}</span>
                             </div>
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-sm font-black text-white shadow-lg shadow-blue-200 ring-2 ring-white">
                                 {(user.name || user.username || 'U').substring(0, 1).toUpperCase()}
