@@ -32,7 +32,7 @@ const AssetForm = () => {
     const [loading, setLoading] = useState(false);
 
     const [currentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
-    const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(currentUser.role);
+    const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(currentUser.role);
 
     // Image Upload State
     const [imagePreview, setImagePreview] = useState(null);

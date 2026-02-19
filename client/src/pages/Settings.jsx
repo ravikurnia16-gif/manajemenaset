@@ -62,7 +62,7 @@ const Settings = () => {
 
     useEffect(() => {
         fetchSettings();
-        if (currentUser.role === 'SUPER_ADMIN') {
+        if (['SUPER_ADMIN', 'BIDANG_IT'].includes(currentUser.role)) {
             fetchUsers();
             fetchUnits();
         }
@@ -176,7 +176,7 @@ const Settings = () => {
         }
     };
 
-    const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
+    const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(currentUser.role);
 
     if (loading) return <div className="p-8 text-center text-slate-500">Memuat pengaturan...</div>;
 
@@ -435,7 +435,7 @@ const Settings = () => {
                                             <div className="text-xs font-semibold text-slate-700">{user.unit?.name || 'GLOBAL / SEMUA UNIT'}</div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${user.role === 'SUPER_ADMIN' ? 'bg-purple-100 text-purple-600' :
+                                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role) ? 'bg-purple-100 text-purple-600' :
                                                 user.role === 'ADMIN_ASET' ? 'bg-blue-100 text-blue-600' :
                                                     'bg-slate-100 text-slate-600'
                                                 }`}>
@@ -601,6 +601,7 @@ const Settings = () => {
                                             { label: 'Sekretaris Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
                                             { label: 'Bendahara Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
                                             { label: 'Kepala Bidang Sarana dan Prasarana', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                            { label: 'Staff Bidang IT', role: 'BIDANG_IT', scope: 'GLOBAL' },
                                             { label: 'Kepala Bidang (Non-super)', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
                                             { label: 'Staf Bidang Sarana dan Prasarana', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                             { label: 'Kepala Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
@@ -627,8 +628,9 @@ const Settings = () => {
                                         <option value="Sekretaris Yayasan">Sekretaris Yayasan</option>
                                         <option value="Bendahara Yayasan">Bendahara Yayasan</option>
                                     </optgroup>
-                                    <optgroup label="Bidang Sarana Prasarana (Global Access)">
+                                    <optgroup label="Bidang Sarana Prasarana & IT (Global Access)">
                                         <option value="Kepala Bidang Sarana dan Prasarana">Kepala Bidang Sarana dan Prasarana</option>
+                                        <option value="Staff Bidang IT">Staff Bidang IT</option>
                                         <option value="Kepala Bidang (Non-super)">Kepala Bidang (Non-super)</option>
                                         <option value="Staf Bidang Sarana dan Prasarana">Staf Bidang Sarana dan Prasarana</option>
                                     </optgroup>
@@ -642,7 +644,7 @@ const Settings = () => {
                                     Role System: <span className="font-bold text-blue-600">{newUser.role || '-'}</span>
                                     {newUser.role && (
                                         <span className="ml-1 text-slate-400">
-                                            ({['SUPER_ADMIN', 'ADMIN_ASET'].includes(newUser.role) ? 'Akses Global' : 'Akses Terbatas Unit'})
+                                            ({['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(newUser.role) ? 'Akses Global' : 'Akses Terbatas Unit'})
                                         </span>
                                     )}
                                 </div>

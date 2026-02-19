@@ -14,7 +14,7 @@ const MutationList = () => {
     const [itemsPerPage, setItemsPerPage] = useState(10);
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
-    const canApprove = ['SUPER_ADMIN', 'KEPALA_BIDANG'].includes(user.role);
+    const canApprove = ['SUPER_ADMIN', 'BIDANG_IT', 'KEPALA_BIDANG'].includes(user.role);
 
     useEffect(() => {
         fetchMovements();

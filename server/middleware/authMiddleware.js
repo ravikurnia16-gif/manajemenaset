@@ -14,7 +14,13 @@ exports.verifyToken = (req, res, next) => {
 
 exports.authorizeRole = (roles) => {
     return (req, res, next) => {
-        if (!roles.includes(req.user.role)) {
+        // Automatically include BIDANG_IT if SUPER_ADMIN is allowed
+        let allowedRoles = [...roles];
+        if (roles.includes('SUPER_ADMIN') && !allowedRoles.includes('BIDANG_IT')) {
+            allowedRoles.push('BIDANG_IT');
+        }
+
+        if (!allowedRoles.includes(req.user.role)) {
             return res.status(403).json({ error: 'Forbidden' });
         }
         next();

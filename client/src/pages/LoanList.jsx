@@ -21,7 +21,7 @@ const LoanList = () => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const isSuperAdmin = user.role === 'SUPER_ADMIN';
+    const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role);
     const isAdminUnit = user.role === 'ADMIN_UNIT';
 
     useEffect(() => {

@@ -226,14 +226,15 @@ exports.getAllAssets = async (req, res) => {
         // until database schema is confirmed to be in sync.
 
         // 1. Role-based Restriction
-        if (role !== 'SUPER_ADMIN' && role !== 'ADMIN_ASET' && role !== 'KEPALA_BIDANG') {
+        const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'BIDANG_IT'].includes(role);
+        if (!isGlobalAdmin) {
             where.unitId = unitId;
         }
 
         // 2. Explicit Filters (if provided and allowed)
         if (filterUnitId) {
-            // If user is restricted, ensure they can only filter their own unit (already handled by line 154 logic usually, but let's be safe)
-            if (role === 'SUPER_ADMIN' || role === 'ADMIN_ASET' || role === 'KEPALA_BIDANG' || parseInt(filterUnitId) === unitId) {
+            // If user is restricted, ensure they can only filter their own unit
+            if (isGlobalAdmin || parseInt(filterUnitId) === unitId) {
                 where.unitId = parseInt(filterUnitId);
             }
         }

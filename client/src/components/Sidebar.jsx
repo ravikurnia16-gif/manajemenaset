@@ -43,7 +43,8 @@ const Sidebar = ({ isOpen = true }) => {
     } catch (e) {
         console.error("Failed to parse user from localStorage", e);
     }
-    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_UNIT'].includes(user?.role);
+    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_UNIT'].includes(user?.role);
+    const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user?.role);
 
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">
@@ -174,15 +175,15 @@ const Sidebar = ({ isOpen = true }) => {
                 ))}
 
                 {/* 4. Manajemen Personalia - Restricted to Global Access or Sarpras Unit */}
-                {(['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(user.role) ||
+                {((isGlobalAdmin || user.role === 'KEPALA_BIDANG') ||
                     user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) &&
                     renderCollapsible('personnel', <Users size={18} />, 'Personalia', (
                         <>
                             <Link to="/personalia/staf" className={subNavItemClass('/personalia/staf')}>
                                 <UserCog size={16} /> Data Staf
                             </Link>
-                            {/* Only Sarpras or SUPER_ADMIN/ADMIN_ASET can see active reports & assignments */}
-                            {(['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) || user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) && (
+                            {/* Only Sarpras or Global Admin can see active reports & assignments */}
+                            {(isGlobalAdmin || user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) && (
                                 <>
                                     <Link to="/personalia/laporan" className={subNavItemClass('/personalia/laporan')}>
                                         <FileText size={16} /> Laporan Staff
@@ -192,7 +193,7 @@ const Sidebar = ({ isOpen = true }) => {
                                     </Link>
                                 </>
                             )}
-                            {['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && (
+                            {isGlobalAdmin && (
                                 <Link to="/personalia/kalender" className={subNavItemClass('/personalia/kalender')}>
                                     <Calendar size={16} /> Kalender Kerja
                                 </Link>

@@ -16,7 +16,8 @@ exports.getDashboardStats = async (req, res) => {
         });
 
         // Determine filtering logic
-        if (role !== 'SUPER_ADMIN' && role !== 'ADMIN_ASET') {
+        const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role);
+        if (!isGlobalAdmin) {
             where.unitId = userUnitId;
         } else if (filterUnitId) {
             where.unitId = parseInt(filterUnitId);
@@ -117,7 +118,7 @@ exports.getDashboardStats = async (req, res) => {
 
         // 6. Unit Statistics (Table Data) - Only useful if no specific unit filter is applied
         const unitStats = [];
-        if (role === 'SUPER_ADMIN' || role === 'ADMIN_ASET') {
+        if (isGlobalAdmin) {
             const unitsWithAssets = await prisma.unit.findMany({
                 include: {
                     assets: {
@@ -165,7 +166,7 @@ exports.getDashboardStats = async (req, res) => {
             spendingData,
             maintenanceData,
             unitStats,
-            units: (role === 'SUPER_ADMIN' || role === 'ADMIN_ASET') ? units : []
+            units: isGlobalAdmin ? units : []
         });
     } catch (error) {
         console.error('Dashboard Stats Error:', error);

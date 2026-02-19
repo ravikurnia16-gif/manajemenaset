@@ -24,7 +24,7 @@ const Dashboard = () => {
 
     const userStr = localStorage.getItem('user');
     const currentUser = userStr ? JSON.parse(userStr) : {};
-    const canFilterUnit = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(currentUser.role);
+    const canFilterUnit = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(currentUser.role);
 
     const fetchStats = async () => {
         try {

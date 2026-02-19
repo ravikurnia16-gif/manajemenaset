@@ -14,7 +14,7 @@ const DisposalList = () => {
     const [assetSearchTerm, setAssetSearchTerm] = useState(''); // Debounced term for API
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN_ASET';
+    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user.role);
     const canPropose = isAdmin || user.role === 'KEPALA_BIDANG' || user.role === 'ADMIN_UNIT';
 
     useEffect(() => {

@@ -45,7 +45,7 @@ const AssetList = ({ validationMode = false }) => {
     });
 
     const [currentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
-    const isGlobalAdmin = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'ADMIN_ASET';
+    const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(currentUser.role);
     const canProposeDisposal = isGlobalAdmin || currentUser.role === 'KEPALA_BIDANG' || currentUser.role === 'ADMIN_UNIT';
 
     const [selectedUnit, setSelectedUnit] = useState(isGlobalAdmin ? '' : (currentUser.unitId?.toString() || ''));
