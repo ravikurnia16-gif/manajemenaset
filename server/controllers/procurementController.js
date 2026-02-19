@@ -163,7 +163,11 @@ exports.createProcurement = async (req, res) => {
             try {
                 const admins = await prisma.user.findMany({
                     where: {
-                        OR: [{ nip: '24071613' }, { nip: '26021760' }, { nip: '25041676' }]
+                        OR: [
+                            { position: 'Kepala Bidang Sarana dan Prasarana' },
+                            { nip: '26021760' },
+                            { nip: '25041676' }
+                        ]
                     }
                 });
 
@@ -210,7 +214,7 @@ exports.createProcurement = async (req, res) => {
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
-                            { nip: '24071613' }, // Ravi Kurnia
+                            { position: 'Kepala Bidang Sarana dan Prasarana' }, // Ravi Kurnia
                             { nip: '26021760' }, // Eldo
                             { nip: '25041676' }  // Syafrian
                         ],
@@ -312,7 +316,11 @@ exports.importProcurement = async (req, res) => {
             try {
                 const admins = await prisma.user.findMany({
                     where: {
-                        OR: [{ nip: '24071613' }, { nip: '26021760' }, { nip: '25041676' }]
+                        OR: [
+                            { position: 'Kepala Bidang Sarana dan Prasarana' },
+                            { nip: '26021760' },
+                            { nip: '25041676' }
+                        ]
                     }
                 });
 
@@ -350,7 +358,7 @@ exports.importProcurement = async (req, res) => {
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
-                            { nip: '24071613' }, // Ravi Kurnia
+                            { position: 'Kepala Bidang Sarana dan Prasarana' }, // Ravi Kurnia
                             { nip: '26021760' }, // Eldo
                             { nip: '25041676' }  // Syafrian
                         ],

@@ -67,7 +67,10 @@ exports.requestMutation = async (req, res) => {
             try {
                 const admins = await prisma.user.findMany({
                     where: {
-                        OR: [{ nip: '24071613' }, { nip: '26021760' }]
+                        OR: [
+                            { position: 'Kepala Bidang Sarana dan Prasarana' },
+                            { nip: '26021760' }
+                        ]
                     }
                 });
 
@@ -90,7 +93,10 @@ exports.requestMutation = async (req, res) => {
             try {
                 const recipients = await prisma.user.findMany({
                     where: {
-                        OR: [{ nip: '24071613' }, { nip: '26021760' }],
+                        OR: [
+                            { position: 'Kepala Bidang Sarana dan Prasarana' },
+                            { nip: '26021760' }
+                        ],
                         phone: { not: null, not: '' }
                     }
                 });

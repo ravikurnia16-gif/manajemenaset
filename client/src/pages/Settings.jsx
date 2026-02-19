@@ -604,7 +604,7 @@ const Settings = () => {
                                             { label: 'Bidang IT', role: 'BIDANG_IT', scope: 'GLOBAL' },
                                             { label: 'Kepala Bidang Keuangan (Non Super)', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
                                             { label: 'Staff Keuangan', role: 'ADMIN_ASET', scope: 'GLOBAL' },
-                                            { label: 'Staf Manajemen Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+                                            { label: 'Staff Manajemen Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                             { label: 'Staff Gudang dan Logistik', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                             { label: 'Staff Kendaraan', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                             { label: 'Kepala Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },

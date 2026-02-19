@@ -146,12 +146,12 @@ exports.checkTaxNotifications = async () => {
 
         if (vehicles.length === 0) return;
 
-        // Find specific recipients: Ravi Kurnia (24071613) and Eldo (26021760) only
+        // Find recipients: Leads (Kepala Bidang Sarana dan Prasarana) and Eldo
         const recipients = await prisma.user.findMany({
             where: {
                 OR: [
-                    { nip: '24071613' }, // Ravi Kurnia
-                    { nip: '26021760' }  // Eldo
+                    { position: 'Kepala Bidang Sarana dan Prasarana' },
+                    { nip: '26021760' }
                 ],
                 phone: { not: null, not: '' }
             }
@@ -215,8 +215,8 @@ exports.sendTestWA = async (req, res) => {
         const recipients = await prisma.user.findMany({
             where: {
                 OR: [
-                    { nip: '24071613' }, // Ravi Kurnia
-                    { nip: '26021760' }  // Eldo
+                    { position: 'Kepala Bidang Sarana dan Prasarana' },
+                    { nip: '26021760' }
                 ],
                 phone: { not: null, not: '' }
             }

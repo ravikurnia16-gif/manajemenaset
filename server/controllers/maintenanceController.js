@@ -99,7 +99,10 @@ exports.createReport = async (req, res) => {
             try {
                 const admins = await prisma.user.findMany({
                     where: {
-                        OR: [{ nip: '24071613' }, { nip: '26021760' }]
+                        OR: [
+                            { position: 'Kepala Bidang Sarana dan Prasarana' },
+                            { nip: '26021760' }
+                        ]
                     }
                 });
 
@@ -137,12 +140,12 @@ exports.createReport = async (req, res) => {
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
 
-                // 2. Notify Admin: Ravi Kurnia (24071613) and Eldo (26021760) only
+                // 2. Notify Leads: Kepala Bidang Sarana dan Prasarana and Eldo
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
-                            { nip: '24071613' }, // Ravi Kurnia
-                            { nip: '26021760' }  // Eldo
+                            { position: 'Kepala Bidang Sarana dan Prasarana' },
+                            { nip: '26021760' }
                         ],
                         phone: { not: null, not: '' }
                     }

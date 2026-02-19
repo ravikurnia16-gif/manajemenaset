@@ -131,19 +131,19 @@ exports.checkMaintenanceNotifications = async () => {
 
         if (dueLogs.length === 0) return;
 
-        // Find specific recipients: Ravi Kurnia (24071613) and Eldo (26021760) only
+        // Find recipients: Leads (Kepala Bidang Sarana dan Prasarana) and Eldo
         const recipients = await prisma.user.findMany({
             where: {
                 OR: [
-                    { nip: '24071613' }, // Ravi Kurnia
-                    { nip: '26021760' }  // Eldo
+                    { position: 'Kepala Bidang Sarana dan Prasarana' },
+                    { nip: '26021760' } // Eldo's NIP
                 ],
                 phone: { not: null, not: '' }
             }
         });
 
         if (recipients.length === 0) {
-            console.log('Ravi or Eldo not found or have no phone for notification.');
+            console.log('Eldo or Leads not found or have no phone for notification.');
             return;
         }
 
@@ -226,12 +226,12 @@ exports.checkKmServiceNotifications = async () => {
             return;
         }
 
-        // Find recipients: Syafrian (25041676) and Ravi Kurnia (24071613)
+        // Find recipients: Leads (Kepala Bidang Sarana dan Prasarana) and Syafrian
         const recipients = await prisma.user.findMany({
             where: {
                 OR: [
-                    { nip: '25041676' }, // Syafrian
-                    { nip: '24071613' }  // Ravi Kurnia
+                    { position: 'Kepala Bidang Sarana dan Prasarana' },
+                    { nip: '25041676' }
                 ],
                 phone: { not: null, not: '' }
             }

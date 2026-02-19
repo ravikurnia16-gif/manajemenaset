@@ -64,7 +64,10 @@ exports.requestLoan = async (req, res) => {
                     // Notify Ravi Kurnia & Eldo specifically for Yayasan assets
                     const specialAdmins = await prisma.user.findMany({
                         where: {
-                            nip: { in: ['24071613', '26021760'] }
+                            OR: [
+                                { position: 'Kepala Bidang Sarana dan Prasarana' },
+                                { nip: '26021760' }
+                            ]
                         }
                     });
 

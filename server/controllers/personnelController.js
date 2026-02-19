@@ -33,19 +33,22 @@ exports.createReport = async (req, res) => {
 
         res.json({ message: 'Laporan berhasil disimpan', data: report });
 
-        // --- WhatsApp Notification to Ravi Kurnia (Async) ---
+        // --- WhatsApp Notification to Leads (Async) ---
         (async () => {
             try {
-                const ravi = await prisma.user.findUnique({
-                    where: { nip: '24071613' }
+                // Find recipients: Kepala Bidang Sarana dan Prasarana
+                const leads = await prisma.user.findMany({
+                    where: {
+                        position: 'Kepala Bidang Sarana dan Prasarana',
+                        phone: { not: null, not: '' }
+                    }
                 });
 
-                // Fetch reporter details (req.user might only have token payload)
-                const reporter = await prisma.user.findUnique({
-                    where: { id: user.id }
-                });
+                if (leads.length > 0) {
+                    const reporter = await prisma.user.findUnique({
+                        where: { id: user.id }
+                    });
 
-                if (ravi?.phone) {
                     const typeLabel = type === 'DAILY' ? 'Harian' : 'Mingguan';
                     const catLabel = {
                         'KEUANGAN': '💰 Keuangan',
@@ -62,24 +65,26 @@ exports.createReport = async (req, res) => {
                         `📂 *Kategori* : ${catLabel}\n\n`;
 
                     if (category === 'ASET' && metadata?.items) {
-                        msg += `📊 *Daftar Barang*:\n`;
-                        metadata.items.forEach((item, idx) => {
-                            msg += `${idx + 1}. ${item.name || '-'} (${item.qty || '0'} unit)${item.target ? ' -> ' + item.target : ''}\n`;
-                        });
-                        msg += `\n`;
-                    } else if (details) {
-                        msg += `📊 *Detail Aktivitas*:\n${details}\n\n`;
+                        msg += `*Aset yang diperiksa*:\n${metadata.items}\n\n`;
                     }
 
                     msg += `📝 *Isi Laporan*:\n${content}`;
 
-                    await whatsappService.sendMessage(ravi.phone, msg);
+                    for (const lead of leads) {
+                        try {
+                            await whatsappService.sendMessage(lead.phone, msg);
+                            console.log(`[Personnel Report] Notification sent to ${lead.name}`);
+                        } catch (waError) {
+                            console.error(`[Personnel Report] Failed to send WA to ${lead.name}:`, waError);
+                        }
+                    }
                 }
             } catch (err) {
                 console.error('WA Personnel Report Error:', err);
             }
         })();
     } catch (error) {
+        console.error("Create Report Error:", error);
         res.status(500).json({ error: error.message });
     }
 };
@@ -257,9 +262,8 @@ exports.updateAssignmentStatus = async (req, res) => {
             where: { id: parseInt(id) }
         });
 
-        if (!assignment) return res.status(404).json({ error: 'Tugas tidak ditemukan' });
+        if (!assignment) return res.status(404).json({ error: 'Penugasan tidak ditemukan.' });
 
-        // Only assignee or assigner can update
         if (assignment.assigneeId !== user.id && assignment.assignerId !== user.id && !['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role)) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
@@ -271,15 +275,19 @@ exports.updateAssignmentStatus = async (req, res) => {
 
         res.json(updated);
 
-        // --- WhatsApp Notification to Ravi Kurnia if COMPLETED (Async) ---
+        // --- WhatsApp Notification to Leads if COMPLETED (Async) ---
         if (status === 'COMPLETED') {
             (async () => {
                 try {
-                    const ravi = await prisma.user.findUnique({
-                        where: { nip: '24071613' }
+                    // Find recipients: Kepala Bidang Sarana dan Prasarana
+                    const leads = await prisma.user.findMany({
+                        where: {
+                            position: 'Kepala Bidang Sarana dan Prasarana',
+                            phone: { not: null, not: '' }
+                        }
                     });
 
-                    if (ravi?.phone) {
+                    if (leads.length > 0) {
                         const assignee = await prisma.user.findUnique({
                             where: { id: assignment.assigneeId }
                         });
@@ -288,7 +296,14 @@ exports.updateAssignmentStatus = async (req, res) => {
                             `👤 *Dikerjakan Oleh* : ${assignee?.name || 'Staf'}\n` +
                             `📅 *Selesai Pada* : ${new Date().toLocaleString('id-ID')}`;
 
-                        await whatsappService.sendMessage(ravi.phone, msg);
+                        for (const lead of leads) {
+                            try {
+                                await whatsappService.sendMessage(lead.phone, msg);
+                                console.log(`[Assignment Completion] Notification sent to ${lead.name}`);
+                            } catch (waError) {
+                                console.error(`[Assignment Completion] Failed to send WA to ${lead.name}:`, waError);
+                            }
+                        }
                     }
                 } catch (err) {
                     console.error('WA Personnel Completion Error:', err);
@@ -296,6 +311,7 @@ exports.updateAssignmentStatus = async (req, res) => {
             })();
         }
     } catch (error) {
+        console.error("Update Assignment Status Error:", error);
         res.status(500).json({ error: error.message });
     }
 };

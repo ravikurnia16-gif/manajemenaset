@@ -63,35 +63,40 @@ exports.createDisposal = async (req, res) => {
 
         // --- In-App Notification (Phase 3) ---
         try {
-            const ravi = await prisma.user.findFirst({
-                where: { nip: '24071613' }
+            const leads = await prisma.user.findMany({
+                where: { position: 'Kepala Bidang Sarana dan Prasarana' }
             });
 
-            if (ravi) {
+            if (leads.length > 0) {
                 const notifTitle = 'Usulan Penghapusan Baru';
                 const notifMsg = results.processed.length === 1
                     ? `Usulan penghapusan baru untuk aset "${results.processed[0].asset.name}" (${results.processed[0].asset.code}).`
                     : `Ada ${results.processed.length} usulan penghapusan aset baru yang perlu ditinjau.`;
 
-                await createNotification(
-                    ravi.id,
-                    notifTitle,
-                    notifMsg,
-                    'URGENT',
-                    '/disposals' // Assuming this is the list page
-                );
+                for (const lead of leads) {
+                    await createNotification(
+                        lead.id,
+                        notifTitle,
+                        notifMsg,
+                        'URGENT',
+                        '/disposals'
+                    );
+                }
             }
         } catch (notifErr) {
             console.error('Failed to send in-app notification for disposal:', notifErr);
         }
 
-        // Send WA Notification to Ravi Kurnia (24071613)
+        // Send WA Notification to Kepala Bidang Sarana dan Prasarana
         try {
-            const ravi = await prisma.user.findFirst({
-                where: { nip: '24071613' }
+            const leads = await prisma.user.findMany({
+                where: {
+                    position: 'Kepala Bidang Sarana dan Prasarana',
+                    phone: { not: null, not: '' }
+                }
             });
 
-            if (ravi?.phone) {
+            if (leads.length > 0) {
                 let waMessage = `*USULAN PENGHAPUSAN BARU*\n\n`;
 
                 if (results.processed.length === 1) {
@@ -108,7 +113,9 @@ exports.createDisposal = async (req, res) => {
                     `Diajukan oleh: ${results.processed[0].proposedBy.name || results.processed[0].proposedBy.username}\n\n` +
                     `_Mohon segera tinjau di dashboard Sistem Manajemen Aset._`;
 
-                await waService.sendMessage(ravi.phone, waMessage);
+                for (const lead of leads) {
+                    await waService.sendMessage(lead.phone, waMessage);
+                }
             }
         } catch (waError) {
             console.error('[WA Error] Failed to send notification for disposal proposal:', waError.message);
