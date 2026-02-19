@@ -64,11 +64,13 @@ exports.createReport = async (req, res) => {
                         `📑 *Tipe* : ${typeLabel}\n` +
                         `📂 *Kategori* : ${catLabel}\n\n`;
 
-                    if (category === 'ASET' && metadata?.items) {
-                        msg += `*Aset yang diperiksa*:\n${metadata.items}\n\n`;
+                    if (details) {
+                        msg += `📊 *Detail Aktivitas*:\n${details}\n\n`;
                     }
 
-                    msg += `📝 *Isi Laporan*:\n${content}`;
+                    if (content && content.trim()) {
+                        msg += `📝 *Isi Laporan*:\n${content}`;
+                    }
 
                     for (const lead of leads) {
                         try {
