@@ -159,6 +159,11 @@ exports.createAsset = async (req, res) => {
                 // 1. Find Ravi Kurnia specifically (Try NIP first, then Name as fallback)
                 let ravi = await prisma.user.findUnique({ where: { nip: '24071613' } });
 
+                // Fetch Creator Details
+                const creator = await prisma.user.findUnique({
+                    where: { id: req.user.id || req.user.userId }
+                });
+
                 if (!ravi) {
                     ravi = await prisma.user.findFirst({
                         where: {
@@ -180,7 +185,7 @@ exports.createAsset = async (req, res) => {
                     `📦 *Nama*: ${asset.name}\n` +
                     `🏷️ *Kode*: ${asset.code}\n` +
                     `📍 *Lokasi*: ${newRoomName || (asset.roomId ? 'Ruangan ID ' + asset.roomId : '-')}\n` +
-                    `👤 *Input Oleh*: ${req.user ? req.user.username : 'System'}\n\n` +
+                    `👤 *Input Oleh*: ${creator ? (creator.name || creator.username) : 'System'}\n\n` +
                     `_Pesan otomatis dari Sistem Manajemen Aset_`;
 
                 // 3. Send to Ravi Only
