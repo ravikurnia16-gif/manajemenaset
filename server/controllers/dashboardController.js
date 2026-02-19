@@ -6,7 +6,9 @@ exports.getDashboardStats = async (req, res) => {
         const { role, unitId: userUnitId } = req.user;
         const { unitId: filterUnitId } = req.query;
         const now = new Date();
-        let where = {};
+        let where = {
+            condition: { not: 'DISPOSED' }
+        };
 
         // 0. Fetch Units (for filter dropdown)
         const units = await prisma.unit.findMany({
@@ -119,6 +121,7 @@ exports.getDashboardStats = async (req, res) => {
             const unitsWithAssets = await prisma.unit.findMany({
                 include: {
                     assets: {
+                        where: { condition: { not: 'DISPOSED' } },
                         select: { id: true, price: true, purchaseDate: true, usefulLife: true, condition: true }
                     }
                 }

@@ -24,6 +24,7 @@ const AssetList = ({ validationMode = false }) => {
 
     // Filter Logic
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCondition, setSelectedCondition] = useState('');
     const [selectedIds, setSelectedIds] = useState([]);
 
     // Validation Feature State
@@ -68,7 +69,8 @@ const AssetList = ({ validationMode = false }) => {
                 search: searchTerm,
                 validationStatus: validationFilter,
                 unitId: selectedUnit,
-                roomId: selectedRoom
+                roomId: selectedRoom,
+                condition: selectedCondition
             };
 
             const [respAssets, respUnits, respRooms, respSettings] = await Promise.all([
@@ -117,7 +119,7 @@ const AssetList = ({ validationMode = false }) => {
         if (!isGlobalAdmin && currentUser.unitId) {
             setSelectedUnit(currentUser.unitId.toString());
         }
-    }, [currentPage, itemsPerPage, validationFilter, selectedUnit, selectedRoom, currentUser]);
+    }, [currentPage, itemsPerPage, validationFilter, selectedUnit, selectedRoom, selectedCondition, currentUser]);
 
     // Ref for Print
     const [printAsset, setPrintAsset] = useState(null);
@@ -804,8 +806,24 @@ const AssetList = ({ validationMode = false }) => {
                         </select>
                     </div>
 
+                    <div className="md:col-span-2 relative">
+                        {/* Condition Filter */}
+                        <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><Filter size={16} /></div>
+                        <select
+                            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
+                            value={selectedCondition}
+                            onChange={e => setSelectedCondition(e.target.value)}
+                        >
+                            <option value="">Semua Kondisi</option>
+                            <option value="BAIK">Baik</option>
+                            <option value="RUSAK_RINGAN">Rusak Ringan</option>
+                            <option value="RUSAK_BERAT">Rusak Berat</option>
+                            <option value="DISPOSED">Disposed</option>
+                        </select>
+                    </div>
+
                     <div className="md:col-span-2">
-                        <button onClick={() => { setSearchTerm(''); if (isGlobalAdmin) setSelectedUnit(''); setSelectedRoom(''); }} className="w-full px-3 py-2 border border-slate-200 bg-white rounded-lg text-slate-600 hover:bg-slate-50 flex justify-center items-center gap-2 text-sm">
+                        <button onClick={() => { setSearchTerm(''); setSelectedCondition(''); if (isGlobalAdmin) setSelectedUnit(''); setSelectedRoom(''); }} className="w-full px-3 py-2 border border-slate-200 bg-white rounded-lg text-slate-600 hover:bg-slate-50 flex justify-center items-center gap-2 text-sm">
                             <Filter size={16} /> Reset
                         </button>
                     </div>
