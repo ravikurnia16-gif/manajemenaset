@@ -40,6 +40,11 @@ exports.createReport = async (req, res) => {
                     where: { nip: '24071613' }
                 });
 
+                // Fetch reporter details (req.user might only have token payload)
+                const reporter = await prisma.user.findUnique({
+                    where: { id: user.id }
+                });
+
                 if (ravi?.phone) {
                     const typeLabel = type === 'DAILY' ? 'Harian' : 'Mingguan';
                     const catLabel = {
@@ -51,7 +56,7 @@ exports.createReport = async (req, res) => {
                     }[category] || '📝 Umum';
 
                     let msg = `📋 *LAPORAN PERSONALIA BARU*\n\n` +
-                        `👤 *Staf* : ${user.name || user.username}\n` +
+                        `👤 *Staf* : ${reporter?.name || reporter?.username || 'Staf'}\n` +
                         `📅 *Tanggal* : ${new Date(date || new Date()).toLocaleDateString('id-ID')}\n` +
                         `📑 *Tipe* : ${typeLabel}\n` +
                         `📂 *Kategori* : ${catLabel}\n\n`;
