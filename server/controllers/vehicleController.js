@@ -284,3 +284,65 @@ exports.deleteVehicle = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.getVehicleDashboard = async (req, res) => {
+    try {
+        const now = new Date();
+        const thirtyDaysFromNow = new Date(new Date().setDate(now.getDate() + 30));
+
+        const [totalVehicles, activeBookings, needingService, taxWarnings] = await Promise.all([
+            prisma.vehicle.count({ where: { status: 'ACTIVE' } }),
+            prisma.vehicleBooking.count({ where: { status: 'APPROVED', startKm: { not: null }, endKm: null } }),
+            prisma.vehicle.count({
+                where: {
+                    status: 'ACTIVE',
+                    OR: [
+                        { nextServiceOdometer: { lte: prisma.vehicle.fields.odometer } },
+                        { nextServiceOdometer: { lte: 0 } }
+                    ]
+                }
+            }),
+            prisma.vehicle.count({
+                where: {
+                    status: 'ACTIVE',
+                    OR: [
+                        { taxDueDate: { lte: thirtyDaysFromNow } },
+                        { stnkDueDate: { lte: thirtyDaysFromNow } }
+                    ]
+                }
+            })
+        ]);
+
+        // Monthly Booking Trends (Last 6 Months)
+        const bookingTrends = [];
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const mStart = new Date(d.getFullYear(), d.getMonth(), 1);
+            const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+
+            const count = await prisma.vehicleBooking.count({
+                where: { createdAt: { gte: mStart, lte: mEnd } }
+            });
+            bookingTrends.push({
+                name: d.toLocaleString('id-ID', { month: 'short' }),
+                value: count
+            });
+        }
+
+        // Vehicle Type Distribution
+        const types = await prisma.vehicle.groupBy({
+            by: ['type'],
+            where: { status: 'ACTIVE' },
+            _count: { _all: true }
+        });
+
+        res.json({
+            stats: { totalVehicles, activeBookings, needingService, taxWarnings },
+            bookingTrends,
+            typeDistribution: types.map(t => ({ name: t.type, value: t._count._all }))
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

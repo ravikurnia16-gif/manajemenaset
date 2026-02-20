@@ -4,6 +4,7 @@ const vehicleController = require('../controllers/vehicleController');
 const { verifyToken } = require('../middleware/authMiddleware');
 
 router.get('/', verifyToken, vehicleController.getAllVehicles);
+router.get('/dashboard', verifyToken, vehicleController.getVehicleDashboard);
 router.get('/:id', verifyToken, vehicleController.getVehicleById);
 router.post('/', verifyToken, vehicleController.createVehicle);
 router.put('/:id', verifyToken, vehicleController.updateVehicle);

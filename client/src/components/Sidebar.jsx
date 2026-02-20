@@ -179,6 +179,11 @@ const Sidebar = ({ isOpen = true }) => {
                     user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) &&
                     renderCollapsible('personnel', <Users size={18} />, 'Personalia', (
                         <>
+                            {['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && (
+                                <Link to="/personalia/dashboard" className={subNavItemClass('/personalia/dashboard')}>
+                                    <LayoutDashboard size={16} /> Dashboard
+                                </Link>
+                            )}
                             <Link to="/personalia/staf" className={subNavItemClass('/personalia/staf')}>
                                 <UserCog size={16} /> Data Staf
                             </Link>

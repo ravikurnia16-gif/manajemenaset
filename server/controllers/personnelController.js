@@ -359,3 +359,54 @@ exports.getStaffSarpras = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.getPersonnelDashboard = async (req, res) => {
+    try {
+        const user = req.user;
+        // Strict Access Control: Permintaan User (Hanya Super Admin & Admin Aset)
+        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
+            return res.status(403).json({ error: 'Akses ditolak. Dashboard Personalia hanya dapat diakses oleh Admin.' });
+        }
+
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        const [totalPersonnel, activeAssignments, todayAgenda, pendingReports] = await Promise.all([
+            prisma.user.count(),
+            prisma.personnelAssignment.count({ where: { status: { notIn: ['COMPLETED', 'REJECTED'] } } }),
+            prisma.sarprasCalendarEvent.count({ where: { date: { gte: startOfToday, lt: new Date(new Date().setDate(now.getDate() + 1)) } } }),
+            prisma.personnelReport.count({ where: { date: { gte: new Date(new Date().setDate(now.getDate() - 7)) } } }) // Example: Recent reports
+        ]);
+
+        // Assignment Status Distribution
+        const statusGroups = await prisma.personnelAssignment.groupBy({
+            by: ['status'],
+            _count: { _all: true }
+        });
+
+        // Weekly Report Trends
+        const reportTrends = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            const dEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59);
+
+            const count = await prisma.personnelReport.count({
+                where: { createdAt: { gte: dStart, lte: dEnd } }
+            });
+            reportTrends.push({
+                name: d.toLocaleString('id-ID', { weekday: 'short' }),
+                value: count
+            });
+        }
+
+        res.json({
+            stats: { totalPersonnel, activeAssignments, todayAgenda, pendingReports },
+            assignmentStatus: statusGroups.map(s => ({ name: s.status, value: s._count._all })),
+            reportTrends
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

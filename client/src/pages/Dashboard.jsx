@@ -62,7 +62,7 @@ const Dashboard = () => {
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+                    <h1 className="text-2xl font-bold text-slate-800">Dashboard Manajemen Aset</h1>
                     <p className="text-slate-500 text-sm italic">
                         {filterUnit !== 'all'
                             ? `Menampilkan data untuk: ${data?.units?.find(u => u.id === parseInt(filterUnit))?.name || 'Unit Spesifik'}`

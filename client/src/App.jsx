@@ -21,6 +21,8 @@ import WarehouseTransactionForm from './pages/WarehouseTransactionForm';
 import Settings from './pages/Settings';
 import UniformOrderPage from './pages/UniformOrderPage';
 import UniformOrderAdmin from './pages/UniformOrderAdmin';
+import VehicleDashboard from './pages/VehicleDashboard';
+import PersonnelDashboard from './pages/PersonnelDashboard';
 import VehicleList from './pages/VehicleList';
 import VehicleForm from './pages/VehicleForm';
 import VehicleBooking from './pages/VehicleBooking';
@@ -85,7 +87,7 @@ function App() {
           <Route path="sarpras/rules" element={<SarprasRules />} />
 
           {/* Module: Manajemen Kendaraan */}
-          <Route path="kendaraan/dashboard" element={<ModulePlaceholder title="Dashboard Kendaraan" moduleName="Manajemen Kendaraan" />} />
+          <Route path="kendaraan/dashboard" element={<VehicleDashboard />} />
           <Route path="kendaraan/data" element={<VehicleList />} />
           <Route path="kendaraan/data/new" element={<VehicleForm />} />
           <Route path="kendaraan/data/edit/:id" element={<VehicleForm />} />
@@ -105,6 +107,11 @@ function App() {
           <Route path="gudang/pesanan" element={<UniformOrderAdmin />} />
 
           {/* Module: Manajemen Personalia */}
+          <Route path="personalia/dashboard" element={
+            ['SUPER_ADMIN', 'ADMIN_ASET'].includes(JSON.parse(localStorage.getItem('user'))?.role)
+              ? <PersonnelDashboard />
+              : <Navigate to="/dashboard" />
+          } />
           <Route path="personalia/laporan" element={<PersonnelReports />} />
           <Route path="personalia/penugasan" element={<PersonnelAssignments />} />
           <Route path="personalia/struktur" element={<ModulePlaceholder title="Struktur Organisasi" moduleName="Manajemen Personalia" />} />

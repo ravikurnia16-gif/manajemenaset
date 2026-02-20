@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Car, Camera, Save, MapPin, Fuel, Gauge, Palette, Calendar, User } from 'lucide-react';
+import { ArrowLeft, Car, Camera, Save, MapPin, Fuel, Gauge, Palette, Calendar, User, Search } from 'lucide-react';
 import api from '../lib/axios';
 
 const VehicleForm = () => {
@@ -25,6 +25,7 @@ const VehicleForm = () => {
         picIds: []
     });
     const [users, setUsers] = useState([]);
+    const [picSearch, setPicSearch] = useState('');
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -180,29 +181,43 @@ const VehicleForm = () => {
                     </div>
 
                     <div className="mt-8 pt-8 border-t border-slate-100 italic">
-                        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase mb-4">
-                            <User size={16} className="text-purple-500" /> Penanggung Jawab (Semua Pengguna)
-                        </label>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase">
+                                <User size={16} className="text-purple-500" /> Penanggung Jawab (Semua Pengguna)
+                            </label>
+                            <div className="relative">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Cari nama PIC..."
+                                    className="pl-9 pr-4 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-2 focus:ring-purple-500 outline-none w-full md:w-64"
+                                    value={picSearch}
+                                    onChange={e => setPicSearch(e.target.value)}
+                                />
+                            </div>
+                        </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-60 overflow-y-auto p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                            {(users || []).map(s => (
-                                <label key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer ${(form.picIds || []).includes(s.id) ? 'bg-purple-50 border-purple-200 text-purple-700 font-bold' : 'bg-white border-transparent text-slate-500 hover:border-slate-100'}`}>
-                                    <input
-                                        type="checkbox"
-                                        className="hidden"
-                                        checked={form.picIds.includes(s.id)}
-                                        onChange={() => {
-                                            const newPicIds = form.picIds.includes(s.id)
-                                                ? form.picIds.filter(id => id !== s.id)
-                                                : [...form.picIds, s.id];
-                                            setForm({ ...form, picIds: newPicIds });
-                                        }}
-                                    />
-                                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${form.picIds.includes(s.id) ? 'bg-purple-500 border-purple-500 text-white' : 'border-slate-300'}`}>
-                                        {form.picIds.includes(s.id) && <div className="text-[10px]">✓</div>}
-                                    </div>
-                                    <span className="text-xs truncate">{s.name}</span>
-                                </label>
-                            ))}
+                            {(users || [])
+                                .filter(u => u.name?.toLowerCase().includes(picSearch.toLowerCase()) || (form.picIds || []).includes(u.id))
+                                .map(s => (
+                                    <label key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer ${(form.picIds || []).includes(s.id) ? 'bg-purple-50 border-purple-200 text-purple-700 font-bold' : 'bg-white border-transparent text-slate-500 hover:border-slate-100'}`}>
+                                        <input
+                                            type="checkbox"
+                                            className="hidden"
+                                            checked={form.picIds.includes(s.id)}
+                                            onChange={() => {
+                                                const newPicIds = form.picIds.includes(s.id)
+                                                    ? form.picIds.filter(id => id !== s.id)
+                                                    : [...form.picIds, s.id];
+                                                setForm({ ...form, picIds: newPicIds });
+                                            }}
+                                        />
+                                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${form.picIds.includes(s.id) ? 'bg-purple-500 border-purple-500 text-white' : 'border-slate-300'}`}>
+                                            {form.picIds.includes(s.id) && <div className="text-[10px]">✓</div>}
+                                        </div>
+                                        <span className="text-xs truncate">{s.name}</span>
+                                    </label>
+                                ))}
                         </div>
                         <p className="text-[10px] text-slate-400 mt-2 italic">*PIC yang dipilih akan menerima notifikasi WhatsApp untuk menyetujui/menolak peminjaman.</p>
                     </div>
