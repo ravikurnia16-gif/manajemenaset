@@ -24,14 +24,14 @@ const VehicleForm = () => {
         stnkDueDate: '',
         picIds: []
     });
-    const [staff, setStaff] = useState([]);
+    const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (isEdit) {
             fetchVehicle();
         }
-        fetchStaff();
+        fetchUsers();
     }, [id]);
 
     const fetchVehicle = async () => {
@@ -56,10 +56,10 @@ const VehicleForm = () => {
         }
     };
 
-    const fetchStaff = async () => {
+    const fetchUsers = async () => {
         try {
-            const res = await api.get('/personnel/staff');
-            setStaff(res.data);
+            const res = await api.get('/users');
+            setUsers(res.data);
         } catch (error) { console.error(error); }
     };
 
@@ -181,10 +181,10 @@ const VehicleForm = () => {
 
                     <div className="mt-8 pt-8 border-t border-slate-100 italic">
                         <label className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase mb-4">
-                            <User size={16} className="text-purple-500" /> Penanggung Jawab (PIC Approval)
+                            <User size={16} className="text-purple-500" /> Penanggung Jawab (Semua Pengguna)
                         </label>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-60 overflow-y-auto p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                            {(staff || []).map(s => (
+                            {(users || []).map(s => (
                                 <label key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer ${(form.picIds || []).includes(s.id) ? 'bg-purple-50 border-purple-200 text-purple-700 font-bold' : 'bg-white border-transparent text-slate-500 hover:border-slate-100'}`}>
                                     <input
                                         type="checkbox"
