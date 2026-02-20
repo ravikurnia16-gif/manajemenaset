@@ -1,0 +1,111 @@
+﻿
+> client@0.0.0 build
+> vite build
+
+[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32mΓ£ô[39m 27 modules transformed.
+node.exe : 
+[31mΓ£ù[39m Build 
+failed in 2.92s
+At line:1 char:1
++ & "C:\Program Files\
+nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: ([31mΓ£ù[   
+ 39m Build failed     
+in 2.92s:String)     
+[], RemoteExcepti    
+on
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+[31merror during 
+build:
+[31m[vite:esbuild] 
+Transform failed with 
+1 error:
+D:/MANAJEMEN ASET/clie
+nt/src/pages/VehicleLi
+st.jsx:168:37: ERROR: 
+Expected ")" but 
+found "className"[31m
+file: 
+[36mD:/MANAJEMEN ASET
+/client/src/pages/Vehi
+cleList.jsx:168:37[31
+m
+[33m
+[33mExpected ")" but 
+found "className"[33m
+166 |                 
+                 
+</div>
+167 |  
+168 |                 
+                 <div 
+className="flex gap-2 
+pt-4 border-t 
+border-slate-50">
+    |                 
+                      
+^
+169 |                 
+                     
+<button
+170 |                 
+                      
+   onClick={() => navi
+gate(`/kendaraan/lapor
+an-mingguan/${v.id}`)}
+[31m
+    at 
+failureErrorWithLog 
+(D:\MANAJEMEN ASET\cli
+ent\node_modules\esbui
+ld\lib\main.js:1467:15
+)
+    at D:\MANAJEMEN AS
+ET\client\node_modules
+\esbuild\lib\main.js:7
+36:50
+    at responseCallbac
+ks.<computed> 
+(D:\MANAJEMEN ASET\cli
+ent\node_modules\esbui
+ld\lib\main.js:603:9)
+    at 
+handleIncomingPacket 
+(D:\MANAJEMEN ASET\cli
+ent\node_modules\esbui
+ld\lib\main.js:658:12)
+    at 
+Socket.readFromStdout 
+(D:\MANAJEMEN ASET\cli
+ent\node_modules\esbui
+ld\lib\main.js:581:7)
+    at Socket.emit 
+(node:events:518:28)
+    at addChunk (node:
+internal/streams/reada
+ble:561:12)
+    at readableAddChun
+kPushByteMode (node:in
+ternal/streams/readabl
+e:512:3)
+    at Readable.push (
+node:internal/streams/
+readable:392:5)
+    at 
+Pipe.onStreamRead (nod
+e:internal/stream_base
+_commons:189:23)[39m
