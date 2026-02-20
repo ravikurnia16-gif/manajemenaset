@@ -104,11 +104,9 @@ function expandRecurringEvents(event, year, month) {
 // GET /api/calendar?month=2&year=2026
 const getEvents = async (req, res) => {
     try {
-        const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-        const year = parseInt(req.query.year) || new Date().getFullYear();
-
-        const monthStart = new Date(year, month - 1, 1);
-        const monthEnd = new Date(year, month, 0, 23, 59, 59);
+        // Use UTC boundaries to avoid timezone shift skips
+        const monthStart = new Date(Date.UTC(year, month - 1, 1));
+        const monthEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
         // 1. Get non-recurring events in the month (including those that overlap)
         const regularEvents = await prisma.sarprasCalendarEvent.findMany({
@@ -196,10 +194,8 @@ const getPinnedEvents = async (req, res) => {
 // GET /api/calendar/summary?month=2&year=2026
 const getSummary = async (req, res) => {
     try {
-        const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-        const year = parseInt(req.query.year) || new Date().getFullYear();
-        const monthStart = new Date(year, month - 1, 1);
-        const monthEnd = new Date(year, month, 0, 23, 59, 59);
+        const monthStart = new Date(Date.UTC(year, month - 1, 1));
+        const monthEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
         const events = await prisma.sarprasCalendarEvent.findMany({
             where: {

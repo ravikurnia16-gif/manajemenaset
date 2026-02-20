@@ -88,24 +88,22 @@ const SarprasCalendar = () => {
 
     const getEventsForDay = (day) => {
         if (!day) return [];
-        const targetDate = new Date(currentYear, currentMonth - 1, day);
-        targetDate.setHours(0, 0, 0, 0); // Normalize to start of day
+        // Format as YYYY-MM-DD for stable string comparison
+        const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
         return events.filter(event => {
             if (!event.date) return false;
 
-            const eventStartDate = new Date(event.date);
-            eventStartDate.setHours(0, 0, 0, 0);
+            const eventStartStr = event.date.split('T')[0];
 
-            // If it has an endDate, check range
+            // If it has an endDate, check range (string comparison is fine for YYYY-MM-DD)
             if (event.endDate) {
-                const eventEndDate = new Date(event.endDate);
-                eventEndDate.setHours(23, 59, 59, 999); // Normalize to end of day
-                return targetDate >= eventStartDate && targetDate <= eventEndDate;
+                const eventEndStr = event.endDate.split('T')[0];
+                return dateStr >= eventStartStr && dateStr <= eventEndStr;
             }
 
             // Fallback to single day event
-            return targetDate.getTime() === eventStartDate.getTime();
+            return dateStr === eventStartStr;
         });
     };
 
@@ -160,6 +158,7 @@ const SarprasCalendar = () => {
                 await api.post('/calendar', payload);
             }
             setShowModal(false);
+            alert('Kegiatan berhasil disimpan');
             fetchAll();
         } catch (err) {
             alert(err.response?.data?.error || 'Gagal menyimpan');
