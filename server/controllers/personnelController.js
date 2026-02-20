@@ -373,7 +373,7 @@ exports.getPersonnelDashboard = async (req, res) => {
 
         const [totalPersonnel, activeAssignments, todayAgenda, pendingReports] = await Promise.all([
             prisma.user.count(),
-            prisma.personnelAssignment.count({ where: { status: { notIn: ['COMPLETED', 'REJECTED'] } } }),
+            prisma.personnelAssignment.count({ where: { status: { notIn: ['COMPLETED', 'CANCELLED'] } } }),
             prisma.sarprasCalendarEvent.count({ where: { date: { gte: startOfToday, lt: new Date(new Date().setDate(now.getDate() + 1)) } } }),
             prisma.personnelReport.count({ where: { date: { gte: new Date(new Date().setDate(now.getDate() - 7)) } } }) // Example: Recent reports
         ]);
