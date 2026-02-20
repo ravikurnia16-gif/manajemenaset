@@ -147,9 +147,11 @@ const VehicleBooking = () => {
     const handleCancel = async (id) => {
         if (!confirm('Batalkan permohonan ini?')) return;
         try {
+            setSubmitting(true);
             await api.post(`/vehicles/booking/${id}/cancel`);
             fetchBookings();
         } catch (err) { alert('Gagal membatalkan'); }
+        finally { setSubmitting(false); }
     };
 
     // Render Logic for Status Badges
@@ -220,12 +222,12 @@ const VehicleBooking = () => {
                             {vehicles.map(v => (
                                 <div key={v.id} className="group bg-white border border-slate-100 rounded-2xl overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                                     {/* Vehicle Image Container */}
-                                    <div className="relative h-44 overflow-hidden bg-slate-100">
+                                    <div className="relative h-44 overflow-hidden bg-slate-50 flex items-center justify-center p-3">
                                         {v.photo ? (
                                             <img
                                                 src={v.photo}
                                                 alt={v.name}
-                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                                className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500"
                                             />
                                         ) : (
                                             <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-200 text-slate-300">
@@ -288,12 +290,13 @@ const VehicleBooking = () => {
 
                                         {v.status === 'ACTIVE' && (
                                             <button
+                                                disabled={submitting}
                                                 onClick={() => {
                                                     setSelectedVehicle(v);
                                                     setFormData({ ...formData, vehicleId: v.id });
                                                     setShowBorrowModal(true);
                                                 }}
-                                                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200 transition-all group/btn active:scale-[0.98]"
+                                                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200 transition-all group/btn active:scale-[0.98] disabled:opacity-50"
                                             >
                                                 <Plus size={16} className="group-hover/btn:rotate-90 transition-transform" />
                                                 Pinjam Sekarang
@@ -497,18 +500,26 @@ const VehicleBooking = () => {
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex justify-center gap-2">
-                                                <button
-                                                    onClick={() => handleAction(b.id, 'APPROVED')}
-                                                    className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-bold hover:bg-green-600 hover:text-white transition-all"
-                                                >
-                                                    Setujui
-                                                </button>
-                                                <button
-                                                    onClick={() => setShowActionModal({ type: 'REJECT', data: b })}
-                                                    className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-all"
-                                                >
-                                                    Tolak
-                                                </button>
+                                                {b.status === 'PENDING' ? (
+                                                    <>
+                                                        <button
+                                                            disabled={submitting}
+                                                            onClick={() => handleAction(b.id, 'APPROVED')}
+                                                            className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-bold hover:bg-green-600 hover:text-white transition-all disabled:opacity-50"
+                                                        >
+                                                            Setujui
+                                                        </button>
+                                                        <button
+                                                            disabled={submitting}
+                                                            onClick={() => setShowActionModal({ type: 'REJECT', data: b })}
+                                                            className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-all disabled:opacity-50"
+                                                        >
+                                                            Tolak
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    getStatusBadge(b.status)
+                                                )}
                                                 <button
                                                     onClick={() => setShowDetailModal(b)}
                                                     className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
@@ -571,24 +582,27 @@ const VehicleBooking = () => {
                                             <div className="flex justify-center gap-2">
                                                 {b.status === 'APPROVED' && !b.startKm && (
                                                     <button
+                                                        disabled={submitting}
                                                         onClick={() => setShowActionModal({ type: 'START', data: b })}
-                                                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1"
+                                                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1 disabled:opacity-50"
                                                     >
                                                         <LogIn size={14} /> Start Trip
                                                     </button>
                                                 )}
                                                 {b.status === 'APPROVED' && b.startKm && (
                                                     <button
+                                                        disabled={submitting}
                                                         onClick={() => setShowActionModal({ type: 'END', data: b })}
-                                                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1"
+                                                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1 disabled:opacity-50"
                                                     >
                                                         <LogOut size={14} /> End Trip
                                                     </button>
                                                 )}
                                                 {b.status === 'PENDING' && (
                                                     <button
+                                                        disabled={submitting}
                                                         onClick={() => handleCancel(b.id)}
-                                                        className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                                                        className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                                                     >
                                                         <Trash2 size={18} />
                                                     </button>

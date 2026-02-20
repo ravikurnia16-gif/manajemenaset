@@ -177,7 +177,7 @@ exports.getBookings = async (req, res) => {
 
         if (vehicleId) where.vehicleId = parseInt(vehicleId);
 
-        if (tab === 'PENDING') {
+        if (tab === 'PENDING' || tab === 'APPROVAL') {
             where.status = 'PENDING';
         } else if (tab === 'APPROVED') {
             where.status = 'APPROVED';
