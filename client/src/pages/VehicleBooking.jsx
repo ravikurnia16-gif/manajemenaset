@@ -86,10 +86,24 @@ const VehicleBooking = () => {
             setSubmitting(true);
             const startStr = `${formData.startDate}T${formData.startTime}`;
             const endStr = `${formData.endDate}T${formData.endTime}`;
+            const startDateObj = new Date(startStr);
+            const now = new Date();
+
+            if (startDateObj < now) {
+                alert('Waktu mulai peminjaman tidak boleh di masa lampau.');
+                setSubmitting(false);
+                return;
+            }
+
+            if (new Date(endStr) <= startDateObj) {
+                alert('Waktu selesai harus setelah waktu mulai.');
+                setSubmitting(false);
+                return;
+            }
 
             await api.post('/vehicles/booking/request', {
                 ...formData,
-                startDate: new Date(startStr),
+                startDate: startDateObj,
                 endDate: new Date(endStr)
             });
             alert('Permohonan berhasil dikirim!');
@@ -222,7 +236,7 @@ const VehicleBooking = () => {
                             {vehicles.map(v => (
                                 <div key={v.id} className="group bg-white border border-slate-100 rounded-2xl overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                                     {/* Vehicle Image Container */}
-                                    <div className="relative h-44 overflow-hidden bg-slate-50 flex items-center justify-center p-3">
+                                    <div className="relative h-44 md:h-64 overflow-hidden bg-slate-50 flex items-center justify-center p-3">
                                         {v.photo ? (
                                             <img
                                                 src={v.photo}
@@ -583,7 +597,10 @@ const VehicleBooking = () => {
                                                 {b.status === 'APPROVED' && !b.startKm && (
                                                     <button
                                                         disabled={submitting}
-                                                        onClick={() => setShowActionModal({ type: 'START', data: b })}
+                                                        onClick={() => {
+                                                            setActionData({ ...actionData, km: b.vehicle.odometer || '' });
+                                                            setShowActionModal({ type: 'START', data: b });
+                                                        }}
                                                         className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1 disabled:opacity-50"
                                                     >
                                                         <LogIn size={14} /> Start Trip

@@ -10,10 +10,16 @@ exports.requestBooking = async (req, res) => {
 
         const vehicle = await prisma.vehicle.findUnique({
             where: { id: parseInt(vehicleId) },
-            include: { pics: true }
+            include: { pics: true, odometer: true }
         });
 
         if (!vehicle) return res.status(404).json({ error: 'Kendaraan tidak ditemukan' });
+
+        const start = new Date(startDate);
+        const now = new Date();
+        if (start < now) {
+            return res.status(400).json({ error: 'Waktu mulai peminjaman tidak boleh di masa lampau.' });
+        }
 
         const booking = await prisma.vehicleBooking.create({
             data: {
@@ -192,7 +198,7 @@ exports.getBookings = async (req, res) => {
             where,
             include: {
                 user: { select: { name: true, unitId: true, unit: { select: { name: true } } } },
-                vehicle: { select: { name: true, plateNumber: true, type: true } },
+                vehicle: { select: { name: true, plateNumber: true, type: true, odometer: true } },
                 driver: { select: { name: true } }
             },
             orderBy: { createdAt: 'desc' }
