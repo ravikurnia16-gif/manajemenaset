@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
     Car, Calendar, MapPin, Info, CheckCircle, XCircle,
-    Clock, Gauge, Fuel, User, Plus, Search,
+    Clock, Gauge, Fuel, User, Plus, Search, X,
     ArrowRight, ChevronRight, AlertCircle, Trash2,
     Users, Navigation2, LogIn, LogOut, Receipt
 } from 'lucide-react';
@@ -30,6 +30,8 @@ const VehicleBooking = () => {
 
     // Modal States
     const [showDetailModal, setShowDetailModal] = useState(null);
+    const [showBorrowModal, setShowBorrowModal] = useState(false);
+    const [selectedVehicle, setSelectedVehicle] = useState(null);
     const [showActionModal, setShowActionModal] = useState(null); // { type: 'REJECT'|'START'|'END', data: booking }
     const [actionData, setActionData] = useState({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '' });
 
@@ -91,6 +93,7 @@ const VehicleBooking = () => {
                 endDate: new Date(endStr)
             });
             alert('Permohonan berhasil dikirim!');
+            setShowBorrowModal(false);
             setActiveTab('MY_REQUESTS');
             setFormData({
                 vehicleId: '', startDate: '', startTime: '08:00', endDate: '', endTime: '17:00',
@@ -171,8 +174,7 @@ const VehicleBooking = () => {
     const canApprove = isSuperAdmin || isAdminAset || isPIC;
 
     const tabs = [
-        { id: 'CURRENT_FLEET', label: 'Kendaraan Dipinjam', icon: <Car size={16} /> },
-        { id: 'REQUEST_FORM', label: 'Buat Request', icon: <Plus size={16} /> },
+        { id: 'CURRENT_FLEET', label: 'Daftar Kendaraan', icon: <Car size={16} /> },
         ...(canApprove ? [{ id: 'APPROVAL', label: 'Persetujuan', icon: <CheckCircle size={16} />, count: bookings.filter(b => b.status === 'PENDING').length }] : []),
         { id: 'MY_REQUESTS', label: 'Permohonan Saya', icon: <User size={16} /> },
         { id: 'HISTORY', label: 'Riwayat', icon: <Clock size={16} /> }
@@ -216,153 +218,245 @@ const VehicleBooking = () => {
                     <div className="p-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {vehicles.map(v => (
-                                <div key={v.id} className="border border-slate-100 rounded-xl p-4 hover:shadow-md transition-shadow">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div>
-                                            <h3 className="font-bold text-slate-800">{v.name}</h3>
-                                            <p className="text-xs font-mono text-slate-400 uppercase">{v.plateNumber}</p>
+                                <div key={v.id} className="group bg-white border border-slate-100 rounded-2xl overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                                    {/* Vehicle Image Container */}
+                                    <div className="relative h-44 overflow-hidden bg-slate-100">
+                                        {v.photo ? (
+                                            <img
+                                                src={v.photo}
+                                                alt={v.name}
+                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-200 text-slate-300">
+                                                <Car size={48} strokeWidth={1} />
+                                                <span className="text-[10px] font-bold uppercase tracking-widest mt-2">No Photo Available</span>
+                                            </div>
+                                        )}
+                                        {/* Status Tag Overlay */}
+                                        <div className="absolute top-3 right-3">
+                                            <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold shadow-sm backdrop-blur-md ${v.status === 'ACTIVE'
+                                                ? 'bg-green-500/90 text-white'
+                                                : 'bg-red-500/90 text-white'
+                                                }`}>
+                                                {v.status === 'ACTIVE' ? 'STANDBY' : v.status}
+                                            </div>
                                         </div>
-                                        <div className={`px-2 py-1 rounded text-[10px] font-bold ${v.status === 'ACTIVE' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-                                            {v.status === 'ACTIVE' ? 'Standby' : v.status}
+                                        {/* Type Tag Overlay */}
+                                        <div className="absolute bottom-3 left-3">
+                                            <div className="px-2 py-1 bg-black/40 backdrop-blur-md text-white/90 rounded text-[9px] font-bold uppercase tracking-wider">
+                                                {v.type}
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="space-y-2 mb-4">
-                                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                                            <Gauge size={14} className="text-blue-500" />
-                                            <span>{v.odometer?.toLocaleString()} km</span>
+
+                                    <div className="p-5">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <h3 className="font-bold text-slate-800 text-lg group-hover:text-blue-600 transition-colors">{v.name}</h3>
+                                                <p className="text-xs font-mono text-slate-400 font-bold uppercase tracking-wider">{v.plateNumber}</p>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                                            <User size={14} className="text-purple-500" />
-                                            <span>PIC: {v.pics?.length > 0 ? v.pics.map(p => p.name).join(', ') : 'Belum ditunjuk'}</span>
+                                        <div className="grid grid-cols-2 gap-3 mb-5">
+                                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                                <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">
+                                                    <Gauge size={10} className="text-blue-500" />
+                                                    Odometer
+                                                </div>
+                                                <div className="text-xs font-bold text-slate-700">{v.odometer?.toLocaleString()} km</div>
+                                            </div>
+                                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                                <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">
+                                                    <Fuel size={10} className="text-orange-500" />
+                                                    Fuel
+                                                </div>
+                                                <div className="text-xs font-bold text-slate-700">{v.fuelType || '-'}</div>
+                                            </div>
                                         </div>
+
+                                        <div className="flex items-center gap-3 text-[11px] text-slate-500 mb-6 bg-slate-50/50 p-2 rounded-lg border border-dashed border-slate-200">
+                                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                                                <User size={14} />
+                                            </div>
+                                            <div>
+                                                <div className="text-[9px] font-bold text-slate-400 uppercase">PIC Unit</div>
+                                                <div className="font-bold text-slate-700 truncate max-w-[140px]">
+                                                    {v.pics?.length > 0 ? v.pics.map(p => p.name).join(', ') : 'Belum ditunjuk'}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {v.status === 'ACTIVE' && (
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedVehicle(v);
+                                                    setFormData({ ...formData, vehicleId: v.id });
+                                                    setShowBorrowModal(true);
+                                                }}
+                                                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200 transition-all group/btn active:scale-[0.98]"
+                                            >
+                                                <Plus size={16} className="group-hover/btn:rotate-90 transition-transform" />
+                                                Pinjam Sekarang
+                                            </button>
+                                        )}
                                     </div>
-                                    {/* Availability check can be added here if needed */}
                                 </div>
                             ))}
                         </div>
                     </div>
                 )}
 
-                {activeTab === 'REQUEST_FORM' && (
-                    <div className="p-6 max-w-2xl mx-auto">
-                        <form onSubmit={handleSubmitRequest} className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="md:col-span-2">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Pilih Kendaraan</label>
-                                    <select
-                                        required
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                        value={formData.vehicleId}
-                                        onChange={e => setFormData({ ...formData, vehicleId: e.target.value })}
-                                    >
-                                        <option value="">-- Pilih Armada --</option>
-                                        {vehicles.filter(v => v.status === 'ACTIVE').map(v => (
-                                            <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
-                                        ))}
-                                    </select>
-                                </div>
-
+                {/* Modal Form Peminjaman */}
+                {showBorrowModal && selectedVehicle && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                            {/* Modal Header */}
+                            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white flex justify-between items-center">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Mulai Pinjam</label>
-                                    <div className="flex gap-2">
-                                        <div className="relative flex-1">
-                                            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
-                                            <input
-                                                type="date" required
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                                value={formData.startDate}
-                                                onChange={e => setFormData({ ...formData, startDate: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="relative w-32">
-                                            <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
-                                            <input
-                                                type="time" required
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                                value={formData.startTime}
-                                                onChange={e => setFormData({ ...formData, startTime: e.target.value })}
-                                            />
-                                        </div>
-                                    </div>
+                                    <h2 className="text-xl font-bold flex items-center gap-3">
+                                        <Car size={24} /> Pinjam Kendaraan
+                                    </h2>
+                                    <p className="text-blue-100 text-sm mt-1">Armada: {selectedVehicle.name} ({selectedVehicle.plateNumber})</p>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Selesai Pinjam</label>
-                                    <div className="flex gap-2">
-                                        <div className="relative flex-1">
-                                            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
-                                            <input
-                                                type="date" required
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                                value={formData.endDate}
-                                                onChange={e => setFormData({ ...formData, endDate: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="relative w-32">
-                                            <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
-                                            <input
-                                                type="time" required
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                                value={formData.endTime}
-                                                onChange={e => setFormData({ ...formData, endTime: e.target.value })}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="md:col-span-2">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Tujuan (Lokasi)</label>
-                                    <input
-                                        type="text" required
-                                        placeholder="Contoh: Yogyakarta / Kantor Pusat"
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm"
-                                        value={formData.destination}
-                                        onChange={e => setFormData({ ...formData, destination: e.target.value })}
-                                    />
-                                </div>
-
-                                <div className="md:col-span-2">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Keperluan</label>
-                                    <textarea
-                                        required
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm"
-                                        rows={3}
-                                        value={formData.purpose}
-                                        onChange={e => setFormData({ ...formData, purpose: e.target.value })}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Jumlah Penumpang</label>
-                                    <input
-                                        type="number" min="1" required
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm"
-                                        value={formData.passengerCount}
-                                        onChange={e => setFormData({ ...formData, passengerCount: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Pilih Driver</label>
-                                    <select
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm"
-                                        value={formData.driverId}
-                                        onChange={e => setFormData({ ...formData, driverId: e.target.value })}
-                                    >
-                                        <option value="">Bawa Sendiri</option>
-                                        {staff.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                                <button
+                                    onClick={() => setShowBorrowModal(false)}
+                                    className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                                >
+                                    <X size={24} />
+                                </button>
                             </div>
 
-                            <button
-                                type="submit"
-                                disabled={submitting}
-                                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
-                            >
-                                {submitting ? 'Mengirim...' : <><LogIn size={18} /> Kirim Request</>}
-                            </button>
-                        </form>
+                            {/* Modal Body */}
+                            <div className="p-6 max-h-[80vh] overflow-y-auto">
+                                <form onSubmit={handleSubmitRequest} className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Mulai Pinjam</label>
+                                            <div className="flex gap-2">
+                                                <div className="relative flex-1">
+                                                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                                                    <input
+                                                        type="date" required
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        value={formData.startDate}
+                                                        onChange={e => setFormData({ ...formData, startDate: e.target.value })}
+                                                    />
+                                                </div>
+                                                <div className="relative w-32">
+                                                    <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                                                    <input
+                                                        type="time" required
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        value={formData.startTime}
+                                                        onChange={e => setFormData({ ...formData, startTime: e.target.value })}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Selesai Pinjam</label>
+                                            <div className="flex gap-2">
+                                                <div className="relative flex-1">
+                                                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                                                    <input
+                                                        type="date" required
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        value={formData.endDate}
+                                                        onChange={e => setFormData({ ...formData, endDate: e.target.value })}
+                                                    />
+                                                </div>
+                                                <div className="relative w-32">
+                                                    <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                                                    <input
+                                                        type="time" required
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        value={formData.endTime}
+                                                        onChange={e => setFormData({ ...formData, endTime: e.target.value })}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Tujuan (Lokasi)</label>
+                                            <div className="relative">
+                                                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                                                <input
+                                                    type="text" required
+                                                    placeholder="Contoh: Pa"
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    value={formData.destination}
+                                                    onChange={e => setFormData({ ...formData, destination: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Keperluan</label>
+                                            <textarea
+                                                required
+                                                placeholder="Deskripsikan tujuan peminjaman..."
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                rows={2}
+                                                value={formData.purpose}
+                                                onChange={e => setFormData({ ...formData, purpose: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Jumlah Penumpang</label>
+                                            <div className="relative">
+                                                <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                                                <input
+                                                    type="number" min="1" required
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    value={formData.passengerCount}
+                                                    onChange={e => setFormData({ ...formData, passengerCount: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Pilih Driver</label>
+                                            <div className="relative">
+                                                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                                                <select
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm appearance-none focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    value={formData.driverId}
+                                                    onChange={e => setFormData({ ...formData, driverId: e.target.value })}
+                                                >
+                                                    <option value="">Bawa Sendiri</option>
+                                                    {staff.map(s => (
+                                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                                    ))}
+                                                </select>
+                                                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={16} />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3 mt-8">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowBorrowModal(false)}
+                                            className="flex-1 py-3 px-4 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                                        >
+                                            Batal
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={submitting}
+                                            className="flex-[2] py-3 px-4 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 transition-all flex justify-center items-center gap-2"
+                                        >
+                                            {submitting ? (
+                                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            ) : (
+                                                <>Kirim Permohonan <ArrowRight size={18} /></>
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -570,139 +664,141 @@ const VehicleBooking = () => {
             </div>
 
             {/* Action Modals */}
-            {showActionModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in-95 duration-200">
-                        <div className="flex justify-between items-start mb-6">
-                            <h3 className="text-xl font-bold text-slate-800">
-                                {showActionModal.type === 'REJECT' && 'Tolak Permohonan'}
-                                {showActionModal.type === 'START' && 'Mulai Perjalanan'}
-                                {showActionModal.type === 'END' && 'Selesai Perjalanan'}
-                            </h3>
-                            <button onClick={() => setShowActionModal(null)} className="text-slate-400 hover:text-slate-600">
-                                <XCircle size={24} />
-                            </button>
-                        </div>
-
-                        {showActionModal.type === 'REJECT' && (
-                            <div className="space-y-4">
-                                <label className="block text-xs font-bold text-slate-500 uppercase">Alasan Penolakan</label>
-                                <textarea
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-red-500 outline-none"
-                                    rows={3} autoFocus
-                                    placeholder="Wajib diisi..."
-                                    value={actionData.reason}
-                                    onChange={e => setActionData({ ...actionData, reason: e.target.value })}
-                                />
-                                <button
-                                    disabled={!actionData.reason || submitting}
-                                    onClick={() => handleAction(showActionModal.data.id, 'REJECT')}
-                                    className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-50 transition-all shadow-lg shadow-red-200"
-                                >
-                                    Konfirmasi Tolak
+            {
+                showActionModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in-95 duration-200">
+                            <div className="flex justify-between items-start mb-6">
+                                <h3 className="text-xl font-bold text-slate-800">
+                                    {showActionModal.type === 'REJECT' && 'Tolak Permohonan'}
+                                    {showActionModal.type === 'START' && 'Mulai Perjalanan'}
+                                    {showActionModal.type === 'END' && 'Selesai Perjalanan'}
+                                </h3>
+                                <button onClick={() => setShowActionModal(null)} className="text-slate-400 hover:text-slate-600">
+                                    <XCircle size={24} />
                                 </button>
                             </div>
-                        )}
 
-                        {showActionModal.type === 'START' && (
-                            <div className="space-y-4">
-                                <div className="p-4 bg-blue-50 text-blue-700 rounded-xl flex gap-3 text-sm">
-                                    <AlertCircle className="shrink-0" size={20} />
-                                    <p>Pastikan kondisi kendaraan baik dan periksa bahan bakar sebelum berangkat.</p>
+                            {showActionModal.type === 'REJECT' && (
+                                <div className="space-y-4">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase">Alasan Penolakan</label>
+                                    <textarea
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                                        rows={3} autoFocus
+                                        placeholder="Wajib diisi..."
+                                        value={actionData.reason}
+                                        onChange={e => setActionData({ ...actionData, reason: e.target.value })}
+                                    />
+                                    <button
+                                        disabled={!actionData.reason || submitting}
+                                        onClick={() => handleAction(showActionModal.data.id, 'REJECT')}
+                                        className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-50 transition-all shadow-lg shadow-red-200"
+                                    >
+                                        Konfirmasi Tolak
+                                    </button>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Kilometer Keberangkatan (Km Awal)</label>
-                                    <div className="relative">
-                                        <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                        <input
-                                            type="number"
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                                            placeholder="Masukkan angka KM"
-                                            value={actionData.km}
-                                            onChange={e => setActionData({ ...actionData, km: e.target.value })}
-                                        />
+                            )}
+
+                            {showActionModal.type === 'START' && (
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-blue-50 text-blue-700 rounded-xl flex gap-3 text-sm">
+                                        <AlertCircle className="shrink-0" size={20} />
+                                        <p>Pastikan kondisi kendaraan baik dan periksa bahan bakar sebelum berangkat.</p>
                                     </div>
-                                </div>
-                                <button
-                                    disabled={!actionData.km || submitting}
-                                    onClick={handleStartTrip}
-                                    className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-200"
-                                >
-                                    Berangkat Sekarang
-                                </button>
-                            </div>
-                        )}
-
-                        {showActionModal.type === 'END' && (
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Kilometer Tiba (Km Akhir)</label>
-                                    <div className="relative">
-                                        <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                        <input
-                                            type="number"
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-lg font-bold focus:ring-2 focus:ring-green-500 outline-none"
-                                            placeholder="Masukkan angka KM"
-                                            value={actionData.km}
-                                            onChange={e => setActionData({ ...actionData, km: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="flex items-center gap-2 font-bold text-sm text-slate-700">
-                                            <Fuel size={16} className="text-orange-500" />
-                                            Isi BBM di Perjalanan?
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Kilometer Keberangkatan (Km Awal)</label>
+                                        <div className="relative">
+                                            <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                            <input
+                                                type="number"
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-lg font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                                placeholder="Masukkan angka KM"
+                                                value={actionData.km}
+                                                onChange={e => setActionData({ ...actionData, km: e.target.value })}
+                                            />
                                         </div>
-                                        <div
-                                            onClick={() => setActionData({ ...actionData, fuelRefill: !actionData.fuelRefill })}
-                                            className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${actionData.fuelRefill ? 'bg-green-500' : 'bg-slate-300'}`}
-                                        >
-                                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${actionData.fuelRefill ? 'translate-x-6' : 'translate-x-0'}`} />
+                                    </div>
+                                    <button
+                                        disabled={!actionData.km || submitting}
+                                        onClick={handleStartTrip}
+                                        className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-200"
+                                    >
+                                        Berangkat Sekarang
+                                    </button>
+                                </div>
+                            )}
+
+                            {showActionModal.type === 'END' && (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Kilometer Tiba (Km Akhir)</label>
+                                        <div className="relative">
+                                            <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                            <input
+                                                type="number"
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-lg font-bold focus:ring-2 focus:ring-green-500 outline-none"
+                                                placeholder="Masukkan angka KM"
+                                                value={actionData.km}
+                                                onChange={e => setActionData({ ...actionData, km: e.target.value })}
+                                            />
                                         </div>
                                     </div>
 
-                                    {actionData.fuelRefill && (
-                                        <div className="animate-in slide-in-from-top-2 duration-200">
-                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Biaya Pengisian BBM</label>
-                                            <div className="relative">
-                                                <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                                <input
-                                                    type="number"
-                                                    className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold"
-                                                    placeholder="Rp 0"
-                                                    value={actionData.fuelPrice}
-                                                    onChange={e => setActionData({ ...actionData, fuelPrice: e.target.value })}
-                                                />
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="flex items-center gap-2 font-bold text-sm text-slate-700">
+                                                <Fuel size={16} className="text-orange-500" />
+                                                Isi BBM di Perjalanan?
+                                            </div>
+                                            <div
+                                                onClick={() => setActionData({ ...actionData, fuelRefill: !actionData.fuelRefill })}
+                                                className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${actionData.fuelRefill ? 'bg-green-500' : 'bg-slate-300'}`}
+                                            >
+                                                <div className={`w-4 h-4 bg-white rounded-full transition-transform ${actionData.fuelRefill ? 'translate-x-6' : 'translate-x-0'}`} />
                                             </div>
                                         </div>
-                                    )}
-                                </div>
 
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Catatan Perjalanan (Opsional)</label>
-                                    <textarea
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm"
-                                        rows={2}
-                                        placeholder="Kondisi jalan, cuaca, atau kendala..."
-                                        value={actionData.notes}
-                                        onChange={e => setActionData({ ...actionData, notes: e.target.value })}
-                                    />
-                                </div>
+                                        {actionData.fuelRefill && (
+                                            <div className="animate-in slide-in-from-top-2 duration-200">
+                                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Biaya Pengisian BBM</label>
+                                                <div className="relative">
+                                                    <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                    <input
+                                                        type="number"
+                                                        className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold"
+                                                        placeholder="Rp 0"
+                                                        value={actionData.fuelPrice}
+                                                        onChange={e => setActionData({ ...actionData, fuelPrice: e.target.value })}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
 
-                                <button
-                                    disabled={!actionData.km || submitting}
-                                    onClick={handleEndTrip}
-                                    className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-all shadow-lg shadow-green-200"
-                                >
-                                    Selesaikan Perjalanan
-                                </button>
-                            </div>
-                        )}
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Catatan Perjalanan (Opsional)</label>
+                                        <textarea
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm"
+                                            rows={2}
+                                            placeholder="Kondisi jalan, cuaca, atau kendala..."
+                                            value={actionData.notes}
+                                            onChange={e => setActionData({ ...actionData, notes: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <button
+                                        disabled={!actionData.km || submitting}
+                                        onClick={handleEndTrip}
+                                        className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-all shadow-lg shadow-green-200"
+                                    >
+                                        Selesaikan Perjalanan
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Detail Modal */}
             {showDetailModal && (
