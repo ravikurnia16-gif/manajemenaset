@@ -67,7 +67,6 @@ const PersonnelDashboard = () => {
     );
 
     const stats = [
-        { title: "Total Personel", value: data?.stats?.totalPersonnel || 0, icon: Users, color: "bg-indigo-500", desc: "Staf Bidang Sarana dan Prasarana" },
         { title: "Tugas Aktif", value: data?.stats?.activeAssignments || 0, icon: ClipboardList, color: "bg-amber-500", desc: "Belum dinyatakan selesai" },
         { title: "Agenda Hari Ini", value: data?.stats?.todayAgenda || 0, icon: Calendar, color: "bg-sky-500", desc: "Kegiatan di kalender" },
         { title: "Laporan Terkini", value: data?.stats?.pendingReports || 0, icon: FileText, color: "bg-emerald-500", desc: "7 hari terakhir" },

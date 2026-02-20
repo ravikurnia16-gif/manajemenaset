@@ -155,6 +155,7 @@ const PersonnelAssignments = () => {
                                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 >
                                     <option value="UMUM">Umum</option>
+                                    <option value="Kerja">Kerja</option>
                                     <option value="Servis">Servis</option>
                                     <option value="Perbaikan">Perbaikan</option>
                                     <option value="Pengadaan">Pengadaan</option>

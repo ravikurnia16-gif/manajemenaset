@@ -177,16 +177,24 @@ exports.createAssignment = async (req, res) => {
         // AUTO-SYNC TO CALENDAR: Create a calendar event for this assignment (ONLY IF REQUESTED)
         if (addToCalendar) {
             try {
+                // Map category to match Calendar categories if possible
+                const calendarCategory = ['Pemeliharaan', 'Pengadaan', 'Kebersihan', 'Rapat', 'Deadline', 'Kerja'].includes(category)
+                    ? category
+                    : (category === 'Servis' || category === 'Perbaikan' ? 'Pemeliharaan' : 'Lainnya');
+
                 const calEvent = await prisma.sarprasCalendarEvent.create({
                     data: {
-                        title,
-                        description: `[PENUGASAN] ${description}`,
-                        category: category || 'UMUM',
-                        date: dueDate ? new Date(dueDate) : new Date(),
+                        title: `[KERJA] ${title}`,
+                        description: `[PENUGASAN] ${description || ''}`,
+                        category: calendarCategory,
+                        // If startDate exists, use it as the main date. If only dueDate exists, use that.
+                        date: startDate ? new Date(startDate) : (dueDate ? new Date(dueDate) : new Date()),
+                        // End date is always dueDate if it exists
+                        endDate: dueDate ? new Date(dueDate) : null,
                         location: location || null,
                         createdById: user.id,
                         pics: {
-                            connect: { id: parseInt(assigneeId) }
+                            connect: [{ id: parseInt(assigneeId) }]
                         }
                     }
                 });
@@ -371,12 +379,7 @@ exports.getPersonnelDashboard = async (req, res) => {
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-        const [totalPersonnel, activeAssignments, todayAgenda, pendingReports] = await Promise.all([
-            prisma.user.count({
-                where: {
-                    unit: { name: { contains: 'sarana dan prasarana' } }
-                }
-            }),
+        const [activeAssignments, todayAgenda, pendingReports] = await Promise.all([
             prisma.personnelAssignment.count({ where: { status: { notIn: ['COMPLETED', 'CANCELLED'] } } }),
             prisma.sarprasCalendarEvent.count({ where: { date: { gte: startOfToday, lt: new Date(new Date().setDate(now.getDate() + 1)) } } }),
             prisma.personnelReport.count({ where: { date: { gte: new Date(new Date().setDate(now.getDate() - 7)) } } }) // Example: Recent reports
@@ -406,7 +409,7 @@ exports.getPersonnelDashboard = async (req, res) => {
         }
 
         res.json({
-            stats: { totalPersonnel, activeAssignments, todayAgenda, pendingReports },
+            stats: { activeAssignments, todayAgenda, pendingReports },
             assignmentStatus: statusGroups.map(s => ({ name: s.status, value: s._count._all })),
             reportTrends
         });

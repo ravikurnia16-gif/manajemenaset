@@ -179,14 +179,11 @@ const Sidebar = ({ isOpen = true }) => {
                     user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) &&
                     renderCollapsible('personnel', <Users size={18} />, 'Personalia', (
                         <>
-                            {['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) && (
+                            {(isGlobalAdmin || user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) && (
                                 <Link to="/personalia/dashboard" className={subNavItemClass('/personalia/dashboard')}>
                                     <LayoutDashboard size={16} /> Dashboard
                                 </Link>
                             )}
-                            <Link to="/personalia/staf" className={subNavItemClass('/personalia/staf')}>
-                                <UserCog size={16} /> Data Staf
-                            </Link>
                             {/* Only Sarpras or Global Admin can see active reports & assignments */}
                             {(isGlobalAdmin || user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) && (
                                 <>
@@ -203,9 +200,6 @@ const Sidebar = ({ isOpen = true }) => {
                                     <Calendar size={16} /> Kalender Kerja
                                 </Link>
                             )}
-                            <Link to="/personalia/struktur" className={subNavItemClass('/personalia/struktur')}>
-                                <Users size={16} /> Struktur Organisasi
-                            </Link>
                         </>
                     ))}
 
@@ -222,7 +216,7 @@ const Sidebar = ({ isOpen = true }) => {
                         )}
                     </div>
                 )}
-            </nav >
+            </nav>
 
             <div className={cn(
                 "border-t border-slate-800 bg-slate-900/50 transition-all duration-300 overflow-hidden whitespace-nowrap",
@@ -243,4 +237,5 @@ const Sidebar = ({ isOpen = true }) => {
         </div>
     );
 };
+
 export default Sidebar;

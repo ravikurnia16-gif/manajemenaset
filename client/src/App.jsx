@@ -114,9 +114,6 @@ function App() {
           } />
           <Route path="personalia/laporan" element={<PersonnelReports />} />
           <Route path="personalia/penugasan" element={<PersonnelAssignments />} />
-          <Route path="personalia/struktur" element={<ModulePlaceholder title="Struktur Organisasi" moduleName="Manajemen Personalia" />} />
-          <Route path="personalia/staf" element={<ModulePlaceholder title="Data Staf" moduleName="Manajemen Personalia" />} />
-          <Route path="personalia/detail/:id" element={<ModulePlaceholder title="Detail Staf" moduleName="Manajemen Personalia" />} />
           <Route path="personalia/kalender" element={<SarprasCalendar />} />
 
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />
