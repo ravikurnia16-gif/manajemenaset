@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Car, Calendar, Tool, AlertOctagon, TrendingUp, Loader2 } from 'lucide-react';
+import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import api from '../lib/axios';
 
@@ -43,7 +43,7 @@ const VehicleDashboard = () => {
     const stats = [
         { title: "Total Armada", value: data?.stats?.totalVehicles || 0, icon: Car, color: "bg-purple-500", desc: "Kendaraan aktif" },
         { title: "Peminjaman Aktif", value: data?.stats?.activeBookings || 0, icon: Calendar, color: "bg-blue-500", desc: "Sedang dalam perjalanan" },
-        { title: "Perlu Servis", value: data?.stats?.needingService || 0, icon: Tool, color: "bg-orange-500", desc: "Berdasarkan Odometer" },
+        { title: "Perlu Servis", value: data?.stats?.needingService || 0, icon: Wrench, color: "bg-orange-500", desc: "Berdasarkan Odometer" },
         { title: "Pajak/STNK", value: data?.stats?.taxWarnings || 0, icon: AlertOctagon, color: "bg-red-500", desc: "Jatuh tempo < 30 hari" },
     ];
 
