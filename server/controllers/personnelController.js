@@ -339,11 +339,9 @@ exports.updateAssignmentStatus = async (req, res) => {
 
 // Help to get staff list for assignment dropdown
 exports.getStaffSarpras = async (req, res) => {
-    const user = req.user;
     try {
-        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
-            return res.status(403).json({ error: 'Akses ditolak.' });
-        }
+        // No strict role check here, because all users need to see staff list 
+        // to pick a driver for vehicle booking.
 
         const staff = await prisma.user.findMany({
             where: {
