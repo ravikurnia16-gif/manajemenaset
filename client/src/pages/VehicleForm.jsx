@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Car, Camera, Save, MapPin, Fuel, Gauge, Palette, Calendar } from 'lucide-react';
+import { ArrowLeft, Car, Camera, Save, MapPin, Fuel, Gauge, Palette, Calendar, User } from 'lucide-react';
 import api from '../lib/axios';
 
 const VehicleForm = () => {
@@ -99,7 +99,7 @@ const VehicleForm = () => {
             </button>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 italic">
+                <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
                     <div className="flex items-center gap-4 mb-8">
                         <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
                             <Car size={24} />
@@ -184,8 +184,8 @@ const VehicleForm = () => {
                             <User size={16} className="text-purple-500" /> Penanggung Jawab (PIC Approval)
                         </label>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-60 overflow-y-auto p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                            {staff.map(s => (
-                                <label key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer ${form.picIds.includes(s.id) ? 'bg-purple-50 border-purple-200 text-purple-700 font-bold' : 'bg-white border-transparent text-slate-500 hover:border-slate-100'}`}>
+                            {(staff || []).map(s => (
+                                <label key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer ${(form.picIds || []).includes(s.id) ? 'bg-purple-50 border-purple-200 text-purple-700 font-bold' : 'bg-white border-transparent text-slate-500 hover:border-slate-100'}`}>
                                     <input
                                         type="checkbox"
                                         className="hidden"
