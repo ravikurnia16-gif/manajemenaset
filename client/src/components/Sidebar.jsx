@@ -45,6 +45,7 @@ const Sidebar = ({ isOpen = true }) => {
     }
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_UNIT'].includes(user?.role);
     const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user?.role);
+    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
 
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">
@@ -138,21 +139,27 @@ const Sidebar = ({ isOpen = true }) => {
                     </>
                 ))}
 
-                {/* 2. Manajemen Kendaraan */}
+                {/* 2. Manajemen Kendaraan - Category visible to all, but items filtered */}
                 {renderCollapsible('vehicles', <Truck size={18} />, 'Manajemen Kendaraan', (
                     <>
-                        <Link to="/kendaraan/dashboard" className={subNavItemClass('/kendaraan/dashboard')}>
-                            <LayoutDashboard size={16} /> Dashboard
-                        </Link>
-                        <Link to="/kendaraan/data" className={subNavItemClass('/kendaraan/data')}>
-                            <Truck size={16} /> Data Kendaraan
-                        </Link>
+                        {isVehicleAdmin && (
+                            <Link to="/kendaraan/dashboard" className={subNavItemClass('/kendaraan/dashboard')}>
+                                <LayoutDashboard size={16} /> Dashboard
+                            </Link>
+                        )}
+                        {isVehicleAdmin && (
+                            <Link to="/kendaraan/data" className={subNavItemClass('/kendaraan/data')}>
+                                <Truck size={16} /> Data Kendaraan
+                            </Link>
+                        )}
                         <Link to="/kendaraan/peminjaman" className={subNavItemClass('/kendaraan/peminjaman')}>
                             <Calendar size={16} /> Peminjaman
                         </Link>
-                        <Link to="/kendaraan/pemeliharaan" className={subNavItemClass('/kendaraan/pemeliharaan')}>
-                            <Settings size={16} /> Pemeliharaan
-                        </Link>
+                        {isVehicleAdmin && (
+                            <Link to="/kendaraan/pemeliharaan" className={subNavItemClass('/kendaraan/pemeliharaan')}>
+                                <Settings size={16} /> Pemeliharaan
+                            </Link>
+                        )}
                     </>
                 ))}
 

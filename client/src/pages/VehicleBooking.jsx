@@ -35,11 +35,21 @@ const VehicleBooking = () => {
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role);
+    const isAdminAset = ['ADMIN_ASET'].includes(user.role);
+    const [isPIC, setIsPIC] = useState(false);
 
     useEffect(() => {
         fetchVehicles();
         fetchStaff();
     }, []);
+
+    useEffect(() => {
+        // Determine if user is PIC of any vehicle
+        if (vehicles.length > 0 && user.id) {
+            const picStatus = vehicles.some(v => v.pics?.some(p => p.id === user.id));
+            setIsPIC(picStatus);
+        }
+    }, [vehicles, user.id]);
 
     useEffect(() => {
         fetchBookings();
@@ -158,10 +168,12 @@ const VehicleBooking = () => {
         return <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${badges[status]}`}>{labels[status]}</span>;
     };
 
+    const canApprove = isSuperAdmin || isAdminAset || isPIC;
+
     const tabs = [
         { id: 'CURRENT_FLEET', label: 'Kendaraan Dipinjam', icon: <Car size={16} /> },
         { id: 'REQUEST_FORM', label: 'Buat Request', icon: <Plus size={16} /> },
-        { id: 'APPROVAL', label: 'Persetujuan', icon: <CheckCircle size={16} />, count: bookings.filter(b => b.status === 'PENDING').length },
+        ...(canApprove ? [{ id: 'APPROVAL', label: 'Persetujuan', icon: <CheckCircle size={16} />, count: bookings.filter(b => b.status === 'PENDING').length }] : []),
         { id: 'MY_REQUESTS', label: 'Permohonan Saya', icon: <User size={16} /> },
         { id: 'HISTORY', label: 'Riwayat', icon: <Clock size={16} /> }
     ];
@@ -251,37 +263,49 @@ const VehicleBooking = () => {
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Mulai Pinjam</label>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Mulai Pinjam</label>
                                     <div className="flex gap-2">
-                                        <input
-                                            type="date" required
-                                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm"
-                                            value={formData.startDate}
-                                            onChange={e => setFormData({ ...formData, startDate: e.target.value })}
-                                        />
-                                        <input
-                                            type="time" required
-                                            className="w-24 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm"
-                                            value={formData.startTime}
-                                            onChange={e => setFormData({ ...formData, startTime: e.target.value })}
-                                        />
+                                        <div className="relative flex-1">
+                                            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                                            <input
+                                                type="date" required
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                value={formData.startDate}
+                                                onChange={e => setFormData({ ...formData, startDate: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="relative w-32">
+                                            <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                                            <input
+                                                type="time" required
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                value={formData.startTime}
+                                                onChange={e => setFormData({ ...formData, startTime: e.target.value })}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Selesai Pinjam</label>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Selesai Pinjam</label>
                                     <div className="flex gap-2">
-                                        <input
-                                            type="date" required
-                                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm"
-                                            value={formData.endDate}
-                                            onChange={e => setFormData({ ...formData, endDate: e.target.value })}
-                                        />
-                                        <input
-                                            type="time" required
-                                            className="w-24 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm"
-                                            value={formData.endTime}
-                                            onChange={e => setFormData({ ...formData, endTime: e.target.value })}
-                                        />
+                                        <div className="relative flex-1">
+                                            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                                            <input
+                                                type="date" required
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                value={formData.endDate}
+                                                onChange={e => setFormData({ ...formData, endDate: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="relative w-32">
+                                            <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                                            <input
+                                                type="time" required
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                value={formData.endTime}
+                                                onChange={e => setFormData({ ...formData, endTime: e.target.value })}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
