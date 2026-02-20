@@ -15,31 +15,85 @@ function expandRecurringEvents(event, year, month) {
     if (recurEnd && recurEnd < monthStart) return results;
     if (eventDate > monthEnd) return results;
 
-    const type = event.recurringType;
+    // Helper to format an event instance
+    const formatEventInstance = (originalEvent, instanceDate) => ({
+        ...originalEvent,
+        date: instanceDate.toISOString(),
+        isRecurringInstance: true,
+        originalId: originalEvent.id
+    });
 
-    for (let day = new Date(monthStart); day <= monthEnd; day.setDate(day.getDate() + 1)) {
-        const d = new Date(day);
-        if (d < eventDate) continue;
-        if (recurEnd && d > recurEnd) break;
+    let current = new Date(eventDate);
 
-        let match = false;
-        if (type === 'DAILY') {
-            match = true;
-        } else if (type === 'WEEKLY') {
-            match = d.getDay() === eventDate.getDay();
-        } else if (type === 'MONTHLY') {
-            match = d.getDate() === eventDate.getDate();
-        } else if (type === 'YEARLY') {
-            match = d.getDate() === eventDate.getDate() && d.getMonth() === eventDate.getMonth();
+    // Normalize to 00:00 for comparison
+    const normMonthStart = new Date(year, month - 1, 1);
+    normMonthStart.setHours(0, 0, 0, 0); // Ensure start of day
+    const normMonthEnd = new Date(year, month, 0, 23, 59, 59);
+    normMonthEnd.setHours(23, 59, 59, 999); // Ensure end of day
+
+    // Adjust 'current' to the first possible occurrence within or after normMonthStart
+    if (event.recurringType === 'DAILY') {
+        if (current < normMonthStart) {
+            current = new Date(normMonthStart);
+        }
+    } else if (event.recurringType === 'WEEKLY') {
+        if (current < normMonthStart) {
+            current = new Date(normMonthStart);
+        }
+        const targetDay = eventDate.getDay(); // Day of the week (0-6)
+        // Find the first occurrence of targetDay on or after 'current'
+        while (current.getDay() !== targetDay) {
+            current.setDate(current.getDate() + 1);
+        }
+    } else if (event.recurringType === 'MONTHLY') {
+        // For monthly, we need to find the first occurrence in the target month
+        // If eventDate.getDate() is 31 and target month only has 30 days, it will roll over to next month.
+        // So we need to be careful.
+        let tempDate = new Date(year, month - 1, eventDate.getDate());
+        if (tempDate.getMonth() !== (month - 1 + 12) % 12) { // Check if day overflowed to next month
+            tempDate = new Date(year, month - 1, 0); // Set to last day of current month
+        }
+        current = tempDate;
+    } else if (event.recurringType === 'YEARLY') {
+        // For yearly, we need to find the first occurrence in the target year/month
+        let tempDate = new Date(year, eventDate.getMonth(), eventDate.getDate());
+        if (tempDate.getMonth() !== eventDate.getMonth() || tempDate.getDate() !== eventDate.getDate()) {
+            // Day overflowed (e.g., Feb 29 on non-leap year), skip this year
+            return results;
+        }
+        current = tempDate;
+    }
+
+    // Ensure 'current' is not before the original event's start date
+    if (current < eventDate) {
+        current = new Date(eventDate);
+    }
+
+    while (current <= normMonthEnd && (!recurEnd || current <= recurEnd)) {
+        // Ensure we only add if it's within the requested month range
+        // and not before the original event's start date
+        if (current >= normMonthStart && current >= eventDate) {
+            results.push(formatEventInstance(event, current));
         }
 
-        if (match) {
-            results.push({
-                ...event,
-                date: d.toISOString(),
-                isRecurringInstance: true,
-                originalId: event.id
-            });
+        // Advance 'current' to the next occurrence
+        if (event.recurringType === 'DAILY') {
+            current.setDate(current.getDate() + 1);
+        } else if (event.recurringType === 'WEEKLY') {
+            current.setDate(current.getDate() + 7);
+        } else if (event.recurringType === 'MONTHLY') {
+            // For monthly, we only want one instance per month for the current view
+            // The initial 'current' calculation already set it to the correct day in the target month.
+            // If we are iterating through a month, we only want one instance.
+            // If the event date is 25th, and we are looking at Feb, we want Feb 25.
+            // If we are looking at March, we want March 25.
+            // The loop structure here is for iterating *days*, not months.
+            // So, for MONTHLY, we should just add the one instance for the month and break.
+            // The initial 'current' calculation already handles finding the correct day in the target month.
+            break; // Only one monthly event per month view
+        } else if (event.recurringType === 'YEARLY') {
+            // For yearly, we only want one instance per year for the current view
+            break; // Only one yearly event per month view
         }
     }
     return results;

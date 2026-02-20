@@ -89,16 +89,23 @@ const SarprasCalendar = () => {
     const getEventsForDay = (day) => {
         if (!day) return [];
         const targetDate = new Date(currentYear, currentMonth - 1, day);
-        targetDate.setHours(0, 0, 0, 0);
+        targetDate.setHours(0, 0, 0, 0); // Normalize to start of day
 
-        return events.filter(e => {
-            const start = new Date(e.date);
-            start.setHours(0, 0, 0, 0);
-            const end = e.endDate ? new Date(e.endDate) : start;
-            const finalEnd = new Date(end);
-            finalEnd.setHours(23, 59, 59, 999);
+        return events.filter(event => {
+            if (!event.date) return false;
 
-            return targetDate >= start && targetDate <= finalEnd;
+            const eventStartDate = new Date(event.date);
+            eventStartDate.setHours(0, 0, 0, 0);
+
+            // If it has an endDate, check range
+            if (event.endDate) {
+                const eventEndDate = new Date(event.endDate);
+                eventEndDate.setHours(23, 59, 59, 999); // Normalize to end of day
+                return targetDate >= eventStartDate && targetDate <= eventEndDate;
+            }
+
+            // Fallback to single day event
+            return targetDate.getTime() === eventStartDate.getTime();
         });
     };
 
