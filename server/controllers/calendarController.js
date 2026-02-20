@@ -101,9 +101,11 @@ function expandRecurringEvents(event, year, month) {
 
 // ====== CONTROLLERS ======
 
-// GET /api/calendar?month=2&year=2026
 const getEvents = async (req, res) => {
     try {
+        const month = parseInt(req.query.month) || new Date().getMonth() + 1;
+        const year = parseInt(req.query.year) || new Date().getFullYear();
+
         // Use UTC boundaries to avoid timezone shift skips
         const monthStart = new Date(Date.UTC(year, month - 1, 1));
         const monthEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
@@ -194,6 +196,9 @@ const getPinnedEvents = async (req, res) => {
 // GET /api/calendar/summary?month=2&year=2026
 const getSummary = async (req, res) => {
     try {
+        const month = parseInt(req.query.month) || new Date().getMonth() + 1;
+        const year = parseInt(req.query.year) || new Date().getFullYear();
+
         const monthStart = new Date(Date.UTC(year, month - 1, 1));
         const monthEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 

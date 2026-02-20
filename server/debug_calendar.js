@@ -1,47 +1,37 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-async function checkTomorrow() {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    const tomorrowEnd = new Date(tomorrow);
-    tomorrowEnd.setHours(23, 59, 59, 999);
+async function check() {
+    try {
+        const events = await prisma.sarprasCalendarEvent.findMany({
+            include: { pics: true, assignments: true },
+            orderBy: { date: 'desc' },
+            take: 20
+        });
 
-    console.log('Checking events for:', tomorrow.toLocaleString());
+        console.log('--- RECENT EVENTS ---');
+        events.forEach(e => {
+            console.log(`ID: ${e.id} | Title: ${e.title} | Date: ${e.date.toISOString()} | End: ${e.endDate ? e.endDate.toISOString() : 'N/A'}`);
+        });
 
-    const regularEvents = await prisma.sarprasCalendarEvent.findMany({
-        where: { isRecurring: false, date: { gte: tomorrow, lte: tomorrowEnd } },
-        include: { pics: true }
-    });
+        // Check for March specifically
+        const march = await prisma.sarprasCalendarEvent.findMany({
+            where: {
+                date: {
+                    gte: new Date('2026-03-01T00:00:00Z'),
+                    lt: new Date('2026-04-01T00:00:00Z')
+                }
+            }
+        });
+        console.log('\n--- MARCH 2026 EVENTS ---');
+        console.log('Count:', march.length);
+        march.forEach(e => console.log(`- ${e.title} (${e.date.toISOString()})`));
 
-    console.log('Regular Events:', regularEvents.length);
-    regularEvents.forEach(e => console.log(`- ${e.title} (PIC: ${e.pics.map(p => p.name).join(', ')})`));
-
-    const recurringEvents = await prisma.sarprasCalendarEvent.findMany({
-        where: {
-            isRecurring: true,
-            date: { lte: tomorrowEnd },
-            OR: [{ recurringEndDate: null }, { recurringEndDate: { gte: tomorrow } }]
-        },
-        include: { pics: true }
-    });
-
-    console.log('Recurring Candidates:', recurringEvents.length);
-    recurringEvents.forEach(e => {
-        const eventDate = new Date(e.date);
-        const d = tomorrow;
-        let match = false;
-        if (e.recurringType === 'DAILY') match = true;
-        else if (e.recurringType === 'WEEKLY') match = d.getDay() === eventDate.getDay();
-        else if (e.recurringType === 'MONTHLY') match = d.getDate() === eventDate.getDate();
-
-        if (match) {
-            console.log(`- [RECURRING] ${e.title} (PIC: ${e.pics.map(p => p.name).join(', ')})`);
-        }
-    });
+    } catch (err) {
+        console.error('Error:', err);
+    } finally {
+        await prisma.$disconnect();
+    }
 }
 
-checkTomorrow()
-    .catch(e => console.error(e))
-    .finally(async () => await prisma.$disconnect());
+check();
