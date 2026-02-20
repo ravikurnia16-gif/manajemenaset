@@ -75,6 +75,9 @@ model User {
   
   loans               AssetLoan[]     @relation("Borrower")
   reviewedLoans       AssetLoan[]     @relation("LoanReviewer")
+
+  vehiclePICs         Vehicle[]       @relation("VehiclePIC")
+  vehicleDriverBookings VehicleBooking[] @relation("VehicleDriver")
 }
 
 model Notification {
@@ -431,6 +434,8 @@ model Vehicle {
   // Relations
   assetId       Int?      @unique // Optional link to Asset table
   bookings      VehicleBooking[]
+  picId         Int?
+  pic           User?     @relation("VehiclePIC", fields: [picId], references: [id])
   services      VehicleService[]
   fuelLogs      VehicleFuelLog[]
   weeklyReports VehicleWeeklyReport[]
@@ -479,6 +484,18 @@ model VehicleBooking {
   endDate     DateTime
   status      String   @default("PENDING") // PENDING, APPROVED, REJECTED, COMPLETED, CANCELLED
   adminNote   String?
+
+  passengerCount Int @default(0)
+  driverId    Int?
+  driver      User?    @relation("VehicleDriver", fields: [driverId], references: [id])
+  
+  startKm     Int?
+  endKm       Int?
+  tripNotes   String?  @db.Text
+  fuelRefill  Boolean  @default(false)
+  fuelPrice   Float    @default(0)
+  tripStartTime DateTime?
+  tripEndTime   DateTime?
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

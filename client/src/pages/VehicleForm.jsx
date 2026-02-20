@@ -21,14 +21,17 @@ const VehicleForm = () => {
         photo: '',
         status: 'ACTIVE',
         taxDueDate: '',
-        stnkDueDate: ''
+        stnkDueDate: '',
+        picId: ''
     });
+    const [staff, setStaff] = useState([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (isEdit) {
             fetchVehicle();
         }
+        fetchStaff();
     }, [id]);
 
     const fetchVehicle = async () => {
@@ -44,6 +47,13 @@ const VehicleForm = () => {
             console.error('Failed to fetch vehicle:', error);
             alert('Gagal mengambil data kendaraan');
         }
+    };
+
+    const fetchStaff = async () => {
+        try {
+            const res = await api.get('/personnel/staff');
+            setStaff(res.data);
+        } catch (error) { console.error(error); }
     };
 
     const handlePhotoChange = (e) => {
@@ -160,6 +170,23 @@ const VehicleForm = () => {
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <div className="mt-8 pt-8 border-t border-slate-100">
+                        <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase mb-2">
+                            <User size={14} className="text-purple-500" /> Penanggung Jawab (PIC Approval)
+                        </label>
+                        <select
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500 outline-none bg-white font-semibold text-slate-700"
+                            value={form.picId}
+                            onChange={e => setForm({ ...form, picId: e.target.value })}
+                        >
+                            <option value="">-- Pilih PIC Kendaraan --</option>
+                            {staff.map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                        </select>
+                        <p className="text-[10px] text-slate-400 mt-1 italic">*PIC ini akan menerima notifikasi WhatsApp untuk menyetujui/menolak peminjaman.</p>
                     </div>
 
                     <div className="mt-8 pt-8 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

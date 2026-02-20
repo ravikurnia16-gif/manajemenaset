@@ -26,4 +26,13 @@ const reportCtrl = require('../controllers/vehicleReportController');
 router.post('/reports/weekly', verifyToken, reportCtrl.createWeeklyReport);
 router.get('/:id/reports/weekly', verifyToken, reportCtrl.getVehicleReports);
 
+// Booking / Peminjaman Routes
+const bookingCtrl = require('../controllers/vehicleBookingController');
+router.get('/booking/all', verifyToken, bookingCtrl.getBookings);
+router.post('/booking/request', verifyToken, bookingCtrl.requestBooking);
+router.post('/booking/:id/review', verifyToken, bookingCtrl.reviewBooking);
+router.post('/booking/:id/start', verifyToken, bookingCtrl.startTrip);
+router.post('/booking/:id/end', verifyToken, bookingCtrl.endTrip);
+router.post('/booking/:id/cancel', verifyToken, bookingCtrl.cancelBooking);
+
 module.exports = router;

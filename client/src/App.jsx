@@ -23,6 +23,7 @@ import UniformOrderPage from './pages/UniformOrderPage';
 import UniformOrderAdmin from './pages/UniformOrderAdmin';
 import VehicleList from './pages/VehicleList';
 import VehicleForm from './pages/VehicleForm';
+import VehicleBooking from './pages/VehicleBooking';
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
 import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
 import VehicleWeeklyReport from './pages/VehicleWeeklyReport';
@@ -88,7 +89,7 @@ function App() {
           <Route path="kendaraan/data" element={<VehicleList />} />
           <Route path="kendaraan/data/new" element={<VehicleForm />} />
           <Route path="kendaraan/data/edit/:id" element={<VehicleForm />} />
-          <Route path="kendaraan/peminjaman" element={<ModulePlaceholder title="Peminjaman Kendaraan" moduleName="Manajemen Kendaraan" />} />
+          <Route path="kendaraan/peminjaman" element={<VehicleBooking />} />
           <Route path="kendaraan/pemeliharaan" element={<VehicleMaintenanceList />} />
           <Route path="kendaraan/pemeliharaan/new" element={<VehicleMaintenanceForm />} />
           <Route path="kendaraan/pemeliharaan/edit/:id" element={<VehicleMaintenanceForm />} />

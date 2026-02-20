@@ -100,6 +100,11 @@ const VehicleList = () => {
                                     <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-400 uppercase">
                                         {v.type}
                                     </div>
+                                    {v.isBorrowed && (
+                                        <div className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold uppercase mt-1">
+                                            Sedang Dipinjam
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-y-3 mb-6">
@@ -143,8 +148,8 @@ const VehicleList = () => {
                                         const isPastDue = kmRemaining <= 0;
                                         return (
                                             <div className={`col-span-2 flex items-center gap-2 text-[10px] font-bold py-1 px-3 rounded-lg ${isPastDue ? 'bg-red-50 text-red-600 animate-pulse'
-                                                    : isUrgent ? 'bg-orange-50 text-orange-600 animate-pulse'
-                                                        : 'bg-blue-50 text-blue-500'
+                                                : isUrgent ? 'bg-orange-50 text-orange-600 animate-pulse'
+                                                    : 'bg-blue-50 text-blue-500'
                                                 }`}>
                                                 <Wrench size={12} />
                                                 Service Berikutnya: {v.nextServiceOdometer.toLocaleString()} km

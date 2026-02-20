@@ -6,6 +6,11 @@ exports.getAllVehicles = async (req, res) => {
     try {
         const vehicles = await prisma.vehicle.findMany({
             include: {
+                pic: { select: { id: true, name: true } },
+                bookings: {
+                    where: { status: 'APPROVED', startKm: { not: null }, endKm: null },
+                    take: 1
+                },
                 services: {
                     where: { category: 'ROUTINE', nextServiceOdometer: { not: null } },
                     orderBy: { date: 'desc' },
@@ -24,7 +29,9 @@ exports.getAllVehicles = async (req, res) => {
                 nextServiceOdometer: latestService?.nextServiceOdometer || null,
                 lastServiceOdometer: latestService?.odometer || null,
                 lastServiceDate: latestService?.date || null,
-                services: undefined // Remove nested services array
+                isBorrowed: v.bookings.length > 0,
+                services: undefined,
+                bookings: undefined
             };
         });
 
@@ -53,10 +60,10 @@ exports.createVehicle = async (req, res) => {
         const {
             name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
-            taxDueDate, stnkDueDate
+            taxDueDate, stnkDueDate, picId
         } = req.body;
 
-        console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate });
+        console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate, picId });
 
         const vehicle = await prisma.vehicle.create({
             data: {
@@ -72,7 +79,8 @@ exports.createVehicle = async (req, res) => {
                 photo,
                 status: status || 'ACTIVE',
                 taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
-                stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null
+                stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
+                picId: picId ? parseInt(picId) : null
             }
         });
         res.status(201).json(vehicle);
@@ -90,10 +98,10 @@ exports.updateVehicle = async (req, res) => {
         const {
             name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
-            taxDueDate, stnkDueDate
+            taxDueDate, stnkDueDate, picId
         } = req.body;
 
-        console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber, taxDueDate, stnkDueDate });
+        console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber, taxDueDate, stnkDueDate, picId });
 
         const vehicle = await prisma.vehicle.update({
             where: { id: parseInt(req.params.id) },
@@ -110,7 +118,8 @@ exports.updateVehicle = async (req, res) => {
                 photo,
                 status,
                 taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
-                stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null
+                stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
+                picId: picId ? parseInt(picId) : null
             }
         });
         res.json(vehicle);
