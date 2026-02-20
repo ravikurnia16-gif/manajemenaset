@@ -183,8 +183,8 @@ const VehicleBooking = () => {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${activeTab === tab.id
-                                ? 'bg-blue-600 text-white shadow-md'
-                                : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                             }`}
                     >
                         {tab.icon}
@@ -221,7 +221,7 @@ const VehicleBooking = () => {
                                         </div>
                                         <div className="flex items-center gap-2 text-xs text-slate-500">
                                             <User size={14} className="text-purple-500" />
-                                            <span>PIC: {v.pic?.name || 'Belum ditunjuk'}</span>
+                                            <span>PIC: {v.pics?.length > 0 ? v.pics.map(p => p.name).join(', ') : 'Belum ditunjuk'}</span>
                                         </div>
                                     </div>
                                     {/* Availability check can be added here if needed */}

@@ -76,7 +76,7 @@ model User {
   loans               AssetLoan[]     @relation("Borrower")
   reviewedLoans       AssetLoan[]     @relation("LoanReviewer")
 
-  vehiclePICs         Vehicle[]       @relation("VehiclePIC")
+  vehiclesPIC         Vehicle[]       @relation("VehiclePICs")
   vehicleDriverBookings VehicleBooking[] @relation("VehicleDriver")
 }
 
@@ -434,8 +434,7 @@ model Vehicle {
   // Relations
   assetId       Int?      @unique // Optional link to Asset table
   bookings      VehicleBooking[]
-  picId         Int?
-  pic           User?     @relation("VehiclePIC", fields: [picId], references: [id])
+  pics          User[]    @relation("VehiclePICs")
   services      VehicleService[]
   fuelLogs      VehicleFuelLog[]
   weeklyReports VehicleWeeklyReport[]

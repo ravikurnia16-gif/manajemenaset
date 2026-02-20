@@ -6,7 +6,7 @@ exports.getAllVehicles = async (req, res) => {
     try {
         const vehicles = await prisma.vehicle.findMany({
             include: {
-                pic: { select: { id: true, name: true } },
+                pics: { select: { id: true, name: true } },
                 bookings: {
                     where: { status: 'APPROVED', startKm: { not: null }, endKm: null },
                     take: 1
@@ -45,7 +45,8 @@ exports.getAllVehicles = async (req, res) => {
 exports.getVehicleById = async (req, res) => {
     try {
         const vehicle = await prisma.vehicle.findUnique({
-            where: { id: parseInt(req.params.id) }
+            where: { id: parseInt(req.params.id) },
+            include: { pics: { select: { id: true, name: true } } }
         });
         if (!vehicle) return res.status(404).json({ error: 'Kendaraan tidak ditemukan' });
         res.json(vehicle);
@@ -57,75 +58,77 @@ exports.getVehicleById = async (req, res) => {
 // Create vehicle
 exports.createVehicle = async (req, res) => {
     try {
-        const {
-            name, brand, model, type, plateNumber,
+        name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
-            taxDueDate, stnkDueDate, picId
-        } = req.body;
+            taxDueDate, stnkDueDate, picIds
+    } = req.body;
 
-        console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate, picId });
+    console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate, picIds });
 
-        const vehicle = await prisma.vehicle.create({
-            data: {
-                name,
-                brand,
-                model,
-                type,
-                plateNumber,
-                fuelType,
-                capacity,
-                color,
-                odometer: parseInt(odometer) || 0,
-                photo,
-                status: status || 'ACTIVE',
-                taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
-                stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
-                picId: picId ? parseInt(picId) : null
+    const vehicle = await prisma.vehicle.create({
+        data: {
+            name,
+            brand,
+            model,
+            type,
+            plateNumber,
+            fuelType,
+            capacity,
+            color,
+            odometer: parseInt(odometer) || 0,
+            photo,
+            status: status || 'ACTIVE',
+            taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
+            stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
+            pics: {
+                connect: (picIds || []).map(id => ({ id: parseInt(id) }))
             }
-        });
-        res.status(201).json(vehicle);
-    } catch (error) {
-        if (error.code === 'P2002') {
-            return res.status(400).json({ error: 'Plat nomor sudah terdaftar' });
         }
-        res.status(500).json({ error: error.message });
+    });
+    res.status(201).json(vehicle);
+} catch (error) {
+    if (error.code === 'P2002') {
+        return res.status(400).json({ error: 'Plat nomor sudah terdaftar' });
     }
+    res.status(500).json({ error: error.message });
+}
 };
 
 // Update vehicle
 exports.updateVehicle = async (req, res) => {
     try {
-        const {
-            name, brand, model, type, plateNumber,
+        name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
-            taxDueDate, stnkDueDate, picId
-        } = req.body;
+            taxDueDate, stnkDueDate, picIds
+    } = req.body;
 
-        console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber, taxDueDate, stnkDueDate, picId });
+    console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber, taxDueDate, stnkDueDate, picIds });
 
-        const vehicle = await prisma.vehicle.update({
-            where: { id: parseInt(req.params.id) },
-            data: {
-                name,
-                brand,
-                model,
-                type,
-                plateNumber,
-                fuelType,
-                capacity,
-                color,
-                odometer: parseInt(odometer) || 0,
-                photo,
-                status,
-                taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
-                stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
-                picId: picId ? parseInt(picId) : null
+    const vehicle = await prisma.vehicle.update({
+        where: { id: parseInt(req.params.id) },
+        data: {
+            name,
+            brand,
+            model,
+            type,
+            plateNumber,
+            fuelType,
+            capacity,
+            color,
+            odometer: parseInt(odometer) || 0,
+            photo,
+            status,
+            taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
+            stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
+            pics: {
+                set: (picIds || []).map(id => ({ id: parseInt(id) }))
             }
-        });
-        res.json(vehicle);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+        }
+    });
+    res.json(vehicle);
+} catch (error) {
+    res.status(500).json({ error: error.message });
+}
 };
 
 /**

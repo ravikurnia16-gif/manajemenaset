@@ -107,7 +107,12 @@ const VehicleList = () => {
                                     )}
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-y-3 mb-6">
+                                    {v.pics?.length > 0 && (
+                                        <div className="col-span-2 flex items-center gap-2 text-[10px] text-slate-500 italic">
+                                            <span className="font-bold uppercase not-italic">PIC:</span> {v.pics.map(p => p.name).join(', ')}
+                                        </div>
+                                    )}
+                                </div>
                                     <div className="flex items-center gap-2 text-slate-600 text-xs">
                                         <MapPin size={14} className="text-blue-500" />
                                         <span>{v.brand} {v.model}</span>
@@ -182,16 +187,17 @@ const VehicleList = () => {
                                 </div>
                             </div>
                         </div>
-                    ))}
-                </div>
+    ))
+}
+                </div >
             ) : (
-                <div className="bg-white p-20 rounded-2xl border border-dashed border-slate-200 text-center">
-                    <Car size={64} className="mx-auto text-slate-200 mb-4" />
-                    <h3 className="text-slate-500 font-medium">Belum ada data kendaraan</h3>
-                    <p className="text-slate-400 text-sm mb-6">Klik tombol Tambah Kendaraan untuk memulai.</p>
-                </div>
-            )}
-        </div>
+    <div className="bg-white p-20 rounded-2xl border border-dashed border-slate-200 text-center">
+        <Car size={64} className="mx-auto text-slate-200 mb-4" />
+        <h3 className="text-slate-500 font-medium">Belum ada data kendaraan</h3>
+        <p className="text-slate-400 text-sm mb-6">Klik tombol Tambah Kendaraan untuk memulai.</p>
+    </div>
+)}
+        </div >
     );
 };
 

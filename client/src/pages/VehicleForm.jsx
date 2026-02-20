@@ -22,7 +22,7 @@ const VehicleForm = () => {
         status: 'ACTIVE',
         taxDueDate: '',
         stnkDueDate: '',
-        picId: ''
+        picIds: []
     });
     const [staff, setStaff] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -38,10 +38,17 @@ const VehicleForm = () => {
         try {
             const res = await api.get(`/vehicles/${id}`);
             const data = res.data;
+            const formatDate = (date) => {
+                if (!date) return '';
+                try {
+                    return new Date(date).toISOString().split('T')[0];
+                } catch (e) { return ''; }
+            };
             setForm({
                 ...data,
-                taxDueDate: data.taxDueDate ? new Date(data.taxDueDate).toISOString().split('T')[0] : '',
-                stnkDueDate: data.stnkDueDate ? new Date(data.stnkDueDate).toISOString().split('T')[0] : ''
+                taxDueDate: formatDate(data.taxDueDate),
+                stnkDueDate: formatDate(data.stnkDueDate),
+                picIds: data.pics?.map(p => p.id) || []
             });
         } catch (error) {
             console.error('Failed to fetch vehicle:', error);
@@ -172,21 +179,32 @@ const VehicleForm = () => {
                         </div>
                     </div>
 
-                    <div className="mt-8 pt-8 border-t border-slate-100">
-                        <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase mb-2">
-                            <User size={14} className="text-purple-500" /> Penanggung Jawab (PIC Approval)
+                    <div className="mt-8 pt-8 border-t border-slate-100 italic">
+                        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase mb-4">
+                            <User size={16} className="text-purple-500" /> Penanggung Jawab (PIC Approval)
                         </label>
-                        <select
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500 outline-none bg-white font-semibold text-slate-700"
-                            value={form.picId}
-                            onChange={e => setForm({ ...form, picId: e.target.value })}
-                        >
-                            <option value="">-- Pilih PIC Kendaraan --</option>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-60 overflow-y-auto p-4 bg-slate-50 rounded-2xl border border-slate-100">
                             {staff.map(s => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
+                                <label key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer ${form.picIds.includes(s.id) ? 'bg-purple-50 border-purple-200 text-purple-700 font-bold' : 'bg-white border-transparent text-slate-500 hover:border-slate-100'}`}>
+                                    <input
+                                        type="checkbox"
+                                        className="hidden"
+                                        checked={form.picIds.includes(s.id)}
+                                        onChange={() => {
+                                            const newPicIds = form.picIds.includes(s.id)
+                                                ? form.picIds.filter(id => id !== s.id)
+                                                : [...form.picIds, s.id];
+                                            setForm({ ...form, picIds: newPicIds });
+                                        }}
+                                    />
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${form.picIds.includes(s.id) ? 'bg-purple-500 border-purple-500 text-white' : 'border-slate-300'}`}>
+                                        {form.picIds.includes(s.id) && <div className="text-[10px]">✓</div>}
+                                    </div>
+                                    <span className="text-xs truncate">{s.name}</span>
+                                </label>
                             ))}
-                        </select>
-                        <p className="text-[10px] text-slate-400 mt-1 italic">*PIC ini akan menerima notifikasi WhatsApp untuk menyetujui/menolak peminjaman.</p>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-2 italic">*PIC yang dipilih akan menerima notifikasi WhatsApp untuk menyetujui/menolak peminjaman.</p>
                     </div>
 
                     <div className="mt-8 pt-8 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -10,7 +10,7 @@ exports.requestBooking = async (req, res) => {
 
         const vehicle = await prisma.vehicle.findUnique({
             where: { id: parseInt(vehicleId) },
-            include: { pic: true }
+            include: { pics: true }
         });
 
         if (!vehicle) return res.status(404).json({ error: 'Kendaraan tidak ditemukan' });
@@ -29,12 +29,12 @@ exports.requestBooking = async (req, res) => {
             },
             include: {
                 user: { select: { name: true } },
-                vehicle: { select: { name: true, plateNumber: true, pic: true } }
+                vehicle: { select: { name: true, plateNumber: true, pics: true } }
             }
         });
 
-        // Notify PIC via WhatsApp
-        if (vehicle.pic && vehicle.pic.phone) {
+        // Notify ALL PICs via WhatsApp
+        if (vehicle.pics && vehicle.pics.length > 0) {
             const msg = `🚗 *PERMINTAAN PINJAM KENDARAAN*\n\n` +
                 `Pemohon: ${booking.user.name}\n` +
                 `Armada: ${vehicle.name} (${vehicle.plateNumber})\n` +
@@ -42,7 +42,12 @@ exports.requestBooking = async (req, res) => {
                 `Tujuan: ${destination}\n` +
                 `Keperluan: ${purpose}\n\n` +
                 `Mohon tinjau di sistem untuk persetujuan.`;
-            await sendMessage(vehicle.pic.phone, msg);
+
+            for (const pic of vehicle.pics) {
+                if (pic.phone) {
+                    await sendMessage(pic.phone, msg);
+                }
+            }
         }
 
         res.status(201).json(booking);
@@ -59,17 +64,20 @@ exports.reviewBooking = async (req, res) => {
 
         const booking = await prisma.vehicleBooking.findUnique({
             where: { id: parseInt(id) },
-            include: { vehicle: true, user: true }
+            include: {
+                vehicle: { include: { pics: true } },
+                user: true
+            }
         });
 
         if (!booking) return res.status(404).json({ error: 'Booking tidak ditemukan' });
 
-        // Check permission: Super Admin or Vehicle PIC
+        // Check permission: Super Admin or one of the Vehicle PICs
         const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role);
-        const isPIC = booking.vehicle.picId === req.user.id;
+        const isPIC = booking.vehicle.pics.some(p => p.id === req.user.id);
 
         if (!isSuperAdmin && !isPIC) {
-            return res.status(403).json({ error: 'Akses ditolak. Anda bukan PIC kendaraan ini.' });
+            return res.status(403).json({ error: 'Akses ditolak. Anda bukan PIC resmi kendaraan ini.' });
         }
 
         const updated = await prisma.vehicleBooking.update({
