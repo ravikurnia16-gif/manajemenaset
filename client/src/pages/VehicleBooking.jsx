@@ -83,7 +83,7 @@ const VehicleBooking = () => {
 
     const fetchStaff = async () => {
         try {
-            const res = await api.get('/personnel/staff');
+            const res = await api.get('personnel/all-users');
             setStaff(res.data);
         } catch (err) { console.error(err); }
     };
@@ -91,7 +91,7 @@ const VehicleBooking = () => {
     const fetchDrivers = async () => {
         try {
             setLoading(true);
-            const res = await api.get('/personnel/drivers');
+            const res = await api.get('personnel/drivers');
             setDrivers(res.data);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
@@ -99,11 +99,14 @@ const VehicleBooking = () => {
 
     const handleToggleDriver = async (userId, isCurrentlyDriver) => {
         try {
-            await api.post('/personnel/drivers/toggle', { userId, isDriver: !isCurrentlyDriver });
+            await api.post('personnel/drivers/toggle', { userId, isDriver: !isCurrentlyDriver });
             showToast(`Status driver berhasil diperbarui.`, 'success');
             fetchDrivers();
             fetchStaff();
-        } catch (err) { showToast('Gagal mengubah status driver: ' + (err.response?.data?.error || err.message), 'error'); }
+        } catch (err) {
+            const msg = err.response?.data?.error || err.response?.data?.message || err.message;
+            showToast('Gagal mengubah status driver: ' + msg, 'error');
+        }
     };
 
     const fetchBookings = async () => {
