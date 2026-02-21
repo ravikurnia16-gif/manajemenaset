@@ -263,11 +263,13 @@ const VehicleBooking = () => {
                                         )}
                                         {/* Status Tag Overlay */}
                                         <div className="absolute top-3 right-3">
-                                            <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold shadow-sm backdrop-blur-md ${v.status === 'ACTIVE'
-                                                ? 'bg-green-500/90 text-white'
-                                                : 'bg-red-500/90 text-white'
+                                            <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold shadow-sm backdrop-blur-md ${v.isBorrowed
+                                                ? 'bg-indigo-600/90 text-white'
+                                                : v.status === 'ACTIVE'
+                                                    ? 'bg-green-500/90 text-white'
+                                                    : 'bg-red-500/90 text-white'
                                                 }`}>
-                                                {v.status === 'ACTIVE' ? 'STANDBY' : v.status}
+                                                {v.isBorrowed ? 'SEDANG DIGUNAKAN' : (v.status === 'ACTIVE' ? 'TERSEDIA' : v.status)}
                                             </div>
                                         </div>
                                         {/* Type Tag Overlay */}
@@ -285,7 +287,7 @@ const VehicleBooking = () => {
                                                 <p className="text-xs font-mono text-slate-400 font-bold uppercase tracking-wider">{v.plateNumber}</p>
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-3 mb-5">
+                                        <div className="grid grid-cols-2 gap-3 mb-4">
                                             <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
                                                 <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">
                                                     <Gauge size={10} className="text-blue-500" />
@@ -302,16 +304,31 @@ const VehicleBooking = () => {
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center gap-3 text-[11px] text-slate-500 mb-6 bg-slate-50/50 p-2 rounded-lg border border-dashed border-slate-200">
-                                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-                                                <User size={14} />
+                                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 mb-4">
+                                            <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">
+                                                <User size={10} className="text-purple-500" />
+                                                PIC Unit
                                             </div>
-                                            <div>
-                                                <div className="text-[9px] font-bold text-slate-400 uppercase">PIC Unit</div>
-                                                <div className="font-bold text-slate-700 truncate max-w-[140px]">
-                                                    {v.pics?.length > 0 ? v.pics.map(p => p.name).join(', ') : 'Belum ditunjuk'}
+                                            <div className="text-xs font-bold text-slate-700 truncate">
+                                                {v.pics?.length > 0 ? v.pics.map(p => p.name).join(', ') : 'Belum ditunjuk'}
+                                            </div>
+                                        </div>
+
+                                        {/* Usage Info */}
+                                        <div className="mb-5 px-1">
+                                            {v.isBorrowed ? (
+                                                <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-600 bg-indigo-50 p-2 rounded-xl border border-indigo-100">
+                                                    <Navigation2 size={13} className="animate-pulse" />
+                                                    <span>Sedang digunakan: {v.currentUsedBy}</span>
                                                 </div>
-                                            </div>
+                                            ) : (
+                                                v.lastUsedBy && (
+                                                    <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold bg-slate-50/50 p-2 rounded-xl border border-dashed border-slate-200">
+                                                        <Clock size={12} />
+                                                        <span>Terakhir oleh: {v.lastUsedBy}</span>
+                                                    </div>
+                                                )
+                                            )}
                                         </div>
 
                                         {v.status === 'ACTIVE' && (

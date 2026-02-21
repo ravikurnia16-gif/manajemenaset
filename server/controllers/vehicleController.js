@@ -8,8 +8,9 @@ exports.getAllVehicles = async (req, res) => {
             include: {
                 pics: { select: { id: true, name: true } },
                 bookings: {
-                    where: { status: 'APPROVED', startKm: { not: null }, endKm: null },
-                    take: 1
+                    where: { status: 'APPROVED', tripStartTime: { not: null }, tripEndTime: null },
+                    take: 1,
+                    include: { user: { select: { name: true } } }
                 },
                 services: {
                     where: { category: 'ROUTINE', nextServiceOdometer: { not: null } },
@@ -21,19 +22,29 @@ exports.getAllVehicles = async (req, res) => {
             orderBy: { createdAt: 'desc' }
         });
 
-        // Flatten: attach nextServiceOdometer directly to vehicle object
-        const result = vehicles.map(v => {
+        // Get last completed user for each vehicle
+        const result = await Promise.all(vehicles.map(async v => {
             const latestService = v.services?.[0];
+            const activeBooking = v.bookings?.[0];
+
+            const lastBooking = await prisma.vehicleBooking.findFirst({
+                where: { vehicleId: v.id, status: 'COMPLETED' },
+                orderBy: { tripEndTime: 'desc' },
+                include: { user: { select: { name: true } } }
+            });
+
             return {
                 ...v,
                 nextServiceOdometer: latestService?.nextServiceOdometer || null,
                 lastServiceOdometer: latestService?.odometer || null,
                 lastServiceDate: latestService?.date || null,
-                isBorrowed: v.bookings.length > 0,
+                currentUsedBy: activeBooking?.user?.name || null,
+                lastUsedBy: lastBooking?.user?.name || null,
+                isBorrowed: !!activeBooking,
                 services: undefined,
                 bookings: undefined
             };
-        });
+        }));
 
         res.json(result);
     } catch (error) {
