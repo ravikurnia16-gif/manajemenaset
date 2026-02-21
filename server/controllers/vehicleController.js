@@ -367,14 +367,57 @@ exports.getVehicleDashboard = async (req, res) => {
             _count: { _all: true }
         });
 
+        // 5. Cost Analytics (Total & Trends)
+        const [fuelLogs, serviceLogs, refillBookings] = await Promise.all([
+            prisma.vehicleFuelLog.findMany({ select: { cost: true, date: true } }),
+            prisma.vehicleService.findMany({ select: { cost: true, date: true } }),
+            prisma.vehicleBooking.findMany({
+                where: { fuelRefill: true, fuelPrice: { gt: 0 } },
+                select: { fuelPrice: true, updatedAt: true }
+            })
+        ]);
+
+        const totalFuelCost = fuelLogs.reduce((sum, log) => sum + log.cost, 0) +
+            refillBookings.reduce((sum, b) => sum + b.fuelPrice, 0);
+        const totalServiceCost = serviceLogs.reduce((sum, log) => sum + log.cost, 0);
+
+        // Monthly Cost Trends (Last 6 Months)
+        const costTrends = [];
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const mStart = new Date(d.getFullYear(), d.getMonth(), 1);
+            const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+
+            const mFuel = fuelLogs
+                .filter(log => log.date >= mStart && log.date <= mEnd)
+                .reduce((sum, log) => sum + log.cost, 0) +
+                refillBookings
+                    .filter(b => b.updatedAt >= mStart && b.updatedAt <= mEnd)
+                    .reduce((sum, b) => sum + b.fuelPrice, 0);
+
+            const mService = serviceLogs
+                .filter(log => log.date >= mStart && log.date <= mEnd)
+                .reduce((sum, log) => sum + log.cost, 0);
+
+            costTrends.push({
+                name: d.toLocaleString('id-ID', { month: 'short' }),
+                fuel: mFuel,
+                service: mService
+            });
+        }
+
         res.json({
             stats: {
                 totalVehicles,
                 activeBookings: activeBookingsCount,
                 needingService,
-                taxWarnings
+                taxWarnings,
+                totalFuelCost,
+                totalServiceCost
             },
             bookingTrends,
+            costTrends,
             typeDistribution: types.map(t => ({ name: t.type, value: t._count._all }))
         });
     } catch (error) {

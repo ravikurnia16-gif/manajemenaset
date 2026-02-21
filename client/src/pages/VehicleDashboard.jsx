@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2 } from 'lucide-react';
+import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, BarChart3 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import api from '../lib/axios';
 
@@ -45,6 +45,8 @@ const VehicleDashboard = () => {
         { title: "Peminjaman Aktif", value: data?.stats?.activeBookings || 0, icon: Calendar, color: "bg-blue-500", desc: "Sedang dalam perjalanan" },
         { title: "Perlu Servis", value: data?.stats?.needingService || 0, icon: Wrench, color: "bg-orange-500", desc: "Berdasarkan Odometer" },
         { title: "Pajak/STNK", value: data?.stats?.taxWarnings || 0, icon: AlertOctagon, color: "bg-red-500", desc: "Jatuh tempo < 30 hari" },
+        { title: "Total Biaya BBM", value: `Rp ${data?.stats?.totalFuelCost?.toLocaleString('id-ID') || 0}`, icon: Fuel, color: "bg-emerald-500", desc: "Akumulasi biaya BBM" },
+        { title: "Total Biaya Servis", value: `Rp ${data?.stats?.totalServiceCost?.toLocaleString('id-ID') || 0}`, icon: DollarSign, color: "bg-indigo-500", desc: "Akumulasi biaya servis" },
     ];
 
     const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
@@ -56,7 +58,7 @@ const VehicleDashboard = () => {
                 <p className="text-slate-500 text-sm italic">Ringkasan operasional dan kondisi armada kendaraan</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {stats.map((s, i) => <StatCard key={i} {...s} />)}
             </div>
 
@@ -115,9 +117,43 @@ const VehicleDashboard = () => {
                         ))}
                     </div>
                 </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* 3. Tren Pengeluaran */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-2">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-bold text-slate-800">Tren Pengeluaran Bulanan</h3>
+                            <div className="flex gap-4">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded bg-emerald-500"></div>
+                                    <span className="text-xs font-bold text-slate-500 uppercase">BBM</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded bg-indigo-500"></div>
+                                    <span className="text-xs font-bold text-slate-500 uppercase">Servis</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={data?.costTrends}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} dy={10} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }}
+                                        tickFormatter={(value) => `Rp ${value / 1000000}jt`} />
+                                    <Tooltip
+                                        formatter={(value) => `Rp ${value.toLocaleString('id-ID')}`}
+                                        contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                        cursor={{ fill: '#f8fafc' }}
+                                    />
+                                    <Bar dataKey="fuel" fill="#10b981" radius={[4, 4, 0, 0]} barSize={25} />
+                                    <Bar dataKey="service" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={25} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    );
+            );
 };
 
-export default VehicleDashboard;
+            export default VehicleDashboard;
