@@ -89,6 +89,12 @@ const VehicleBooking = () => {
             const startDateObj = new Date(startStr);
             const now = new Date();
 
+            if (!formData.destination) {
+                alert('Silakan isi tujuan peminjaman.');
+                setSubmitting(false);
+                return;
+            }
+
             if (startDateObj < now) {
                 alert('Waktu mulai peminjaman tidak boleh di masa lampau.');
                 setSubmitting(false);
@@ -114,7 +120,7 @@ const VehicleBooking = () => {
                 destination: '', purpose: '', passengerCount: 1, driverId: ''
             });
         } catch (err) {
-            alert(err.response?.data?.error || 'Gagal mengirim permohonan');
+            alert('Gagal mengirim permohonan: ' + (err.response?.data?.error || err.message));
         } finally { setSubmitting(false); }
     };
 
@@ -125,9 +131,10 @@ const VehicleBooking = () => {
                 status,
                 adminNote: actionData.reason
             });
+            alert(`Peminjaman telah ${status === 'APPROVED' ? 'disetujui' : 'ditolak'}.`);
             setShowActionModal(null);
             fetchBookings();
-        } catch (err) { alert('Gagal memproses'); }
+        } catch (err) { alert('Gagal memproses: ' + (err.response?.data?.error || err.message)); }
         finally { setSubmitting(false); }
     };
 
@@ -139,22 +146,26 @@ const VehicleBooking = () => {
             });
             setShowActionModal(null);
             fetchBookings();
-        } catch (err) { alert('Gagal memulai perjalanan'); }
+        } catch (err) { alert('Gagal memulai perjalanan: ' + (err.response?.data?.error || err.message)); }
         finally { setSubmitting(false); }
     };
 
     const handleEndTrip = async () => {
         try {
+            if (parseInt(actionData.km) < (showActionModal.data.startKm || 0)) {
+                alert(`KM Akhir tidak boleh lebih kecil dari KM Awal (${showActionModal.data.startKm || 0})`);
+                return;
+            }
             setSubmitting(true);
             await api.post(`/vehicles/booking/${showActionModal.data.id}/end`, {
-                endKm: actionData.km,
+                endKm: parseInt(actionData.km),
                 tripNotes: actionData.notes,
                 fuelRefill: actionData.fuelRefill,
                 fuelPrice: actionData.fuelPrice
             });
             setShowActionModal(null);
             fetchBookings();
-        } catch (err) { alert('Gagal menyelesaikan perjalanan'); }
+        } catch (err) { alert('Gagal menyelesaikan perjalanan: ' + (err.response?.data?.error || err.message)); }
         finally { setSubmitting(false); }
     };
 
@@ -163,8 +174,9 @@ const VehicleBooking = () => {
         try {
             setSubmitting(true);
             await api.post(`/vehicles/booking/${id}/cancel`);
+            alert('Peminjaman telah dibatalkan.');
             fetchBookings();
-        } catch (err) { alert('Gagal membatalkan'); }
+        } catch (err) { alert('Gagal membatalkan: ' + (err.response?.data?.error || err.message)); }
         finally { setSubmitting(false); }
     };
 
@@ -236,7 +248,7 @@ const VehicleBooking = () => {
                             {vehicles.map(v => (
                                 <div key={v.id} className="group bg-white border border-slate-100 rounded-2xl overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                                     {/* Vehicle Image Container */}
-                                    <div className="relative h-44 md:h-64 overflow-hidden bg-slate-50 flex items-center justify-center p-3">
+                                    <div className="relative h-44 md:h-72 lg:h-80 overflow-hidden bg-slate-50 flex items-center justify-center p-3">
                                         {v.photo ? (
                                             <img
                                                 src={v.photo}

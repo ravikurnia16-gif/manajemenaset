@@ -10,15 +10,56 @@ exports.requestBooking = async (req, res) => {
 
         const vehicle = await prisma.vehicle.findUnique({
             where: { id: parseInt(vehicleId) },
-            include: { pics: true, odometer: true }
+            include: { pics: true }
         });
 
         if (!vehicle) return res.status(404).json({ error: 'Kendaraan tidak ditemukan' });
 
         const start = new Date(startDate);
+        const end = new Date(endDate);
         const now = new Date();
+
+        if (!destination) {
+            return res.status(400).json({ error: 'Tujuan wajib diisi.' });
+        }
+
         if (start < now) {
             return res.status(400).json({ error: 'Waktu mulai peminjaman tidak boleh di masa lampau.' });
+        }
+
+        if (end <= start) {
+            return res.status(400).json({ error: 'Waktu selesai harus setelah waktu mulai.' });
+        }
+
+        // --- CONFLICT CHECK ---
+        const conflict = await prisma.vehicleBooking.findFirst({
+            where: {
+                vehicleId: parseInt(vehicleId),
+                status: { in: ['PENDING', 'APPROVED'] },
+                OR: [
+                    {
+                        // New range starts inside an existing range
+                        startDate: { lte: start },
+                        endDate: { gte: start }
+                    },
+                    {
+                        // New range ends inside an existing range
+                        startDate: { lte: end },
+                        endDate: { gte: end }
+                    },
+                    {
+                        // New range completely covers an existing range
+                        startDate: { gte: start },
+                        endDate: { lte: end }
+                    }
+                ]
+            }
+        });
+
+        if (conflict) {
+            return res.status(400).json({
+                error: `Kendaraan ini sudah dipesan/digunakan pada jadwal tersebut (Status: ${conflict.status}).`
+            });
         }
 
         const booking = await prisma.vehicleBooking.create({
@@ -150,6 +191,15 @@ exports.endTrip = async (req, res) => {
 
         if (!booking) return res.status(404).json({ error: 'Booking tidak ditemukan' });
         if (booking.userId !== req.user.id) return res.status(403).json({ error: 'Akses ditolak' });
+
+        const startKmValue = booking.startKm || 0;
+        const endKmValue = parseInt(endKm);
+
+        if (endKmValue < startKmValue) {
+            return res.status(400).json({
+                error: `KM Akhir (${endKmValue}) tidak boleh lebih kecil dari KM Awal (${startKmValue}).`
+            });
+        }
 
         const updated = await prisma.vehicleBooking.update({
             where: { id: parseInt(id) },

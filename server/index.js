@@ -5,6 +5,9 @@ const { PrismaClient } = require('@prisma/client');
 
 dotenv.config();
 
+// Set Global Timezone to WIB (GMT+7)
+process.env.TZ = 'Asia/Jakarta';
+
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
