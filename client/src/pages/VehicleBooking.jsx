@@ -144,6 +144,15 @@ const VehicleBooking = () => {
         finally { setSubmitting(false); }
     };
 
+    const handleSearchMaps = () => {
+        if (!formData.destination) {
+            showToast('Silakan isi tujuan terlebih dahulu', 'error');
+            return;
+        }
+        const query = encodeURIComponent(formData.destination);
+        window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+    };
+
     const handleStartTrip = async () => {
         try {
             setSubmitting(true);
@@ -445,15 +454,23 @@ const VehicleBooking = () => {
 
                                         <div className="md:col-span-2">
                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Tujuan (Lokasi)</label>
-                                            <div className="relative">
+                                            <div className="relative group">
                                                 <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
                                                 <input
                                                     type="text" required
-                                                    placeholder="Contoh: Pa"
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    placeholder="Contoh: Kantor Wilayah, Bandung"
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-12 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                                     value={formData.destination}
                                                     onChange={e => setFormData({ ...formData, destination: e.target.value })}
                                                 />
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSearchMaps}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-blue-500 hover:bg-white rounded-lg transition-all"
+                                                    title="Cek di Google Maps"
+                                                >
+                                                    <Navigation2 size={16} />
+                                                </button>
                                             </div>
                                         </div>
 
@@ -975,8 +992,8 @@ const VehicleBooking = () => {
                     <div
                         key={toast.id}
                         className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl border text-sm font-bold min-w-[280px] animate-in slide-in-from-right-full duration-300 pointer-events-auto ${toast.type === 'success'
-                                ? 'bg-white border-green-100 text-green-700'
-                                : 'bg-white border-red-100 text-red-700'
+                            ? 'bg-white border-green-100 text-green-700'
+                            : 'bg-white border-red-100 text-red-700'
                             }`}
                     >
                         {toast.type === 'success' ? (

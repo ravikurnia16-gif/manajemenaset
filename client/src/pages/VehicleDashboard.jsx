@@ -119,7 +119,7 @@ const VehicleDashboard = () => {
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* 3. Tren Pengeluaran */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-2">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                         <div className="flex items-center justify-between mb-6">
                             <h3 className="text-lg font-bold text-slate-800">Tren Pengeluaran Bulanan</h3>
                             <div className="flex gap-4">
@@ -133,7 +133,7 @@ const VehicleDashboard = () => {
                                 </div>
                             </div>
                         </div>
-                        <div className="h-80">
+                        <div className="h-72">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={data?.costTrends}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -147,6 +147,27 @@ const VehicleDashboard = () => {
                                     />
                                     <Bar dataKey="fuel" fill="#10b981" radius={[4, 4, 0, 0]} barSize={25} />
                                     <Bar dataKey="service" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={25} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* 4. Tren Jarak Tempuh */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                        <h3 className="text-lg font-bold text-slate-800 mb-6">Tren Jarak Tempuh (KM)</h3>
+                        <div className="h-72">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={data?.mileageTrends}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} dy={10} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }}
+                                        tickFormatter={(value) => `${value} km`} />
+                                    <Tooltip
+                                        formatter={(value) => `${value.toLocaleString('id-ID')} km`}
+                                        contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                        cursor={{ fill: '#f8fafc' }}
+                                    />
+                                    <Bar dataKey="value" fill="#f59e0b" radius={[6, 6, 0, 0]} barSize={35} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>

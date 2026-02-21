@@ -343,21 +343,36 @@ exports.getVehicleDashboard = async (req, res) => {
             return v.odometer >= lastRoutine.nextServiceOdometer;
         }).length;
 
-        // 3. Monthly Booking Trends (Last 6 Months)
+        // 3. Monthly Trends (Bookings & Mileage - Last 6 Months)
         const bookingTrends = [];
+        const mileageTrends = [];
         for (let i = 5; i >= 0; i--) {
             const d = new Date();
             d.setMonth(d.getMonth() - i);
             const mStart = new Date(d.getFullYear(), d.getMonth(), 1);
             const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
 
-            const count = await prisma.vehicleBooking.count({
+            // Booking Count
+            const bCount = await prisma.vehicleBooking.count({
                 where: { createdAt: { gte: mStart, lte: mEnd } }
             });
-            bookingTrends.push({
-                name: d.toLocaleString('id-ID', { month: 'short' }),
-                value: count
+
+            // Mileage Calculation (endKm - startKm)
+            const completedBookings = await prisma.vehicleBooking.findMany({
+                where: {
+                    status: 'COMPLETED',
+                    tripEndTime: { gte: mStart, lte: mEnd },
+                    startKm: { not: null },
+                    endKm: { not: null }
+                },
+                select: { startKm: true, endKm: true }
             });
+
+            const totalKm = completedBookings.reduce((sum, b) => sum + (b.endKm - b.startKm), 0);
+
+            const monthName = d.toLocaleString('id-ID', { month: 'short' });
+            bookingTrends.push({ name: monthName, value: bCount });
+            mileageTrends.push({ name: monthName, value: totalKm });
         }
 
         // 4. Vehicle Type Distribution
