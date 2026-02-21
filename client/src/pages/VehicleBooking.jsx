@@ -13,6 +13,7 @@ const VehicleBooking = () => {
     const [bookings, setBookings] = useState([]);
     const [staff, setStaff] = useState([]);
     const [drivers, setDrivers] = useState([]);
+    const [candidateSearch, setCandidateSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [toasts, setToasts] = useState([]);
@@ -742,7 +743,7 @@ const VehicleBooking = () => {
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                     onChange={(e) => {
                                         const val = e.target.value.toLowerCase();
-                                        setDrivers(prev => prev.map(d => ({ ...d, hidden: !d.name.toLowerCase().includes(val) })));
+                                        setDrivers(prev => prev.map(d => ({ ...d, hidden: !(d.name || '').toLowerCase().includes(val) })));
                                     }}
                                 />
                             </div>
@@ -758,10 +759,10 @@ const VehicleBooking = () => {
                                 <div key={d.id} className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-lg">
-                                            {d.name.charAt(0)}
+                                            {(d.name || d.username || '?').charAt(0)}
                                         </div>
                                         <div>
-                                            <div className="font-bold text-slate-800">{d.name}</div>
+                                            <div className="font-bold text-slate-800">{d.name || d.username}</div>
                                             <div className="text-[10px] text-slate-400 font-bold uppercase">{d.unit?.name || 'UMUM'}</div>
                                             <div className="text-[10px] text-blue-500 font-bold mt-0.5">{d.position}</div>
                                         </div>
@@ -781,21 +782,43 @@ const VehicleBooking = () => {
 
                         {isSuperAdmin && (
                             <div className="pt-6 border-t border-slate-100">
-                                <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                                    <Plus size={16} className="text-blue-500" /> Tunjuk Driver Baru
-                                </h4>
+                                <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
+                                    <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                        <Plus size={16} className="text-blue-500" /> Tunjuk Driver Baru
+                                    </h4>
+                                    <div className="relative w-full md:w-64">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                        <input
+                                            type="text"
+                                            placeholder="Cari staf..."
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                                            value={candidateSearch}
+                                            onChange={(e) => setCandidateSearch(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
                                 <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
                                     <p className="text-xs text-slate-500 mb-4">Pilih staf dari daftar untuk ditambahkan sebagai sopir resmi.</p>
                                     <div className="flex flex-wrap gap-2">
-                                        {staff.filter(s => !s.position?.toLowerCase().includes('sopir') && !s.position?.toLowerCase().includes('driver')).slice(0, 10).map(s => (
-                                            <button
-                                                key={s.id}
-                                                onClick={() => handleToggleDriver(s.id, false)}
-                                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:border-blue-500 hover:text-blue-600 transition-all shadow-sm"
-                                            >
-                                                + {s.name}
-                                            </button>
-                                        ))}
+                                        {staff
+                                            .filter(s => {
+                                                const isAlreadyDriver = s.position?.toLowerCase().includes('sopir') || s.position?.toLowerCase().includes('driver');
+                                                const matchesSearch = (s.name || '').toLowerCase().includes(candidateSearch.toLowerCase());
+                                                return !isAlreadyDriver && matchesSearch;
+                                            })
+                                            .slice(0, 15)
+                                            .map(s => (
+                                                <button
+                                                    key={s.id}
+                                                    onClick={() => handleToggleDriver(s.id, false)}
+                                                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:border-blue-500 hover:text-blue-600 transition-all shadow-sm"
+                                                >
+                                                    + {s.name || s.username}
+                                                </button>
+                                            ))}
+                                        {staff.filter(s => !s.position?.toLowerCase().includes('sopir') && (s.name || '').toLowerCase().includes(candidateSearch.toLowerCase())).length === 0 && (
+                                            <p className="text-xs text-slate-400 italic">Tidak ada staf yang cocok.</p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
