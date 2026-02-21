@@ -197,7 +197,7 @@ exports.endTrip = async (req, res) => {
 // 5. Get Bookings (Dynamic based on tabs)
 exports.getBookings = async (req, res) => {
     try {
-        const { tab, vehicleId } = req.query;
+        const { tab, vehicleId, startDate, endDate } = req.query;
         const where = {};
 
         if (vehicleId) where.vehicleId = parseInt(vehicleId);
@@ -210,7 +210,23 @@ exports.getBookings = async (req, res) => {
             where.userId = req.user.id;
             where.status = { in: ['PENDING', 'APPROVED'] };
         } else if (tab === 'HISTORY') {
-            where.status = { in: ['COMPLETED', 'REJECTED', 'CANCELLED'] };
+            // Include ALL statuses in history as requested
+            // where.status = { in: ['COMPLETED', 'REJECTED', 'CANCELLED'] };
+
+            // Add Date Range Filters for History
+            if (startDate || endDate) {
+                where.startDate = {};
+                if (startDate) {
+                    const start = new Date(startDate);
+                    start.setHours(0, 0, 0, 0);
+                    where.startDate.gte = start;
+                }
+                if (endDate) {
+                    const end = new Date(endDate);
+                    end.setHours(23, 59, 59, 999);
+                    where.startDate.lte = end;
+                }
+            }
         }
 
         const bookings = await prisma.vehicleBooking.findMany({
