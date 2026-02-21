@@ -71,7 +71,10 @@ const VehicleBooking = () => {
 
     useEffect(() => {
         fetchBookings();
-        if (activeTab === 'DRIVERS') fetchDrivers();
+        if (activeTab === 'DRIVERS') {
+            fetchDrivers();
+            fetchStaff();
+        }
     }, [activeTab, filterVehicle, filterStartDate, filterEndDate]);
 
     const fetchVehicles = async () => {
@@ -806,7 +809,8 @@ const VehicleBooking = () => {
                                         {staff
                                             .filter(s => {
                                                 const isAlreadyDriver = s.position?.toLowerCase().includes('sopir') || s.position?.toLowerCase().includes('driver');
-                                                const matchesSearch = (s.name || '').toLowerCase().includes(candidateSearch.toLowerCase());
+                                                const searchStr = `${s.name || ''} ${s.username || ''}`.toLowerCase();
+                                                const matchesSearch = searchStr.includes(candidateSearch.toLowerCase());
                                                 return !isAlreadyDriver && matchesSearch;
                                             })
                                             .slice(0, 15)
