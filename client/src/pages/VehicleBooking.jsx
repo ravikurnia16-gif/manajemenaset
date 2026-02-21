@@ -3,7 +3,7 @@ import {
     Car, Calendar, MapPin, Info, CheckCircle, XCircle,
     Clock, Gauge, Fuel, User, Plus, Search, X, Lock,
     ArrowRight, ChevronRight, AlertCircle, Trash2,
-    Users, Navigation2, LogIn, LogOut, Receipt
+    Users, LogIn, LogOut, Receipt
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -142,15 +142,6 @@ const VehicleBooking = () => {
             fetchBookings();
         } catch (err) { showToast('Gagal memproses: ' + (err.response?.data?.error || err.message), 'error'); }
         finally { setSubmitting(false); }
-    };
-
-    const handleSearchMaps = () => {
-        if (!formData.destination) {
-            showToast('Silakan isi tujuan terlebih dahulu', 'error');
-            return;
-        }
-        const query = encodeURIComponent(formData.destination);
-        window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
     };
 
     const handleStartTrip = async () => {
@@ -454,23 +445,15 @@ const VehicleBooking = () => {
 
                                         <div className="md:col-span-2">
                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Tujuan (Lokasi)</label>
-                                            <div className="relative group">
+                                            <div className="relative">
                                                 <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
                                                 <input
                                                     type="text" required
-                                                    placeholder="Contoh: Kantor Wilayah, Bandung"
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-12 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    placeholder="Contoh: Kantor Wilayah, Kota"
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                                     value={formData.destination}
                                                     onChange={e => setFormData({ ...formData, destination: e.target.value })}
                                                 />
-                                                <button
-                                                    type="button"
-                                                    onClick={handleSearchMaps}
-                                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-blue-500 hover:bg-white rounded-lg transition-all"
-                                                    title="Cek di Google Maps"
-                                                >
-                                                    <Navigation2 size={16} />
-                                                </button>
                                             </div>
                                         </div>
 
