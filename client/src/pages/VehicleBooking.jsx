@@ -808,7 +808,7 @@ const VehicleBooking = () => {
                                     <div className="flex flex-wrap gap-2">
                                         {staff
                                             .filter(s => {
-                                                const isAlreadyDriver = s.position?.toLowerCase().includes('sopir') || s.position?.toLowerCase().includes('driver');
+                                                const isAlreadyDriver = (s.position || '').toLowerCase().includes('sopir') || (s.position || '').toLowerCase().includes('driver');
                                                 const searchStr = `${s.name || ''} ${s.username || ''}`.toLowerCase();
                                                 const matchesSearch = searchStr.includes(candidateSearch.toLowerCase());
                                                 return !isAlreadyDriver && matchesSearch;
@@ -823,9 +823,13 @@ const VehicleBooking = () => {
                                                     + {s.name || s.username}
                                                 </button>
                                             ))}
-                                        {staff.filter(s => !s.position?.toLowerCase().includes('sopir') && (s.name || '').toLowerCase().includes(candidateSearch.toLowerCase())).length === 0 && (
-                                            <p className="text-xs text-slate-400 italic">Tidak ada staf yang cocok.</p>
-                                        )}
+                                        {staff.filter(s => {
+                                            const isNotDriver = !(s.position || '').toLowerCase().includes('sopir') && !(s.position || '').toLowerCase().includes('driver');
+                                            const matchesSearch = `${s.name || ''} ${s.username || ''}`.toLowerCase().includes(candidateSearch.toLowerCase());
+                                            return isNotDriver && matchesSearch;
+                                        }).length === 0 && (
+                                                <p className="text-xs text-slate-400 italic">Tidak ada staf yang cocok.</p>
+                                            )}
                                     </div>
                                 </div>
                             </div>
