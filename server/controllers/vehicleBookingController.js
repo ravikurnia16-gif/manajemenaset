@@ -31,37 +31,6 @@ exports.requestBooking = async (req, res) => {
             return res.status(400).json({ error: 'Waktu selesai harus setelah waktu mulai.' });
         }
 
-        // --- CONFLICT CHECK ---
-        const conflict = await prisma.vehicleBooking.findFirst({
-            where: {
-                vehicleId: parseInt(vehicleId),
-                status: { in: ['PENDING', 'APPROVED'] },
-                OR: [
-                    {
-                        // New range starts inside an existing range
-                        startDate: { lte: start },
-                        endDate: { gte: start }
-                    },
-                    {
-                        // New range ends inside an existing range
-                        startDate: { lte: end },
-                        endDate: { gte: end }
-                    },
-                    {
-                        // New range completely covers an existing range
-                        startDate: { gte: start },
-                        endDate: { lte: end }
-                    }
-                ]
-            }
-        });
-
-        if (conflict) {
-            return res.status(400).json({
-                error: `Kendaraan ini sudah dipesan/digunakan pada jadwal tersebut (Status: ${conflict.status}).`
-            });
-        }
-
         const booking = await prisma.vehicleBooking.create({
             data: {
                 vehicleId: parseInt(vehicleId),

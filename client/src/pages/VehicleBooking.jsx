@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
     Car, Calendar, MapPin, Info, CheckCircle, XCircle,
-    Clock, Gauge, Fuel, User, Plus, Search, X,
+    Clock, Gauge, Fuel, User, Plus, Search, X, Lock,
     ArrowRight, ChevronRight, AlertCircle, Trash2,
     Users, Navigation2, LogIn, LogOut, Receipt
 } from 'lucide-react';
@@ -14,6 +14,15 @@ const VehicleBooking = () => {
     const [staff, setStaff] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [toasts, setToasts] = useState([]);
+
+    const showToast = (message, type = 'success') => {
+        const id = Date.now();
+        setToasts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+        }, 3000);
+    };
 
     // Form State for Request
     const [formData, setFormData] = useState({
@@ -86,23 +95,20 @@ const VehicleBooking = () => {
             setSubmitting(true);
             const startStr = `${formData.startDate}T${formData.startTime}`;
             const endStr = `${formData.endDate}T${formData.endTime}`;
-            const startDateObj = new Date(startStr);
-            const now = new Date();
-
             if (!formData.destination) {
-                alert('Silakan isi tujuan peminjaman.');
+                showToast('Silakan isi tujuan peminjaman.', 'error');
                 setSubmitting(false);
                 return;
             }
 
             if (startDateObj < now) {
-                alert('Waktu mulai peminjaman tidak boleh di masa lampau.');
+                showToast('Waktu mulai peminjaman tidak boleh di masa lampau.', 'error');
                 setSubmitting(false);
                 return;
             }
 
             if (new Date(endStr) <= startDateObj) {
-                alert('Waktu selesai harus setelah waktu mulai.');
+                showToast('Waktu selesai harus setelah waktu mulai.', 'error');
                 setSubmitting(false);
                 return;
             }
@@ -112,7 +118,7 @@ const VehicleBooking = () => {
                 startDate: startDateObj,
                 endDate: new Date(endStr)
             });
-            alert('Permohonan berhasil dikirim!');
+            showToast('Permohonan berhasil dikirim!', 'success');
             setShowBorrowModal(false);
             setActiveTab('MY_REQUESTS');
             setFormData({
@@ -120,7 +126,7 @@ const VehicleBooking = () => {
                 destination: '', purpose: '', passengerCount: 1, driverId: ''
             });
         } catch (err) {
-            alert('Gagal mengirim permohonan: ' + (err.response?.data?.error || err.message));
+            showToast('Gagal mengirim permohonan: ' + (err.response?.data?.error || err.message), 'error');
         } finally { setSubmitting(false); }
     };
 
@@ -131,10 +137,10 @@ const VehicleBooking = () => {
                 status,
                 adminNote: actionData.reason
             });
-            alert(`Peminjaman telah ${status === 'APPROVED' ? 'disetujui' : 'ditolak'}.`);
+            showToast(`Peminjaman telah ${status === 'APPROVED' ? 'disetujui' : 'ditolak'}.`, 'success');
             setShowActionModal(null);
             fetchBookings();
-        } catch (err) { alert('Gagal memproses: ' + (err.response?.data?.error || err.message)); }
+        } catch (err) { showToast('Gagal memproses: ' + (err.response?.data?.error || err.message), 'error'); }
         finally { setSubmitting(false); }
     };
 
@@ -144,16 +150,17 @@ const VehicleBooking = () => {
             await api.post(`/vehicles/booking/${showActionModal.data.id}/start`, {
                 startKm: actionData.km
             });
+            showToast('Perjalanan dimulai!', 'success');
             setShowActionModal(null);
             fetchBookings();
-        } catch (err) { alert('Gagal memulai perjalanan: ' + (err.response?.data?.error || err.message)); }
+        } catch (err) { showToast('Gagal memulai perjalanan: ' + (err.response?.data?.error || err.message), 'error'); }
         finally { setSubmitting(false); }
     };
 
     const handleEndTrip = async () => {
         try {
             if (parseInt(actionData.km) < (showActionModal.data.startKm || 0)) {
-                alert(`KM Akhir tidak boleh lebih kecil dari KM Awal (${showActionModal.data.startKm || 0})`);
+                showToast(`KM Akhir tidak boleh lebih kecil dari KM Awal (${showActionModal.data.startKm || 0})`, 'error');
                 return;
             }
             setSubmitting(true);
@@ -163,9 +170,10 @@ const VehicleBooking = () => {
                 fuelRefill: actionData.fuelRefill,
                 fuelPrice: actionData.fuelPrice
             });
+            showToast('Perjalanan selesai!', 'success');
             setShowActionModal(null);
             fetchBookings();
-        } catch (err) { alert('Gagal menyelesaikan perjalanan: ' + (err.response?.data?.error || err.message)); }
+        } catch (err) { showToast('Gagal menyelesaikan perjalanan: ' + (err.response?.data?.error || err.message), 'error'); }
         finally { setSubmitting(false); }
     };
 
@@ -174,9 +182,9 @@ const VehicleBooking = () => {
         try {
             setSubmitting(true);
             await api.post(`/vehicles/booking/${id}/cancel`);
-            alert('Peminjaman telah dibatalkan.');
+            showToast('Peminjaman telah dibatalkan.', 'success');
             fetchBookings();
-        } catch (err) { alert('Gagal membatalkan: ' + (err.response?.data?.error || err.message)); }
+        } catch (err) { showToast('Gagal membatalkan: ' + (err.response?.data?.error || err.message), 'error'); }
         finally { setSubmitting(false); }
     };
 
@@ -333,16 +341,28 @@ const VehicleBooking = () => {
 
                                         {v.status === 'ACTIVE' && (
                                             <button
-                                                disabled={submitting}
+                                                disabled={submitting || v.isBorrowed}
                                                 onClick={() => {
                                                     setSelectedVehicle(v);
                                                     setFormData({ ...formData, vehicleId: v.id });
                                                     setShowBorrowModal(true);
                                                 }}
-                                                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200 transition-all group/btn active:scale-[0.98] disabled:opacity-50"
+                                                className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all group/btn active:scale-[0.98] disabled:opacity-70 ${v.isBorrowed
+                                                    ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300'
+                                                    : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200'
+                                                    }`}
                                             >
-                                                <Plus size={16} className="group-hover/btn:rotate-90 transition-transform" />
-                                                Pinjam Sekarang
+                                                {v.isBorrowed ? (
+                                                    <>
+                                                        <Lock size={16} />
+                                                        Sedang Digunakan
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Plus size={16} className="group-hover/btn:rotate-90 transition-transform" />
+                                                        Pinjam Sekarang
+                                                    </>
+                                                )}
                                             </button>
                                         )}
                                     </div>
@@ -948,6 +968,36 @@ const VehicleBooking = () => {
                     </div>
                 </div>
             )}
+
+            {/* Toast Notifications */}
+            <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
+                {toasts.map(toast => (
+                    <div
+                        key={toast.id}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl border text-sm font-bold min-w-[280px] animate-in slide-in-from-right-full duration-300 pointer-events-auto ${toast.type === 'success'
+                                ? 'bg-white border-green-100 text-green-700'
+                                : 'bg-white border-red-100 text-red-700'
+                            }`}
+                    >
+                        {toast.type === 'success' ? (
+                            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                                <CheckCircle size={18} />
+                            </div>
+                        ) : (
+                            <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                                <AlertCircle size={18} />
+                            </div>
+                        )}
+                        <span className="flex-1">{toast.message}</span>
+                        <button
+                            onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                            className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 };
