@@ -301,16 +301,14 @@ exports.getVehicleDashboard = async (req, res) => {
         const now = new Date();
         const thirtyDaysFromNow = new Date(new Date().setDate(now.getDate() + 30));
 
-        const [totalVehicles, activeBookings, needingService, taxWarnings] = await Promise.all([
+        // 1. Basic Stats & Tax
+        const [totalVehicles, activeBookingsCount, taxWarnings] = await Promise.all([
             prisma.vehicle.count({ where: { status: 'ACTIVE' } }),
-            prisma.vehicleBooking.count({ where: { status: 'APPROVED', startKm: { not: null }, endKm: null } }),
-            prisma.vehicle.count({
+            prisma.vehicleBooking.count({
                 where: {
-                    status: 'ACTIVE',
-                    OR: [
-                        { nextServiceOdometer: { lte: prisma.vehicle.fields.odometer } },
-                        { nextServiceOdometer: { lte: 0 } }
-                    ]
+                    status: 'APPROVED',
+                    tripStartTime: { not: null },
+                    tripEndTime: null
                 }
             }),
             prisma.vehicle.count({
@@ -324,7 +322,28 @@ exports.getVehicleDashboard = async (req, res) => {
             })
         ]);
 
-        // Monthly Booking Trends (Last 6 Months)
+        // 2. Needing Service Calculation
+        // Since nextServiceOdometer is in the VehicleService model, we fetch vehicles and check their latest routine service
+        const vehiclesForService = await prisma.vehicle.findMany({
+            where: { status: 'ACTIVE' },
+            select: {
+                id: true,
+                odometer: true,
+                services: {
+                    where: { category: 'ROUTINE', nextServiceOdometer: { not: null } },
+                    orderBy: { odometer: 'desc' },
+                    take: 1
+                }
+            }
+        });
+
+        const needingService = vehiclesForService.filter(v => {
+            const lastRoutine = v.services?.[0];
+            if (!lastRoutine) return false; // Or should we return true if no service history? Assuming false for now.
+            return v.odometer >= lastRoutine.nextServiceOdometer;
+        }).length;
+
+        // 3. Monthly Booking Trends (Last 6 Months)
         const bookingTrends = [];
         for (let i = 5; i >= 0; i--) {
             const d = new Date();
@@ -341,7 +360,7 @@ exports.getVehicleDashboard = async (req, res) => {
             });
         }
 
-        // Vehicle Type Distribution
+        // 4. Vehicle Type Distribution
         const types = await prisma.vehicle.groupBy({
             by: ['type'],
             where: { status: 'ACTIVE' },
@@ -349,7 +368,12 @@ exports.getVehicleDashboard = async (req, res) => {
         });
 
         res.json({
-            stats: { totalVehicles, activeBookings, needingService, taxWarnings },
+            stats: {
+                totalVehicles,
+                activeBookings: activeBookingsCount,
+                needingService,
+                taxWarnings
+            },
             bookingTrends,
             typeDistribution: types.map(t => ({ name: t.type, value: t._count._all }))
         });
