@@ -153,7 +153,8 @@ const VehicleDashboard = () => {
                     </div>
                 </div>
             </div>
-            );
+        </div>
+    );
 };
 
-            export default VehicleDashboard;
+export default VehicleDashboard;
