@@ -92,7 +92,7 @@ const LoanList = () => {
             alert('Permohonan peminjaman berhasil diajukan');
             setAddModal({ isOpen: false, purpose: '', expectedReturnDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] });
             setCart([]);
-            setTargetUnitId('');
+            setOwnerUnitId('');
             setAssetSearch('');
             fetchLoans();
         } catch (error) {
