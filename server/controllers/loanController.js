@@ -49,19 +49,22 @@ exports.requestLoan = async (req, res) => {
             });
         }));
 
+        // Fetch requester details for the message
+        const requester = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            include: { unit: true }
+        });
+        const requesterName = requester?.name || requester?.username || 'Peminjam';
+
         // Notify Sarpras Units (Group by unitId to avoid spam)
         const unitIds = [...new Set(assets.map(a => a.unitId))];
         for (const unitId of unitIds) {
             try {
-                const sarprasUnit = await prisma.user.findFirst({
-                    where: { unitId, role: 'ADMIN_UNIT' }
-                });
-
                 const unitAssets = assets.filter(a => a.unitId === unitId);
                 const isYayasan = unitAssets[0]?.unit?.name?.toLowerCase().includes('kantor yayasan');
 
                 if (isYayasan) {
-                    // Notify Ravi Kurnia & Eldo specifically for Yayasan assets
+                    // Notify strategic roles specifically for Yayasan assets
                     const specialAdmins = await prisma.user.findMany({
                         where: {
                             position: { in: ['Kepala Bidang Sarana dan Prasarana', 'Staff Manajemen Aset'] },
@@ -74,31 +77,42 @@ exports.requestLoan = async (req, res) => {
                             await createNotification(
                                 admin.id,
                                 'Permohonan Peminjaman Aset Yayasan',
-                                `User ${req.user.name} meminjam ${unitAssets.length} aset Yayasan.`,
+                                `User ${requesterName} meminjam ${unitAssets.length} aset Yayasan.`,
                                 'URGENT',
                                 '/peminjaman'
                             );
 
                             if (admin.phone) {
                                 const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
-                                const message = `📢 *PERMOHONAN PINJAM ASET YAYASAN*\n\nUser *${req.user.name}* mengajukan peminjaman aset Yayasan:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
-                                await whatsappService.sendDirectMessage(admin.phone, message);
+                                const message = `📢 *PERMOHONAN PINJAM ASET YAYASAN*\n\nUser *${requesterName}* mengajukan peminjaman aset Yayasan:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
+                                await whatsappService.sendMessage(admin.phone, message);
                             }
                         } catch (e) { console.error(e); }
                     }
-                } else if (sarprasUnit) {
-                    await createNotification(
-                        sarprasUnit.id,
-                        'Permohonan Peminjaman Baru',
-                        `User ${req.user.name} mengajukan peminjaman ${unitAssets.length} aset.`,
-                        'INFO',
-                        '/peminjaman'
-                    );
+                } else {
+                    // Notify all ADMIN_UNIT in the owner unit
+                    const unitAdmins = await prisma.user.findMany({
+                        where: { unitId, role: 'ADMIN_UNIT', phone: { not: null, not: '' } }
+                    });
 
-                    if (sarprasUnit.phone) {
-                        const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
-                        const message = `Halo Sarpras,\nAda permohonan peminjaman baru dari ${req.user.name}:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
-                        await whatsappService.sendDirectMessage(sarprasUnit.phone, message);
+                    for (const admin of unitAdmins) {
+                        try {
+                            await createNotification(
+                                admin.id,
+                                'Permohonan Peminjaman Baru',
+                                `User ${requesterName} meminjam ${unitAssets.length} aset dari unit Anda.`,
+                                'INFO',
+                                '/peminjaman'
+                            );
+
+                            if (admin.phone) {
+                                const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
+                                const message = `📦 *PERMOHONAN PINJAM ASET*\n\nUser *${requesterName}* mengajukan peminjaman aset dari unit Anda:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
+                                await whatsappService.sendMessage(admin.phone, message);
+                            }
+                        } catch (e) {
+                            console.error(`[Loan Notif] Failed to notify admin ${admin.name}:`, e.message);
+                        }
                     }
                 }
             } catch (notifErr) {
@@ -110,7 +124,7 @@ exports.requestLoan = async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
+}
 
 exports.reviewLoan = async (req, res) => {
     try {
