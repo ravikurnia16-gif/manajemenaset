@@ -64,10 +64,8 @@ exports.requestLoan = async (req, res) => {
                     // Notify Ravi Kurnia & Eldo specifically for Yayasan assets
                     const specialAdmins = await prisma.user.findMany({
                         where: {
-                            OR: [
-                                { position: 'Kepala Bidang Sarana dan Prasarana' },
-                                { position: 'Staff Manajemen Aset' }
-                            ]
+                            position: { in: ['Kepala Bidang Sarana dan Prasarana', 'Staff Manajemen Aset'] },
+                            phone: { not: null, not: '' }
                         }
                     });
 
@@ -75,15 +73,15 @@ exports.requestLoan = async (req, res) => {
                         try {
                             await createNotification(
                                 admin.id,
-                                'Permohonan Peminjaman (Yayasan)',
-                                `User ${req.user.name} mengajukan peminjaman ${unitAssets.length} aset Yayasan.`,
-                                'INFO',
+                                'Permohonan Peminjaman Aset Yayasan',
+                                `User ${req.user.name} meminjam ${unitAssets.length} aset Yayasan.`,
+                                'URGENT',
                                 '/peminjaman'
                             );
 
                             if (admin.phone) {
                                 const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
-                                const message = `Halo Mas/Bapak,\nAda permohonan peminjaman aset Yayasan baru dari ${req.user.name}:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
+                                const message = `📢 *PERMOHONAN PINJAM ASET YAYASAN*\n\nUser *${req.user.name}* mengajukan peminjaman aset Yayasan:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
                                 await whatsappService.sendDirectMessage(admin.phone, message);
                             }
                         } catch (e) { console.error(e); }

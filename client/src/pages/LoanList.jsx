@@ -14,7 +14,7 @@ const LoanList = () => {
         expectedReturnDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     });
     const [cart, setCart] = useState([]); // List of selected assets
-    const [targetUnitId, setTargetUnitId] = useState('');
+    const [ownerUnitId, setOwnerUnitId] = useState(''); // Unit whose items are being borrowed
     const [units, setUnits] = useState([]);
     const [assets, setAssets] = useState([]);
     const [assetSearch, setAssetSearch] = useState('');
@@ -30,10 +30,10 @@ const LoanList = () => {
 
     useEffect(() => {
         if (addModal.isOpen) {
-            fetchAvailableAssets(assetSearch);
+            fetchAvailableAssets(assetSearch, ownerUnitId);
             fetchUnits();
         }
-    }, [assetSearch, addModal.isOpen]);
+    }, [assetSearch, addModal.isOpen, ownerUnitId]);
 
     const fetchUnits = async () => {
         try {
@@ -44,9 +44,11 @@ const LoanList = () => {
         }
     };
 
-    const fetchAvailableAssets = async (query = '') => {
+    const fetchAvailableAssets = async (query = '', unitId = '') => {
         try {
-            const res = await api.get(`/assets?limit=50&search=${query}&condition=BAIK&isLendable=true`);
+            let url = `/assets?limit=50&search=${query}&condition=BAIK&isLendable=true`;
+            if (unitId) url += `&unitId=${unitId}`;
+            const res = await api.get(url);
             const assetData = res.data.data || res.data;
             setAssets(Array.isArray(assetData) ? assetData : []);
         } catch (error) {
@@ -76,8 +78,8 @@ const LoanList = () => {
 
     const handleRequestLoan = async () => {
         try {
-            if (cart.length === 0 || !addModal.purpose || !targetUnitId) {
-                alert('Pilih setidaknya satu aset, unit tujuan, dan masukkan tujuan peminjaman');
+            if (cart.length === 0 || !addModal.purpose || !ownerUnitId) {
+                alert('Pilih unit asal dan setidaknya satu aset');
                 return;
             }
             setLoading(true);
@@ -85,7 +87,7 @@ const LoanList = () => {
                 assetIds: cart.map(a => a.id),
                 purpose: addModal.purpose,
                 expectedReturnDate: addModal.expectedReturnDate,
-                targetUnitId: parseInt(targetUnitId)
+                targetUnitId: user.unitId // Target is ALWAYS the user's unit
             });
             alert('Permohonan peminjaman berhasil diajukan');
             setAddModal({ isOpen: false, purpose: '', expectedReturnDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] });
@@ -378,13 +380,16 @@ const LoanList = () => {
 
                         <div className="space-y-6">
                             <div>
-                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Unit Peminjam (Unit Anda / Tujuan)</label>
+                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Pilih Unit yang barangnya akan dipinjam</label>
                                 <select
                                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 text-sm font-bold focus:border-blue-500 outline-none"
-                                    value={targetUnitId}
-                                    onChange={(e) => setTargetUnitId(e.target.value)}
+                                    value={ownerUnitId}
+                                    onChange={(e) => {
+                                        setOwnerUnitId(e.target.value);
+                                        setCart([]); // Clear cart when unit changes to prevent cross-unit requests
+                                    }}
                                 >
-                                    <option value="">Pilih Unit Tujuan...</option>
+                                    <option value="">Pilih Unit Asal/Pemberi...</option>
                                     {units.map(u => (
                                         <option key={u.id} value={u.id}>{u.name}</option>
                                     ))}
@@ -525,7 +530,7 @@ const LoanList = () => {
                             </button>
                             <button
                                 onClick={handleRequestLoan}
-                                disabled={loading || cart.length === 0 || !addModal.purpose || !targetUnitId}
+                                disabled={loading || cart.length === 0 || !addModal.purpose || !ownerUnitId}
                                 className="px-8 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all active:scale-95 disabled:opacity-50"
                             >
                                 {loading ? 'Memproses...' : 'Kirim Permohonan'}

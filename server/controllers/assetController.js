@@ -240,8 +240,11 @@ exports.getAllAssets = async (req, res) => {
 
         // 2. Explicit Filters (if provided and allowed)
         if (filterUnitId) {
-            // If user is restricted, ensure they can only filter their own unit
-            if (isGlobalAdmin || parseInt(filterUnitId) === unitId) {
+            // Allow filtering by unitId if:
+            // 1. User is global admin
+            // 2. User is filtering their own unit
+            // 3. User is specifically looking for lendable assets (Cross-unit borrowing)
+            if (isGlobalAdmin || parseInt(filterUnitId) === unitId || isLendable === 'true' || isLendable === true) {
                 where.unitId = parseInt(filterUnitId);
             }
         }
