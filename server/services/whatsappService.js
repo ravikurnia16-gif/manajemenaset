@@ -5,9 +5,11 @@ const WHATSAPP_API_URL = 'https://bidang-sarana-wawebjs.ltdh6w.easypanel.host/ap
 // --- STAGGERED QUEUE SYSTEM ---
 let messageQueue = [];
 let isProcessing = false;
+let lastSentTime = 0;
+const MIN_INTERVAL = 30000; // Minimum 30 seconds global interval
 
 /**
- * Worker that processes the queue one by one with delays
+ * Worker that processes the queue one by one with mandatory delays
  */
 const processQueue = async () => {
     if (isProcessing || messageQueue.length === 0) return;
@@ -16,6 +18,15 @@ const processQueue = async () => {
     console.log(`[WhatsApp Queue] Starting output worker. ${messageQueue.length} message(s) pending.`);
 
     while (messageQueue.length > 0) {
+        // Enforce Global Minimum Interval
+        const now = Date.now();
+        const timeSinceLast = now - lastSentTime;
+        if (timeSinceLast < MIN_INTERVAL) {
+            const waitTime = MIN_INTERVAL - timeSinceLast;
+            console.log(`[WhatsApp Queue] Global cooldown active. Waiting ${Math.round(waitTime / 1000)}s...`);
+            await new Promise(r => setTimeout(r, waitTime));
+        }
+
         const { phoneNumber, message, resolve, reject } = messageQueue.shift();
 
         try {
@@ -37,18 +48,20 @@ const processQueue = async () => {
             });
 
             console.log(`[WhatsApp] Sent success to ${formattedPhone}: ${message.substring(0, 30)}...`);
+            lastSentTime = Date.now(); // Update last success time
             resolve(response.data);
         } catch (error) {
             const errorMsg = error.response?.data?.message || error.message;
             console.error(`[WhatsApp Error] Target: ${phoneNumber} | Msg: ${errorMsg}`);
-            resolve(null); // Resolve with null to avoid breaking the queue
+            lastSentTime = Date.now(); // Also update on failure to avoid spamming the API
+            resolve(null);
         }
 
-        // 3. Stagger: Wait 30-60 seconds before next message if queue not empty
+        // 3. Stagger: Add an extra random delay if more items exist
         if (messageQueue.length > 0) {
-            const delay = Math.floor(Math.random() * (60000 - 30000 + 1)) + 30000;
-            console.log(`[WhatsApp Queue] Waiting ${Math.round(delay / 1000)}s before next message...`);
-            await new Promise(r => setTimeout(r, delay));
+            const extraStagger = Math.floor(Math.random() * (30000)) + 5000; // Extra 5-35s
+            console.log(`[WhatsApp Queue] Extra stagger: ${Math.round(extraStagger / 1000)}s...`);
+            await new Promise(r => setTimeout(r, extraStagger));
         }
     }
 
