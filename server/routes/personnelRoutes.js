@@ -17,7 +17,14 @@ router.put('/assignments/:id/status', personnelController.updateAssignmentStatus
 // Dashboard
 router.get('/dashboard', verifyToken, personnelController.getPersonnelDashboard);
 
+// Drivers
+router.get('/drivers', personnelController.getDrivers);
+router.post('/drivers/toggle', personnelController.toggleDriverDesignation);
+
 // Staff List (Sarpras)
 router.get('/staff', personnelController.getStaffSarpras);
+
+// All Users for Selection
+router.get('/all-users', personnelController.getAllUsersForSelection);
 
 module.exports = router;

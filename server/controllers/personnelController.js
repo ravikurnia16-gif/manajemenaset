@@ -357,10 +357,94 @@ exports.getStaffSarpras = async (req, res) => {
                 ]
             },
             orderBy: { name: 'asc' },
-            select: { id: true, name: true }
+            select: { id: true, name: true, position: true }
         });
 
         res.json(staff);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// --- DRIVER MANAGEMENT ---
+
+exports.getDrivers = async (req, res) => {
+    try {
+        const drivers = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { position: { contains: 'Sopir' } },
+                    { position: { contains: 'Driver' } }
+                ]
+            },
+            include: {
+                unit: { select: { name: true } }
+            },
+            orderBy: { name: 'asc' }
+        });
+        res.json(drivers);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.toggleDriverDesignation = async (req, res) => {
+    const { userId, isDriver } = req.body;
+    const userRole = req.user.role;
+
+    try {
+        // Only Super Admin or Admin Aset can toggle designation
+        if (!['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(userRole)) {
+            return res.status(403).json({ error: 'Akses ditolak. Anda tidak memiliki izin untuk mengelola daftar sopir.' });
+        }
+
+        const targetUser = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
+        if (!targetUser) return res.status(400).json({ error: 'User tidak ditemukan.' });
+
+        let currentPosition = targetUser.position || '';
+        let newPosition = currentPosition;
+
+        if (isDriver) {
+            if (!currentPosition.toLowerCase().includes('sopir') && !currentPosition.toLowerCase().includes('driver')) {
+                newPosition = currentPosition ? `${currentPosition} / Sopir` : 'Sopir';
+            }
+        } else {
+            // Remove 'Sopir' or 'Driver' with various separators
+            newPosition = currentPosition
+                .replace(/\s*\/\s*Sopir/gi, '')
+                .replace(/Sopir\s*\/\s*/gi, '')
+                .replace(/\s*\/\s*Driver/gi, '')
+                .replace(/Driver\s*\/\s*/gi, '')
+                .replace(/^Sopir$/gi, '')
+                .replace(/^Driver$/gi, '')
+                .trim();
+        }
+
+        const updated = await prisma.user.update({
+            where: { id: parseInt(userId) },
+            data: { position: newPosition || null }
+        });
+
+        res.json({ message: 'Status Driver berhasil diperbarui', data: updated });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getAllUsersForSelection = async (req, res) => {
+    try {
+        const users = await prisma.user.findMany({
+            orderBy: { name: 'asc' },
+            select: {
+                id: true,
+                name: true,
+                username: true,
+                position: true,
+                role: true,
+                unit: { select: { name: true } }
+            }
+        });
+        res.json(users);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

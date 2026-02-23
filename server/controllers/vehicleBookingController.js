@@ -31,6 +31,9 @@ exports.requestBooking = async (req, res) => {
             return res.status(400).json({ error: 'Waktu selesai harus setelah waktu mulai.' });
         }
 
+        const isPIC = vehicle.pics.some(p => p.id === userId);
+        const initialStatus = isPIC ? 'APPROVED' : 'PENDING';
+
         const booking = await prisma.vehicleBooking.create({
             data: {
                 vehicleId: parseInt(vehicleId),
@@ -41,10 +44,10 @@ exports.requestBooking = async (req, res) => {
                 endDate: new Date(endDate),
                 passengerCount: parseInt(passengerCount) || 0,
                 driverId: driverId ? parseInt(driverId) : null,
-                status: 'PENDING'
+                status: initialStatus
             },
             include: {
-                user: { select: { name: true } },
+                user: { select: { name: true, phone: true } },
                 vehicle: { select: { name: true, plateNumber: true, pics: true } }
             }
         });
@@ -57,13 +60,21 @@ exports.requestBooking = async (req, res) => {
                 `Jadwal: ${new Date(startDate).toLocaleString('id-ID')} s/d ${new Date(endDate).toLocaleString('id-ID')}\n` +
                 `Tujuan: ${destination}\n` +
                 `Keperluan: ${purpose}\n\n` +
-                `Mohon tinjau di sistem untuk persetujuan.`;
+                (isPIC ? `*Status*: Otomatis Disetujui (PIC)` : `Mohon tinjau di sistem untuk persetujuan.`);
 
             for (const pic of vehicle.pics) {
                 if (pic.phone) {
                     await sendMessage(pic.phone, msg);
                 }
             }
+        }
+
+        // If Auto-Approved, notify the requester too
+        if (isPIC && booking.user.phone) {
+            const msg = `📢 *KONFIRMASI PEMINJAMAN*\n\n` +
+                `Permintaan Anda untuk kendaraan *${vehicle.name}* telah *DISETUJUI OTOMATIS* (Sistem mendeteksi Anda sebagai PIC).\n\n` +
+                `Selamat bertugas!`;
+            await sendMessage(booking.user.phone, msg);
         }
 
         res.status(201).json(booking);

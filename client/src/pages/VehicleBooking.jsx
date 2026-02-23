@@ -773,7 +773,7 @@ const VehicleBooking = () => {
                                             <div className="text-[10px] text-blue-500 font-bold mt-0.5">{d.position}</div>
                                         </div>
                                     </div>
-                                    {isSuperAdmin && (
+                                    {(isSuperAdmin || isAdminAset) && (
                                         <button
                                             onClick={() => handleToggleDriver(d.id, true)}
                                             className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
@@ -786,7 +786,7 @@ const VehicleBooking = () => {
                             ))}
                         </div>
 
-                        {isSuperAdmin && (
+                        {(isSuperAdmin || isAdminAset) && (
                             <div className="pt-6 border-t border-slate-100">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
                                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
@@ -813,7 +813,7 @@ const VehicleBooking = () => {
                                                 const matchesSearch = searchStr.includes(candidateSearch.toLowerCase());
                                                 return !isAlreadyDriver && matchesSearch;
                                             })
-                                            .slice(0, 15)
+                                            // .slice(0, 15) // Removing slice to show more matches
                                             .map(s => (
                                                 <button
                                                     key={s.id}
