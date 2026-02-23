@@ -17,6 +17,8 @@ const VehicleBooking = () => {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [toasts, setToasts] = useState([]);
+    const [driverSearch, setDriverSearch] = useState('');
+    const [showDriverDropdown, setShowDriverDropdown] = useState(false);
 
     const showToast = (message, type = 'success') => {
         const id = Date.now();
@@ -55,6 +57,16 @@ const VehicleBooking = () => {
     const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role);
     const isAdminAset = ['ADMIN_ASET'].includes(user.role);
     const [isPIC, setIsPIC] = useState(false);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (showDriverDropdown && !e.target.closest('.relative')) {
+                setShowDriverDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showDriverDropdown]);
 
     useEffect(() => {
         fetchVehicles();
@@ -524,24 +536,96 @@ const VehicleBooking = () => {
                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Pilih Driver</label>
                                             <div className="relative">
                                                 <User className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
-                                                <select
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm appearance-none focus:ring-2 focus:ring-blue-500 outline-none"
-                                                    value={formData.driverId}
-                                                    onChange={e => setFormData({ ...formData, driverId: e.target.value })}
+                                                <div
+                                                    className={`w-full bg-slate-50 border ${showDriverDropdown ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200'} rounded-xl pl-12 pr-10 py-3 text-sm cursor-pointer transition-all relative min-h-[46px] flex items-center`}
+                                                    onClick={() => setShowDriverDropdown(!showDriverDropdown)}
                                                 >
-                                                    <option value="">Bawa Sendiri</option>
-                                                    <optgroup label="Sopir Resmi">
-                                                        {staff.filter(s => s.position?.toLowerCase().includes('sopir') || s.position?.toLowerCase().includes('driver')).map(s => (
-                                                            <option key={s.id} value={s.id}>{s.name} (Sopir)</option>
-                                                        ))}
-                                                    </optgroup>
-                                                    <optgroup label="Staf Lainnya">
-                                                        {staff.filter(s => !s.position?.toLowerCase().includes('sopir') && !s.position?.toLowerCase().includes('driver')).map(s => (
-                                                            <option key={s.id} value={s.id}>{s.name}</option>
-                                                        ))}
-                                                    </optgroup>
-                                                </select>
-                                                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90" size={16} />
+                                                    {formData.driverId ? (
+                                                        <span className="font-bold text-slate-800">
+                                                            {staff.find(s => s.id === parseInt(formData.driverId))?.name || 'User Terpilih'}
+                                                            <span className="ml-2 text-[10px] text-slate-400 font-normal">
+                                                                ({staff.find(s => s.id === parseInt(formData.driverId))?.unit?.name || 'Tanpa Unit'})
+                                                            </span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400 font-medium italic">Bawa Sendiri / Pilih Driver...</span>
+                                                    )}
+                                                    <ChevronRight className={`absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition-transform ${showDriverDropdown ? 'rotate-90' : ''}`} size={16} />
+                                                </div>
+
+                                                {showDriverDropdown && (
+                                                    <div className="absolute z-[60] left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[350px] flex flex-col">
+                                                        <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+                                                            <div className="relative">
+                                                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                                <input
+                                                                    autoFocus
+                                                                    type="text"
+                                                                    placeholder="Cari nama atau unit..."
+                                                                    className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                    value={driverSearch}
+                                                                    onChange={e => setDriverSearch(e.target.value)}
+                                                                    onClick={e => e.stopPropagation()}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="overflow-y-auto p-2 custom-scrollbar">
+                                                            <button
+                                                                type="button"
+                                                                className={`w-full text-left p-3 rounded-xl text-xs font-bold transition-all mb-1 ${!formData.driverId ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setFormData({ ...formData, driverId: '' });
+                                                                    setShowDriverDropdown(false);
+                                                                    setDriverSearch('');
+                                                                }}
+                                                            >
+                                                                BAWA SENDIRI
+                                                            </button>
+
+                                                            {Object.entries(
+                                                                staff
+                                                                    .filter(s => {
+                                                                        const searchStr = `${s.name || ''} ${s.unit?.name || ''}`.toLowerCase();
+                                                                        return searchStr.includes(driverSearch.toLowerCase());
+                                                                    })
+                                                                    .reduce((acc, s) => {
+                                                                        const unitName = s.unit?.name || 'UMUM / LAINNYA';
+                                                                        if (!acc[unitName]) acc[unitName] = [];
+                                                                        acc[unitName].push(s);
+                                                                        return acc;
+                                                                    }, {})
+                                                            ).map(([unitName, members]) => (
+                                                                <div key={unitName} className="mt-2 first:mt-0">
+                                                                    <div className="px-3 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-50/50 rounded-lg mb-1">
+                                                                        {unitName}
+                                                                    </div>
+                                                                    {members.map(s => (
+                                                                        <button
+                                                                            key={s.id}
+                                                                            type="button"
+                                                                            className={`w-full text-left p-3 rounded-xl transition-all mb-1 group ${formData.driverId === s.id.toString() ? 'bg-blue-50 border border-blue-100' : 'hover:bg-slate-50 border border-transparent'}`}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setFormData({ ...formData, driverId: s.id.toString() });
+                                                                                setShowDriverDropdown(false);
+                                                                                setDriverSearch('');
+                                                                            }}
+                                                                        >
+                                                                            <div className="text-xs font-bold text-slate-800 flex justify-between items-center">
+                                                                                {s.name}
+                                                                                {formData.driverId === s.id.toString() && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+                                                                            </div>
+                                                                            <div className="text-[10px] text-slate-400 font-medium">
+                                                                                {s.position || 'Staff'}
+                                                                            </div>
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

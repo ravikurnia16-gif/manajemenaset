@@ -72,10 +72,10 @@ exports.createVehicle = async (req, res) => {
         const {
             name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
-            taxDueDate, stnkDueDate, picIds
+            taxDueDate, stnkDueDate, kirDueDate, picIds
         } = req.body;
 
-        console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate, picIds });
+        console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds });
 
         const vehicle = await prisma.vehicle.create({
             data: {
@@ -92,6 +92,7 @@ exports.createVehicle = async (req, res) => {
                 status: status || 'ACTIVE',
                 taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
                 stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
+                kirDueDate: kirDueDate ? new Date(kirDueDate) : null,
                 pics: {
                     connect: (picIds || []).map(id => ({ id: parseInt(id) }))
                 }
@@ -112,10 +113,10 @@ exports.updateVehicle = async (req, res) => {
         const {
             name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
-            taxDueDate, stnkDueDate, picIds
+            taxDueDate, stnkDueDate, kirDueDate, picIds
         } = req.body;
 
-        console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber, taxDueDate, stnkDueDate, picIds });
+        console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds });
 
         const vehicle = await prisma.vehicle.update({
             where: { id: parseInt(req.params.id) },
@@ -133,6 +134,7 @@ exports.updateVehicle = async (req, res) => {
                 status,
                 taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
                 stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
+                kirDueDate: kirDueDate ? new Date(kirDueDate) : null,
                 pics: {
                     set: (picIds || []).map(id => ({ id: parseInt(id) }))
                 }
@@ -222,6 +224,75 @@ exports.checkTaxNotifications = async () => {
         }
     } catch (error) {
         console.error('Failed to check tax notifications:', error.message);
+    }
+};
+
+/**
+ * Checker for Vehicle KIR Notifications
+ * Sent 30 days before, then every 5 days (25, 20, 15, 10, 5, 0)
+ */
+exports.checkKirNotifications = async () => {
+    try {
+        console.log('Checking for vehicle KIR notifications...');
+
+        const vehicles = await prisma.vehicle.findMany({
+            where: {
+                status: 'ACTIVE',
+                kirDueDate: { not: null }
+            }
+        });
+
+        if (vehicles.length === 0) return;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Find recipients: Leads and Finance Staff
+        const recipients = await prisma.user.findMany({
+            where: {
+                position: { in: ['Kepala Bidang Sarana dan Prasarana', 'Staff Keuangan'] },
+                phone: { not: null, not: '' }
+            }
+        });
+
+        if (recipients.length === 0) {
+            console.log('No recipients found for KIR notification.');
+            return;
+        }
+
+        for (const vehicle of vehicles) {
+            const dueDate = new Date(vehicle.kirDueDate);
+            dueDate.setHours(0, 0, 0, 0);
+
+            const diffInTime = dueDate.getTime() - today.getTime();
+            const diffInDays = Math.ceil(diffInTime / (1000 * 3600 * 24));
+
+            // Notify on day 30, 25, 20, 15, 10, 5, and 0
+            if ([30, 25, 20, 15, 10, 5, 0].includes(diffInDays)) {
+                const dayLabel = diffInDays === 0 ? "HARI INI" : `dalam ${diffInDays} hari`;
+                const message = `🚚 *PENGINGAT JADWAL KIR*\n\n` +
+                    `Kendaraan *${vehicle.name} (${vehicle.plateNumber})* akan jatuh tempo *KIR* ${dayLabel}.\n\n` +
+                    `Tanggal Jatuh Tempo: ${new Date(vehicle.kirDueDate).toLocaleDateString('id-ID')}\n` +
+                    `Mohon segera diproses pendaftarannya.`;
+
+                let cumulativeDelay = 0;
+                for (const person of recipients) {
+                    const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
+                    cumulativeDelay += randomGap;
+
+                    setTimeout(async () => {
+                        try {
+                            await sendMessage(person.phone, message);
+                            console.log(`KIR notification sent for ${vehicle.name} to ${person.name} (${person.phone})`);
+                        } catch (e) {
+                            console.error(`[Vehicle KIR] Failed to notify ${person.name}:`, e.message);
+                        }
+                    }, cumulativeDelay);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Failed to check KIR notifications:', error.message);
     }
 };
 

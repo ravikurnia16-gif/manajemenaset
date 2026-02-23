@@ -430,6 +430,7 @@ model Vehicle {
   engineNumber  String?   // No Mesin
   taxDueDate    DateTime? // Pajak Tahunan
   stnkDueDate   DateTime? // Pajak 5 Tahunan
+  kirDueDate    DateTime? // Jadwal KIR (Optional)
   
   // Relations
   assetId       Int?      @unique // Optional link to Asset table

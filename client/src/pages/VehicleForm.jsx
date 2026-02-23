@@ -22,6 +22,7 @@ const VehicleForm = () => {
         status: 'ACTIVE',
         taxDueDate: '',
         stnkDueDate: '',
+        kirDueDate: '',
         picIds: []
     });
     const [users, setUsers] = useState([]);
@@ -49,6 +50,7 @@ const VehicleForm = () => {
                 ...data,
                 taxDueDate: formatDate(data.taxDueDate),
                 stnkDueDate: formatDate(data.stnkDueDate),
+                kirDueDate: formatDate(data.kirDueDate),
                 picIds: data.pics?.map(p => p.id) || []
             });
         } catch (error) {
@@ -310,6 +312,17 @@ const VehicleForm = () => {
                                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 font-mono"
                                 value={form.stnkDueDate}
                                 onChange={e => setForm({ ...form, stnkDueDate: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase mb-2">
+                                <Calendar size={14} className="text-blue-600" /> Jadwal KIR (Opsional)
+                            </label>
+                            <input
+                                type="date"
+                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 font-mono"
+                                value={form.kirDueDate}
+                                onChange={e => setForm({ ...form, kirDueDate: e.target.value })}
                             />
                         </div>
                         <div>

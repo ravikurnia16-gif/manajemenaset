@@ -147,6 +147,15 @@ const VehicleList = () => {
                                             STNK (5 Thn): {new Date(v.stnkDueDate).toLocaleDateString('id-ID')}
                                         </div>
                                     )}
+                                    {v.kirDueDate && (
+                                        <div className={`col-span-2 flex items-center gap-2 text-[10px] font-bold py-1 px-3 rounded-lg ${new Date(v.kirDueDate) <= new Date(new Date().setDate(new Date().getDate() + 30))
+                                            ? 'bg-blue-50 text-blue-600 animate-pulse'
+                                            : 'bg-slate-50 text-slate-500'
+                                            }`}>
+                                            <Calendar size={12} />
+                                            Jadwal KIR: {new Date(v.kirDueDate).toLocaleDateString('id-ID')}
+                                        </div>
+                                    )}
                                     {v.nextServiceOdometer ? (() => {
                                         const kmRemaining = v.nextServiceOdometer - (v.odometer || 0);
                                         const isUrgent = kmRemaining <= 500 && kmRemaining > 0;
