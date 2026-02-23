@@ -138,7 +138,7 @@ exports.reviewLoan = async (req, res) => {
         const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(reviewer.role);
 
         if (!isSarpras && !isSuperAdmin) {
-            return res.status(403).json({ error: 'Hanya Sarpras Unit (Admin Unit) atau Super Admin yang dapat menyetujui/menolak peminjaman ini' });
+            return res.status(403).json({ error: 'Akses ditolak. Hanya Admin Unit dari unit pemilik aset (Pemberi Pinjaman) atau Super Admin yang dapat memberikan persetujuan.' });
         }
 
         const updatedLoan = await prisma.assetLoan.update({
@@ -199,6 +199,16 @@ exports.getAllLoans = async (req, res) => {
         // Security: Non-admins can only see their own loans
         if (req.user.role === 'USER') {
             where.borrowerId = req.user.id;
+        } else if (req.user.role === 'ADMIN_UNIT') {
+            // Admin Unit sees:
+            // 1. Loans where they are the borrower
+            // 2. Loans where the asset belongs to their unit (Owner)
+            // 3. Loans where their unit is the target unit (Borrower Unit)
+            where.OR = [
+                { borrowerId: req.user.id },
+                { unitId: req.user.unitId },
+                { targetUnitId: req.user.unitId }
+            ];
         }
 
         const loans = await prisma.assetLoan.findMany({

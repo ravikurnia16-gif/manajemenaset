@@ -204,9 +204,10 @@ const LoanList = () => {
                         <thead className="bg-slate-50 text-slate-600 text-xs uppercase font-bold tracking-wider">
                             <tr>
                                 <th className="px-6 py-4">Aset</th>
-                                <th className="px-6 py-4">Peminjam</th>
-                                <th className="px-6 py-4">Tujuan (Unit)</th>
-                                <th className="px-6 py-4">Waktu</th>
+                                <th className="px-6 py-4">Peminjam (User)</th>
+                                <th className="px-6 py-4">Unit Pemilik (Asal)</th>
+                                <th className="px-6 py-4">Unit Peminjam (Tujuan)</th>
+                                <th className="px-6 py-4 border-l">Waktu</th>
                                 <th className="px-6 py-4">Status</th>
                                 <th className="px-6 py-4 text-center">Aksi</th>
                             </tr>
@@ -234,9 +235,14 @@ const LoanList = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="flex items-center gap-1.5 text-slate-600 font-medium text-[11px]">
+                                            <Building2 size={12} className="text-slate-400" /> {l.asset?.unit?.name || '-'}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-1.5 text-blue-600 font-bold text-[11px]">
-                                                <Building2 size={12} /> {l.targetUnit?.name || 'Unit Internal'}
+                                                <ArrowRightLeft size={12} /> {l.targetUnit?.name || 'Unit Internal'}
                                             </div>
                                             <div className="text-[10px] text-slate-400 italic max-w-[150px] truncate">{l.purpose}</div>
                                         </div>
@@ -372,7 +378,7 @@ const LoanList = () => {
 
                         <div className="space-y-6">
                             <div>
-                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Unit Tujuan (Lokasi Penggunaan)</label>
+                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Unit Peminjam (Unit Anda / Tujuan)</label>
                                 <select
                                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 text-sm font-bold focus:border-blue-500 outline-none"
                                     value={targetUnitId}
