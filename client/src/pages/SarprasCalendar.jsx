@@ -88,22 +88,30 @@ const SarprasCalendar = () => {
 
     const getEventsForDay = (day) => {
         if (!day) return [];
-        // Format as YYYY-MM-DD for stable string comparison
-        const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+        // Target date normalized to local midnight
+        const targetDate = new Date(currentYear, currentMonth - 1, day);
+        targetDate.setHours(0, 0, 0, 0);
+        const targetTime = targetDate.getTime();
 
         return events.filter(event => {
             if (!event.date) return false;
 
-            const eventStartStr = event.date.split('T')[0];
+            // Start date normalized to local midnight
+            const startDate = new Date(event.date);
+            startDate.setHours(0, 0, 0, 0);
+            const startTime = startDate.getTime();
 
-            // If it has an endDate, check range (string comparison is fine for YYYY-MM-DD)
+            // If it has an endDate, check range
             if (event.endDate) {
-                const eventEndStr = event.endDate.split('T')[0];
-                return dateStr >= eventStartStr && dateStr <= eventEndStr;
+                const endDate = new Date(event.endDate);
+                endDate.setHours(23, 59, 59, 999);
+                const endTime = endDate.getTime();
+                return targetTime >= startTime && targetTime <= endTime;
             }
 
             // Fallback to single day event
-            return dateStr === eventStartStr;
+            return targetTime === startTime;
         });
     };
 
@@ -299,7 +307,7 @@ const SarprasCalendar = () => {
                                             {dayEvents.slice(0, 3).map((ev, idx) => {
                                                 const style = getCategoryStyle(ev.category);
                                                 return (
-                                                    <div key={`${ev.id}-${idx}`} className={`text-[9px] px-1 py-0.5 rounded truncate font-medium ${style.bg} ${style.text} ${style.border} border`} title={ev.title}>
+                                                    <div key={ev.instanceId || `${ev.id}-${idx}`} className={`text-[9px] px-1 py-0.5 rounded truncate font-medium ${style.bg} ${style.text} ${style.border} border`} title={ev.title}>
                                                         {ev.isPinned && '📌 '}{ev.title}
                                                     </div>
                                                 );

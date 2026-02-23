@@ -4,24 +4,25 @@ const whatsappService = require('../services/whatsappService');
 
 // ====== HELPERS ======
 
-// Helper to check if a recurring event occurs on a specific date
+// Helper to check if a recurring event occurs on a specific date (Input d is a Date object, usually at local midnight)
 function isEventOccurringOn(event, targetDate) {
     const eventDate = new Date(event.date);
     const recurEnd = event.recurringEndDate ? new Date(event.recurringEndDate) : null;
     const interval = event.recurringInterval || 1;
     const recurringDays = event.recurringDays ? event.recurringDays.split(',').map(Number) : [];
 
-    // Normalize target date to midnight
-    const d = new Date(targetDate);
-    d.setHours(0, 0, 0, 0);
+    // Use local date strings for comparison to avoid timezone shifts
+    const dStr = targetDate.toISOString().split('T')[0];
+    const sdStr = eventDate.toISOString().split('T')[0];
 
-    const sd = new Date(eventDate);
-    sd.setHours(0, 0, 0, 0);
+    // Normalize to midnight local for math
+    const d = new Date(dStr + 'T00:00:00');
+    const sd = new Date(sdStr + 'T00:00:00');
 
     if (d < sd) return false;
     if (recurEnd) {
-        const ed = new Date(recurEnd);
-        ed.setHours(23, 59, 59, 999);
+        const edStr = recurEnd.toISOString().split('T')[0];
+        const ed = new Date(edStr + 'T23:59:59');
         if (d > ed) return false;
     }
 
@@ -53,14 +54,23 @@ function expandRecurringEvents(event, year, month) {
     const results = [];
     const monthEnd = new Date(year, month, 0).getDate();
 
+    // Calculate duration if it's a range event
+    const originalStart = new Date(event.date);
+    const originalEnd = event.endDate ? new Date(event.endDate) : null;
+    const duration = originalEnd ? (originalEnd.getTime() - originalStart.getTime()) : 0;
+
     for (let d = 1; d <= monthEnd; d++) {
-        const targetDate = new Date(year, month - 1, d);
+        // Construct date at local midday to avoid DST shift bugs during comparison
+        const targetDate = new Date(year, month - 1, d, 12, 0, 0);
         if (isEventOccurringOn(event, targetDate)) {
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const instanceStart = new Date(year, month - 1, d, 0, 0, 0);
             results.push({
                 ...event,
-                date: targetDate.toISOString(),
+                date: instanceStart.toISOString(),
+                endDate: duration > 0 ? new Date(instanceStart.getTime() + duration).toISOString() : null,
                 isRecurringInstance: true,
-                originalId: event.id
+                instanceId: `${event.id}-${dateStr}` // Unique ID for React keys
             });
         }
     }
