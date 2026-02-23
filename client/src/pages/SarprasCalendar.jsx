@@ -44,7 +44,7 @@ const SarprasCalendar = () => {
     const [form, setForm] = useState({
         title: '', description: '', category: 'Lainnya', date: '',
         endDate: '', isPinned: false, location: '', picIds: [],
-        isRecurring: false, recurringType: '', recurringEndDate: ''
+        isRecurring: false, recurringType: '', recurringInterval: 1, recurringDays: [], recurringEndDate: ''
     });
     const [picSearch, setPicSearch] = useState('');
 
@@ -121,7 +121,7 @@ const SarprasCalendar = () => {
 
     const openAddModal = (day) => {
         const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        setForm({ title: '', description: '', category: 'Lainnya', date: dateStr, endDate: '', isPinned: false, location: '', picIds: [], isRecurring: false, recurringType: '', recurringEndDate: '' });
+        setForm({ title: '', description: '', category: 'Lainnya', date: dateStr, endDate: '', isPinned: false, location: '', picIds: [], isRecurring: false, recurringType: '', recurringInterval: 1, recurringDays: [], recurringEndDate: '' });
         setEditingEvent(null);
         setPicSearch('');
         setShowModal(true);
@@ -134,6 +134,8 @@ const SarprasCalendar = () => {
             endDate: event.endDate?.split('T')[0] || '', isPinned: event.isPinned,
             location: event.location || '', picIds: event.pics?.map(p => p.id) || [],
             isRecurring: event.isRecurring, recurringType: event.recurringType || '',
+            recurringInterval: event.recurringInterval || 1,
+            recurringDays: event.recurringDays ? event.recurringDays.split(',').map(Number) : [],
             recurringEndDate: event.recurringEndDate?.split('T')[0] || ''
         });
         setEditingEvent(event);
@@ -149,6 +151,8 @@ const SarprasCalendar = () => {
                 picIds: (form.picIds || []).map(id => parseInt(id)),
                 isRecurring: form.isRecurring,
                 recurringType: form.isRecurring ? form.recurringType : null,
+                recurringInterval: form.isRecurring ? parseInt(form.recurringInterval) : 1,
+                recurringDays: (form.isRecurring && form.recurringType === 'WEEKLY') ? form.recurringDays : null,
                 recurringEndDate: form.isRecurring && form.recurringEndDate ? form.recurringEndDate : null
             };
 
@@ -491,15 +495,50 @@ const SarprasCalendar = () => {
                                     <span className="text-xs font-bold text-slate-700 flex items-center gap-1"><Repeat size={12} /> Kegiatan Berulang</span>
                                 </label>
                                 {form.isRecurring && (
-                                    <div className="grid grid-cols-2 gap-3 mt-2">
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-400 mb-1">Frekuensi</label>
-                                            <select className="w-full border border-slate-300 rounded-lg p-2 text-xs outline-none" value={form.recurringType} onChange={e => setForm({ ...form, recurringType: e.target.value })}>
-                                                {RECURRING_TYPES.filter(r => r.value).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                                            </select>
+                                    <div className="space-y-3 mt-3 border-t border-slate-200 pt-3">
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-400 mb-1">Frekuensi</label>
+                                                <select className="w-full border border-slate-300 rounded-lg p-2 text-xs outline-none" value={form.recurringType} onChange={e => setForm({ ...form, recurringType: e.target.value })}>
+                                                    {RECURRING_TYPES.filter(r => r.value).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-400 mb-1">Setiap...</label>
+                                                <div className="flex items-center gap-2">
+                                                    <input type="number" min="1" className="w-16 border border-slate-300 rounded-lg p-2 text-xs outline-none" value={form.recurringInterval} onChange={e => setForm({ ...form, recurringInterval: e.target.value })} />
+                                                    <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap">
+                                                        {form.recurringType === 'DAILY' ? 'Hari' : form.recurringType === 'WEEKLY' ? 'Minggu' : form.recurringType === 'MONTHLY' ? 'Bulan' : 'Tahun'}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
+
+                                        {form.recurringType === 'WEEKLY' && (
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-400 mb-2">Pada Hari</label>
+                                                <div className="flex justify-between gap-1">
+                                                    {DAY_NAMES.map((day, idx) => (
+                                                        <button
+                                                            key={day}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const newDays = form.recurringDays.includes(idx)
+                                                                    ? form.recurringDays.filter(d => d !== idx)
+                                                                    : [...form.recurringDays, idx];
+                                                                setForm({ ...form, recurringDays: newDays });
+                                                            }}
+                                                            className={`w-8 h-8 rounded-full text-[10px] font-bold border transition ${form.recurringDays.includes(idx) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                                                        >
+                                                            {day[0]}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div>
-                                            <label className="block text-[10px] font-bold text-slate-400 mb-1">Berulang Sampai</label>
+                                            <label className="block text-[10px] font-bold text-slate-400 mb-1">Berulang Sampai (Opsional)</label>
                                             <input type="date" className="w-full border border-slate-300 rounded-lg p-2 text-xs outline-none" value={form.recurringEndDate} onChange={e => setForm({ ...form, recurringEndDate: e.target.value })} />
                                         </div>
                                     </div>

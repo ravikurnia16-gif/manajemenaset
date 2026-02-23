@@ -4,96 +4,64 @@ const whatsappService = require('../services/whatsappService');
 
 // ====== HELPERS ======
 
+// Helper to check if a recurring event occurs on a specific date
+function isEventOccurringOn(event, targetDate) {
+    const eventDate = new Date(event.date);
+    const recurEnd = event.recurringEndDate ? new Date(event.recurringEndDate) : null;
+    const interval = event.recurringInterval || 1;
+    const recurringDays = event.recurringDays ? event.recurringDays.split(',').map(Number) : [];
+
+    // Normalize target date to midnight
+    const d = new Date(targetDate);
+    d.setHours(0, 0, 0, 0);
+
+    const sd = new Date(eventDate);
+    sd.setHours(0, 0, 0, 0);
+
+    if (d < sd) return false;
+    if (recurEnd) {
+        const ed = new Date(recurEnd);
+        ed.setHours(23, 59, 59, 999);
+        if (d > ed) return false;
+    }
+
+    if (event.recurringType === 'DAILY') {
+        const daysDiff = Math.floor((d.getTime() - sd.getTime()) / (24 * 60 * 60 * 1000));
+        return daysDiff % interval === 0;
+    } else if (event.recurringType === 'WEEKLY') {
+        if (recurringDays.length > 0) {
+            if (!recurringDays.includes(d.getDay())) return false;
+        } else {
+            if (d.getDay() !== sd.getDay()) return false;
+        }
+        const weeksDiff = Math.floor((d.getTime() - sd.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        return weeksDiff % interval === 0;
+    } else if (event.recurringType === 'MONTHLY') {
+        if (d.getDate() !== sd.getDate()) return false;
+        const monthsDiff = (d.getFullYear() - sd.getFullYear()) * 12 + (d.getMonth() - sd.getMonth());
+        return monthsDiff % interval === 0;
+    } else if (event.recurringType === 'YEARLY') {
+        if (d.getDate() !== sd.getDate() || d.getMonth() !== sd.getMonth()) return false;
+        const yearsDiff = d.getFullYear() - sd.getFullYear();
+        return yearsDiff % interval === 0;
+    }
+    return false;
+}
+
 // Expand recurring events for a given month
 function expandRecurringEvents(event, year, month) {
     const results = [];
-    const monthStart = new Date(year, month - 1, 1);
-    const monthEnd = new Date(year, month, 0, 23, 59, 59);
-    const eventDate = new Date(event.date);
-    const recurEnd = event.recurringEndDate ? new Date(event.recurringEndDate) : null;
+    const monthEnd = new Date(year, month, 0).getDate();
 
-    if (recurEnd && recurEnd < monthStart) return results;
-    if (eventDate > monthEnd) return results;
-
-    // Helper to format an event instance
-    const formatEventInstance = (originalEvent, instanceDate) => ({
-        ...originalEvent,
-        date: instanceDate.toISOString(),
-        isRecurringInstance: true,
-        originalId: originalEvent.id
-    });
-
-    let current = new Date(eventDate);
-
-    // Normalize to 00:00 for comparison
-    const normMonthStart = new Date(year, month - 1, 1);
-    normMonthStart.setHours(0, 0, 0, 0); // Ensure start of day
-    const normMonthEnd = new Date(year, month, 0, 23, 59, 59);
-    normMonthEnd.setHours(23, 59, 59, 999); // Ensure end of day
-
-    // Adjust 'current' to the first possible occurrence within or after normMonthStart
-    if (event.recurringType === 'DAILY') {
-        if (current < normMonthStart) {
-            current = new Date(normMonthStart);
-        }
-    } else if (event.recurringType === 'WEEKLY') {
-        if (current < normMonthStart) {
-            current = new Date(normMonthStart);
-        }
-        const targetDay = eventDate.getDay(); // Day of the week (0-6)
-        // Find the first occurrence of targetDay on or after 'current'
-        while (current.getDay() !== targetDay) {
-            current.setDate(current.getDate() + 1);
-        }
-    } else if (event.recurringType === 'MONTHLY') {
-        // For monthly, we need to find the first occurrence in the target month
-        // If eventDate.getDate() is 31 and target month only has 30 days, it will roll over to next month.
-        // So we need to be careful.
-        let tempDate = new Date(year, month - 1, eventDate.getDate());
-        if (tempDate.getMonth() !== (month - 1 + 12) % 12) { // Check if day overflowed to next month
-            tempDate = new Date(year, month - 1, 0); // Set to last day of current month
-        }
-        current = tempDate;
-    } else if (event.recurringType === 'YEARLY') {
-        // For yearly, we need to find the first occurrence in the target year/month
-        let tempDate = new Date(year, eventDate.getMonth(), eventDate.getDate());
-        if (tempDate.getMonth() !== eventDate.getMonth() || tempDate.getDate() !== eventDate.getDate()) {
-            // Day overflowed (e.g., Feb 29 on non-leap year), skip this year
-            return results;
-        }
-        current = tempDate;
-    }
-
-    // Ensure 'current' is not before the original event's start date
-    if (current < eventDate) {
-        current = new Date(eventDate);
-    }
-
-    while (current <= normMonthEnd && (!recurEnd || current <= recurEnd)) {
-        // Ensure we only add if it's within the requested month range
-        // and not before the original event's start date
-        if (current >= normMonthStart && current >= eventDate) {
-            results.push(formatEventInstance(event, current));
-        }
-
-        // Advance 'current' to the next occurrence
-        if (event.recurringType === 'DAILY') {
-            current.setDate(current.getDate() + 1);
-        } else if (event.recurringType === 'WEEKLY') {
-            current.setDate(current.getDate() + 7);
-        } else if (event.recurringType === 'MONTHLY') {
-            // For monthly, we only want one instance per month for the current view
-            // The initial 'current' calculation already set it to the correct day in the target month.
-            // If we are iterating through a month, we only want one instance.
-            // If the event date is 25th, and we are looking at Feb, we want Feb 25.
-            // If we are looking at March, we want March 25.
-            // The loop structure here is for iterating *days*, not months.
-            // So, for MONTHLY, we should just add the one instance for the month and break.
-            // The initial 'current' calculation already handles finding the correct day in the target month.
-            break; // Only one monthly event per month view
-        } else if (event.recurringType === 'YEARLY') {
-            // For yearly, we only want one instance per year for the current view
-            break; // Only one yearly event per month view
+    for (let d = 1; d <= monthEnd; d++) {
+        const targetDate = new Date(year, month - 1, d);
+        if (isEventOccurringOn(event, targetDate)) {
+            results.push({
+                ...event,
+                date: targetDate.toISOString(),
+                isRecurringInstance: true,
+                originalId: event.id
+            });
         }
     }
     return results;
@@ -229,7 +197,7 @@ const getSummary = async (req, res) => {
 // POST /api/calendar
 const createEvent = async (req, res) => {
     try {
-        const { title, description, category, date, endDate, isPinned, location, picIds, isRecurring, recurringType, recurringEndDate } = req.body;
+        const { title, description, category, date, endDate, isPinned, location, picIds, isRecurring, recurringType, recurringInterval, recurringDays, recurringEndDate } = req.body;
 
         if (!title || !date) return res.status(400).json({ error: 'Judul dan tanggal wajib diisi' });
 
@@ -241,8 +209,11 @@ const createEvent = async (req, res) => {
                 pics: {
                     connect: (Array.isArray(picIds) ? picIds : []).map(id => ({ id: parseInt(id) }))
                 },
-                isRecurring: isRecurring || false, recurringType: recurringType || null,
-                recurringEndDate: recurringEndDate ? new Date(recurringEndDate) : null,
+                isRecurring: isRecurring || false,
+                recurringType: isRecurring ? recurringType : null,
+                recurringInterval: isRecurring ? (parseInt(recurringInterval) || 1) : 1,
+                recurringDays: isRecurring ? (Array.isArray(recurringDays) ? recurringDays.join(',') : (recurringDays || null)) : null,
+                recurringEndDate: isRecurring && recurringEndDate ? new Date(recurringEndDate) : null,
                 createdById: req.user.id
             },
             include: { pics: { select: { id: true, name: true, phone: true } }, createdBy: { select: { id: true, name: true } } }
@@ -316,8 +287,7 @@ const createEvent = async (req, res) => {
 // PUT /api/calendar/:id
 const updateEvent = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { title, description, category, date, endDate, isPinned, location, picIds, isRecurring, recurringType, recurringEndDate } = req.body;
+        const { title, description, category, date, endDate, isPinned, location, picIds, isRecurring, recurringType, recurringInterval, recurringDays, recurringEndDate } = req.body;
 
         const event = await prisma.sarprasCalendarEvent.update({
             where: { id: parseInt(id) },
@@ -329,7 +299,11 @@ const updateEvent = async (req, res) => {
                 pics: {
                     set: (Array.isArray(picIds) ? picIds : []).map(id => ({ id: parseInt(id) }))
                 },
-                isRecurring: isRecurring || false, recurringType, recurringEndDate: recurringEndDate ? new Date(recurringEndDate) : null
+                isRecurring: isRecurring || false,
+                recurringType: isRecurring ? recurringType : null,
+                recurringInterval: isRecurring ? (parseInt(recurringInterval) || 1) : 1,
+                recurringDays: isRecurring ? (Array.isArray(recurringDays) ? recurringDays.join(',') : (recurringDays || null)) : null,
+                recurringEndDate: isRecurring && recurringEndDate ? new Date(recurringEndDate) : null
             },
             include: { pics: { select: { id: true, name: true, phone: true } }, createdBy: { select: { id: true, name: true } } }
         });
@@ -478,16 +452,10 @@ const sendCalendarReminders = async (req = null, res = null) => {
             include: { pics: { select: { id: true, name: true, phone: true } } }
         });
 
-        const allUpcoming = [...regularEvents];
         recurringEvents.forEach(ev => {
-            const eventDate = new Date(ev.date);
-            const d = tomorrow;
-            let match = false;
-            if (ev.recurringType === 'DAILY') match = true;
-            else if (ev.recurringType === 'WEEKLY') match = d.getDay() === eventDate.getDay();
-            else if (ev.recurringType === 'MONTHLY') match = d.getDate() === eventDate.getDate();
-            else if (ev.recurringType === 'YEARLY') match = d.getDate() === eventDate.getDate() && d.getMonth() === eventDate.getMonth();
-            if (match) allUpcoming.push(ev);
+            if (isEventOccurringOn(ev, tomorrow)) {
+                allUpcoming.push(ev);
+            }
         });
 
         if (allUpcoming.length === 0) {
@@ -597,27 +565,11 @@ const sendWeeklyCalendarSummary = async () => {
             orderBy: { date: 'asc' }
         });
 
-        const recurringEvents = await prisma.sarprasCalendarEvent.findMany({
-            where: {
-                isRecurring: true,
-                date: { lte: sunday },
-                OR: [{ recurringEndDate: null }, { recurringEndDate: { gte: monday } }]
-            },
-            include: { pics: { select: { name: true } } }
-        });
-
-        // 3. Expand recurring
-        let allWeekly = [...regularEvents];
         recurringEvents.forEach(ev => {
-            const evDate = new Date(ev.date);
             for (let d = new Date(monday); d <= sunday; d.setDate(d.getDate() + 1)) {
-                if (d < evDate) continue;
-                let match = false;
-                if (ev.recurringType === 'DAILY') match = true;
-                else if (ev.recurringType === 'WEEKLY') match = d.getDay() === evDate.getDay();
-                else if (ev.recurringType === 'MONTHLY') match = d.getDate() === evDate.getDate();
-                if (match) {
-                    allWeekly.push({ ...ev, date: new Date(d) });
+                const targetDate = new Date(d);
+                if (isEventOccurringOn(ev, targetDate)) {
+                    allWeekly.push({ ...ev, date: targetDate });
                 }
             }
         });

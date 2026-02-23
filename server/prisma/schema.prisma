@@ -737,6 +737,8 @@ model SarprasCalendarEvent {
   // Recurring fields
   isRecurring     Boolean  @default(false)
   recurringType   String?  // DAILY, WEEKLY, MONTHLY, YEARLY
+  recurringInterval Int     @default(1)
+  recurringDays   String?  // e.g. "1,3,5" for Mon, Wed, Fri
   recurringEndDate DateTime?
 
   // Assignments linked to this event
