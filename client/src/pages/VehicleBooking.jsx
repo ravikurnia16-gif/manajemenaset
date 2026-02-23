@@ -755,33 +755,52 @@ const VehicleBooking = () => {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {drivers.filter(d => !d.hidden).length === 0 ? (
-                                <div className="col-span-full py-20 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        <div className="space-y-8">
+                            {drivers.length === 0 ? (
+                                <div className="py-20 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                                     <User className="mx-auto text-slate-200 mb-2" size={48} />
                                     <p className="text-slate-400 font-bold">Tidak ada driver yang ditemukan.</p>
                                 </div>
-                            ) : drivers.filter(d => !d.hidden).map(d => (
-                                <div key={d.id} className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-lg">
-                                            {(d.name || d.username || '?').charAt(0)}
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-slate-800">{d.name || d.username}</div>
-                                            <div className="text-[10px] text-slate-400 font-bold uppercase">{d.unit?.name || 'UMUM'}</div>
-                                            <div className="text-[10px] text-blue-500 font-bold mt-0.5">{d.position}</div>
-                                        </div>
+                            ) : Object.entries(
+                                drivers
+                                    .reduce((acc, d) => {
+                                        const unitName = d.unit?.name || 'UMUM / LAINNYA';
+                                        if (!acc[unitName]) acc[unitName] = [];
+                                        acc[unitName].push(d);
+                                        return acc;
+                                    }, {})
+                            ).map(([unitName, unitDrivers]) => (
+                                <div key={unitName} className="space-y-4">
+                                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
+                                        <div className="h-px bg-slate-100 flex-1"></div>
+                                        {unitName}
+                                        <div className="h-px bg-slate-100 flex-1"></div>
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {unitDrivers.map(d => (
+                                            <div key={d.id} className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-lg">
+                                                        {(d.name || d.username || '?').charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-slate-800">{d.name || d.username}</div>
+                                                        <div className="text-[10px] text-slate-400 font-bold uppercase">{d.unit?.name || 'UMUM'}</div>
+                                                        <div className="text-[10px] text-blue-500 font-bold mt-0.5">{d.position}</div>
+                                                    </div>
+                                                </div>
+                                                {(isSuperAdmin || isAdminAset) && (
+                                                    <button
+                                                        onClick={() => handleToggleDriver(d.id, true)}
+                                                        className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                                        title="Hapus Status Driver"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
-                                    {(isSuperAdmin || isAdminAset) && (
-                                        <button
-                                            onClick={() => handleToggleDriver(d.id, true)}
-                                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                            title="Hapus Status Driver"
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
-                                    )}
                                 </div>
                             ))}
                         </div>
@@ -803,34 +822,49 @@ const VehicleBooking = () => {
                                         />
                                     </div>
                                 </div>
-                                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                                    <p className="text-xs text-slate-500 mb-4">Pilih staf dari daftar untuk ditambahkan sebagai sopir resmi.</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {staff
+                                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-6">
+                                    {Object.entries(
+                                        staff
                                             .filter(s => {
                                                 const isAlreadyDriver = (s.position || '').toLowerCase().includes('sopir') || (s.position || '').toLowerCase().includes('driver');
                                                 const searchStr = `${s.name || ''} ${s.username || ''}`.toLowerCase();
                                                 const matchesSearch = searchStr.includes(candidateSearch.toLowerCase());
                                                 return !isAlreadyDriver && matchesSearch;
                                             })
-                                            // .slice(0, 15) // Removing slice to show more matches
-                                            .map(s => (
-                                                <button
-                                                    key={s.id}
-                                                    onClick={() => handleToggleDriver(s.id, false)}
-                                                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:border-blue-500 hover:text-blue-600 transition-all shadow-sm"
-                                                >
-                                                    + {s.name || s.username}
-                                                </button>
-                                            ))}
-                                        {staff.filter(s => {
-                                            const isNotDriver = !(s.position || '').toLowerCase().includes('sopir') && !(s.position || '').toLowerCase().includes('driver');
-                                            const matchesSearch = `${s.name || ''} ${s.username || ''}`.toLowerCase().includes(candidateSearch.toLowerCase());
-                                            return isNotDriver && matchesSearch;
-                                        }).length === 0 && (
-                                                <p className="text-xs text-slate-400 italic">Tidak ada staf yang cocok.</p>
-                                            )}
-                                    </div>
+                                            .reduce((acc, s) => {
+                                                const unitName = s.unit?.name || 'UMUM / LAINNYA';
+                                                if (!acc[unitName]) acc[unitName] = [];
+                                                acc[unitName].push(s);
+                                                return acc;
+                                            }, {})
+                                    ).map(([unitName, members]) => (
+                                        <div key={unitName} className="space-y-3">
+                                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                <div className="h-px bg-slate-200 flex-1"></div>
+                                                {unitName}
+                                                <div className="h-px bg-slate-200 flex-1"></div>
+                                            </h5>
+                                            <div className="flex flex-wrap gap-2">
+                                                {members.map(s => (
+                                                    <button
+                                                        key={s.id}
+                                                        onClick={() => handleToggleDriver(s.id, false)}
+                                                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:border-blue-500 hover:text-blue-600 transition-all shadow-sm"
+                                                    >
+                                                        + {s.name || s.username}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {staff.filter(s => {
+                                        const isNotDriver = !(s.position || '').toLowerCase().includes('sopir') && !(s.position || '').toLowerCase().includes('driver');
+                                        const matchesSearch = `${s.name || ''} ${s.username || ''}`.toLowerCase().includes(candidateSearch.toLowerCase());
+                                        return isNotDriver && matchesSearch;
+                                    }).length === 0 && (
+                                            <p className="text-xs text-slate-400 italic text-center py-4">Tidak ada staf yang cocok.</p>
+                                        )}
                                 </div>
                             </div>
                         )}
