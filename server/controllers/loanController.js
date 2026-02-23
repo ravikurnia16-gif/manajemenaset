@@ -61,16 +61,23 @@ exports.requestLoan = async (req, res) => {
         for (const unitId of unitIds) {
             try {
                 const unitAssets = assets.filter(a => a.unitId === unitId);
-                const isYayasan = unitAssets[0]?.unit?.name?.toLowerCase().includes('kantor yayasan');
+                const isYayasan = unitAssets[0]?.unit?.name?.toLowerCase().includes('yayasan');
 
                 if (isYayasan) {
+                    console.log(`[Loan Notif] Yayasan asset detected. Searching for strategic admins...`);
                     // Notify strategic roles specifically for Yayasan assets
                     const specialAdmins = await prisma.user.findMany({
                         where: {
-                            position: { in: ['Kepala Bidang Sarana dan Prasarana', 'Staff Manajemen Aset'] },
+                            OR: [
+                                { position: { contains: 'Sarana dan Prasarana' } },
+                                { position: { contains: 'Manajemen Aset' } },
+                                { position: { contains: 'Manajemen Asset' } }
+                            ],
                             phone: { not: null, not: '' }
                         }
                     });
+
+                    console.log(`[Loan Notif] Found ${specialAdmins.length} special admins to notify.`);
 
                     for (const admin of specialAdmins) {
                         try {
@@ -86,8 +93,11 @@ exports.requestLoan = async (req, res) => {
                                 const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
                                 const message = `📢 *PERMOHONAN PINJAM ASET YAYASAN*\n\nUser *${requesterName}* mengajukan peminjaman aset Yayasan:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
                                 await whatsappService.sendMessage(admin.phone, message);
+                                console.log(`[Loan Notif] WA sent to ${admin.position}: ${admin.name}`);
                             }
-                        } catch (e) { console.error(e); }
+                        } catch (e) {
+                            console.error(`[Loan Notif] Failed to notify special admin ${admin.name}:`, e.message);
+                        }
                     }
                 } else {
                     // Notify all ADMIN_UNIT in the owner unit
