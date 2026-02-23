@@ -577,8 +577,12 @@ exports.batchImportAssets = async (req, res) => {
         ];
 
         // --- Step 1: Validation Pass (Strict) ---
-        const existingUnits = await prisma.unit.findMany({ select: { name: true } });
+        const [existingUnits, existingCategories] = await Promise.all([
+            prisma.unit.findMany({ select: { name: true } }),
+            prisma.category.findMany({ select: { name: true } })
+        ]);
         const unitNames = existingUnits.map(u => u.name.toLowerCase());
+        const categoryNames = existingCategories.map(c => c.name.toLowerCase());
 
         for (let i = 0; i < assetsData.length; i++) {
             const item = assetsData[i];
@@ -599,6 +603,14 @@ exports.batchImportAssets = async (req, res) => {
             if (!unitNames.includes(unitNameInput)) {
                 return res.status(400).json({
                     error: `Unit "${item['Unit Aset']}" di baris ${rowNum} tidak terdaftar di sistem. Silakan hubungi Super Admin.`
+                });
+            }
+
+            // --- STRICT CATEGORY VALIDATION ---
+            const categoryInput = String(item['Kategori']).trim().toLowerCase();
+            if (!categoryNames.includes(categoryInput)) {
+                return res.status(400).json({
+                    error: `Kategori "${item['Kategori']}" di baris ${rowNum} tidak terdaftar di sistem. Silakan tambahkan kategori tersebut ke Master Data terlebih dahulu.`
                 });
             }
 
@@ -632,27 +644,14 @@ exports.batchImportAssets = async (req, res) => {
             let successCount = 0;
 
             for (const item of assetsData) {
-                // 1. Category Lookup/Create
+                // 1. Category Lookup (STRICT - NO CREATE)
                 const catName = String(item.Kategori).trim();
                 let category = await tx.category.findFirst({
                     where: { name: { equals: catName } }
                 });
 
                 if (!category) {
-                    let baseCatCode = catName.substring(0, 2).toUpperCase();
-                    let finalCatCode = baseCatCode;
-                    let cCount = 1;
-                    while (await tx.category.findUnique({ where: { code: finalCatCode } })) {
-                        finalCatCode = `${baseCatCode}${cCount++}`;
-                    }
-                    category = await tx.category.create({
-                        data: {
-                            name: catName,
-                            code: finalCatCode,
-                            usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)']),
-                            depreciationMethod: 'STRAIGHT_LINE'
-                        }
-                    });
+                    throw new Error(`Kategori "${catName}" tidak ditemukan di database.`);
                 }
 
                 // 2. Unit Lookup (STRICT - NO CREATE)

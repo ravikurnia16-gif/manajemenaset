@@ -257,3 +257,80 @@ exports.getLoanDetail = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+/**
+ * Automatically checks for overdue loans and sends reminders to borrowers.
+ * Called daily by the system scheduler.
+ */
+exports.checkOverdueLoans = async () => {
+    console.log(`[${new Date().toLocaleString()}] [Job] Checking for overdue asset loans...`);
+    try {
+        const now = new Date();
+
+        // Find all loans currently BORROWED that have passed their expectedReturnDate
+        const overdueLoans = await prisma.assetLoan.findMany({
+            where: {
+                status: 'BORROWED',
+                expectedReturnDate: { lt: now }
+            },
+            include: {
+                borrower: true,
+                asset: true
+            }
+        });
+
+        if (overdueLoans.length === 0) {
+            console.log('[Job] No overdue loans found.');
+            return;
+        }
+
+        console.log(`[Job] Found ${overdueLoans.length} overdue loans. Sending reminders...`);
+
+        // Group by borrower to send a single WhatsApp if they have multiple overdue items
+        const borrowerGroups = {};
+        overdueLoans.forEach(loan => {
+            if (!borrowerGroups[loan.borrowerId]) {
+                borrowerGroups[loan.borrowerId] = {
+                    user: loan.borrower,
+                    loans: []
+                };
+            }
+            borrowerGroups[loan.borrowerId].loans.push(loan);
+        });
+
+        for (const borrowerId in borrowerGroups) {
+            const group = borrowerGroups[borrowerId];
+            const borrower = group.user;
+            const loans = group.loans;
+
+            // 1. System Notification
+            try {
+                await createNotification(
+                    borrower.id,
+                    'Peringatan: Pengembalian Aset Terlambat',
+                    `Anda memiliki ${loans.length} peminjaman aset yang telah melewati batas waktu pengembalian.`,
+                    'URGENT',
+                    '/peminjaman'
+                );
+            } catch (e) {
+                console.error(`[Job Error] Failed to create system notif for ${borrower.name}:`, e.message);
+            }
+
+            // 2. WhatsApp Notification
+            if (borrower.phone) {
+                try {
+                    const assetListStr = loans.map(l => `- ${l.asset.name} (Batas: ${new Date(l.expectedReturnDate).toLocaleDateString('id-ID')})`).join('\n');
+                    const message = `⚠️ *PERINGATAN: PENGEMBALIAN ASET TERLAMBAT*\n\nHalo *${borrower.name}*,\n\nMohon segera mengembalikan aset berikut yang telah melewati batas waktu pengembalian:\n\n${assetListStr}\n\nMohon segera lakukan pengembalian dan konfirmasi di sistem Manajemen Aset. Terima kasih.`;
+
+                    await whatsappService.sendMessage(borrower.phone, message);
+                } catch (e) {
+                    console.error(`[Job Error] Failed to send WA to ${borrower.name}:`, e.message);
+                }
+            }
+        }
+
+        console.log('[Job] Overdue loan checks completed.');
+    } catch (error) {
+        console.error('[Job Error] checkOverdueLoans failed:', error);
+    }
+};
