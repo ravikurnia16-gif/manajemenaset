@@ -59,7 +59,7 @@ const LoanList = () => {
     const fetchLoans = async () => {
         try {
             setLoading(true);
-            const res = await api.get('/api/loans');
+            const res = await api.get('/loans');
             let data = res.data;
 
             if (activeTab === 'ACTIVE') {
@@ -83,7 +83,7 @@ const LoanList = () => {
                 return;
             }
             setLoading(true);
-            await api.post('/api/loans/request', {
+            await api.post('/loans/request', {
                 assetIds: cart.map(a => a.id),
                 purpose: addModal.purpose,
                 expectedReturnDate: addModal.expectedReturnDate,
@@ -105,7 +105,7 @@ const LoanList = () => {
     const handleReview = async () => {
         try {
             setLoading(true);
-            await api.post(`/api/loans/${reviewModal.data.id}/review`, {
+            await api.post(`/loans/${reviewModal.data.id}/review`, {
                 status: reviewModal.status,
                 rejectionReason: reviewModal.reason
             });
@@ -123,7 +123,7 @@ const LoanList = () => {
         if (!window.confirm('Aset sudah dikembalikan?')) return;
         try {
             setLoading(true);
-            await api.post(`/api/loans/${loanId}/return`);
+            await api.post(`/loans/${loanId}/return`);
             alert('Aset berhasil ditandai sebagai kembali');
             fetchLoans();
         } catch (error) {
