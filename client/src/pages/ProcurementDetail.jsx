@@ -204,7 +204,7 @@ const ProcurementDetail = () => {
     // Helper to switch tabs automatically based on flow if needed, but manual is safer for edits.
 
     return (
-        <div className="space-y-6 max-w-6xl mx-auto pb-20 animate-in fade-in">
+        <div className="space-y-4 sm:space-y-6 max-w-6xl mx-auto pb-20 px-2 sm:px-0 animate-in fade-in">
             <div className="flex items-center justify-between">
                 <button onClick={() => navigate('/procurements')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600">
                     <ArrowLeft size={16} /> Kembali ke List
@@ -214,7 +214,7 @@ const ProcurementDetail = () => {
 
             {/* STEPPER / NAVIGATION */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="flex border-b border-slate-100 flex-wrap">
+                <div className="flex border-b border-slate-100 overflow-x-auto">
                     {[
                         { step: 1, label: 'Verifikasi', status: ['SUBMITTED'] },
                         { step: 2, label: 'Penugasan', status: ['APPROVED'] },
@@ -279,7 +279,7 @@ const ProcurementDetail = () => {
 
                                     setActiveTab(s.step);
                                 }}
-                                className={`flex-1 min-w-[120px] py-4 text-xs font-bold flex flex-col items-center gap-1 border-b-2 transition-colors ${activeTab === s.step ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-500 hover:bg-slate-50'} ${isDisabled ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                className={`flex-1 min-w-[60px] sm:min-w-[120px] py-2 sm:py-4 text-[10px] sm:text-xs font-bold flex flex-col items-center gap-0.5 sm:gap-1 border-b-2 transition-colors whitespace-nowrap ${activeTab === s.step ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-500 hover:bg-slate-50'} ${isDisabled ? 'opacity-30 cursor-not-allowed' : ''}`}
                                 disabled={isDisabled}
                             >
                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] ${isDone ? 'bg-green-100 text-green-600' : 'bg-slate-200 text-slate-500'}`}>
@@ -297,8 +297,8 @@ const ProcurementDetail = () => {
                 {/* === STAGE 1: VERIFIKASI === */}
                 {activeTab === 1 && (
                     <div className="space-y-6 animate-in slide-in-from-left-4 fade-in">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-start mb-4">
+                        <div className="bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-slate-100">
+                            <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-0 mb-4">
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                     <FileText size={18} /> Tahap 1: Verifikasi Request
                                 </h3>
@@ -311,9 +311,9 @@ const ProcurementDetail = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                                 <div>
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <h1 className="text-2xl font-bold text-slate-800">{req.title || '-'}</h1>
-                                        <span className={`px-2 py-1 rounded text-xs font-bold border ${req.type === 'ASSET' ? 'border-purple-200 text-purple-600 bg-purple-50' : 'border-orange-200 text-orange-600 bg-orange-50'
+                                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                                        <h1 className="text-lg sm:text-2xl font-bold text-slate-800 break-all">{req.title || '-'}</h1>
+                                        <span className={`px-2 py-1 rounded text-xs font-bold border shrink-0 ${req.type === 'ASSET' ? 'border-purple-200 text-purple-600 bg-purple-50' : 'border-orange-200 text-orange-600 bg-orange-50'
                                             }`}>{req.type}</span>
                                     </div>
                                     <p className="text-slate-500 text-sm">Unit: <b>{req.unit?.name}</b> • Pemohon: {req.user?.username}</p>
@@ -321,7 +321,7 @@ const ProcurementDetail = () => {
                             </div>
 
                             {isAdmin && req.status === 'SUBMITTED' && (
-                                <div className="bg-slate-50 p-4 rounded-lg flex gap-3 border border-slate-200 mt-4">
+                                <div className="bg-slate-50 p-3 sm:p-4 rounded-lg flex flex-col sm:flex-row gap-2 sm:gap-3 border border-slate-200 mt-4">
                                     <button onClick={() => {
                                         handleStatus('APPROVED');
                                         setActiveTab(2);
@@ -345,12 +345,12 @@ const ProcurementDetail = () => {
                         </div>
 
                         {/* RINGKASAN ITEMS */}
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                        <div className="bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-slate-100">
                             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                                 <ShoppingCart size={18} /> Detail Barang yang Diajukan
                             </h3>
                             <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
+                                <table className="w-full text-sm text-left min-w-[600px]">
                                     <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-xs">
                                         <tr>
                                             <th className="p-3 rounded-l-lg w-10 text-center">No</th>
@@ -383,8 +383,8 @@ const ProcurementDetail = () => {
                 {/* === STAGE 2: PENUGASAN INTERNAL === */}
                 {activeTab === 2 && (
                     <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-center mb-4">
+                        <div className="bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-slate-100">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                     <UserCheck size={18} /> Tahap 2: Penugasan Internal
                                 </h3>
@@ -430,7 +430,67 @@ const ProcurementDetail = () => {
                                 <b>Catatan:</b> Silakan tentukan staf (Akun Sistem) yang akan bertanggung jawab mengelola setiap item pengadaan ini.
                             </p>
 
-                            <div className="overflow-x-auto">
+                            {/* Mobile Card Layout */}
+                            <div className="block sm:hidden space-y-3">
+                                {req.items.map((item, index) => {
+                                    const itemUnitId = selectedUnits[index] || users.find(u => u.id === item.assignedToId)?.unitId || '';
+                                    const filteredUsers = users.filter(u => !itemUnitId || u.unitId === parseInt(itemUnitId));
+                                    return (
+                                        <div key={item.id} className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-mono text-slate-400 bg-white px-2 py-0.5 rounded">{index + 1}</span>
+                                                <div>
+                                                    <div className="font-bold text-sm text-slate-700">{item.name}</div>
+                                                    <div className="text-[10px] text-slate-500">{item.spec}</div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Unit</label>
+                                                <select
+                                                    className="w-full border border-slate-300 rounded-lg px-2 py-2 text-xs bg-white focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-50 mt-0.5"
+                                                    value={itemUnitId}
+                                                    disabled={req.status === 'COMPLETED' || !isAdmin}
+                                                    onChange={(e) => {
+                                                        const unitId = e.target.value;
+                                                        setSelectedUnits(prev => ({ ...prev, [index]: unitId }));
+                                                        handleItemChange(index, 'assignedToId', null);
+                                                        handleItemChange(index, 'assignedTo', '');
+                                                    }}
+                                                >
+                                                    <option value="">-- Semua Unit --</option>
+                                                    {units.map(u => (
+                                                        <option key={u.id} value={u.id}>{u.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Ditugaskan Kepada</label>
+                                                <select
+                                                    className="w-full border border-slate-300 rounded-lg px-2 py-2 text-xs bg-white focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-50 mt-0.5"
+                                                    value={item.assignedToId || ''}
+                                                    disabled={req.status === 'COMPLETED' || !isAdmin}
+                                                    onChange={(e) => {
+                                                        const selectedId = e.target.value ? parseInt(e.target.value) : null;
+                                                        const selectedUser = users.find(u => u.id === selectedId);
+                                                        handleItemChange(index, 'assignedToId', selectedId);
+                                                        handleItemChange(index, 'assignedTo', selectedUser?.name || '');
+                                                    }}
+                                                >
+                                                    <option value="">-- Pilih Staf --</option>
+                                                    {filteredUsers.map(u => (
+                                                        <option key={u.id} value={u.id}>{u.name}</option>
+                                                    ))}
+                                                </select>
+                                                {filteredUsers.length === 0 && itemUnitId && (
+                                                    <p className="text-[10px] text-red-500 mt-1">Belum ada staf di unit ini.</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {/* Desktop Table Layout */}
+                            <div className="overflow-x-auto hidden sm:block">
                                 <table className="w-full text-sm text-left">
                                     <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-xs">
                                         <tr>
@@ -505,8 +565,8 @@ const ProcurementDetail = () => {
                 {/* === STAGE 3: VENDOR PEMBANDING === */}
                 {activeTab === 3 && (
                     <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-center mb-4">
+                        <div className="bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-slate-100">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0 mb-4">
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                     <Store size={18} /> Tahap 3: Pemilihan Vendor Pembanding
                                 </h3>
@@ -522,8 +582,8 @@ const ProcurementDetail = () => {
 
                             <div className="space-y-6">
                                 {req.items.map((item, index) => (
-                                    <div key={item.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                        <div className="flex justify-between items-start mb-3">
+                                    <div key={item.id} className="bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-200">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-0 mb-3">
                                             <div>
                                                 <h4 className="font-bold text-slate-800">{item.name}</h4>
                                                 <p className="text-xs text-slate-500">{item.spec} • {item.qty} {item.unit}</p>
@@ -622,8 +682,8 @@ const ProcurementDetail = () => {
                 {/* === STAGE 4: FINALISASI === */}
                 {activeTab === 4 && (
                     <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-center mb-4">
+                        <div className="bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-slate-100">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                     <DollarSign size={18} /> Tahap 4: Finalisasi Harga & Vendor
                                 </h3>
@@ -654,7 +714,96 @@ const ProcurementDetail = () => {
                                 )}
                             </div>
 
-                            <div className="overflow-x-auto">
+                            {/* Mobile Card Layout */}
+                            <div className="block sm:hidden space-y-3">
+                                {req.items.map((item, index) => (
+                                    <div key={item.id} className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+                                        <div className="font-bold text-sm text-slate-700">{item.name}</div>
+                                        <div className="text-[10px] text-slate-500 mb-2">{item.spec}</div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase">Vendor Terpilih</label>
+                                            <select
+                                                className="w-full border border-slate-300 rounded p-2 text-xs bg-white focus:border-blue-500 outline-none mt-0.5"
+                                                value={item.vendorId || ''}
+                                                onChange={e => handleItemChange(index, 'vendorId', e.target.value)}
+                                                disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(item))}
+                                            >
+                                                <option value="">- Pilih Vendor -</option>
+                                                {item.needComparison && (item.comparisonVendors || []).map((cv, i) => (
+                                                    <option key={`cv-${i}`} value={`CV-${cv.name}`}>{cv.name} (Kandidat)</option>
+                                                ))}
+                                                <option disabled>──────────</option>
+                                                {vendors.map(v => (
+                                                    <option key={v.id} value={v.id}>{v.name}</option>
+                                                ))}
+                                                <option value="OTHER">+ Vendor Baru</option>
+                                            </select>
+                                            {item.vendorId === 'OTHER' && (
+                                                <input
+                                                    className="mt-1 w-full border border-slate-300 rounded p-2 text-xs focus:border-blue-500 outline-none"
+                                                    placeholder="Nama Vendor Baru..."
+                                                    value={item.newVendorName || ''}
+                                                    onChange={e => handleItemChange(index, 'newVendorName', e.target.value)}
+                                                />
+                                            )}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Harga Final</label>
+                                                <input
+                                                    type="number"
+                                                    className="w-full border border-slate-300 rounded p-2 text-xs bg-white focus:border-blue-500 outline-none mt-0.5"
+                                                    value={item.finalPrice || ''}
+                                                    onChange={e => handleItemChange(index, 'finalPrice', e.target.value)}
+                                                    disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(item))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Brand</label>
+                                                <input
+                                                    className="w-full border border-slate-300 rounded p-2 text-xs bg-white focus:border-blue-500 outline-none mt-0.5"
+                                                    placeholder="Merk"
+                                                    value={item.brand || ''}
+                                                    onChange={e => handleItemChange(index, 'brand', e.target.value)}
+                                                    disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(item))}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {req.type === 'ASSET' && (
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Umur (Thn)</label>
+                                                    <input
+                                                        type="number"
+                                                        className="w-full border border-slate-300 rounded p-2 text-xs bg-white focus:border-blue-500 outline-none mt-0.5"
+                                                        value={item.usefulLife || 4}
+                                                        onChange={e => handleItemChange(index, 'usefulLife', e.target.value)}
+                                                        disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(item))}
+                                                    />
+                                                </div>
+                                            )}
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Sumber Dana</label>
+                                                <select
+                                                    className="w-full border border-slate-300 rounded p-2 text-xs bg-white focus:border-blue-500 outline-none mt-0.5"
+                                                    value={item.fundingSource || 'Mandiri'}
+                                                    onChange={e => handleItemChange(index, 'fundingSource', e.target.value)}
+                                                    disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(item))}
+                                                >
+                                                    <option value="Yayasan">Yayasan</option>
+                                                    <option value="Hibah">Hibah</option>
+                                                    <option value="Wakaf">Wakaf</option>
+                                                    <option value="Cashback">Cashback</option>
+                                                    <option value="BOS">BOS</option>
+                                                    <option value="Lainnya">Lainnya</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Desktop Table Layout */}
+                            <div className="overflow-x-auto hidden sm:block">
                                 <table className="w-full text-sm text-left">
                                     <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-xs">
                                         <tr>
@@ -755,7 +904,7 @@ const ProcurementDetail = () => {
                 {/* === STAGE 5: SERAH TERIMA === */}
                 {activeTab === 5 && (
                     <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                        <div className="bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-slate-100">
                             <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
                                 <Camera size={18} /> Tahap 5: Berita Acara & Bukti Serah Terima
                             </h3>
