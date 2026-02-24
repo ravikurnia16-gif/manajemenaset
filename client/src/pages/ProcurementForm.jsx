@@ -175,22 +175,20 @@ const ProcurementForm = () => {
     };
 
     return (
-        <div className="max-w-5xl mx-auto space-y-6 pb-20 animate-in slide-in-from-bottom-4">
+        <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 pb-20 px-2 sm:px-0 animate-in slide-in-from-bottom-4">
             <button onClick={() => navigate('/procurements')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600">
                 <ArrowLeft size={16} /> Batal & Kembali
             </button>
 
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-100">
-                <div className="flex justify-between items-start mb-6">
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-800">Buat Request Baru</h1>
-                        <p className="text-slate-500 text-sm">Ajukan permintaan pengadaan barang aset atau kebutuhan operasional.</p>
-                    </div>
+            <div className="bg-white p-4 sm:p-8 rounded-xl shadow-sm border border-slate-100">
+                <div className="mb-4 sm:mb-6">
+                    <h1 className="text-lg sm:text-2xl font-bold text-slate-800">Buat Request Baru</h1>
+                    <p className="text-slate-500 text-xs sm:text-sm">Ajukan permintaan pengadaan barang aset atau kebutuhan operasional.</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-8">
                     {/* Header Section */}
-                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                    <div className="bg-slate-50 p-3 sm:p-6 rounded-xl border border-slate-200">
                         <label className="block text-sm font-bold text-slate-700 mb-2">Judul Pengajuan (Wajib)</label>
                         <input
                             className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-700"
@@ -203,12 +201,12 @@ const ProcurementForm = () => {
 
                     {/* Items Section */}
                     <div>
-                        <div className="flex justify-between items-end mb-4 bg-blue-50 p-4 rounded-lg border border-blue-100">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-4 bg-blue-50 p-3 sm:p-4 rounded-lg border border-blue-100">
                             <div>
-                                <h3 className="text-lg font-bold text-blue-900">Daftar Barang</h3>
+                                <h3 className="text-base sm:text-lg font-bold text-blue-900">Daftar Barang</h3>
                                 <p className="text-xs text-blue-600">List barang yang akan diajukan.</p>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                                 <input
                                     type="file"
                                     ref={fileInputRef}
@@ -216,21 +214,21 @@ const ProcurementForm = () => {
                                     accept=".xlsx, .xls"
                                     className="hidden"
                                 />
-                                <button type="button" onClick={handleDownloadTemplate} className="flex items-center gap-1 text-slate-500 hover:text-blue-600 text-xs font-bold px-3 py-2 border rounded-lg bg-white">
+                                <button type="button" onClick={handleDownloadTemplate} className="flex items-center gap-1 text-slate-500 hover:text-blue-600 text-xs font-bold px-3 py-2 border rounded-lg bg-white flex-1 sm:flex-none justify-center">
                                     <Download size={14} /> Template
                                 </button>
-                                <button type="button" onClick={() => fileInputRef.current.click()} className="flex items-center gap-1 text-green-600 hover:text-green-700 text-xs font-bold px-3 py-2 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100">
-                                    <FileSpreadsheet size={14} /> Import Excel
+                                <button type="button" onClick={() => fileInputRef.current.click()} className="flex items-center gap-1 text-green-600 hover:text-green-700 text-xs font-bold px-3 py-2 border border-green-200 bg-green-50 rounded-lg hover:bg-green-100 flex-1 sm:flex-none justify-center">
+                                    <FileSpreadsheet size={14} /> Import
                                 </button>
-                                <button type="button" onClick={addItem} className="flex items-center gap-1 text-white bg-blue-600 hover:bg-blue-700 text-xs font-bold px-3 py-2 rounded-lg shadow-sm">
-                                    <Plus size={14} /> Tambah Manual
+                                <button type="button" onClick={addItem} className="flex items-center gap-1 text-white bg-blue-600 hover:bg-blue-700 text-xs font-bold px-3 py-2 rounded-lg shadow-sm flex-1 sm:flex-none justify-center">
+                                    <Plus size={14} /> Tambah
                                 </button>
                             </div>
                         </div>
 
                         <div className="space-y-3">
                             {items.map((item, index) => (
-                                <div key={index} className="flex gap-4 items-start p-4 border border-slate-200 rounded-xl bg-white hover:border-blue-300 transition-colors group">
+                                <div key={index} className="flex gap-2 sm:gap-4 items-start p-3 sm:p-4 border border-slate-200 rounded-xl bg-white hover:border-blue-300 transition-colors group">
                                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold text-xs mt-1">
                                         {index + 1}
                                     </div>
@@ -267,7 +265,7 @@ const ProcurementForm = () => {
                                                 </select>
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-4 gap-4">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
                                             <div className="col-span-1">
                                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Jumlah</label>
                                                 <input
@@ -323,7 +321,7 @@ const ProcurementForm = () => {
                         </div>
                     </div>
 
-                    <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
+                    <div className="pt-4 sm:pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
                         <button
                             type="button"
                             onClick={() => navigate('/procurements')}

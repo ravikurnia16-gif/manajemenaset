@@ -121,44 +121,44 @@ const ProcurementList = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
-            <div className="flex justify-between items-center px-1">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-1">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Pengadaan Barang & Jasa</h1>
-                    <p className="text-slate-500 text-sm">Daftar permintaan pengadaan aset dan non-aset</p>
+                    <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Pengadaan Barang & Jasa</h1>
+                    <p className="text-slate-500 text-xs sm:text-sm">Daftar permintaan pengadaan aset dan non-aset</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                     {selectedIds.length > 0 && (
                         <button
                             onClick={handleBulkDelete}
-                            className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm"
+                            className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm"
                         >
-                            <Trash2 size={18} /> Hapus ({selectedIds.length})
+                            <Trash2 size={16} /> Hapus ({selectedIds.length})
                         </button>
                     )}
                     <button
                         onClick={handleExport}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm"
+                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-sm flex-1 sm:flex-none justify-center"
                     >
-                        <Files size={18} /> Export Excel
+                        <Files size={16} /> Export
                     </button>
                     <button
                         onClick={() => navigate('/procurements/new')}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-lg shadow-blue-600/20"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-lg shadow-blue-600/20 flex-1 sm:flex-none justify-center"
                     >
-                        <Plus size={18} /> Buat Pengajuan
+                        <Plus size={16} /> Buat Pengajuan
                     </button>
                 </div>
             </div>
 
             {/* Filter Bar */}
-            <div className="flex flex-wrap gap-4 items-center bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+            <div className="flex flex-wrap gap-2 sm:gap-4 items-center bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
                 <div className="flex items-center gap-2 text-slate-500">
                     <Filter size={16} />
                     <span className="text-xs font-bold uppercase tracking-wider">Filter:</span>
                 </div>
 
                 <select
-                    className="border-none bg-slate-50 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-100 outline-none text-slate-600 font-medium"
+                    className="border-none bg-slate-50 rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm focus:ring-2 focus:ring-blue-100 outline-none text-slate-600 font-medium flex-1 sm:flex-none min-w-[100px]"
                     value={filter.status}
                     onChange={e => setFilter({ ...filter, status: e.target.value })}
                 >
@@ -170,17 +170,17 @@ const ProcurementList = () => {
                 </select>
 
                 <select
-                    className="border-none bg-slate-50 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-100 outline-none text-slate-600 font-medium"
+                    className="border-none bg-slate-50 rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm focus:ring-2 focus:ring-blue-100 outline-none text-slate-600 font-medium flex-1 sm:flex-none min-w-[100px]"
                     value={filter.type}
                     onChange={e => setFilter({ ...filter, type: e.target.value })}
                 >
                     <option value="">Semua Jenis</option>
-                    <option value="ASSET">Aset (Barang Modal)</option>
-                    <option value="NON_ASSET">Non-Aset (Habis Pakai)</option>
+                    <option value="ASSET">Aset</option>
+                    <option value="NON_ASSET">Non-Aset</option>
                 </select>
 
                 <select
-                    className="border-none bg-slate-50 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-100 outline-none text-slate-600 font-medium max-w-[200px]"
+                    className="border-none bg-slate-50 rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm focus:ring-2 focus:ring-blue-100 outline-none text-slate-600 font-medium flex-1 sm:flex-none min-w-[100px] max-w-full sm:max-w-[200px]"
                     value={filter.unitId || ''}
                     onChange={e => setFilter({ ...filter, unitId: e.target.value })}
                 >
@@ -190,7 +190,7 @@ const ProcurementList = () => {
                     ))}
                 </select>
 
-                <div className="ml-auto flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
                     <span className="text-xs text-slate-400">Tampilkan:</span>
                     <select
                         className="border-none bg-slate-50 rounded-lg px-2 py-1 text-xs focus:ring-0 text-slate-600 font-bold"
@@ -205,7 +205,57 @@ const ProcurementList = () => {
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+            {/* Mobile Card Layout */}
+            <div className="block sm:hidden space-y-3">
+                {loading ? (
+                    <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-100 text-center text-slate-500">Loading data...</div>
+                ) : paginatedRequests.length === 0 ? (
+                    <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-100 text-center text-slate-500">Belum ada request pengadaan.</div>
+                ) : (
+                    paginatedRequests.map((req) => (
+                        <div key={req.id} className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 active:bg-slate-50 transition-colors">
+                            <div className="flex items-start gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={selectedIds.includes(req.id)}
+                                    onChange={() => handleSelectOne(req.id)}
+                                    className="rounded text-blue-600 focus:ring-blue-500 mt-1 shrink-0"
+                                />
+                                <div className="flex-1 min-w-0" onClick={() => navigate(`/procurements/${req.id}`)}>
+                                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                                        <span className="font-mono text-[10px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">{req.code}</span>
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${req.type === 'ASSET' ? 'border-purple-200 text-purple-600 bg-purple-50' : 'border-orange-200 text-orange-600 bg-orange-50'}`}>{req.type}</span>
+                                    </div>
+                                    <div className="font-bold text-sm text-slate-800 truncate">{req.title || '-'}</div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">{req.unit?.name} • {req.user?.username}</div>
+                                    <div className="flex items-center justify-between mt-2">
+                                        <span className="text-[10px] text-slate-400">
+                                            {new Date(req.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </span>
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${req.status === 'SUBMITTED' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' :
+                                            req.status === 'APPROVED' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                                                req.status === 'PROCESS' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
+                                                    req.status === 'COMPLETED' ? 'bg-green-50 text-green-600 border-green-200' :
+                                                        'bg-red-50 text-red-600 border-red-200'
+                                            }`}>
+                                            {req.status}
+                                        </span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleDelete(req.id)}
+                                    className="p-1.5 text-slate-300 hover:text-red-500 shrink-0"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+
+            {/* Desktop Table Layout */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden hidden sm:block">
                 <table className="w-full text-sm text-left">
                     <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-xs">
                         <tr>
@@ -290,7 +340,7 @@ const ProcurementList = () => {
 
             {/* Pagination Controls */}
             {pagination.limit !== -1 && totalPages > 1 && (
-                <div className="flex justify-between items-center text-sm text-slate-500">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-2 text-sm text-slate-500">
                     <div>
                         Menampilkan {((pagination.page - 1) * pagination.limit) + 1} - {Math.min(pagination.page * pagination.limit, totalItems)} dari {totalItems} data
                     </div>
