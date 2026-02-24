@@ -600,13 +600,35 @@ const Settings = () => {
                                             { label: 'Ketua Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
                                             { label: 'Sekretaris Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
                                             { label: 'Bendahara Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+
+                                            // BIDANG SARANA & PRASARANA
                                             { label: 'Kepala Bidang Sarana dan Prasarana', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
-                                            { label: 'Bidang IT', role: 'BIDANG_IT', scope: 'GLOBAL' },
-                                            { label: 'Kepala Bidang Keuangan (Non Super)', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
-                                            { label: 'Staff Keuangan', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+                                            { label: 'Staff Keuangan dan Administrasi (Sarpras)', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                             { label: 'Staff Manajemen Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                             { label: 'Staff Gudang dan Logistik', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                             { label: 'Staff Kendaraan', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+
+                                            // BIDANG IT
+                                            { label: 'Kepala Bidang IT', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                            { label: 'Staff Programming', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                            { label: 'Staff IT', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+
+                                            // BIDANG SDM
+                                            { label: 'Kepala Bidang SDM', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
+                                            { label: 'Staff SDM', role: 'USER', scope: 'UNIT' },
+
+                                            // BIDANG KEUANGAN
+                                            { label: 'Kepala Bidang Keuangan', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
+                                            { label: 'Staff Keuangan', role: 'USER', scope: 'UNIT' },
+
+                                            // BIDANG PEMBANGUNAN
+                                            { label: 'Kepala Bidang Pembangunan', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
+                                            { label: 'Staff Pembangunan', role: 'USER', scope: 'UNIT' },
+
+                                            // BIDANG K3
+                                            { label: 'Kepala Bidang K3', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
+                                            { label: 'Staff K3', role: 'USER', scope: 'UNIT' },
+
                                             { label: 'Kepala Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
                                             { label: 'Sarpras Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
                                             { label: 'Bendahara Unit', role: 'USER', scope: 'UNIT' },
@@ -632,14 +654,28 @@ const Settings = () => {
                                         <option value="Sekretaris Yayasan">Sekretaris Yayasan</option>
                                         <option value="Bendahara Yayasan">Bendahara Yayasan</option>
                                     </optgroup>
-                                    <optgroup label="Bidang Sarana Prasarana & IT (Global Access)">
-                                        <option value="Kepala Bidang Sarana dan Prasarana">Kepala Bidang Sarana dan Prasarana</option>
-                                        <option value="Bidang IT">Bidang IT</option>
-                                        <option value="Kepala Bidang Keuangan (Non Super)">Kepala Bidang Keuangan (Non Super)</option>
-                                        <option value="Staff Keuangan">Staff Keuangan</option>
-                                        <option value="Staf Manajemen Aset">Staf Manajemen Aset</option>
-                                        <option value="Staff Gudang dan Logistik">Staff Gudang dan Logistik</option>
-                                        <option value="Staff Kendaraan">Staff Kendaraan</option>
+                                    <optgroup label="Kantor Yayasan">
+                                        <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG SARPRAS & IT --</option>
+                                        <option value="Kepala Bidang Sarana dan Prasarana">Kepala Bidang Sarana dan Prasarana (Super Admin)</option>
+                                        <option value="Staff Keuangan dan Administrasi (Sarpras)">Staff Keuangan & Adm (Admin Unit)</option>
+                                        <option value="Staff Manajemen Aset">Staff Manajemen Aset (Admin Unit)</option>
+                                        <option value="Staff Gudang dan Logistik">Staff Gudang dan Logistik (Admin Unit)</option>
+                                        <option value="Staff Kendaraan">Staff Kendaraan (Admin Unit)</option>
+                                        <option value="Kepala Bidang IT">Kepala Bidang IT (Super Admin)</option>
+                                        <option value="Staff Programming">Staff Programming (Super Admin)</option>
+                                        <option value="Staff IT">Staff IT (Admin Unit)</option>
+
+                                        <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG SDM & KEUANGAN --</option>
+                                        <option value="Kepala Bidang SDM">Kepala Bidang SDM (Global Terbatas)</option>
+                                        <option value="Staff SDM">Staff SDM (User)</option>
+                                        <option value="Kepala Bidang Keuangan">Kepala Bidang Keuangan (Global Terbatas)</option>
+                                        <option value="Staff Keuangan">Staff Keuangan (User)</option>
+
+                                        <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG PEMBANGUNAN & K3 --</option>
+                                        <option value="Kepala Bidang Pembangunan">Kepala Bidang Pembangunan (Global Terbatas)</option>
+                                        <option value="Staff Pembangunan">Staff Pembangunan (User)</option>
+                                        <option value="Kepala Bidang K3">Kepala Bidang K3 (Global Terbatas)</option>
+                                        <option value="Staff K3">Staff K3 (User)</option>
                                     </optgroup>
                                     <optgroup label="Unit / Divisi / Bidang (Unit Access)">
                                         <option value="Kepala Unit">Kepala Unit</option>
