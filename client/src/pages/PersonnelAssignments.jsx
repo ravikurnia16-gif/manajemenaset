@@ -8,6 +8,7 @@ const PersonnelAssignments = () => {
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [limit, setLimit] = useState(10);
 
     // User info for role-based UI
     const user = JSON.parse(localStorage.getItem('user')) || {};
@@ -34,7 +35,9 @@ const PersonnelAssignments = () => {
     const fetchAssignments = async () => {
         try {
             setLoading(true);
-            const res = await api.get('/personnel/assignments');
+            const res = await api.get('/personnel/assignments', {
+                params: { limit }
+            });
             setAssignments(res.data);
         } catch (err) {
             console.error(err);
@@ -54,6 +57,9 @@ const PersonnelAssignments = () => {
 
     useEffect(() => {
         fetchAssignments();
+    }, [limit]); // Fetch on limit change
+
+    useEffect(() => {
         fetchStaff();
     }, []);
 
@@ -103,6 +109,22 @@ const PersonnelAssignments = () => {
                         {showForm ? 'Batal' : <><Plus size={18} /> Beri Tugas Baru</>}
                     </button>
                 )}
+            </div>
+
+            <div className="flex justify-end items-center gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div className="w-40">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tampilkan</label>
+                    <select
+                        value={limit}
+                        onChange={e => setLimit(e.target.value)}
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="10">10 Data</option>
+                        <option value="25">25 Data</option>
+                        <option value="50">50 Data</option>
+                        <option value="all">Semua</option>
+                    </select>
+                </div>
             </div>
 
             {showForm && (

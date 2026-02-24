@@ -243,6 +243,7 @@ exports.createAssignment = async (req, res) => {
 };
 
 exports.getAssignments = async (req, res) => {
+    const { limit } = req.query;
     const user = req.user;
 
     try {
@@ -258,14 +259,20 @@ exports.getAssignments = async (req, res) => {
             ];
         }
 
-        const assignments = await prisma.personnelAssignment.findMany({
+        const queryOptions = {
             where,
             include: {
                 assigner: { select: { name: true } },
                 assignee: { select: { name: true } }
             },
             orderBy: { createdAt: 'desc' }
-        });
+        };
+
+        if (limit && limit !== 'all') {
+            queryOptions.take = parseInt(limit);
+        }
+
+        const assignments = await prisma.personnelAssignment.findMany(queryOptions);
 
         res.json(assignments);
     } catch (error) {

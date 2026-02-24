@@ -75,7 +75,7 @@ const PersonnelReports = () => {
 
     useEffect(() => {
         fetchReports();
-    }, [limit]); // Re-fetch on limit change
+    }, [limit, filterDate.start, filterDate.end, filterStaff]); // Re-fetch on any filter change
 
     useEffect(() => {
         if (user.role === 'SUPER_ADMIN') {
