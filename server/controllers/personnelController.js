@@ -358,9 +358,7 @@ exports.getStaffSarpras = async (req, res) => {
                     { position: { contains: 'Manajemen Aset' } },
                     { position: { contains: 'Gudang dan Logistik' } },
                     { position: { contains: 'Staff Kendaraan' } },
-                    { position: { contains: 'Staf Kendaraan' } },
-                    { position: { contains: 'Sopir' } }, // Usually Driver/Staff Kendaraan
-                    { position: { contains: 'Driver' } }
+                    { position: { contains: 'Staf Kendaraan' } }
                 ]
             },
             orderBy: { name: 'asc' },
