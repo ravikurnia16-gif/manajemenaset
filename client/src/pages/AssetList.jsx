@@ -467,22 +467,22 @@ const AssetList = ({ validationMode = false }) => {
             )}
 
             {/* Header */}
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+                <div className="w-full lg:w-auto">
+                    <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
                         {validationMode ? 'Validasi Aset' : 'Daftar Aset'}
                     </h1>
-                    <div className="flex items-center gap-2 mt-1">
-                        <p className="text-slate-500 text-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-1">
+                        <p className="text-slate-500 text-xs sm:text-sm">
                             {validationMode ? 'Verifikasi dan validasi data aset' : 'Monitor aset per unit dan ruangan'}
                         </p>
                         {selectedIds.length > 0 && (
-                            <div className="flex gap-2 animate-in zoom-in-95 duration-200">
+                            <div className="flex flex-wrap gap-2 animate-in zoom-in-95 duration-200">
                                 <button
                                     onClick={() => openValidationModal(selectedIds, 'VALIDATED')}
-                                    className="flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-600 rounded-full text-xs font-semibold hover:bg-green-100 transition-colors border border-green-100"
+                                    className="flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-600 rounded-full text-[10px] sm:text-xs font-semibold hover:bg-green-100 transition-colors border border-green-100"
                                 >
-                                    <CheckCircle size={12} /> Validasi {selectedIds.length} Item
+                                    <CheckCircle size={10} /> Validasi {selectedIds.length}
                                 </button>
                                 {canProposeDisposal && (
                                     <button
@@ -494,44 +494,47 @@ const AssetList = ({ validationMode = false }) => {
                                             notes: '',
                                             disposalDate: new Date().toISOString().split('T')[0]
                                         })}
-                                        className="flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold hover:bg-red-100 transition-colors border border-red-100"
+                                        className="flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 rounded-full text-[10px] sm:text-xs font-semibold hover:bg-red-100 transition-colors border border-red-100"
                                     >
-                                        <Trash2 size={12} /> Ajukan Penghapusan {selectedIds.length} Item
+                                        <Trash2 size={10} /> Hapus {selectedIds.length}
                                     </button>
                                 )}
                                 <button
                                     onClick={() => navigate(`/mutasi/request?ids=${selectedIds.join(',')}`)}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-bold shadow-sm shadow-blue-200"
+                                    className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors text-[10px] sm:text-xs font-bold shadow-sm shadow-blue-200"
                                 >
-                                    <ArrowLeftRight size={14} />
-                                    Mutasi Masal
+                                    <ArrowLeftRight size={10} /> Mutasi
                                 </button>
-                                <button
-                                    onClick={handleBulkDelete}
-                                    className="flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-semibold hover:bg-red-100 transition-colors border border-red-100"
-                                >
-                                    <Trash2 size={12} /> Hapus {selectedIds.length} Item
-                                </button>
+                                {isGlobalAdmin && (
+                                    <button
+                                        onClick={handleBulkDelete}
+                                        className="flex items-center gap-1.5 px-3 py-1 bg-red-600 text-white rounded-full text-[10px] sm:text-xs font-bold hover:bg-red-700 transition-colors shadow-sm shadow-red-200"
+                                    >
+                                        <Trash2 size={10} /> Hapus Permanen
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap w-full lg:w-auto gap-2 sm:gap-3">
                     {!validationMode && (
-                        <>
-                            <button onClick={() => navigate('/aset/input')} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg shadow-blue-200 transition-all hover:scale-105 active:scale-95">
+                        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                            <button onClick={() => navigate('/aset/input')} className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-lg shadow-blue-200 transition-all hover:scale-105 active:scale-95 whitespace-nowrap">
                                 <Plus size={18} /> Tambah Aset
                             </button>
-                            <div className="flex gap-2 border-l border-slate-200 pl-3">
-                                <button onClick={() => document.getElementById('importInput').click()} disabled={loading} className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-all" title="Import Excel"><Download size={18} /> Import Data</button>
-                                <input type="file" id="importInput" className="hidden" accept=".xlsx,.xls" onChange={handleImport} />
-                                <button onClick={handleTemplateDownload} className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-all" title="Download Template"><Download size={18} /> Template</button>
-                            </div>
-                        </>
+                            <label className="flex-1 sm:flex-none bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold transition-all cursor-pointer">
+                                <Download size={18} /> Import
+                                <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleImport} disabled={loading} />
+                            </label>
+                            <button onClick={handleTemplateDownload} className="w-10 sm:w-auto sm:px-3 bg-white hover:bg-slate-50 text-slate-400 border border-slate-200 rounded-xl flex items-center justify-center gap-2 transition-all" title="Download Template">
+                                <Download size={18} /> <span className="hidden sm:inline text-xs font-bold text-slate-600">Template</span>
+                            </button>
+                        </div>
                     )}
-                    <div className="flex gap-2 border-l border-slate-200 pl-3">
-                        <button onClick={() => setActionModal({ isOpen: true, type: 'export' })} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg shadow-green-200 transition-all hover:scale-105 active:scale-95" title="Export Excel"><Upload size={18} /> Export Data</button>
-                        <button onClick={() => setActionModal({ isOpen: true, type: 'print' })} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg shadow-indigo-200 transition-all hover:scale-105 active:scale-95" title="Cetak Label QR"><QrCode size={18} /> Cetak QR</button>
+                    <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto lg:border-l lg:border-slate-200 lg:pl-3">
+                        <button onClick={() => setActionModal({ isOpen: true, type: 'export' })} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-lg shadow-green-200 transition-all hover:scale-105 active:scale-95" title="Export Excel"><Upload size={18} /> Export</button>
+                        <button onClick={() => setActionModal({ isOpen: true, type: 'print' })} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-lg shadow-indigo-200 transition-all hover:scale-105 active:scale-95" title="Cetak Label QR"><QrCode size={18} /> Cetak QR</button>
                     </div>
                 </div>
             </div>
@@ -753,22 +756,22 @@ const AssetList = ({ validationMode = false }) => {
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                 {/* Advanced Filter Bar */}
-                <div className="p-4 border-b border-slate-100 bg-slate-50/50 grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div className="md:col-span-4 relative">
+                <div className="p-4 border-b border-slate-100 bg-slate-50/50 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4">
+                    <div className="lg:col-span-4 relative">
                         <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
                         <input
                             type="text"
                             placeholder="Cari nama / kode aset..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
                         />
                     </div>
 
-                    <div className="md:col-span-2 relative">
+                    <div className="lg:col-span-2 relative">
                         <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><Building2 size={16} /></div>
                         <select
-                            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
+                            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-500 shadow-sm"
                             value={selectedUnit}
                             disabled={!isGlobalAdmin}
                             onChange={e => { setSelectedUnit(e.target.value); setSelectedRoom(''); }}
@@ -778,10 +781,10 @@ const AssetList = ({ validationMode = false }) => {
                         </select>
                     </div>
 
-                    <div className="md:col-span-2 relative">
+                    <div className="lg:col-span-2 relative">
                         <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><MapPin size={16} /></div>
                         <select
-                            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-400"
+                            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 shadow-sm"
                             value={selectedRoom}
                             onChange={e => setSelectedRoom(e.target.value)}
                             disabled={!selectedUnit && availableRooms.length === rooms.length}
@@ -791,11 +794,11 @@ const AssetList = ({ validationMode = false }) => {
                         </select>
                     </div>
 
-                    <div className="md:col-span-2 relative">
+                    <div className="lg:col-span-2 relative">
                         {/* Validation Filter */}
                         <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><CheckCircle size={16} /></div>
                         <select
-                            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
+                            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer shadow-sm"
                             value={validationFilter}
                             onChange={e => setValidationFilter(e.target.value)}
                         >
@@ -806,192 +809,230 @@ const AssetList = ({ validationMode = false }) => {
                         </select>
                     </div>
 
-                    <div className="md:col-span-2 relative">
-                        {/* Condition Filter */}
-                        <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><Filter size={16} /></div>
+                    <div className="lg:col-span-2 flex gap-2">
                         <select
-                            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
+                            className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer shadow-sm"
                             value={selectedCondition}
                             onChange={e => setSelectedCondition(e.target.value)}
                         >
-                            <option value="">Semua Kondisi</option>
+                            <option value="">Kondisi</option>
                             <option value="BAIK">Baik</option>
                             <option value="RUSAK_RINGAN">Rusak Ringan</option>
                             <option value="RUSAK_BERAT">Rusak Berat</option>
                             <option value="DISPOSED">Disposed</option>
                         </select>
-                    </div>
-
-                    <div className="md:col-span-2">
-                        <button onClick={() => { setSearchTerm(''); setSelectedCondition(''); if (isGlobalAdmin) setSelectedUnit(''); setSelectedRoom(''); }} className="w-full px-3 py-2 border border-slate-200 bg-white rounded-lg text-slate-600 hover:bg-slate-50 flex justify-center items-center gap-2 text-sm">
-                            <Filter size={16} /> Reset
+                        <button onClick={() => { setSearchTerm(''); setSelectedCondition(''); if (isGlobalAdmin) setSelectedUnit(''); setSelectedRoom(''); }} className="w-10 h-10 flex items-center justify-center border border-slate-200 bg-white rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm" title="Reset Filter">
+                            <XCircle size={18} />
                         </button>
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
-                            <tr>
-                                <th className="px-6 py-4 w-10">
-                                    <input
-                                        type="checkbox"
-                                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                        checked={paginatedAssets.length > 0 && selectedIds.length === paginatedAssets.length}
-                                        onChange={handleSelectAll}
-                                    />
-                                </th>
-                                <th className="px-6 py-4">Kode Aset</th>
-                                <th className="px-6 py-4">Nama Item</th>
-                                <th className="px-6 py-4">Unit / Divisi</th>
-                                <th className="px-6 py-4">Lokasi (Ruang)</th>
-                                <th className="px-6 py-4">Kondisi</th>
-                                <th className="px-6 py-4 text-center">PIC</th>
-                                <th className="px-6 py-4">Harga</th>
-                                <th className="px-6 py-4 text-center">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {loading ? (
+                <div className="space-y-4">
+                    {/* DESKTOP TABLE */}
+                    <div className="hidden xl:block overflow-x-auto">
+                        <table className="w-full text-sm text-left border-collapse">
+                            <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100 uppercase text-[10px] tracking-wider">
                                 <tr>
-                                    <td colSpan="8" className="px-6 py-12 text-center text-slate-500">
-                                        Memuat data...
-                                    </td>
-                                </tr>
-                            ) : (Array.isArray(paginatedAssets) && paginatedAssets.length > 0) ? paginatedAssets.map((asset) => (
-                                <tr key={asset.id} className={`hover:bg-slate-50/80 transition-colors group ${selectedIds.includes(asset.id) ? 'bg-blue-50/30' : ''}`}>
-                                    <td className="px-6 py-4 text-center">
+                                    <th className="px-6 py-4 w-10">
                                         <input
                                             type="checkbox"
                                             className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            checked={paginatedAssets.length > 0 && selectedIds.length === paginatedAssets.length}
+                                            onChange={handleSelectAll}
+                                        />
+                                    </th>
+                                    <th className="px-6 py-4">Aset</th>
+                                    <th className="px-6 py-4">Unit / Ruang</th>
+                                    <th className="px-6 py-4">Kondisi</th>
+                                    <th className="px-6 py-4">PIC / Pengguna</th>
+                                    <th className="px-6 py-4">Harga / Tanggal</th>
+                                    <th className="px-6 py-4 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan="7" className="px-6 py-12 text-center">
+                                            <div className="flex flex-col items-center gap-2 text-slate-400">
+                                                <div className="w-8 h-8 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+                                                <span className="text-xs font-medium italic">Memuat data aset...</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : (Array.isArray(paginatedAssets) && paginatedAssets.length > 0) ? paginatedAssets.map((asset) => (
+                                    <tr key={asset.id} className={`hover:bg-slate-50/80 transition-colors group ${selectedIds.includes(asset.id) ? 'bg-blue-50/30' : ''}`}>
+                                        <td className="px-6 py-4 text-center">
+                                            <input
+                                                type="checkbox"
+                                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                checked={selectedIds.includes(asset.id)}
+                                                onChange={() => handleToggleSelect(asset.id)}
+                                            />
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col">
+                                                <Link to={`/aset/view/${asset.id}`} className="font-bold text-slate-800 hover:text-blue-600 transition-colors">{asset.name}</Link>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded leading-none">{asset.code}</span>
+                                                    {asset.validationStatus === 'VALIDATED' ? (
+                                                        <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold">VALID</span>
+                                                    ) : asset.validationStatus === 'NEEDS_UPDATE' ? (
+                                                        <span className="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-bold">REVISI</span>
+                                                    ) : (
+                                                        <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-bold italic">BELUM CEK</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col gap-0.5 max-w-[150px]">
+                                                <span className="text-[11px] font-bold text-slate-700 truncate" title={asset.unit?.name}>{asset.unit?.name || '-'}</span>
+                                                <span className="text-[10px] text-slate-400 italic truncate" title={asset.room?.name}>{asset.room?.name || '-'}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${asset.condition === 'BAIK' ? 'bg-emerald-100 text-emerald-700' :
+                                                asset.condition === 'RUSAK_RINGAN' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>
+                                                {(asset.condition || 'BAIK').replace('_', ' ')}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col">
+                                                <span className="text-xs font-bold text-slate-700">{asset.picName || (asset.pic?.name) || '-'}</span>
+                                                <span className="text-[10px] text-slate-400 truncate">{asset.category?.name}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col">
+                                                <span className="text-xs font-bold text-slate-800">Rp {(asset.price || 0).toLocaleString()}</span>
+                                                <span className="text-[10px] text-slate-400">{asset.purchaseDate ? new Date(asset.purchaseDate).toLocaleDateString('id-ID') : '-'}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <div className="flex justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => openValidationModal([asset.id], asset.validationStatus || 'VALIDATED')} className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors" title="Validasi"><CheckCircle size={14} /></button>
+                                                <button onClick={() => openPrintModal(asset)} className="p-1.5 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors" title="Cetak QR"><QrCode size={14} /></button>
+                                                <button onClick={() => navigate(`/mutasi/request?assetId=${asset.id}`)} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors" title="Mutasi"><ArrowLeftRight size={14} /></button>
+                                                <button onClick={() => navigate(`/aset/edit/${asset.id}`)} className="p-1.5 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors" title="Edit"><Edit size={14} /></button>
+                                                {isGlobalAdmin && (
+                                                    <button onClick={() => handleDelete(asset.id)} className="p-1.5 bg-red-50 text-red-400 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors" title="Hapus">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )) : (
+                                    <tr>
+                                        <td colSpan="7" className="px-6 py-12 text-center text-slate-500 italic">
+                                            Data tidak ditemukan untuk filter ini
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* MOBILE CARD LIST */}
+                    <div className="xl:hidden grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {loading ? (
+                            <div className="col-span-full py-10 text-center text-slate-400 animate-pulse font-medium italic text-xs">Sedang memuat aset...</div>
+                        ) : (Array.isArray(paginatedAssets) && paginatedAssets.length > 0) ? paginatedAssets.map((asset) => (
+                            <div key={asset.id} className={`bg-white p-4 rounded-2xl shadow-sm border ${selectedIds.includes(asset.id) ? 'border-blue-500 ring-2 ring-blue-50' : 'border-slate-100'} transition-all`}>
+                                <div className="flex justify-between items-start mb-3">
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            type="checkbox"
+                                            className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                             checked={selectedIds.includes(asset.id)}
                                             onChange={() => handleToggleSelect(asset.id)}
                                         />
-                                    </td>
-                                    <td className="px-6 py-4 font-medium text-blue-600 font-mono tracking-tight">
-                                        <Link to={`/aset/view/${asset.id}`} className="hover:underline">
-                                            {asset.code}
-                                        </Link>
-                                        <div className="mt-1">
-                                            {asset.validationStatus === 'VALIDATED' ? (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-700 border border-green-200 font-bold uppercase">
-                                                    <CheckCircle size={10} /> Valid
-                                                </span>
-                                            ) : asset.validationStatus === 'NEEDS_UPDATE' ? (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-orange-100 text-orange-700 border border-orange-200 font-bold uppercase">
-                                                    <AlertCircle size={10} /> Cek Fisik
-                                                </span>
-                                            ) : asset.validationStatus === 'REJECTED' ? (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-red-100 text-red-700 border border-red-200 font-bold uppercase">
-                                                    <XCircle size={10} /> Ditolak
-                                                </span>
-                                            ) : (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 border border-slate-200 font-bold uppercase">
-                                                    Unverified
-                                                </span>
-                                            )}
+                                        <div className="flex flex-col">
+                                            <Link to={`/aset/view/${asset.id}`} className="font-bold text-slate-800 leading-tight mb-0.5 line-clamp-1">{asset.name}</Link>
+                                            <span className="text-[10px] font-mono text-slate-400 tracking-wider bg-slate-50 w-fit px-1.5 rounded uppercase leading-relaxed">{asset.code}</span>
                                         </div>
-                                    </td>
-                                    <td className="px-6 py-4 font-medium text-slate-800">
-                                        {asset.name}
-                                        <div className="text-xs text-slate-400 font-normal">{asset.category?.name}</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-slate-600">
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
-                                            {asset.unit?.name || '-'}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-slate-600">{asset.room?.name || '-'}</td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${asset.condition === 'BAIK' ? 'bg-emerald-100 text-emerald-700' :
-                                            asset.condition === 'RUSAK_RINGAN' ? 'bg-orange-100 text-orange-700' :
-                                                'bg-red-100 text-red-700'
-                                            }`}>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1.5">
+                                        <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black tracking-tight ${asset.condition === 'BAIK' ? 'bg-green-100 text-green-700' : asset.condition === 'RUSAK_RINGAN' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>
                                             {(asset.condition || 'BAIK').replace('_', ' ')}
                                         </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-slate-700">{asset.picName || (asset.pic?.name) || '-'}</span>
-                                            {asset.pic && <span className="text-[10px] text-blue-500 font-medium uppercase">{asset.pic.username}</span>}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-slate-600">Rp {(asset.price || 0).toLocaleString()}</td>
-                                    <td className="px-6 py-4 text-center">
-                                        <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => openValidationModal([asset.id], asset.validationStatus || 'VALIDATED')} className="p-1 hover:bg-green-50 text-green-600 rounded transition-colors" title="Validasi Aset"><CheckCircle size={16} /></button>
-                                            <button onClick={() => openPrintModal(asset)} className="p-1 hover:bg-slate-800 hover:text-white text-slate-500 rounded transition-colors" title="Cetak Label QR"><QrCode size={16} /></button>
-                                            <button onClick={() => navigate(`/mutasi/request?assetId=${asset.id}`)} className="p-1 hover:bg-orange-50 text-orange-600 rounded transition-colors" title="Ajukan Mutasi"><ArrowLeftRight size={16} /></button>
-                                            {canProposeDisposal && (
-                                                <button
-                                                    onClick={() => setDisposalModal({
-                                                        isOpen: true,
-                                                        asset,
-                                                        reason: '',
-                                                        method: 'DIMUSNAHKAN',
-                                                        notes: '',
-                                                        disposalDate: new Date().toISOString().split('T')[0]
-                                                    })}
-                                                    className="p-1 hover:bg-red-50 text-red-600 rounded"
-                                                    title="Usulkan Penghapusan"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            )}
-                                            <button onClick={() => navigate(`/aset/edit/${asset.id}`)} className="p-1 hover:bg-blue-50 text-blue-600 rounded" title="Edit"><Edit size={16} /></button>
-                                            {isGlobalAdmin && (
-                                                <button onClick={() => handleDelete(asset.id)} className="p-1 hover:bg-slate-100 text-slate-400 rounded" title="Hapus Permanen (Database)">
-                                                    <XCircle size={14} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            )) : (
-                                <tr>
-                                    <td colSpan="9" className="px-6 py-12 text-center text-slate-500">
-                                        Data tidak ditemukan untuk filter ini
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                                        {asset.validationStatus === 'VALIDATED' ? <span className="text-[8px] font-bold text-green-600 flex items-center gap-0.5 leading-none"><CheckCircle size={10} /> TERVALIDASI</span> : <span className="text-[8px] font-bold text-slate-400 italic flex items-center gap-0.5 leading-none"><AlertCircle size={10} /> BELUM CEK</span>}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 py-3 border-y border-slate-50 mb-3">
+                                    <div>
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase block mb-0.5 tracking-tight">Unit & Lokasi</span>
+                                        <p className="text-[11px] font-bold text-slate-700 line-clamp-1">{asset.unit?.name || '-'}</p>
+                                        <p className="text-[10px] text-slate-500 italic line-clamp-1">{asset.room?.name || '-'}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase block mb-0.5 tracking-tight">Kategori & PIC</span>
+                                        <p className="text-[11px] font-bold text-slate-700 line-clamp-1">{asset.category?.name || '-'}</p>
+                                        <p className="text-[10px] text-slate-500 line-clamp-1">{asset.picName || (asset.pic?.name) || '-'}</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-between items-center bg-slate-50/50 p-2 rounded-xl border border-slate-100 mb-4">
+                                    <div className="flex flex-col">
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Harga Perolehan</span>
+                                        <span className="text-xs font-black text-slate-800">Rp {(asset.price || 0).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Tgl Beli</span>
+                                        <span className="text-xs font-medium text-slate-600">{asset.purchaseDate ? new Date(asset.purchaseDate).toLocaleDateString('id-ID') : '-'}</span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-4 gap-2">
+                                    <button onClick={() => openValidationModal([asset.id], asset.validationStatus || 'VALIDATED')} className="flex items-center justify-center py-2 bg-green-50 text-green-600 border border-green-100 rounded-xl hover:bg-green-100 transition-all"><CheckCircle size={18} /></button>
+                                    <button onClick={() => openPrintModal(asset)} className="flex items-center justify-center py-2 bg-slate-50 text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-200 transition-all"><QrCode size={18} /></button>
+                                    <button onClick={() => navigate(`/aset/edit/${asset.id}`)} className="flex items-center justify-center py-2 bg-blue-50 text-blue-600 border border-blue-100 rounded-xl hover:bg-blue-100 transition-all"><Edit size={18} /></button>
+                                    <button onClick={() => navigate(`/mutasi/request?assetId=${asset.id}`)} className="flex items-center justify-center py-2 bg-orange-50 text-orange-600 border border-orange-100 rounded-xl hover:bg-orange-100 transition-all"><ArrowLeftRight size={18} /></button>
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="col-span-full py-20 text-center bg-white rounded-2xl border border-dashed border-slate-200">
+                                <p className="text-slate-400 italic font-medium">Data tidak ditemukan</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-slate-500">
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
+                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-4 text-[10px] sm:text-xs text-slate-500">
+                    <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full sm:w-auto text-center sm:text-left">
+                        <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-slate-200">
                             <span>Tampilkan:</span>
                             <select
                                 value={itemsPerPage}
-                                onChange={e => setItemsPerPage(parseInt(e.target.value))}
-                                className="bg-white border border-slate-200 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500"
+                                onChange={e => { setItemsPerPage(parseInt(e.target.value)); setCurrentPage(1); }}
+                                className="bg-transparent font-bold text-slate-800 outline-none"
                             >
                                 {[10, 25, 50, 100, 500, 1000].map(limit => (
                                     <option key={limit} value={limit}>{limit}</option>
                                 ))}
                             </select>
                         </div>
-                        <span>Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, totalItems)} dari {totalItems} data</span>
+                        <span className="font-medium">Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, totalItems)} dari <span className="text-slate-800 font-bold">{totalItems}</span> aset</span>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-center">
                         <button
                             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                             disabled={currentPage === 1}
-                            className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                            className="h-8 px-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-30 disabled:grayscale transition-all font-bold text-slate-600 shadow-sm"
                         >
-                            Sebelumnya
+                            Prev
                         </button>
-                        <span className="flex items-center px-2 bg-slate-100 rounded text-slate-600 font-medium">
-                            Hal {currentPage} / {totalPages || 1}
-                        </span>
+                        <div className="h-8 px-4 flex items-center bg-blue-600 text-white rounded-xl font-black shadow-lg shadow-blue-200">
+                            {currentPage} / {totalPages || 1}
+                        </div>
                         <button
                             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                             disabled={currentPage === totalPages || totalPages === 0}
-                            className="px-3 py-1 bg-white border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                            className="h-8 px-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-30 disabled:grayscale transition-all font-bold text-slate-600 shadow-sm"
                         >
-                            Selanjutnya
+                            Next
                         </button>
                     </div>
                 </div>
