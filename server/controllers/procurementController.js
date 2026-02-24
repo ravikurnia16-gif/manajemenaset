@@ -161,6 +161,9 @@ exports.createProcurement = async (req, res) => {
         // --- In-App Notification (Phase 3) ---
         (async () => {
             try {
+                const submitterInfo = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true, username: true } });
+                const submitterName = submitterInfo?.name || submitterInfo?.username || 'Seseorang';
+
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
@@ -175,7 +178,7 @@ exports.createProcurement = async (req, res) => {
                     await createNotification(
                         admin.id,
                         'Permintaan Pengadaan Baru',
-                        `${user.name || user.username} mengajukan ${results.length} permintaan pengadaan baru.`,
+                        `${submitterName} mengajukan ${results.length} permintaan pengadaan baru.`,
                         'URGENT',
                         '/procurement'
                     );
@@ -314,12 +317,15 @@ exports.importProcurement = async (req, res) => {
         // --- In-App Notification (Phase 3) ---
         (async () => {
             try {
+                const submitterInfo = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true, username: true } });
+                const submitterName = submitterInfo?.name || submitterInfo?.username || 'Seseorang';
+
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
                             { position: 'Kepala Bidang Sarana dan Prasarana' },
                             { position: 'Staff Manajemen Aset' },
-                            { position: 'Staff Keuangan' }
+                            { position: 'Staff Keuangan dan Administrasi (Sarpras)' }
                         ]
                     }
                 });
@@ -328,7 +334,7 @@ exports.importProcurement = async (req, res) => {
                     await createNotification(
                         admin.id,
                         'Import Pengadaan Baru',
-                        `${user.name || user.username} melakukan import ${results.length} permintaan pengadaan.`,
+                        `${submitterName} melakukan import ${results.length} permintaan pengadaan.`,
                         'INFO',
                         '/procurement'
                     );

@@ -97,6 +97,9 @@ exports.createReport = async (req, res) => {
         // --- In-App Notification (Phase 3) ---
         (async () => {
             try {
+                const submitterInfo = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true, username: true } });
+                const submitterName = submitterInfo?.name || submitterInfo?.username || 'Seseorang';
+
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
@@ -110,7 +113,7 @@ exports.createReport = async (req, res) => {
                     await createNotification(
                         admin.id,
                         'Laporan Pemeliharaan Baru',
-                        `${user.name || user.username} melaporkan masalah: "${title}".`,
+                        `${submitterName} melaporkan masalah: "${title}".`,
                         'URGENT',
                         '/maintenance'
                     );
