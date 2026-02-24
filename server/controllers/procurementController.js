@@ -578,13 +578,12 @@ exports.updateItemDetail = async (req, res) => {
                         `${idx + 1}. *${it.name}*` + (it.spec && it.spec !== '-' ? ` (${it.spec})` : '')
                     ).join('\n');
 
-                    const msg = `*Info Penugasan Pengadaan*\n\n` +
+                    const msg = `Bismillah\n\n` +
+                        `*Info Penugasan Pengadaan*\n\n` +
                         `Ustadz/Ustadzah *${assignedUser.name || assignedUser.username}*,\n\n` +
                         `Anda telah ditugaskan untuk mengelola item berikut pada pengajuan *"${procurement.title || procurement.code}"*:\n\n` +
                         `${itemListMsg}\n\n` +
-                        `Silakan cek detailnya di sini:\n` +
-                        `https://manajemenaset.ltdh6w.easypanel.host/procurement/view/${procurement.id}\n\n` +
-                        `Mohon segera ditindaklanjuti. Terima kasih.`;
+                        `Mohon segera ditindaklanjuti. Syukron Jazakumullahu khairan.`;
 
                     await whatsappService.sendMessage(assignedUser.phone, msg);
                     console.log(`[WA] Consolidated assignment notification sent to ${assignedUser.username} for ${procurement.items.length} items`);
@@ -622,7 +621,7 @@ exports.updateItemDetail = async (req, res) => {
                     const vendor = await prisma.vendor.findUnique({ where: { id: parseInt(finalVendorId) } });
                     const vendorName = vendor?.name || 'Vendor';
 
-                    const msg = `*Info Request Pengadaan*\n\n` +
+                    const msg = `*Bismillah*\n\n` +
                         `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n\n` +
                         `Vendor telah terpilih untuk item *"${updatedItem.name}"* pada permintaan *"${proc.title || proc.code}"*:\n\n` +
                         `\u{1F3EA} *Vendor* : ${vendorName}\n` +
@@ -763,7 +762,7 @@ exports.processBAST = async (req, res) => {
         await createNotification(
             procurement.userId,
             'Aset Telah Diterima',
-            `Proses BAST untuk "${procurement.title || procurement.code}" selesai. Aset telah masuk ke inventaris.`,
+            `Proses BAST untuk "${procurement.title || procurement.code}" selesai. Aset telah masuk ke Daftar Aset.`,
             'SUCCESS',
             '/aset'
         );
@@ -787,7 +786,7 @@ exports.processBAST = async (req, res) => {
                     `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n` +
                     `Permintaan Anda *"${procurement.title || procurement.code}"* telah *SELESAI (BAST)* \u2705\u2705\u2705\n\n` +
                     `*Rincian:*\n${itemList}\n\n` +
-                    `Barang sudah diterima dan tercatat sebagai aset. Terima kasih.`;
+                    `Barang sudah diterima dan tercatat sebagai aset. Syukron Jazakumullahu Khairan.`;
 
                 setTimeout(async () => {
                     try {
@@ -850,13 +849,12 @@ exports.notifyAssignees = async (req, res) => {
                 `${idx + 1}. *${it.name}*` + (it.spec && it.spec !== '-' ? ` (${it.spec})` : '')
             ).join('\n');
 
-            const msg = `*Info Penugasan Pengadaan (Manual)*\n\n` +
+            const msg = `Bismillah\n\n` +
+                `*Info Penugasan Pengadaan (Manual)*\n\n` +
                 `Ustadz/Ustadzah *${user.name || user.username}*,\n\n` +
                 `Anda telah ditugaskan untuk mengelola item berikut pada pengajuan *"${procurement.title || procurement.code}"*:\n\n` +
                 `${itemListMsg}\n\n` +
-                `Silakan cek detailnya di sini:\n` +
-                `https://manajemenaset.ltdh6w.easypanel.host/procurement/view/${procurement.id}\n\n` +
-                `Mohon segera ditindaklanjuti. Terima kasih.`;
+                `Mohon segera ditindaklanjuti. Syukron Jazakumullahu khairan.`;
 
             await whatsappService.sendMessage(user.phone, msg);
         }
