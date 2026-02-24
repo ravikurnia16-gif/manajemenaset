@@ -636,11 +636,17 @@ const Settings = () => {
                                         ].find(p => p.label === e.target.value);
 
                                         if (pos) {
+                                            // Auto-assign Kantor Yayasan unit for global roles
+                                            let autoUnitId = newUser.unitId;
+                                            if (pos.scope === 'GLOBAL') {
+                                                const yayasanUnit = unitList.find(u => u.name.toLowerCase().includes('yayasan'));
+                                                autoUnitId = yayasanUnit ? String(yayasanUnit.id) : '';
+                                            }
                                             setNewUser({
                                                 ...newUser,
                                                 position: pos.label,
                                                 role: pos.role,
-                                                unitId: pos.scope === 'GLOBAL' ? '' : newUser.unitId
+                                                unitId: autoUnitId
                                             });
                                         } else {
                                             setNewUser({ ...newUser, position: e.target.value });

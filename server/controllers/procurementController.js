@@ -166,7 +166,7 @@ exports.createProcurement = async (req, res) => {
                         OR: [
                             { position: 'Kepala Bidang Sarana dan Prasarana' },
                             { position: 'Staff Manajemen Aset' },
-                            { position: 'Staff Keuangan' }
+                            { position: 'Staff Keuangan dan Administrasi (Sarpras)' }
                         ]
                     }
                 });

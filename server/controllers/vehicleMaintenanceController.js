@@ -232,7 +232,7 @@ exports.checkKmServiceNotifications = async () => {
             where: {
                 OR: [
                     { position: 'Kepala Bidang Sarana dan Prasarana' },
-                    { position: 'Staff Keuangan' }
+                    { position: 'Staff Keuangan dan Administrasi (Sarpras)' }
                 ],
                 phone: { not: null, not: '' }
             }

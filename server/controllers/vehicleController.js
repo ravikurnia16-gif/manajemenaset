@@ -250,7 +250,7 @@ exports.checkKirNotifications = async () => {
         // Find recipients: Leads and Finance Staff
         const recipients = await prisma.user.findMany({
             where: {
-                position: { in: ['Kepala Bidang Sarana dan Prasarana', 'Staff Keuangan'] },
+                position: { in: ['Kepala Bidang Sarana dan Prasarana', 'Staff Keuangan dan Administrasi (Sarpras)'] },
                 phone: { not: null, not: '' }
             }
         });
