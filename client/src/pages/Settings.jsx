@@ -603,7 +603,7 @@ const Settings = () => {
 
                                             // BIDANG SARANA & PRASARANA
                                             { label: 'Kepala Bidang Sarana dan Prasarana', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
-                                            { label: 'Staff Keuangan dan Administrasi (Sarpras)', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+                                            { label: 'Staff Keuangan dan Administrasi (Sarpras)', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
                                             { label: 'Staff Manajemen Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                             { label: 'Staff Gudang dan Logistik', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                             { label: 'Staff Kendaraan', role: 'ADMIN_ASET', scope: 'GLOBAL' },
