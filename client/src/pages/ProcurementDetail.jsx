@@ -12,7 +12,10 @@ const ProcurementDetail = () => {
     const [bastDate, setBastDate] = useState('');
     const [vendors, setVendors] = useState([]);
     const [users, setUsers] = useState([]);
+    const [units, setUnits] = useState([]);
     const [handoverPhoto, setHandoverPhoto] = useState(null);
+    const [notifying, setNotifying] = useState(false);
+    const [selectedUnits, setSelectedUnits] = useState({}); // Tracking Unit choice per item for filtering staff
 
     // View Management (Split Pages)
     const [activeTab, setActiveTab] = useState(1); // 1: Verifikasi, 2: Penugasan, 3: Vendor, 4: Finalisasi, 5: BAST/Handover
@@ -31,6 +34,7 @@ const ProcurementDetail = () => {
         fetchDetail();
         fetchVendors();
         fetchUsers();
+        fetchUnits();
     }, [id]);
 
     const fetchUsers = async () => {
@@ -38,17 +42,21 @@ const ProcurementDetail = () => {
             const res = await api.get('/users');
             setUsers(res.data.map(u => ({
                 id: u.id,
-                name: u.name || u.username
+                name: u.name || u.username,
+                unitId: u.unitId
             })));
-            console.log('--- USER DEBUG ---');
-            console.log('Total users from API:', res.data.length);
-            console.log('Total users in state:', res.data.length);
-            console.log('User roles present:', [...new Set(res.data.map(u => u.role))]);
-            console.log('Full User Data:', res.data);
-            console.log('--- END DEBUG ---');
         } catch (error) {
             console.error(error);
-            alert('Gagal mengambil daftar pengguna. Periksa koneksi database.');
+            alert('Gagal mengambil daftar pengguna.');
+        }
+    };
+
+    const fetchUnits = async () => {
+        try {
+            const res = await api.get('/master/units');
+            setUnits(res.data);
+        } catch (error) {
+            console.error(error);
         }
     };
 
@@ -175,6 +183,18 @@ const ProcurementDetail = () => {
             fetchDetail();
         } catch (error) {
             alert(error.response?.data?.error);
+        }
+    };
+
+    const handleNotifyAssignees = async () => {
+        try {
+            setNotifying(true);
+            const res = await api.post(`/procurements/${id}/notify-assignees`);
+            alert(res.data.message);
+        } catch (error) {
+            alert(error.response?.data?.error || 'Gagal mengirim notifikasi');
+        } finally {
+            setNotifying(false);
         }
     };
 
@@ -369,29 +389,40 @@ const ProcurementDetail = () => {
                                     <UserCheck size={18} /> Tahap 2: Penugasan Internal
                                 </h3>
                                 {isAdmin && ['APPROVED', 'PROCESS'].includes(req.status) && (
-                                    <button
-                                        onClick={async () => {
-                                            const missing = req.items.find(item => !item.assignedToId);
-                                            if (missing) {
-                                                return alert(`Harap pilih petugas untuk item: ${missing.name}`);
-                                            }
-                                            // Auto-save all items
-                                            setLoading(true);
-                                            try {
-                                                for (const item of req.items) {
-                                                    await handleSaveItem(item, true);
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={async () => {
+                                                const missing = req.items.find(item => !item.assignedToId);
+                                                if (missing) {
+                                                    return alert(`Harap pilih petugas untuk item: ${missing.name}`);
                                                 }
-                                                setActiveTab(3);
-                                            } catch (error) {
-                                                alert('Gagal menyimpan penugasan. Periksa koneksi.');
-                                            } finally {
-                                                setLoading(false);
-                                            }
-                                        }}
-                                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm"
-                                    >
-                                        Lanjut ke Pemilihan Vendor &rsaquo;
-                                    </button>
+                                                // Auto-save all items
+                                                setLoading(true);
+                                                try {
+                                                    for (const item of req.items) {
+                                                        await handleSaveItem(item, true);
+                                                    }
+
+                                                    // AUTOMATIC NOTIFICATION
+                                                    try {
+                                                        await api.post(`/procurements/${id}/notify-assignees`);
+                                                    } catch (notifErr) {
+                                                        console.error('Failed to auto-notify:', notifErr);
+                                                        // We don't block the UI if notification fails, but maybe log it
+                                                    }
+
+                                                    setActiveTab(3);
+                                                } catch (error) {
+                                                    alert('Gagal menyimpan penugasan. Periksa koneksi.');
+                                                } finally {
+                                                    setLoading(false);
+                                                }
+                                            }}
+                                            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm"
+                                        >
+                                            {loading ? 'Memproses...' : 'Lanjut ke Pemilihan Vendor \u203A'}
+                                        </button>
+                                    </div>
                                 )}
                             </div>
 
@@ -405,40 +436,65 @@ const ProcurementDetail = () => {
                                         <tr>
                                             <th className="p-3 rounded-l-lg w-10 text-center">No</th>
                                             <th className="p-3">Item</th>
-                                            <th className="p-3 rounded-r-lg">Ditugaskan Kepada (Akun Sistem)</th>
+                                            <th className="p-3 w-48">Pilih Unit</th>
+                                            <th className="p-3 rounded-r-lg">Ditugaskan Kepada</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {req.items.map((item, index) => (
-                                            <tr key={item.id} className="hover:bg-slate-50">
-                                                <td className="p-3 text-center text-slate-400 font-mono">{index + 1}</td>
-                                                <td className="p-3">
-                                                    <div className="font-bold text-slate-700">{item.name}</div>
-                                                    <div className="text-xs text-slate-500">{item.spec}</div>
-                                                </td>
-                                                <td className="p-3">
-                                                    <select
-                                                        className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
-                                                        value={item.assignedToId || ''}
-                                                        disabled={req.status === 'COMPLETED' || !isAdmin}
-                                                        onChange={(e) => {
-                                                            const selectedId = e.target.value ? parseInt(e.target.value) : null;
-                                                            const selectedUser = users.find(u => u.id === selectedId);
-                                                            handleItemChange(index, 'assignedToId', selectedId);
-                                                            handleItemChange(index, 'assignedTo', selectedUser?.name || '');
-                                                        }}
-                                                    >
-                                                        <option value="">-- Pilih Pengguna --</option>
-                                                        {users.map(u => (
-                                                            <option key={u.id} value={u.id}>{u.name}</option>
-                                                        ))}
-                                                    </select>
-                                                    {users.length === 0 && (
-                                                        <p className="text-xs text-red-500 mt-1">⚠ Daftar pengguna kosong. Periksa koneksi database.</p>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {req.items.map((item, index) => {
+                                            const itemUnitId = selectedUnits[index] || users.find(u => u.id === item.assignedToId)?.unitId || '';
+                                            const filteredUsers = users.filter(u => !itemUnitId || u.unitId === parseInt(itemUnitId));
+
+                                            return (
+                                                <tr key={item.id} className="hover:bg-slate-50">
+                                                    <td className="p-3 text-center text-slate-400 font-mono">{index + 1}</td>
+                                                    <td className="p-3">
+                                                        <div className="font-bold text-slate-700">{item.name}</div>
+                                                        <div className="text-xs text-slate-500">{item.spec}</div>
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <select
+                                                            className="w-full border border-slate-300 rounded-lg px-2 py-2 text-xs bg-white focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-50"
+                                                            value={itemUnitId}
+                                                            disabled={req.status === 'COMPLETED' || !isAdmin}
+                                                            onChange={(e) => {
+                                                                const unitId = e.target.value;
+                                                                setSelectedUnits(prev => ({ ...prev, [index]: unitId }));
+                                                                // Clear assignee if unit changed
+                                                                handleItemChange(index, 'assignedToId', null);
+                                                                handleItemChange(index, 'assignedTo', '');
+                                                            }}
+                                                        >
+                                                            <option value="">-- Semua Unit --</option>
+                                                            {units.map(u => (
+                                                                <option key={u.id} value={u.id}>{u.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <select
+                                                            className="w-full border border-slate-300 rounded-lg px-2 py-2 text-xs bg-white focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-50"
+                                                            value={item.assignedToId || ''}
+                                                            disabled={req.status === 'COMPLETED' || !isAdmin}
+                                                            onChange={(e) => {
+                                                                const selectedId = e.target.value ? parseInt(e.target.value) : null;
+                                                                const selectedUser = users.find(u => u.id === selectedId);
+                                                                handleItemChange(index, 'assignedToId', selectedId);
+                                                                handleItemChange(index, 'assignedTo', selectedUser?.name || '');
+                                                            }}
+                                                        >
+                                                            <option value="">-- Pilih Staf --</option>
+                                                            {filteredUsers.map(u => (
+                                                                <option key={u.id} value={u.id}>{u.name}</option>
+                                                            ))}
+                                                        </select>
+                                                        {filteredUsers.length === 0 && itemUnitId && (
+                                                            <p className="text-[10px] text-red-500 mt-1">Belum ada staf di unit ini.</p>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>

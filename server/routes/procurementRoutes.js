@@ -22,6 +22,9 @@ router.post('/:id/offers', verifyToken, procurementController.addVendorOffer);
 // BAST & Completion (Admin + Assigned users can finalize)
 router.post('/:id/bast', verifyToken, procurementController.processBAST);
 
+// Notify Assignees
+router.post('/:id/notify-assignees', verifyToken, procurementController.notifyAssignees);
+
 // Delete
 router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.deleteProcurement);
 router.post('/bulk-delete', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.bulkDeleteProcurements);

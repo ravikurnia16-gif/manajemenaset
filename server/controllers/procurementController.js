@@ -576,6 +576,8 @@ exports.updateItemDetail = async (req, res) => {
                         `Ustadz/Ustadzah *${assignedUser.name || assignedUser.username}*,\n\n` +
                         `Anda telah ditugaskan untuk mengelola item berikut pada pengajuan *"${procurement.title || procurement.code}"*:\n\n` +
                         `${itemListMsg}\n\n` +
+                        `Silakan cek detailnya di sini:\n` +
+                        `https://manajemenaset.ltdh6w.easypanel.host/procurement/view/${procurement.id}\n\n` +
                         `Mohon segera ditindaklanjuti. Terima kasih.`;
 
                     await whatsappService.sendMessage(assignedUser.phone, msg);
@@ -794,6 +796,66 @@ exports.processBAST = async (req, res) => {
             }
         })();
 
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Notify All Assignees manually
+exports.notifyAssignees = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const procurement = await prisma.procurement.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                items: {
+                    include: { assignedToUser: true }
+                }
+            }
+        });
+
+        if (!procurement) return res.status(404).json({ error: 'Data tidak ditemukan' });
+
+        // Group items by assigneeId
+        const assignmentMap = {};
+        procurement.items.forEach(item => {
+            if (item.assignedToId && item.assignedToUser) {
+                if (!assignmentMap[item.assignedToId]) {
+                    assignmentMap[item.assignedToId] = {
+                        user: item.assignedToUser,
+                        items: []
+                    };
+                }
+                assignmentMap[item.assignedToId].items.push(item);
+            }
+        });
+
+        const assigneeIds = Object.keys(assignmentMap);
+        if (assigneeIds.length === 0) {
+            return res.status(400).json({ error: 'Belum ada petugas yang ditugaskan.' });
+        }
+
+        for (const userId of assigneeIds) {
+            const { user, items } = assignmentMap[userId];
+            if (!user.phone) continue;
+
+            const itemListMsg = items.map((it, idx) =>
+                `${idx + 1}. *${it.name}*` + (it.spec && it.spec !== '-' ? ` (${it.spec})` : '')
+            ).join('\n');
+
+            const msg = `*Info Penugasan Pengadaan (Manual)*\n\n` +
+                `Ustadz/Ustadzah *${user.name || user.username}*,\n\n` +
+                `Anda telah ditugaskan untuk mengelola item berikut pada pengajuan *"${procurement.title || procurement.code}"*:\n\n` +
+                `${itemListMsg}\n\n` +
+                `Silakan cek detailnya di sini:\n` +
+                `https://manajemenaset.ltdh6w.easypanel.host/procurement/view/${procurement.id}\n\n` +
+                `Mohon segera ditindaklanjuti. Terima kasih.`;
+
+            await whatsappService.sendMessage(user.phone, msg);
+        }
+
+        res.json({ message: `Notifikasi telah dikirim ke ${assigneeIds.length} petugas.` });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });

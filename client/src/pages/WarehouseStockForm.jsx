@@ -171,7 +171,7 @@ const WarehouseStockForm = () => {
                             <input type="number" value={form.purchaseYear} onChange={e => setForm(prev => ({ ...prev, purchaseYear: e.target.value }))} placeholder="2025" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Lokasi Rak</label>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Lokasi</label>
                             <input type="text" value={form.location} onChange={e => setForm(prev => ({ ...prev, location: e.target.value }))} placeholder="Misal: Rak A1" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
                         </div>
                     </div>
