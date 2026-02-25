@@ -98,7 +98,13 @@ const WarehouseStock = () => {
                 name: String(cols[0] || '').trim(),
                 categoryId: String(cols[1] || '').trim(),
                 type: String(cols[2] || '').trim() || null,
-                gender: String(cols[3] || '').trim() || null,
+                gender: (() => {
+                    const g = String(cols[3] || '').trim().toLowerCase();
+                    if (!g) return null;
+                    if (['l', 'ikhwan', 'laki-laki', 'laki', 'male', 'm', 'pria'].includes(g)) return 'L';
+                    if (['p', 'akhwat', 'perempuan', 'female', 'f', 'wanita'].includes(g)) return 'P';
+                    return String(cols[3]).trim();
+                })(),
                 size: String(cols[4] || '').trim() || null,
                 purchaseYear: String(cols[5] || '').trim() || null,
                 itemUnit: String(cols[6] || '').trim() || null,
