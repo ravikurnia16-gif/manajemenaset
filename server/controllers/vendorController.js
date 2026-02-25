@@ -104,6 +104,38 @@ exports.getVendorProducts = async (req, res) => {
     }
 };
 
+exports.getAllProducts = async (req, res) => {
+    try {
+        const { search } = req.query;
+        let where = {};
+
+        if (search) {
+            where.OR = [
+                { name: { contains: search } },
+                { specification: { contains: search } },
+                { vendor: { name: { contains: search } } }
+            ];
+        }
+
+        const products = await prisma.vendorProduct.findMany({
+            where,
+            include: {
+                vendor: {
+                    select: {
+                        name: true,
+                        category: true,
+                        isVerified: true
+                    }
+                }
+            },
+            orderBy: { name: 'asc' }
+        });
+        res.json(products);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.addProduct = async (req, res) => {
     try {
         const { vendorId } = req.params;
