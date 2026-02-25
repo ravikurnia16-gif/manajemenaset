@@ -23,7 +23,7 @@ exports.getAllVendors = async (req, res) => {
             where,
             include: {
                 _count: {
-                    select: { products: true, assets: true }
+                    select: { products: true }
                 }
             },
             orderBy: { name: 'asc' }
@@ -40,10 +40,7 @@ exports.getVendorById = async (req, res) => {
         const vendor = await prisma.vendor.findUnique({
             where: { id: parseInt(id) },
             include: {
-                products: true,
-                _count: {
-                    select: { assets: true }
-                }
+                products: true
             }
         });
         if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
