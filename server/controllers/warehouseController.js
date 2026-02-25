@@ -159,15 +159,8 @@ exports.deleteItem = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
-exports.deleteAllItems = async (req, res) => {
-    try {
-        // Delete all transaction items first (FK constraint)
-        await prisma.warehouseTransactionItem.deleteMany({});
-        await prisma.warehouseTransaction.deleteMany({});
-        const result = await prisma.warehouseItem.deleteMany({});
-        res.json({ message: `${result.count} item berhasil dihapus` });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-};
+
+
 
 // ======================== IMPORT / EXPORT ========================
 exports.importItems = async (req, res) => {

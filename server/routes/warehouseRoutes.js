@@ -19,7 +19,7 @@ router.get('/items/:id', wh.getItemById);
 router.post('/items', wh.createItem);
 router.post('/items/import', wh.importItems);
 router.put('/items/:id', wh.updateItem);
-router.delete('/items/all', wh.deleteAllItems);
+
 router.delete('/items/:id', wh.deleteItem);
 
 // Transactions

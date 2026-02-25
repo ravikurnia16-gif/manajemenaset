@@ -12,6 +12,7 @@ const WarehouseStock = () => {
     const [categoryFilter, setCategoryFilter] = useState('');
     const [genderFilter, setGenderFilter] = useState('');
     const [sizeFilter, setSizeFilter] = useState('');
+    const [typeFilter, setTypeFilter] = useState('');
     const [yearFilter, setYearFilter] = useState('');
     const navigate = useNavigate();
 
@@ -22,6 +23,7 @@ const WarehouseStock = () => {
             if (categoryFilter) params.categoryId = categoryFilter;
             if (genderFilter) params.gender = genderFilter;
             if (sizeFilter) params.size = sizeFilter;
+            if (typeFilter) params.type = typeFilter;
             if (yearFilter) params.purchaseYear = yearFilter;
             if (search) params.search = search;
             const [itemsRes, catsRes] = await Promise.all([
@@ -33,7 +35,7 @@ const WarehouseStock = () => {
         } catch (e) { console.error(e); } finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchData(); }, [categoryFilter, genderFilter, sizeFilter, yearFilter]);
+    useEffect(() => { fetchData(); }, [categoryFilter, genderFilter, sizeFilter, typeFilter, yearFilter]);
 
     const filtered = items.filter(i =>
         !search || (i.name?.toLowerCase() || '').includes(search.toLowerCase()) || (i.code?.toLowerCase() || '').includes(search.toLowerCase())
@@ -44,15 +46,7 @@ const WarehouseStock = () => {
         try { await api.delete(`/warehouse/items/${id}`); fetchData(); } catch (e) { alert('Gagal menghapus'); }
     };
 
-    const handleDeleteAll = async () => {
-        if (!confirm('Yakin hapus SEMUA data stok gudang? Tindakan ini tidak bisa dibatalkan!')) return;
-        if (!confirm('Konfirmasi sekali lagi: Hapus semua data stok dan transaksi gudang?')) return;
-        try {
-            const res = await api.delete('/warehouse/items/all');
-            alert(res.data.message);
-            fetchData();
-        } catch (e) { alert('Gagal menghapus semua data'); }
-    };
+
 
     // Template download (XLSX)
     const handleTemplate = () => {
@@ -164,7 +158,7 @@ const WarehouseStock = () => {
                         <input type="file" accept=".csv,.xlsx,.xls" onChange={handleImport} className="hidden" />
                     </label>
                     <button onClick={handleExport} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50"><Download size={14} /> Export</button>
-                    <button onClick={handleDeleteAll} className="flex items-center gap-1 px-3 py-2 border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50"><Trash2 size={14} /> Hapus Semua</button>
+
                     <button onClick={() => navigate('/gudang/stok/input')} className="flex items-center gap-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl"><Plus size={16} /> Tambah</button>
                 </div>
             </div>
@@ -181,12 +175,18 @@ const WarehouseStock = () => {
                 </select>
                 <select value={genderFilter} onChange={e => setGenderFilter(e.target.value)} className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm">
                     <option value="">Semua Gender</option>
-                    <option value="L">Ikhwan</option>
-                    <option value="P">Akhwat</option>
+                    <option value="Ikhwan">Ikhwan</option>
+                    <option value="Akhwat">Akhwat</option>
+                </select>
+                <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                    <option value="">Semua Tipe</option>
+                    <option value="BAJU">Baju</option>
+                    <option value="CELANA">Celana</option>
+                    <option value="JILBAB">Jilbab</option>
                 </select>
                 <select value={sizeFilter} onChange={e => setSizeFilter(e.target.value)} className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm">
                     <option value="">Semua Ukuran</option>
-                    {['S', 'M', 'L', 'XL', 'XXL'].map(s => <option key={s} value={s}>{s}</option>)}
+                    {['SS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '4XL', '38', '40', '42', '44', '46', '48', '50/20', '50/22', '50/24', '52/20', '52/22', '52/24', '54/20', '54/22', '54/24'].map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
                 {years.length > 0 && (
                     <select value={yearFilter} onChange={e => setYearFilter(e.target.value)} className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm">
