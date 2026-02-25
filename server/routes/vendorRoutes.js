@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const vendorController = require('../controllers/vendorController');
-const auth = require('../middleware/auth');
+const { verifyToken } = require('../middleware/authMiddleware');
 
 // All vendor routes require authentication
-router.use(auth);
+router.use(verifyToken);
 
 // Vendor CRUD
 router.get('/', vendorController.getAllVendors);
