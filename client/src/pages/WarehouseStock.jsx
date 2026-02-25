@@ -205,36 +205,31 @@ const WarehouseStock = () => {
                         <table className="min-w-full text-sm">
                             <thead><tr className="bg-slate-50 border-b">
                                 <th className="text-left p-3 font-semibold text-slate-600">Kode</th>
-                                <th className="text-left p-3 font-semibold text-slate-600">Nama</th>
+                                <th className="text-left p-3 font-semibold text-slate-600">Nama Barang</th>
                                 <th className="text-left p-3 font-semibold text-slate-600">Kategori</th>
-                                <th className="text-left p-3 font-semibold text-slate-600">Tipe</th>
-                                <th className="text-center p-3 font-semibold text-slate-600">Gender</th>
-                                <th className="text-center p-3 font-semibold text-slate-600">Ukuran</th>
-                                <th className="text-center p-3 font-semibold text-slate-600">Tahun</th>
-                                <th className="text-left p-3 font-semibold text-slate-600">Unit</th>
+                                <th className="text-left p-3 font-semibold text-slate-600">Lokasi</th>
                                 <th className="text-center p-3 font-semibold text-slate-600">Stok</th>
                                 <th className="text-center p-3 font-semibold text-slate-600">Aksi</th>
                             </tr></thead>
                             <tbody>
-                                {filtered.map(item => (
-                                    <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                                        <td className="p-3 font-mono text-xs">{item.code}</td>
-                                        <td className="p-3 font-medium">{item.name}</td>
-                                        <td className="p-3"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">{item.category?.name}</span></td>
-                                        <td className="p-3 text-xs">{item.type || '-'}</td>
-                                        <td className="p-3 text-center text-xs">{item.gender === 'L' ? 'Ikhwan' : item.gender === 'P' ? 'Akhwat' : '-'}</td>
-                                        <td className="p-3 text-center font-semibold">{item.size || '-'}</td>
-                                        <td className="p-3 text-center text-slate-500">{item.purchaseYear || '-'}</td>
-                                        <td className="p-3 text-xs">{item.itemUnit || '-'}</td>
-                                        <td className="p-3 text-center">
-                                            <span className={`font-bold ${item.stock <= item.minStock ? 'text-red-600' : 'text-green-600'}`}>{item.stock}</span>
-                                        </td>
-                                        <td className="p-3 text-center flex items-center justify-center gap-1">
-                                            <button onClick={() => navigate(`/gudang/stok/edit/${item.id}`)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="Edit"><Edit size={15} /></button>
-                                            <button onClick={() => handleDelete(item.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Hapus"><Trash2 size={15} /></button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {filtered.map(item => {
+                                    const parts = [item.name, item.type, item.gender, item.itemUnit, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear].filter(Boolean);
+                                    return (
+                                        <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+                                            <td className="p-3 font-mono text-xs">{item.code}</td>
+                                            <td className="p-3 font-medium">{parts.join(' ')}</td>
+                                            <td className="p-3"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">{item.category?.name}</span></td>
+                                            <td className="p-3 text-sm text-slate-600">{item.location || '-'}</td>
+                                            <td className="p-3 text-center">
+                                                <span className={`font-bold ${item.stock <= item.minStock ? 'text-red-600' : 'text-green-600'}`}>{item.stock}</span>
+                                            </td>
+                                            <td className="p-3 text-center flex items-center justify-center gap-1">
+                                                <button onClick={() => navigate(`/gudang/stok/edit/${item.id}`)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="Edit"><Edit size={15} /></button>
+                                                <button onClick={() => handleDelete(item.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Hapus"><Trash2 size={15} /></button>
+                                            </td>
+                                        </tr>
+                                    )
+                                })
                             </tbody>
                         </table>
                     </div>
