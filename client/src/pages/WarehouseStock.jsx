@@ -213,7 +213,8 @@ const WarehouseStock = () => {
                             </tr></thead>
                             <tbody>
                                 {filtered.map(item => {
-                                    const parts = [item.name, item.type, item.gender, item.itemUnit, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear].filter(Boolean);
+                                    const displayGender = item.gender === 'L' ? 'Ikhwan' : item.gender === 'P' ? 'Akhwat' : item.gender;
+                                    const parts = [item.name, item.type, displayGender, item.itemUnit, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear].filter(Boolean);
                                     return (
                                         <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
                                             <td className="p-3 font-mono text-xs">{item.code}</td>
@@ -228,8 +229,8 @@ const WarehouseStock = () => {
                                                 <button onClick={() => handleDelete(item.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Hapus"><Trash2 size={15} /></button>
                                             </td>
                                         </tr>
-                                    )
-                                })
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
