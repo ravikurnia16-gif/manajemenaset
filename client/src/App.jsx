@@ -39,6 +39,7 @@ import DisposalList from './pages/DisposalList';
 import LoanList from './pages/LoanList';
 import SarprasRules from './pages/SarprasRules';
 import SarprasCalendar from './pages/SarprasCalendar';
+import VendorManagement from './pages/VendorManagement';
 import ModulePlaceholder from './components/ModulePlaceholder';
 
 // Komponen untuk melindungi route yang butuh login
@@ -76,6 +77,7 @@ function App() {
           <Route path="procurements" element={<ProcurementList />} />
           <Route path="procurements/new" element={<ProcurementForm />} />
           <Route path="procurements/:id" element={<ProcurementDetail />} />
+          <Route path="vendors" element={<VendorManagement />} />
           <Route path="pemeliharaan" element={<MaintenanceList />} />
           <Route path="pemeliharaan/input" element={<MaintenanceForm />} />
           <Route path="pemeliharaan/:id" element={<MaintenanceDetail />} />

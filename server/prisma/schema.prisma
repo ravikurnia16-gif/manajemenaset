@@ -138,12 +138,36 @@ model Category {
 }
 
 model Vendor {
-  id        Int      @id @default(autoincrement())
-  name      String
-  address   String?
-  contact   String?
+  id               Int               @id @default(autoincrement())
+  name             String            @unique
+  address          String?           @db.Text
+  phone            String?
+  email            String?
+  website          String?
+  description      String?           @db.Text
+  photo            String?           @db.LongText
+  category         String?           // e.g., IT, Alat Tulis, Meubel
+  isVerified       Boolean           @default(false)
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
   assets           Asset[]
   procurementItems ProcurementItem[]
+  products         VendorProduct[]
+}
+
+model VendorProduct {
+  id             Int      @id @default(autoincrement())
+  vendorId       Int
+  vendor         Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  name           String
+  price          Float?
+  specification  String?  @db.Text
+  image          String?  @db.LongText
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model Asset {

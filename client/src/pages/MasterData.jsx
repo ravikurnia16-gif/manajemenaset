@@ -7,7 +7,6 @@ const MasterData = () => {
     const [units, setUnits] = useState([]);
     const [rooms, setRooms] = useState([]);
     const [categories, setCategories] = useState([]);
-    const [vendors, setVendors] = useState([]);
     const [loading, setLoading] = useState(false);
 
     // Form inputs
@@ -72,14 +71,13 @@ const MasterData = () => {
     };
     const [newRoom, setNewRoom] = useState({ name: '', code: '', floor: '1', building: '', unitId: '' });
     const [newCategory, setNewCategory] = useState({ name: '', code: '', usefulLife: 5 });
-    const [newVendor, setNewVendor] = useState({ name: '', contact: '', address: '' });
     const [editingItem, setEditingItem] = useState(null); // { type, id, data }
     const [selectedIds, setSelectedIds] = useState(new Set());
 
 
     const toggleSelectAll = (e) => {
         if (e.target.checked) {
-            const currentData = activeTab === 'units' ? units : activeTab === 'rooms' ? rooms : activeTab === 'categories' ? categories : vendors;
+            const currentData = activeTab === 'units' ? units : activeTab === 'rooms' ? rooms : categories;
             setSelectedIds(new Set(currentData.map(item => item.id)));
         } else {
             setSelectedIds(new Set());
@@ -111,16 +109,14 @@ const MasterData = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [ru, rr, rc, rv] = await Promise.all([
+            const [ru, rr, rc] = await Promise.all([
                 api.get('/master/units'),
                 api.get('/master/rooms'),
-                api.get('/master/categories'),
-                api.get('/master/vendors')
+                api.get('/master/categories')
             ]);
             setUnits(ru.data);
             setRooms(rr.data);
             setCategories(rc.data);
-            setVendors(rv.data);
         } catch (err) {
             console.error(err);
         } finally {
@@ -188,19 +184,6 @@ const MasterData = () => {
         } catch (err) { alert(err.message); }
     };
 
-    const handleAddVendor = async (e) => {
-        e.preventDefault();
-        try {
-            if (editingItem && editingItem.type === 'vendors') {
-                await api.put(`/master/vendors/${editingItem.id}`, newVendor);
-                setEditingItem(null);
-            } else {
-                await api.post('/master/vendors', newVendor);
-            }
-            setNewVendor({ name: '', contact: '', address: '' });
-            fetchData();
-        } catch (err) { alert(err.message); }
-    };
 
     const handleDelete = async (type, id) => {
         if (!confirm('Hapus data ini?')) return;
@@ -244,7 +227,6 @@ const MasterData = () => {
         }
         if (type === 'rooms') setNewRoom({ name: item.name, code: item.code, floor: item.floor, building: item.building, unitId: item.unitId });
         if (type === 'categories') setNewCategory({ name: item.name, code: item.code, usefulLife: item.usefulLife });
-        if (type === 'vendors') setNewVendor({ name: item.name, contact: item.contact, address: item.address });
         setActiveTab(type);
     };
 
@@ -263,7 +245,6 @@ const MasterData = () => {
         });
         setNewRoom({ name: '', code: '', floor: '1', building: '', unitId: '' });
         setNewCategory({ name: '', code: '', usefulLife: 5 });
-        setNewVendor({ name: '', contact: '', address: '' });
     };
 
 
@@ -282,7 +263,6 @@ const MasterData = () => {
                     <button onClick={() => changeTab('units')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'units' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Unit / Divisi</button>
                     <button onClick={() => changeTab('rooms')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'rooms' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Ruangan</button>
                     <button onClick={() => changeTab('categories')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'categories' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Kategori</button>
-                    <button onClick={() => changeTab('vendors')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'vendors' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Vendor</button>
                 </div>
                 {selectedIds.size > 0 && (
                     <button onClick={handleBulkDelete} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-red-200 hover:bg-red-700 transition-all flex items-center gap-2 animate-in slide-in-from-right-5 fade-in">
@@ -422,21 +402,6 @@ const MasterData = () => {
                         </form>
                     )}
 
-                    {activeTab === 'vendors' && (
-                        <form onSubmit={handleAddVendor} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Nama Vendor</label>
-                                <input required value={newVendor.name} onChange={e => setNewVendor({ ...newVendor, name: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="PT. Media Utama" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Kontak / Telp</label>
-                                <input value={newVendor.contact} onChange={e => setNewVendor({ ...newVendor, contact: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="0812..." />
-                            </div>
-                            <button className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
-                                <Save size={16} /> {editingItem ? 'Perbarui' : 'Simpan'} Vendor
-                            </button>
-                        </form>
-                    )}
                 </div>
 
                 {/* Table Section */}
@@ -456,8 +421,7 @@ const MasterData = () => {
                                             checked={
                                                 (activeTab === 'units' && units.length > 0 && selectedIds.size === units.length) ||
                                                 (activeTab === 'rooms' && rooms.length > 0 && selectedIds.size === rooms.length) ||
-                                                (activeTab === 'categories' && categories.length > 0 && selectedIds.size === categories.length) ||
-                                                (activeTab === 'vendors' && vendors.length > 0 && selectedIds.size === vendors.length)
+                                                (activeTab === 'categories' && categories.length > 0 && selectedIds.size === categories.length)
                                             }
                                             className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                         />
@@ -528,26 +492,6 @@ const MasterData = () => {
                                             <div className="flex items-center justify-center gap-2">
                                                 <button onClick={() => handleEdit('categories', c)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit size={16} /></button>
                                                 <button onClick={() => handleDelete('categories', c.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {activeTab === 'vendors' && vendors.map(v => (
-                                    <tr key={v.id} className="hover:bg-slate-50/50">
-                                        <td className="px-6 py-3">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedIds.has(v.id)}
-                                                onChange={() => toggleSelectItem(v.id)}
-                                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                            />
-                                        </td>
-                                        <td className="px-6 py-3 font-medium text-slate-800">{v.name}</td>
-                                        <td className="px-6 py-3 text-slate-600">{v.contact || '-'}</td>
-                                        <td className="px-6 py-3 text-center">
-                                            <div className="flex items-center justify-center gap-2">
-                                                <button onClick={() => handleEdit('vendors', v)} className="p-1 px-2 text-blue-500 hover:bg-blue-50 rounded transition-colors"><Edit size={16} /></button>
-                                                <button onClick={() => handleDelete('vendors', v.id)} className="p-1 px-2 text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
                                             </div>
                                         </td>
                                     </tr>

@@ -122,6 +122,9 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/procurements" className={subNavItemClass('/procurements')}>
                             <ShoppingCart size={16} /> Pengadaan
                         </Link>
+                        <Link to="/vendors" className={subNavItemClass('/vendors')}>
+                            <Users size={16} /> Data Vendor
+                        </Link>
 
                         <Link to="/pemeliharaan" className={subNavItemClass('/pemeliharaan')}>
                             <FileCheck size={16} /> Pemeliharaan

@@ -10,7 +10,6 @@ const ProcurementDetail = () => {
     const [req, setReq] = useState(null);
     const [loading, setLoading] = useState(true);
     const [bastDate, setBastDate] = useState('');
-    const [vendors, setVendors] = useState([]);
     const [users, setUsers] = useState([]);
     const [units, setUnits] = useState([]);
     const [handoverPhoto, setHandoverPhoto] = useState(null);
@@ -32,7 +31,6 @@ const ProcurementDetail = () => {
 
     useEffect(() => {
         fetchDetail();
-        fetchVendors();
         fetchUsers();
         fetchUnits();
     }, [id]);
@@ -60,14 +58,6 @@ const ProcurementDetail = () => {
         }
     };
 
-    const fetchVendors = async () => {
-        try {
-            const res = await api.get('/master/vendors');
-            setVendors(res.data);
-        } catch (error) {
-            console.error(error);
-        }
-    };
 
     const fetchDetail = async () => {
         try {
@@ -732,11 +722,7 @@ const ProcurementDetail = () => {
                                                 {item.needComparison && (item.comparisonVendors || []).map((cv, i) => (
                                                     <option key={`cv-${i}`} value={`CV-${cv.name}`}>{cv.name} (Kandidat)</option>
                                                 ))}
-                                                <option disabled>──────────</option>
-                                                {vendors.map(v => (
-                                                    <option key={v.id} value={v.id}>{v.name}</option>
-                                                ))}
-                                                <option value="OTHER">+ Vendor Baru</option>
+                                                <option value="OTHER">+ Input Manual (Ketik Nama)</option>
                                             </select>
                                             {item.vendorId === 'OTHER' && (
                                                 <input
@@ -833,11 +819,7 @@ const ProcurementDetail = () => {
                                                         {item.needComparison && (item.comparisonVendors || []).map((cv, i) => (
                                                             <option key={`cv-${i}`} value={`CV-${cv.name}`}>{cv.name} (Kandidat)</option>
                                                         ))}
-                                                        <option disabled>──────────</option>
-                                                        {vendors.map(v => (
-                                                            <option key={v.id} value={v.id}>{v.name}</option>
-                                                        ))}
-                                                        <option value="OTHER">+ Vendor Baru</option>
+                                                        <option value="OTHER">+ Input Manual (Ketik Nama)</option>
                                                     </select>
                                                     {item.vendorId === 'OTHER' && (
                                                         <input

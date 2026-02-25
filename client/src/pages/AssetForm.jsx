@@ -16,7 +16,8 @@ const AssetForm = () => {
             sourceOfFunds: 'Yayasan',
             acquisitionStatus: 'Pembelian',
             purchaseDate: new Date().toISOString().split('T')[0],
-            isLendable: false
+            isLendable: false,
+            vendorId: 'other'
         }
     });
 
@@ -24,7 +25,6 @@ const AssetForm = () => {
         units: [],
         rooms: [],
         categories: [],
-        vendors: [],
         users: []
     });
     const [settings, setSettings] = useState({ assetCodePrefix: 'DEI' });
@@ -41,11 +41,10 @@ const AssetForm = () => {
     useEffect(() => {
         const fetchMaster = async () => {
             try {
-                const [rUnits, rRooms, rCats, rVendors, rUsers, rSettings] = await Promise.all([
+                const [rUnits, rRooms, rCats, rUsers, rSettings] = await Promise.all([
                     api.get('/master/units'),
                     api.get('/master/rooms'),
                     api.get('/master/categories'),
-                    api.get('/master/vendors'),
                     api.get('/users').catch(() => ({ data: [] })),
                     api.get('/settings').catch(() => ({ data: { assetCodePrefix: 'DEI' } }))
                 ]);
@@ -53,7 +52,6 @@ const AssetForm = () => {
                     units: rUnits.data,
                     rooms: rRooms.data,
                     categories: rCats.data,
-                    vendors: rVendors.data,
                     users: Array.isArray(rUsers.data) ? rUsers.data : []
                 });
                 setSettings(rSettings.data);
@@ -243,27 +241,13 @@ const AssetForm = () => {
                             </div>
                         )}
 
-                        <div>
+                        <div className="space-y-3">
                             <label className="block text-sm font-medium text-slate-700 mb-1">Vendor / Toko</label>
-                            <SearchableSelect
-                                options={masterData.vendors}
-                                value={selectedVendorId}
-                                onChange={(val) => setValue('vendorId', val)}
-                                placeholder="Pilih Vendor atau Ketik..."
-                            />
-                            {/* Hidden input for form registration if needed, though setValue handles state */}
+                            <div className="grid grid-cols-1 gap-3">
+                                <input {...register('newVendorName')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Nama Vendor / Toko" />
+                            </div>
                             <input type="hidden" {...register('vendorId')} />
                         </div>
-
-                        {selectedVendorId === 'other' && (
-                            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-3 animate-in slide-in-from-top-2 duration-300">
-                                <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Vendor Baru</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <input {...register('newVendorName', { required: selectedVendorId === 'other' })} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Nama Vendor / Toko" />
-                                    <input {...register('newVendorContact')} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Kontak (Opsional)" />
-                                </div>
-                            </div>
-                        )}
 
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Spesifikasi</label>

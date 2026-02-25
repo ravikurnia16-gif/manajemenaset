@@ -54,14 +54,21 @@ exports.createAsset = async (req, res) => {
             }
 
             // 2. Handle New Vendor
-            if (vendorId === 'other') {
-                const newVendor = await tx.vendor.create({
-                    data: {
-                        name: newVendorName,
-                        contact: newVendorContact || '-'
-                    }
+            if (vendorId === 'other' && newVendorName) {
+                const existingVendor = await tx.vendor.findFirst({
+                    where: { name: newVendorName }
                 });
-                finalVendorId = newVendor.id;
+                if (existingVendor) {
+                    finalVendorId = existingVendor.id;
+                } else {
+                    const newVendor = await tx.vendor.create({
+                        data: {
+                            name: newVendorName,
+                            phone: newVendorContact || '-'
+                        }
+                    });
+                    finalVendorId = newVendor.id;
+                }
             }
 
             // 2. Handle New Room
@@ -691,12 +698,12 @@ exports.batchImportAssets = async (req, res) => {
 
                     if (!vendor) {
                         vendor = await tx.vendor.create({
-                            data: { name: vendorInput, contact: '-' }
+                            data: { name: vendorInput, phone: '-' }
                         });
                     }
                 } else {
                     vendor = await tx.vendor.create({
-                        data: { name: 'Vendor Uknown', contact: '-' }
+                        data: { name: 'Vendor Uknown', phone: '-' }
                     });
                 }
 
