@@ -11,6 +11,9 @@ const VendorManagement = () => {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('ALL');
+    const [viewMode, setViewMode] = useState('VENDORS'); // 'VENDORS' or 'PRODUCTS'
+    const [allProducts, setAllProducts] = useState([]);
+    const [loadingProducts, setLoadingProducts] = useState(false);
 
     // Vendor Modal States
     const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
@@ -31,8 +34,12 @@ const VendorManagement = () => {
     const [isAddingProduct, setIsAddingProduct] = useState(false);
 
     useEffect(() => {
-        fetchVendors();
-    }, [search, selectedCategory]);
+        if (viewMode === 'VENDORS') {
+            fetchVendors();
+        } else {
+            fetchAllProducts();
+        }
+    }, [search, selectedCategory, viewMode]);
 
     const fetchVendors = async () => {
         try {
@@ -47,6 +54,21 @@ const VendorManagement = () => {
             setLoading(false);
         }
     };
+
+    const fetchAllProducts = async () => {
+        try {
+            setLoadingProducts(true);
+            const res = await axios.get('/vendors/all/products', {
+                params: { search }
+            });
+            setAllProducts(res.data);
+        } catch (error) {
+            console.error('Fetch all products error:', error);
+        } finally {
+            setLoadingProducts(false);
+        }
+    };
+
 
     const handleSaveVendor = async (e) => {
         e.preventDefault();
@@ -170,132 +192,200 @@ const VendorManagement = () => {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input
                         type="text"
-                        placeholder="Cari nama vendor atau deskripsi..."
+                        placeholder={viewMode === 'VENDORS' ? "Cari nama vendor atau deskripsi..." : "Cari nama produk, spesifikasi, atau vendor..."}
                         className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
-                    <Filter size={16} className="text-slate-400 shrink-0" />
-                    {categories.map(cat => (
-                        <button
-                            key={cat}
-                            onClick={() => setSelectedCategory(cat)}
-                            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${selectedCategory === cat
-                                ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-400'
-                                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-                                }`}
-                        >
-                            {cat}
-                        </button>
-                    ))}
-                </div>
+                {viewMode === 'VENDORS' && (
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
+                        <Filter size={16} className="text-slate-400 shrink-0" />
+                        {categories.map(cat => (
+                            <button
+                                key={cat}
+                                onClick={() => setSelectedCategory(cat)}
+                                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${selectedCategory === cat
+                                    ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-400'
+                                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                                    }`}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
-            {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[1, 2, 3].map(i => (
-                        <div key={i} className="bg-slate-50 h-64 rounded-2xl animate-pulse" />
-                    ))}
-                </div>
-            ) : vendors.length === 0 ? (
-                <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
-                    <div className="w-16 h-16 bg-slate-100 border border-slate-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Users className="text-slate-400" />
+            {/* View Scroller Tab */}
+            <div className="flex bg-slate-100 p-1 rounded-2xl mb-8 w-fit">
+                <button
+                    onClick={() => setViewMode('VENDORS')}
+                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${viewMode === 'VENDORS' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Daftar Vendor
+                </button>
+                <button
+                    onClick={() => setViewMode('PRODUCTS')}
+                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${viewMode === 'PRODUCTS' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Katalog Produk Global
+                </button>
+            </div>
+
+            {viewMode === 'VENDORS' ? (
+                loading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="bg-slate-50 h-64 rounded-2xl animate-pulse" />
+                        ))}
                     </div>
-                    <h3 className="text-slate-800 font-bold text-lg">Belum Ada Data Vendor</h3>
-                    <p className="text-slate-500 mt-1 max-w-sm mx-auto px-4">Data vendor yang Anda input di form aset akan muncul di sini. Klik tombol Tambah untuk data profesional.</p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {vendors.map(vendor => (
-                        <div key={vendor.id} className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-blue-500/5 transition-all overflow-hidden">
-                            <div className="relative h-32 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
-                                {vendor.photo ? (
-                                    <img src={vendor.photo} alt={vendor.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                                ) : (
-                                    <div className="flex items-center justify-center h-full opacity-30">
-                                        <Users size={48} className="text-slate-400" />
-                                    </div>
-                                )}
-                                <div className="absolute top-3 right-3 flex gap-2">
-                                    {vendor.isVerified && (
-                                        <span className="bg-blue-600 text-white p-1 rounded-full shadow-lg" title="Vendor Terverifikasi">
-                                            <CheckCircle size={14} />
-                                        </span>
+                ) : vendors.length === 0 ? (
+                    <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
+                        <div className="w-16 h-16 bg-slate-100 border border-slate-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Users className="text-slate-400" />
+                        </div>
+                        <h3 className="text-slate-800 font-bold text-lg">Belum Ada Data Vendor</h3>
+                        <p className="text-slate-500 mt-1 max-w-sm mx-auto px-4">Data vendor yang Anda input di form aset akan muncul di sini. Klik tombol Tambah untuk data profesional.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {vendors.map(vendor => (
+                            <div key={vendor.id} className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-blue-500/5 transition-all overflow-hidden">
+                                <div className="relative h-32 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
+                                    {vendor.photo ? (
+                                        <img src={vendor.photo} alt={vendor.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full opacity-30">
+                                            <Users size={48} className="text-slate-400" />
+                                        </div>
                                     )}
-                                    <div className="relative group/menu">
-                                        <button className="bg-white/80 backdrop-blur-sm p-1.5 rounded-full hover:bg-white shadow-sm flex items-center justify-center transition-all">
-                                            <MoreVertical size={14} className="text-slate-600" />
-                                        </button>
-                                        <div className="absolute right-0 top-8 bg-white border border-slate-100 rounded-xl shadow-2xl p-1.5 hidden group-hover/menu:block z-10 w-32 border-b-2 border-b-blue-500">
-                                            <button
-                                                onClick={() => {
-                                                    setCurrentVendor(vendor);
-                                                    setVendorForm({
-                                                        name: vendor.name || '',
-                                                        address: vendor.address || '',
-                                                        phone: vendor.phone || '',
-                                                        email: vendor.email || '',
-                                                        website: vendor.website || '',
-                                                        description: vendor.description || '',
-                                                        category: vendor.category || '',
-                                                        photo: vendor.photo || null,
-                                                        isVerified: vendor.isVerified || false
-                                                    });
-                                                    setIsVendorModalOpen(true);
-                                                }}
-                                                className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-slate-50 rounded-lg text-slate-700"
-                                            >
-                                                <Edit2 size={12} /> Edit Profil
+                                    <div className="absolute top-3 right-3 flex gap-2">
+                                        {vendor.isVerified && (
+                                            <span className="bg-blue-600 text-white p-1 rounded-full shadow-lg" title="Vendor Terverifikasi">
+                                                <CheckCircle size={14} />
+                                            </span>
+                                        )}
+                                        <div className="relative group/menu">
+                                            <button className="bg-white/80 backdrop-blur-sm p-1.5 rounded-full hover:bg-white shadow-sm flex items-center justify-center transition-all">
+                                                <MoreVertical size={14} className="text-slate-600" />
                                             </button>
-                                            <button
-                                                onClick={() => handleDeleteVendor(vendor.id)}
-                                                className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-red-50 rounded-lg text-red-600"
-                                            >
-                                                <Trash2 size={12} /> Hapus
-                                            </button>
+                                            <div className="absolute right-0 top-8 bg-white border border-slate-100 rounded-xl shadow-2xl p-1.5 hidden group-hover/menu:block z-10 w-32 border-b-2 border-b-blue-500">
+                                                <button
+                                                    onClick={() => {
+                                                        setCurrentVendor(vendor);
+                                                        setVendorForm({
+                                                            name: vendor.name || '',
+                                                            address: vendor.address || '',
+                                                            phone: vendor.phone || '',
+                                                            email: vendor.email || '',
+                                                            website: vendor.website || '',
+                                                            description: vendor.description || '',
+                                                            category: vendor.category || '',
+                                                            photo: vendor.photo || null,
+                                                            isVerified: vendor.isVerified || false
+                                                        });
+                                                        setIsVendorModalOpen(true);
+                                                    }}
+                                                    className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-slate-50 rounded-lg text-slate-700"
+                                                >
+                                                    <Edit2 size={12} /> Edit Profil
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteVendor(vendor.id)}
+                                                    className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-red-50 rounded-lg text-red-600"
+                                                >
+                                                    <Trash2 size={12} /> Hapus
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
+                                    <div className="absolute bottom-3 left-3">
+                                        <span className="bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] font-bold text-blue-600 shadow-sm uppercase tracking-wider">
+                                            {vendor.category || 'Vendor'}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="absolute bottom-3 left-3">
-                                    <span className="bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] font-bold text-blue-600 shadow-sm uppercase tracking-wider">
-                                        {vendor.category || 'Vendor'}
-                                    </span>
+
+                                <div className="p-5">
+                                    <h3 className="font-bold text-slate-800 text-lg mb-1 leading-tight">{vendor.name}</h3>
+                                    <p className="text-slate-500 text-xs line-clamp-2 mb-4 h-8">{vendor.description || 'Tidak ada deskripsi.'}</p>
+
+                                    <div className="space-y-2.5 mb-6">
+                                        <div className="flex items-center gap-3 text-slate-600">
+                                            <MapPin size={14} className="text-slate-400 shrink-0" />
+                                            <span className="text-xs truncate">{vendor.address || '-'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-slate-600">
+                                            <Phone size={14} className="text-slate-400 shrink-0" />
+                                            <span className="text-xs">{vendor.phone || '-'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-slate-600">
+                                            <ShoppingBag size={14} className="text-slate-400 shrink-0" />
+                                            <span className="text-xs font-semibold text-blue-600">{vendor._count?.products || 0} Produk Terdaftar</span>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={() => openProductModal(vendor)}
+                                        className="w-full bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 py-2.5 rounded-xl border border-slate-200 hover:border-blue-200 text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                                    >
+                                        <Package size={16} /> Lihat Katalog Produk
+                                    </button>
                                 </div>
                             </div>
-
-                            <div className="p-5">
-                                <h3 className="font-bold text-slate-800 text-lg mb-1 leading-tight">{vendor.name}</h3>
-                                <p className="text-slate-500 text-xs line-clamp-2 mb-4 h-8">{vendor.description || 'Tidak ada deskripsi.'}</p>
-
-                                <div className="space-y-2.5 mb-6">
-                                    <div className="flex items-center gap-3 text-slate-600">
-                                        <MapPin size={14} className="text-slate-400 shrink-0" />
-                                        <span className="text-xs truncate">{vendor.address || '-'}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-slate-600">
-                                        <Phone size={14} className="text-slate-400 shrink-0" />
-                                        <span className="text-xs">{vendor.phone || '-'}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-slate-600">
-                                        <ShoppingBag size={14} className="text-slate-400 shrink-0" />
-                                        <span className="text-xs font-semibold text-blue-600">{vendor._count?.products || 0} Produk Terdaftar</span>
-                                    </div>
+                        ))}
+                    </div>
+                )
+            ) : (
+                loadingProducts ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {[1, 2, 3, 4, 5, 6].map(i => (
+                            <div key={i} className="bg-white p-5 rounded-[2rem] h-32 animate-pulse" />
+                        ))}
+                    </div>
+                ) : allProducts.length === 0 ? (
+                    <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
+                        <div className="w-16 h-16 bg-slate-100 border border-slate-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <ShoppingBag className="text-slate-400" />
+                        </div>
+                        <h3 className="text-slate-800 font-bold text-lg">Katalog Produk Kosong</h3>
+                        <p className="text-slate-500 mt-1 max-w-sm mx-auto px-4">Belum ada produk yang didaftarkan oleh vendor mana pun.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {allProducts.map(prod => (
+                            <div key={prod.id} className="bg-white p-5 rounded-[2rem] shadow-sm hover:shadow-2xl hover:shadow-blue-500/5 transition-all border border-slate-100 group relative flex gap-5">
+                                <div className="w-24 h-24 rounded-2xl bg-slate-50 overflow-hidden shrink-0 border border-slate-100">
+                                    {prod.image ? (
+                                        <img src={prod.image} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={24} /></div>
+                                    )}
                                 </div>
-
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase truncate max-w-[100px]" title={prod.vendor?.name}>
+                                            {prod.vendor?.name}
+                                        </span>
+                                        {prod.vendor?.isVerified && <CheckCircle size={10} className="text-blue-600 shrink-0" />}
+                                    </div>
+                                    <h5 className="font-black text-slate-800 leading-tight mb-1 truncate">{prod.name}</h5>
+                                    <div className="text-lg font-black text-blue-600 mb-1">Rp {prod.price?.toLocaleString() || '0'}</div>
+                                    <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{prod.specification || '-'}</p>
+                                </div>
                                 <button
-                                    onClick={() => openProductModal(vendor)}
-                                    className="w-full bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 py-2.5 rounded-xl border border-slate-200 hover:border-blue-200 text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                                    onClick={() => openProductModal(prod.vendor)}
+                                    className="absolute bottom-4 right-4 text-xs font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors"
                                 >
-                                    <Package size={16} /> Lihat Katalog Produk
+                                    Vendor <Info size={12} />
                                 </button>
                             </div>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )
             )}
+
 
             {/* Vendor Modal */}
             {isVendorModalOpen && (

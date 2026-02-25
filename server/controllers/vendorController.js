@@ -122,11 +122,13 @@ exports.getAllProducts = async (req, res) => {
             include: {
                 vendor: {
                     select: {
+                        id: true,
                         name: true,
                         category: true,
                         isVerified: true
                     }
                 }
+
             },
             orderBy: { name: 'asc' }
         });
