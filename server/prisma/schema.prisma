@@ -150,7 +150,7 @@ model Vendor {
   isVerified       Boolean           @default(false)
 
   createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  updatedAt        DateTime          @default(now()) @updatedAt
 
   assets           Asset[]
   procurementItems ProcurementItem[]
@@ -167,7 +167,7 @@ model VendorProduct {
   image          String?  @db.LongText
   
   createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  updatedAt      DateTime @default(now()) @updatedAt
 }
 
 model Asset {
