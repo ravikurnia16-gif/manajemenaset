@@ -44,6 +44,16 @@ const WarehouseStock = () => {
         try { await api.delete(`/warehouse/items/${id}`); fetchData(); } catch (e) { alert('Gagal menghapus'); }
     };
 
+    const handleDeleteAll = async () => {
+        if (!confirm('Yakin hapus SEMUA data stok gudang? Tindakan ini tidak bisa dibatalkan!')) return;
+        if (!confirm('Konfirmasi sekali lagi: Hapus semua data stok dan transaksi gudang?')) return;
+        try {
+            const res = await api.delete('/warehouse/items/all');
+            alert(res.data.message);
+            fetchData();
+        } catch (e) { alert('Gagal menghapus semua data'); }
+    };
+
     // Template download (XLSX)
     const handleTemplate = () => {
         const headers = ['Nama', 'KategoriID', 'Tipe', 'Gender', 'Ukuran', 'TahunPembelian', 'Unit', 'Stok', 'StokMin', 'HargaBeli', 'Supplier', 'Lokasi'];
@@ -148,6 +158,7 @@ const WarehouseStock = () => {
                         <input type="file" accept=".csv,.xlsx,.xls" onChange={handleImport} className="hidden" />
                     </label>
                     <button onClick={handleExport} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50"><Download size={14} /> Export</button>
+                    <button onClick={handleDeleteAll} className="flex items-center gap-1 px-3 py-2 border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50"><Trash2 size={14} /> Hapus Semua</button>
                     <button onClick={() => navigate('/gudang/stok/input')} className="flex items-center gap-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl"><Plus size={16} /> Tambah</button>
                 </div>
             </div>
