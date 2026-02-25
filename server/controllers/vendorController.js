@@ -107,10 +107,19 @@ exports.getVendorProducts = async (req, res) => {
 exports.addProduct = async (req, res) => {
     try {
         const { vendorId } = req.params;
-        const data = { ...req.body, vendorId: parseInt(vendorId) };
-        const product = await prisma.vendorProduct.create({ data });
+        const { name, price, specification, image } = req.body;
+        const product = await prisma.vendorProduct.create({
+            data: {
+                vendorId: parseInt(vendorId),
+                name,
+                price: price !== "" && price !== null && price !== undefined ? parseFloat(price) : null,
+                specification,
+                image
+            }
+        });
         res.json(product);
     } catch (error) {
+        console.error('Error adding product:', error);
         res.status(500).json({ error: error.message });
     }
 };
@@ -118,12 +127,20 @@ exports.addProduct = async (req, res) => {
 exports.updateProduct = async (req, res) => {
     try {
         const { productId } = req.params;
+        const data = { ...req.body };
+
+        // Sanitize price
+        if (data.hasOwnProperty('price')) {
+            data.price = data.price !== "" && data.price !== null && data.price !== undefined ? parseFloat(data.price) : null;
+        }
+
         const product = await prisma.vendorProduct.update({
             where: { id: parseInt(productId) },
-            data: req.body
+            data
         });
         res.json(product);
     } catch (error) {
+        console.error('Error updating product:', error);
         res.status(500).json({ error: error.message });
     }
 };

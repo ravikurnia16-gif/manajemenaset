@@ -2,17 +2,18 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-    try {
-        console.log('Testing connection...');
-        await prisma.$connect();
-        console.log('Connection successful!');
-        const result = await prisma.$queryRaw`SELECT 1`;
-        console.log('Query result:', result);
-    } catch (e) {
-        console.error('Connection failed:', e);
-    } finally {
-        await prisma.$disconnect();
-    }
+    const vendors = await prisma.vendor.findMany({
+        take: 1,
+        select: { id: true, name: true }
+    });
+    console.log(JSON.stringify(vendors));
 }
 
-main();
+main()
+    .catch((e) => {
+        console.error(e);
+        process.exit(1);
+    })
+    .finally(async () => {
+        await prisma.$disconnect();
+    });
