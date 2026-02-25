@@ -65,7 +65,10 @@ exports.getAllItems = async (req, res) => {
     try {
         const where = {};
         if (categoryId) where.categoryId = parseInt(categoryId);
-        if (gender) where.gender = gender;
+        if (gender) {
+            const genderMap = { 'Ikhwan': ['Ikhwan', 'L', 'ikhwan'], 'Akhwat': ['Akhwat', 'P', 'akhwat'], 'L': ['L', 'Ikhwan'], 'P': ['P', 'Akhwat'] };
+            where.gender = { in: genderMap[gender] || [gender] };
+        }
         if (size) where.size = size;
         if (type) where.type = type;
         if (purchaseYear) where.purchaseYear = parseInt(purchaseYear);
