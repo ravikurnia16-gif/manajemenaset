@@ -21,11 +21,7 @@ exports.getDashboard = async (req, res) => {
     try {
         const totalItems = await prisma.warehouseItem.count();
         const totalStock = await prisma.warehouseItem.aggregate({ _sum: { stock: true } });
-        const lowStock = await prisma.warehouseItem.findMany({
-            where: { stock: { lte: prisma.warehouseItem.fields?.minStock || 5 } },
-            include: { category: true }
-        });
-        // Manual low stock check
+        // Manual low stock check (compare stock to each item's own minStock)
         const allItems = await prisma.warehouseItem.findMany({ include: { category: true } });
         const lowStockItems = allItems.filter(i => i.stock <= i.minStock);
 
@@ -54,7 +50,7 @@ exports.getDashboard = async (req, res) => {
             totalItems,
             totalStock: totalStock._sum.stock || 0,
             lowStockCount: lowStockItems.length,
-            lowStockItems: lowStockItems.slice(0, 10),
+            lowStockItems: lowStockItems.slice(0, 10).map(i => ({ ...i, category: i.category?.name || '-' })),
             txThisMonth,
             txInThisMonth,
             txOutThisMonth,
