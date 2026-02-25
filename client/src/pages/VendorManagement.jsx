@@ -148,20 +148,39 @@ const VendorManagement = () => {
                     </h1>
                     <p className="text-slate-500 text-sm mt-1">Kelola data vendor, katalog produk, dan info spesifikasi secara mendalam.</p>
                 </div>
-                <button
-                    onClick={() => {
-                        setCurrentVendor(null);
-                        setVendorForm({
-                            name: '', address: '', phone: '', email: '',
-                            website: '', description: '', category: '',
-                            photo: null, isVerified: false
-                        });
-                        setIsVendorModalOpen(true);
-                    }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all transform hover:scale-105 active:scale-95"
-                >
-                    <Plus size={18} /> Tambah Vendor Baru
-                </button>
+                <div className="flex items-center gap-2">
+                    {vendors.length > 0 && (
+                        <button
+                            onClick={async () => {
+                                if (!confirm(`Hapus semua ${vendors.length} vendor? Aset tetap aman (hanya referensi vendor yang dikosongkan).`)) return;
+                                try {
+                                    const res = await axios.delete('/vendors');
+                                    alert(res.data.message);
+                                    fetchVendors();
+                                } catch (error) {
+                                    alert(error.response?.data?.error || 'Gagal menghapus vendor');
+                                }
+                            }}
+                            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl shadow-lg shadow-red-500/20 flex items-center gap-2 transition-all transform hover:scale-105 active:scale-95"
+                        >
+                            <Trash2 size={18} /> Hapus Semua
+                        </button>
+                    )}
+                    <button
+                        onClick={() => {
+                            setCurrentVendor(null);
+                            setVendorForm({
+                                name: '', address: '', phone: '', email: '',
+                                website: '', description: '', category: '',
+                                photo: null, isVerified: false
+                            });
+                            setIsVendorModalOpen(true);
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all transform hover:scale-105 active:scale-95"
+                    >
+                        <Plus size={18} /> Tambah Vendor Baru
+                    </button>
+                </div>
             </div>
 
             {/* Filters */}
