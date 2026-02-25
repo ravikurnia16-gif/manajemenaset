@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, Plus, Search, Download, Upload, Trash2, Eye, Edit } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import api from '../lib/axios';
 
 const WarehouseStock = () => {
@@ -43,57 +44,91 @@ const WarehouseStock = () => {
         try { await api.delete(`/warehouse/items/${id}`); fetchData(); } catch (e) { alert('Gagal menghapus'); }
     };
 
-    // Template download
+    // Template download (XLSX)
     const handleTemplate = () => {
         const headers = ['Nama', 'KategoriID', 'Tipe', 'Gender', 'Ukuran', 'TahunPembelian', 'Unit', 'Stok', 'StokMin', 'HargaBeli', 'Supplier', 'Lokasi'];
-        const example = ['Baju Putih', '1', 'BAJU', 'P', 'M', '2025', 'SD', '50', '5', '75000', 'CV Maju', 'Rak A1'];
-        const note = ['# Tipe: BAJU/CELANA/JILBAB | Unit: TK/TAUD/SD/SMP/SMA/Pondok Putra/Pondok Putri/MIT/Yayasan', '', '', '', '', '', '', '', '', '', '', ''];
-        const csv = '\uFEFF' + [headers.join(';'), note.join(';'), example.join(';')].join('\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = 'template_gudang.csv'; a.click();
+        const note = ['# Tipe: BAJU/CELANA/JILBAB | Unit: TK/TAUD/SD/SMP/SMA/Pondok Putra/Pondok Putri/MIT/Yayasan'];
+        const example = ['Baju Putih', 1, 'BAJU', 'P', 'M', 2025, 'SD', 50, 5, 75000, 'CV Maju', 'Rak A1'];
+        const ws = XLSX.utils.aoa_to_sheet([headers, note, example]);
+        // Set column widths
+        ws['!cols'] = headers.map(() => ({ wch: 18 }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Template');
+        XLSX.writeFile(wb, 'template_gudang.xlsx');
     };
 
-    // Export
+    // Export (XLSX)
     const handleExport = async () => {
         try {
             const res = await api.get('/warehouse/items/export');
             const data = res.data;
             const headers = ['Kode', 'Nama', 'Kategori', 'Tipe', 'Gender', 'Ukuran', 'Tahun', 'Unit', 'Stok', 'Stok Min', 'Harga', 'Supplier', 'Lokasi'];
-            const rows = data.map(i => [i.code, i.name, i.category?.name, i.type || '', i.gender || '', i.size || '', i.purchaseYear || '', i.itemUnit || '', i.stock, i.minStock, i.purchasePrice || '', i.supplier || '', i.location || '']);
-            const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = `stok_gudang_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+            const rows = data.map(i => [i.code, i.name, i.category?.name || '', i.type || '', i.gender || '', i.size || '', i.purchaseYear || '', i.itemUnit || '', i.stock, i.minStock, i.purchasePrice || '', i.supplier || '', i.location || '']);
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            ws['!cols'] = headers.map(() => ({ wch: 16 }));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Stok Gudang');
+            XLSX.writeFile(wb, `stok_gudang_${new Date().toISOString().slice(0, 10)}.xlsx`);
         } catch (e) { alert('Gagal export'); }
     };
 
-    // Import
+    // Import (supports CSV and XLSX/XLS)
     const handleImport = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-            const lines = ev.target.result.split('\n').slice(1).filter(l => l.trim() && !l.startsWith('#'));
-            const items = lines.map(l => {
-                const cols = l.split(';');
-                return {
-                    name: cols[0]?.trim(), categoryId: cols[1]?.trim(), type: cols[2]?.trim() || null,
-                    gender: cols[3]?.trim() || null, size: cols[4]?.trim() || null,
-                    purchaseYear: cols[5]?.trim() || null, itemUnit: cols[6]?.trim() || null,
-                    stock: cols[7]?.trim() || '0', minStock: cols[8]?.trim() || '5',
-                    purchasePrice: cols[9]?.trim() || null, supplier: cols[10]?.trim() || null,
-                    location: cols[11]?.trim() || null
-                };
+        const ext = file.name.split('.').pop().toLowerCase();
+
+        const processRows = async (rows) => {
+            // rows = array of arrays, first row is header
+            const dataRows = rows.slice(1).filter(r => {
+                const first = String(r[0] || '').trim();
+                return first && !first.startsWith('#');
             });
+            const items = dataRows.map(cols => ({
+                name: String(cols[0] || '').trim(),
+                categoryId: String(cols[1] || '').trim(),
+                type: String(cols[2] || '').trim() || null,
+                gender: String(cols[3] || '').trim() || null,
+                size: String(cols[4] || '').trim() || null,
+                purchaseYear: String(cols[5] || '').trim() || null,
+                itemUnit: String(cols[6] || '').trim() || null,
+                stock: String(cols[7] || '').trim() || '0',
+                minStock: String(cols[8] || '').trim() || '5',
+                purchasePrice: String(cols[9] || '').trim() || null,
+                supplier: String(cols[10] || '').trim() || null,
+                location: String(cols[11] || '').trim() || null,
+            })).filter(item => item.name);
+            if (items.length === 0) { alert('Tidak ada data valid untuk diimport'); return; }
             try {
                 const res = await api.post('/warehouse/items/import', { items });
                 alert(res.data.message);
                 fetchData();
-            } catch (err) { alert('Gagal import'); }
+            } catch (err) { alert(err.response?.data?.error || 'Gagal import'); }
             e.target.value = '';
         };
-        reader.readAsText(file);
+
+        if (ext === 'csv') {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const text = ev.target.result;
+                // Auto-detect delimiter: semicolon or comma
+                const firstLine = text.split('\n')[0] || '';
+                const delimiter = firstLine.includes(';') ? ';' : ',';
+                const rows = text.split('\n').map(l => l.split(delimiter));
+                processRows(rows);
+            };
+            reader.readAsText(file);
+        } else {
+            // XLSX / XLS
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const wb = XLSX.read(ev.target.result, { type: 'array' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+                processRows(rows);
+            };
+            reader.readAsArrayBuffer(file);
+        }
     };
 
     // Unique years for filter
@@ -110,7 +145,7 @@ const WarehouseStock = () => {
                     <button onClick={handleTemplate} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50"><Download size={14} /> Template</button>
                     <label className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer">
                         <Upload size={14} /> Import
-                        <input type="file" accept=".csv" onChange={handleImport} className="hidden" />
+                        <input type="file" accept=".csv,.xlsx,.xls" onChange={handleImport} className="hidden" />
                     </label>
                     <button onClick={handleExport} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50"><Download size={14} /> Export</button>
                     <button onClick={() => navigate('/gudang/stok/input')} className="flex items-center gap-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl"><Plus size={16} /> Tambah</button>
