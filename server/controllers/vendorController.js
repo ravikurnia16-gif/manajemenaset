@@ -55,8 +55,10 @@ exports.getVendorById = async (req, res) => {
 
 exports.createVendor = async (req, res) => {
     try {
-        const data = req.body;
-        const vendor = await prisma.vendor.create({ data });
+        const { name, address, phone, email, website, description, category, photo, isVerified } = req.body;
+        const vendor = await prisma.vendor.create({
+            data: { name, address, phone, email, website, description, category, photo, isVerified: isVerified || false }
+        });
         res.json(vendor);
     } catch (error) {
         if (error.code === 'P2002') {
@@ -69,10 +71,10 @@ exports.createVendor = async (req, res) => {
 exports.updateVendor = async (req, res) => {
     try {
         const { id } = req.params;
-        const data = req.body;
+        const { name, address, phone, email, website, description, category, photo, isVerified } = req.body;
         const vendor = await prisma.vendor.update({
             where: { id: parseInt(id) },
-            data
+            data: { name, address, phone, email, website, description, category, photo, isVerified: isVerified || false }
         });
         res.json(vendor);
     } catch (error) {

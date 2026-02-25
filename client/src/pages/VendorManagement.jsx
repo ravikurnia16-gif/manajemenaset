@@ -51,10 +51,22 @@ const VendorManagement = () => {
     const handleSaveVendor = async (e) => {
         e.preventDefault();
         try {
+            // Only send fields the backend expects
+            const payload = {
+                name: vendorForm.name,
+                address: vendorForm.address || null,
+                phone: vendorForm.phone || null,
+                email: vendorForm.email || null,
+                website: vendorForm.website || null,
+                description: vendorForm.description || null,
+                category: vendorForm.category || null,
+                photo: vendorForm.photo || null,
+                isVerified: vendorForm.isVerified || false
+            };
             if (currentVendor) {
-                await axios.put(`/api/vendors/${currentVendor.id}`, vendorForm);
+                await axios.put(`/api/vendors/${currentVendor.id}`, payload);
             } else {
-                await axios.post('/api/vendors', vendorForm);
+                await axios.post('/api/vendors', payload);
             }
             setIsVendorModalOpen(false);
             fetchVendors();
@@ -171,8 +183,8 @@ const VendorManagement = () => {
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
                             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${selectedCategory === cat
-                                    ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-400'
-                                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                                ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-400'
+                                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
                                 }`}
                         >
                             {cat}
@@ -221,7 +233,17 @@ const VendorManagement = () => {
                                             <button
                                                 onClick={() => {
                                                     setCurrentVendor(vendor);
-                                                    setVendorForm({ ...vendor });
+                                                    setVendorForm({
+                                                        name: vendor.name || '',
+                                                        address: vendor.address || '',
+                                                        phone: vendor.phone || '',
+                                                        email: vendor.email || '',
+                                                        website: vendor.website || '',
+                                                        description: vendor.description || '',
+                                                        category: vendor.category || '',
+                                                        photo: vendor.photo || null,
+                                                        isVerified: vendor.isVerified || false
+                                                    });
                                                     setIsVendorModalOpen(true);
                                                 }}
                                                 className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-slate-50 rounded-lg text-slate-700"
