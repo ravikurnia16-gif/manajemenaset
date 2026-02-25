@@ -37,7 +37,7 @@ const VendorManagement = () => {
     const fetchVendors = async () => {
         try {
             setLoading(true);
-            const res = await axios.get('/api/vendors', {
+            const res = await axios.get('/vendors', {
                 params: { search, category: selectedCategory === 'ALL' ? '' : selectedCategory }
             });
             setVendors(res.data);
@@ -64,9 +64,9 @@ const VendorManagement = () => {
                 isVerified: vendorForm.isVerified || false
             };
             if (currentVendor) {
-                await axios.put(`/api/vendors/${currentVendor.id}`, payload);
+                await axios.put(`/vendors/${currentVendor.id}`, payload);
             } else {
-                await axios.post('/api/vendors', payload);
+                await axios.post('/vendors', payload);
             }
             setIsVendorModalOpen(false);
             fetchVendors();
@@ -78,7 +78,7 @@ const VendorManagement = () => {
     const handleDeleteVendor = async (id) => {
         if (!confirm('Hapus vendor ini?')) return;
         try {
-            await axios.delete(`/api/vendors/${id}`);
+            await axios.delete(`/vendors/${id}`);
             fetchVendors();
         } catch (error) {
             alert('Gagal menghapus vendor');
@@ -93,7 +93,7 @@ const VendorManagement = () => {
 
     const fetchProducts = async (vendorId) => {
         try {
-            const res = await axios.get(`/api/vendors/${vendorId}/products`);
+            const res = await axios.get(`/vendors/${vendorId}/products`);
             setProducts(res.data);
         } catch (error) {
             console.error('Fetch products error:', error);
@@ -103,7 +103,7 @@ const VendorManagement = () => {
     const handleAddProduct = async (e) => {
         e.preventDefault();
         try {
-            await axios.post(`/api/vendors/${selectedVendorForProducts.id}/products`, productForm);
+            await axios.post(`/vendors/${selectedVendorForProducts.id}/products`, productForm);
             setProductForm({ name: '', price: '', specification: '', image: null });
             setIsAddingProduct(false);
             fetchProducts(selectedVendorForProducts.id);
@@ -115,7 +115,7 @@ const VendorManagement = () => {
     const handleDeleteProduct = async (productId) => {
         if (!confirm('Hapus produk ini?')) return;
         try {
-            await axios.delete(`/api/vendors/${selectedVendorForProducts.id}/products/${productId}`);
+            await axios.delete(`/vendors/${selectedVendorForProducts.id}/products/${productId}`);
             fetchProducts(selectedVendorForProducts.id);
         } catch (error) {
             alert('Gagal menghapus produk');
