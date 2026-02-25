@@ -117,8 +117,8 @@ const WarehouseStockForm = () => {
                                 <label className="block text-xs font-semibold text-slate-600 mb-1">Gender</label>
                                 <select value={form.gender} onChange={e => setForm(prev => ({ ...prev, gender: e.target.value }))} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm">
                                     <option value="">Pilih</option>
-                                    <option value="L">Ikhwan</option>
-                                    <option value="P">Akhwat</option>
+                                    <option value="Ikhwan">Ikhwan</option>
+                                    <option value="Akhwat">Akhwat</option>
                                 </select>
                             </div>
                             <div>
