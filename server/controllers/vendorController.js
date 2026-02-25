@@ -141,37 +141,3 @@ exports.deleteProduct = async (req, res) => {
     }
 };
 
-// --- CLEANUP: Delete all vendors safely ---
-exports.cleanupAllVendors = async (req, res) => {
-    try {
-        // 1. Disconnect assets (set vendorId to null, assets NOT deleted)
-        const disconnectedAssets = await prisma.asset.updateMany({
-            where: { vendorId: { not: null } },
-            data: { vendorId: null }
-        });
-
-        // 2. Disconnect procurement items
-        const disconnectedItems = await prisma.procurementItem.updateMany({
-            where: { vendorId: { not: null } },
-            data: { vendorId: null }
-        });
-
-        // 3. Delete all vendor products
-        const deletedProducts = await prisma.vendorProduct.deleteMany({});
-
-        // 4. Delete all vendors
-        const deletedVendors = await prisma.vendor.deleteMany({});
-
-        res.json({
-            message: `Berhasil menghapus ${deletedVendors.count} vendor. Aset tetap aman.`,
-            details: {
-                vendorsDeleted: deletedVendors.count,
-                productsDeleted: deletedProducts.count,
-                assetsDisconnected: disconnectedAssets.count,
-                procurementItemsDisconnected: disconnectedItems.count
-            }
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
