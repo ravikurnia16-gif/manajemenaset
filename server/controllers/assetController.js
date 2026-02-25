@@ -142,55 +142,7 @@ exports.createAsset = async (req, res) => {
 
         res.json(result);
 
-        // --- WhatsApp Notification (Async - Non Blocking) ---
-        (async () => {
-            try {
-                // Find all users with the position "Kepala Bidang Sarana dan Prasarana"
-                const leads = await prisma.user.findMany({
-                    where: {
-                        position: 'Kepala Bidang Sarana dan Prasarana',
-                        phone: { not: null, not: '' }
-                    }
-                });
-
-                if (leads.length === 0) {
-                    console.log("[WhatsApp Notification] Skip: No Kepala Bidang Sarana dan Prasarana found with phone.");
-                    return;
-                }
-
-                // Fetch Creator Details
-                const creator = await prisma.user.findUnique({
-                    where: { id: req.user.id || req.user.userId }
-                });
-
-                // Fetch Room Name if not a new room
-                let roomDisplay = newRoomName;
-                if (!roomDisplay && asset.roomId) {
-                    const roomObj = await prisma.room.findUnique({
-                        where: { id: asset.roomId },
-                        select: { name: true }
-                    });
-                    roomDisplay = roomObj?.name || `Ruangan ID ${asset.roomId}`;
-                }
-
-                // 2. Prepare Message
-                const message = `*[INFO ASET BARU]*\n\n` +
-                    `Telah ditambahkan aset baru ke dalam sistem:\n\n` +
-                    `📦 *Nama*: ${asset.name}\n` +
-                    `🏷️ *Kode*: ${asset.code}\n` +
-                    `📍 *Lokasi*: ${roomDisplay || '-'}\n` +
-                    `👤 *Input Oleh*: ${creator ? (creator.name || creator.username) : 'System'}\n\n` +
-                    `_Pesan otomatis dari Sistem Manajemen Aset_`;
-
-                // 3. Send to all leads
-                for (const lead of leads) {
-                    await whatsappService.sendMessage(lead.phone, message);
-                    console.log(`[WhatsApp Notification] New asset info sent to ${lead.name} (${lead.position})`);
-                }
-            } catch (waError) {
-                console.error("[WhatsApp Notification Error]", waError);
-            }
-        })();
+        res.json(result);
     } catch (error) {
         console.error("Create asset error:", error);
         res.status(500).json({ error: error.message });

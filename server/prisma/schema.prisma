@@ -214,6 +214,7 @@ model Asset {
   validatedById    Int?
   validatedBy      User?    @relation("AssetValidator", fields: [validatedById], references: [id])
   validationNote   String?
+  notificationSent Boolean @default(false)
 }
 
 enum ValidationStatus {

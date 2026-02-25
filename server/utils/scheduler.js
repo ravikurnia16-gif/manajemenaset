@@ -2,6 +2,7 @@ const { sendCalendarReminders, sendWeeklyCalendarSummary } = require('../control
 const { checkMaintenanceNotifications, checkKmServiceNotifications } = require('../controllers/vehicleMaintenanceController');
 const { checkTaxNotifications, checkKirNotifications } = require('../controllers/vehicleController');
 const { checkOverdueLoans } = require('../controllers/loanController');
+const { sendWeeklyAssetSummary } = require('./summaryNotification');
 
 let schedulerInterval = null;
 
@@ -56,6 +57,18 @@ const initScheduler = () => {
                 await checkOverdueLoans();
             } catch (err) {
                 console.error('[Scheduler] Error in Vehicle Checks:', err);
+            }
+        }
+
+        // ----------------------------------------------------
+        // 4. WEEKLY ASSET SUMMARY (Friday at 15:00 / 3 PM)
+        // ----------------------------------------------------
+        if (day === 5 && hour === 15 && minute === 0) {
+            console.log('[Scheduler] Executing Weekly Asset Summary...');
+            try {
+                await sendWeeklyAssetSummary();
+            } catch (err) {
+                console.error('[Scheduler] Error in Weekly Asset Summary:', err);
             }
         }
 
