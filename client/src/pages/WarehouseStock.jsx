@@ -214,7 +214,16 @@ const WarehouseStock = () => {
                             <tbody>
                                 {filtered.map(item => {
                                     const displayGender = item.gender === 'L' ? 'Ikhwan' : item.gender === 'P' ? 'Akhwat' : item.gender;
-                                    const parts = [item.name, item.type, displayGender, item.itemUnit, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear].filter(Boolean);
+                                    const isSeragam = item.category?.name?.toLowerCase().includes('seragam');
+
+                                    let parts;
+                                    if (isSeragam) {
+                                        // Tipe_Nama_Gender_Unit_Ukuran_Tahun
+                                        parts = [item.type, item.name, displayGender, item.itemUnit, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear].filter(Boolean);
+                                    } else {
+                                        parts = [item.name, item.type, displayGender, item.itemUnit, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear].filter(Boolean);
+                                    }
+
                                     return (
                                         <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
                                             <td className="p-3 font-mono text-xs">{item.code}</td>
