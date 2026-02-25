@@ -17,7 +17,7 @@ const AssetForm = () => {
             acquisitionStatus: 'Pembelian',
             purchaseDate: new Date().toISOString().split('T')[0],
             isLendable: false,
-            vendorId: 'other'
+            vendorName: ''
         }
     });
 
@@ -85,14 +85,13 @@ const AssetForm = () => {
         fetchMaster();
     }, [id, isEdit, reset, isGlobalAdmin, currentUser.unitId]);
 
-    const watchedFields = watch(["unitId", "categoryId", "purchaseDate", "vendorId", "roomId", "newCategoryCode", "picId"]);
+    const watchedFields = watch(["unitId", "categoryId", "purchaseDate", "roomId", "newCategoryCode", "picId"]);
     const selectedUnitId = watchedFields[0];
     const selectedCategoryId = watchedFields[1];
     const purchaseDate = watchedFields[2];
-    const selectedVendorId = watchedFields[3];
-    const selectedRoomId = watchedFields[4];
-    const newCategoryCode = watchedFields[5];
-    const selectedPicId = watchedFields[6];
+    const selectedRoomId = watchedFields[3];
+    const newCategoryCode = watchedFields[4];
+    const selectedPicId = watchedFields[5];
 
     const filteredRooms = selectedUnitId
         ? masterData.rooms.filter(r => r.unitId === parseInt(selectedUnitId))
@@ -241,12 +240,9 @@ const AssetForm = () => {
                             </div>
                         )}
 
-                        <div className="space-y-3">
+                        <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Vendor / Toko</label>
-                            <div className="grid grid-cols-1 gap-3">
-                                <input {...register('newVendorName')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Nama Vendor / Toko" />
-                            </div>
-                            <input type="hidden" {...register('vendorId')} />
+                            <input {...register('vendorName')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Nama Vendor / Toko (opsional)" />
                         </div>
 
                         <div>

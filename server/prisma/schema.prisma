@@ -152,7 +152,6 @@ model Vendor {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @default(now()) @updatedAt
 
-  assets           Asset[]
   procurementItems ProcurementItem[]
   products         VendorProduct[]
 }
@@ -180,8 +179,7 @@ model Asset {
   room            Room?    @relation(fields: [roomId], references: [id])
   unitId          Int?
   unit            Unit?    @relation(fields: [unitId], references: [id])
-  vendorId        Int?
-  vendor          Vendor?  @relation(fields: [vendorId], references: [id])
+  vendorName      String?  // Standalone vendor name (not linked to Vendor table)
   
   brand           String?
   specification   String?  @db.Text
