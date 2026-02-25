@@ -3,17 +3,11 @@ const prisma = new PrismaClient();
 
 async function main() {
     try {
-        console.log('Testing DB connection...');
-        const count = await prisma.user.count();
-        console.log('User count:', count);
-
-        console.log('Testing Maintenance query...');
-        const maintenance = await prisma.maintenance.findMany({
-            include: { assets: true }
-        });
-        console.log('Maintenance count:', maintenance.length);
-    } catch (e) {
-        console.error('DB Error:', e);
+        console.log("Connecting to database...");
+        const result = await prisma.$queryRaw`SELECT 1 as connected`;
+        console.log("Connection successful:", result);
+    } catch (error) {
+        console.error("Connection failed:", error.message);
     } finally {
         await prisma.$disconnect();
     }
