@@ -22,6 +22,7 @@ const AssetList = ({ validationMode = false }) => {
     const [isPreparingPrint, setIsPreparingPrint] = useState(false);
     const [printLayout, setPrintLayout] = useState('2x4'); // Default 8 labels per page
     const [customConfig, setCustomConfig] = useState({ columns: 3, width: 60, height: 40 });
+    const [paperSize, setPaperSize] = useState('A4');
 
     // Filter Logic
     const [searchTerm, setSearchTerm] = useState('');
@@ -638,6 +639,34 @@ const AssetList = ({ validationMode = false }) => {
                             </div>
                         </div>
 
+                        {/* Paper Size Selection */}
+                        <div className="bg-slate-50 p-4 border-b border-slate-100 flex flex-col gap-3">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ukuran Kertas</label>
+                            <div className="flex flex-wrap gap-2">
+                                {[
+                                    { id: 'A3', label: 'A3' },
+                                    { id: 'A4', label: 'A4' },
+                                    { id: 'A5', label: 'A5' },
+                                    { id: 'F4', label: 'F4 / Folio' },
+                                    { id: 'B4', label: 'B4' },
+                                    { id: 'B5', label: 'B5' },
+                                    { id: 'letter', label: 'Letter' },
+                                    { id: 'legal', label: 'Legal' },
+                                ].map((size) => (
+                                    <button
+                                        key={size.id}
+                                        onClick={() => setPaperSize(size.id)}
+                                        className={`px-3 py-1.5 rounded-lg border-2 text-xs font-bold transition-all ${paperSize === size.id
+                                            ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                                            }`}
+                                    >
+                                        {size.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         {/* Layout Selection */}
                         <div className="bg-slate-50 p-4 border-y border-slate-100 flex flex-col gap-3">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Layout Cetak (per halaman A4)</label>
@@ -1190,6 +1219,7 @@ const AssetList = ({ validationMode = false }) => {
                         institute={settings}
                         layout={printLayout}
                         customConfig={customConfig}
+                        paperSize={paperSize}
                     />
                 </div>
             )}

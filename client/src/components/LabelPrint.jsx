@@ -6,18 +6,18 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
     const config = size === 'mini'
         ? {
             width: '40mm', height: '30mm',
-            qr: 52, fontSize: { title: 'text-[7.5px]', name: 'text-[9px]', room: 'text-[7.5px]', code: 'text-[8.5px]' },
+            qr: 52, fontSize: { title: 'text-[7.5px]', name: 'text-[9.2px]', room: 'text-[7.5px]', code: 'text-[8.5px]' },
             padding: 'p-1'
         }
         : size === 'small'
             ? {
                 width: '50mm', height: '35mm',
-                qr: 70, fontSize: { title: 'text-[8.5px]', name: 'text-[11px]', room: 'text-[8.5px]', code: 'text-[9.5px]' },
+                qr: 70, fontSize: { title: 'text-[8.5px]', name: 'text-[11.5px]', room: 'text-[8.5px]', code: 'text-[9.5px]' },
                 padding: 'p-1.5'
             }
             : {
                 width: '60mm', height: '40mm',
-                qr: 90, fontSize: { title: 'text-[10px]', name: 'text-[13px]', room: 'text-[10px]', code: 'text-[11px]' },
+                qr: 90, fontSize: { title: 'text-[10.5px]', name: 'text-[13.5px]', room: 'text-[10.5px]', code: 'text-[11.5px]' },
                 padding: 'p-2'
             };
 
@@ -35,20 +35,14 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
                 className={`flex flex-col items-center justify-between border-2 border-black bg-white text-black font-bold uppercase overflow-hidden ${config.padding}`}
                 style={{ width: config.width, height: config.height }}
             >
-                {/* Header: Institution */}
-                <div className="w-full border-b-[1.5px] border-black pb-0.5 mb-1 text-center shrink-0">
-                    <h2 className={`${config.fontSize.title} tracking-wider truncate`}>
-                        {orgName}
-                    </h2>
-                </div>
+                {/* Single Box - No Internal Borders */}
+                <h2 className={`${config.fontSize.title} tracking-wider w-full text-center truncate shrink-0`}>
+                    {orgName}
+                </h2>
 
-                {/* Body: Asset Name & QR Code */}
-                <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 gap-0.5">
-                    <div className="w-full text-center border-b border-black/10 pb-0.5 mb-0.5">
-                        <span className={`${config.fontSize.name} leading-tight line-clamp-1`}>{asset?.name}</span>
-                    </div>
-
-                    <div className="p-0.5 border border-black rounded-sm bg-white inline-flex items-center justify-center shrink-0">
+                <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 gap-1">
+                    <span className={`${config.fontSize.name} leading-tight text-center line-clamp-1 w-full`}>{asset?.name}</span>
+                    <div className="bg-white inline-flex items-center justify-center shrink-0">
                         <QRCode
                             value={`${window.location.origin}/public/asset/${asset?.id}`}
                             size={config.qr}
@@ -57,41 +51,32 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
                     </div>
                 </div>
 
-                {/* Footer: Room & Asset Code */}
-                <div className="w-full mt-1 pt-0.5 border-t-[1.5px] border-black flex flex-col items-center shrink-0">
-                    <div className="w-full text-center border-b border-black/5 pb-0.5 mb-0.5">
-                        <span className={`${config.fontSize.room} truncate`}>{asset?.room?.name || '-'}</span>
-                    </div>
-                    <div className="w-full text-center">
-                        <span className={`${config.fontSize.code} tracking-widest font-mono`}>{asset?.code || '-'}</span>
-                    </div>
+                <div className="w-full flex flex-col items-center shrink-0 gap-0.5">
+                    <span className={`${config.fontSize.room} truncate w-full text-center`}>{asset?.room?.name || '-'}</span>
+                    <span className={`${config.fontSize.code} tracking-widest font-mono w-full text-center`}>{asset?.code || '-'}</span>
                 </div>
             </div>
         </div>
     );
 });
 
-export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '2x4', customConfig = null }, ref) => {
+export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '2x4', customConfig = null, paperSize = 'A4' }, ref) => {
     const orgName = institute?.name || institute?.orgName || "YAYASAN DAR EL IMAN";
 
     const getLayoutConfigs = (id) => {
         if (id === 'custom' && customConfig) {
             const cols = parseInt(customConfig.columns) || 3;
-            const w = parseInt(customConfig.width) || 60; // in mm
-            const h = parseInt(customConfig.height) || 40; // in mm
-
-            // Fixed conversion factor: 1mm is approx 3.78px at 96dpi
-            // We want the QR to take up about 75% of the height or 40% of width, whichever is smaller,
-            // minus space for headers/footers.
-            const mmToPx = 3.6; // Slightly conservative factor for variety of printers
-            const availableHeightMm = h - 14; // Subtract approx 14mm for header/footer/padding
+            const w = parseInt(customConfig.width) || 60;
+            const h = parseInt(customConfig.height) || 40;
+            const mmToPx = 3.6;
+            const availableHeightMm = h - 14;
             const qrSizePx = Math.floor(Math.min(availableHeightMm, w * 0.6) * mmToPx);
 
             return {
                 cols,
                 width: `${w}mm`,
                 height: `${h}mm`,
-                qr: Math.max(qrSizePx, 40), // Minimum 40px
+                qr: Math.max(qrSizePx, 40),
                 fontSize: {
                     title: w < 40 ? 'text-[6.5px]' : 'text-[9px]',
                     name: w < 40 ? 'text-[8.5px]' : 'text-[12px]',
@@ -119,7 +104,7 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
         <div ref={ref} className="bg-white print:m-0 w-full overflow-hidden">
             <style>{`
                 @media print {
-                    @page { size: auto; margin: 3mm; }
+                    @page { size: ${paperSize}; margin: 3mm; }
                     .print-page-break { page-break-inside: avoid; }
                     * { box-sizing: border-box !important; }
                     body { -webkit-print-color-adjust: exact; }
@@ -136,19 +121,14 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                         style={{ width: config.width, height: config.height }}
                     >
                         <div className={`w-full h-full ${config.padding} border-2 border-black flex flex-col items-center justify-between text-black font-bold uppercase overflow-hidden bg-white`}>
-                            {/* Header */}
-                            <div className="w-full border-b-[1.5px] border-black pb-0.5 mb-0.5 text-center shrink-0">
-                                <h2 className={`${config.fontSize.title} tracking-tight truncate`}>
-                                    {orgName}
-                                </h2>
-                            </div>
+                            {/* Single Box - No Internal Borders */}
+                            <h2 className={`${config.fontSize.title} tracking-tight w-full text-center truncate shrink-0`}>
+                                {orgName}
+                            </h2>
 
-                            {/* Body */}
                             <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 gap-0.5">
-                                <div className="w-full text-center border-b border-black/10">
-                                    <span className={`${config.fontSize.name} leading-tight line-clamp-1`}>{asset.name}</span>
-                                </div>
-                                <div className="p-0.5 border border-black rounded-[1px] bg-white inline-flex items-center justify-center shrink-0">
+                                <span className={`${config.fontSize.name} leading-tight text-center line-clamp-1 w-full`}>{asset.name}</span>
+                                <div className="bg-white inline-flex items-center justify-center shrink-0">
                                     <QRCode
                                         value={`${window.location.origin}/public/asset/${asset?.id}`}
                                         size={config.qr}
@@ -157,14 +137,9 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                                 </div>
                             </div>
 
-                            {/* Footer */}
-                            <div className="w-full mt-0.5 pt-0.5 border-t-[1.5px] border-black flex flex-col items-center shrink-0">
-                                <div className="w-full text-center border-b border-black/5 pb-0.5 mb-0.5">
-                                    <span className={`${config.fontSize.room} truncate`}>{asset.room?.name || '-'}</span>
-                                </div>
-                                <div className="w-full text-center">
-                                    <span className={`${config.fontSize.code} tracking-tighter font-mono`}>{asset.code || '-'}</span>
-                                </div>
+                            <div className="w-full flex flex-col items-center shrink-0">
+                                <span className={`${config.fontSize.room} truncate w-full text-center`}>{asset.room?.name || '-'}</span>
+                                <span className={`${config.fontSize.code} tracking-tighter font-mono w-full text-center`}>{asset.code || '-'}</span>
                             </div>
                         </div>
                     </div>
