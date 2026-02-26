@@ -116,26 +116,34 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/aset" className={subNavItemClass('/aset')}>
                             <Box size={16} /> Data Aset
                         </Link>
-                        <Link to="/rkb" className={subNavItemClass('/rkb')}>
-                            <Calendar size={16} /> Perencanaan (RKB)
-                        </Link>
-                        <Link to="/procurements" className={subNavItemClass('/procurements')}>
-                            <ShoppingCart size={16} /> Pengadaan
-                        </Link>
-                        <Link to="/vendors" className={subNavItemClass('/vendors')}>
-                            <Users size={16} /> Data Vendor
-                        </Link>
+                        {isAdmin && (
+                            <>
+                                <Link to="/rkb" className={subNavItemClass('/rkb')}>
+                                    <Calendar size={16} /> Perencanaan (RKB)
+                                </Link>
+                                <Link to="/procurements" className={subNavItemClass('/procurements')}>
+                                    <ShoppingCart size={16} /> Pengadaan
+                                </Link>
+                                <Link to="/vendors" className={subNavItemClass('/vendors')}>
+                                    <Users size={16} /> Data Vendor
+                                </Link>
+                            </>
+                        )}
 
                         <Link to="/pemeliharaan" className={subNavItemClass('/pemeliharaan')}>
                             <FileCheck size={16} /> Pemeliharaan
                         </Link>
 
-                        <Link to="/mutasi" className={subNavItemClass('/mutasi')}>
-                            <ArrowLeftRight size={16} /> Mutasi
-                        </Link>
-                        <Link to="/penghapusan" className={subNavItemClass('/penghapusan')}>
-                            <Trash2 size={16} /> Penghapusan
-                        </Link>
+                        {isAdmin && (
+                            <>
+                                <Link to="/mutasi" className={subNavItemClass('/mutasi')}>
+                                    <ArrowLeftRight size={16} /> Mutasi
+                                </Link>
+                                <Link to="/penghapusan" className={subNavItemClass('/penghapusan')}>
+                                    <Trash2 size={16} /> Penghapusan
+                                </Link>
+                            </>
+                        )}
                         <Link to="/peminjaman" className={subNavItemClass('/peminjaman')}>
                             <ArrowLeftRight size={16} /> Peminjaman Aset
                         </Link>
@@ -172,17 +180,22 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/gudang/dashboard" className={subNavItemClass('/gudang/dashboard')}>
                             <LayoutDashboard size={16} /> Dashboard
                         </Link>
-                        <Link to="/gudang/stok" className={subNavItemClass('/gudang/stok')}>
-                            <Box size={16} /> Stok Barang
-                        </Link>
-                        <Link to="/gudang/transaksi" className={subNavItemClass('/gudang/transaksi')}>
-                            <ArrowLeftRight size={16} /> Transaksi
-                        </Link>
-                        <Link to="/gudang/pesanan" className={subNavItemClass('/gudang/pesanan')}>
-                            <ShoppingCart size={16} /> Pesanan Seragam
-                        </Link>
+                        {isAdmin && (
+                            <>
+                                <Link to="/gudang/stok" className={subNavItemClass('/gudang/stok')}>
+                                    <Box size={16} /> Stok Barang
+                                </Link>
+                                <Link to="/gudang/transaksi" className={subNavItemClass('/gudang/transaksi')}>
+                                    <ArrowLeftRight size={16} /> Transaksi
+                                </Link>
+                                <Link to="/gudang/pesanan" className={subNavItemClass('/gudang/pesanan')}>
+                                    <ShoppingCart size={16} /> Pesanan Seragam
+                                </Link>
+                            </>
+                        )}
                     </>
                 ))}
+
 
                 {/* 4. Manajemen Personalia - Restricted to Global Access or Sarpras Unit */}
                 {((isGlobalAdmin || user.role === 'KEPALA_BIDANG') ||

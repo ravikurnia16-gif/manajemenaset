@@ -50,6 +50,7 @@ const AssetList = ({ validationMode = false }) => {
 
     const [selectedUnit, setSelectedUnit] = useState(isGlobalAdmin ? '' : (currentUser.unitId?.toString() || ''));
     const [selectedRoom, setSelectedRoom] = useState('');
+    const isReadOnlyUser = currentUser.role === 'USER';
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -517,26 +518,28 @@ const AssetList = ({ validationMode = false }) => {
                         )}
                     </div>
                 </div>
-                <div className="flex flex-wrap w-full lg:w-auto gap-2 sm:gap-3">
-                    {!validationMode && (
-                        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                            <button onClick={() => navigate('/aset/input')} className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-lg shadow-blue-200 transition-all hover:scale-105 active:scale-95 whitespace-nowrap">
-                                <Plus size={18} /> Tambah Aset
-                            </button>
-                            <label className="flex-1 sm:flex-none bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold transition-all cursor-pointer">
-                                <Download size={18} /> Import
-                                <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleImport} disabled={loading} />
-                            </label>
-                            <button onClick={handleTemplateDownload} className="w-10 sm:w-auto sm:px-3 bg-white hover:bg-slate-50 text-slate-400 border border-slate-200 rounded-xl flex items-center justify-center gap-2 transition-all" title="Download Template">
-                                <Download size={18} /> <span className="hidden sm:inline text-xs font-bold text-slate-600">Template</span>
-                            </button>
+                {!isReadOnlyUser && (
+                    <div className="flex flex-wrap w-full lg:w-auto gap-2 sm:gap-3">
+                        {!validationMode && (
+                            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                                <button onClick={() => navigate('/aset/input')} className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-lg shadow-blue-200 transition-all hover:scale-105 active:scale-95 whitespace-nowrap">
+                                    <Plus size={18} /> Tambah Aset
+                                </button>
+                                <label className="flex-1 sm:flex-none bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold transition-all cursor-pointer">
+                                    <Download size={18} /> Import
+                                    <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleImport} disabled={loading} />
+                                </label>
+                                <button onClick={handleTemplateDownload} className="w-10 sm:w-auto sm:px-3 bg-white hover:bg-slate-50 text-slate-400 border border-slate-200 rounded-xl flex items-center justify-center gap-2 transition-all" title="Download Template">
+                                    <Download size={18} /> <span className="hidden sm:inline text-xs font-bold text-slate-600">Template</span>
+                                </button>
+                            </div>
+                        )}
+                        <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto lg:border-l lg:border-slate-200 lg:pl-3">
+                            <button onClick={() => setActionModal({ isOpen: true, type: 'export' })} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-lg shadow-green-200 transition-all hover:scale-105 active:scale-95" title="Export Excel"><Upload size={18} /> Export</button>
+                            <button onClick={() => setActionModal({ isOpen: true, type: 'print' })} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-lg shadow-indigo-200 transition-all hover:scale-105 active:scale-95" title="Cetak Label QR"><QrCode size={18} /> Cetak QR</button>
                         </div>
-                    )}
-                    <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto lg:border-l lg:border-slate-200 lg:pl-3">
-                        <button onClick={() => setActionModal({ isOpen: true, type: 'export' })} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-lg shadow-green-200 transition-all hover:scale-105 active:scale-95" title="Export Excel"><Upload size={18} /> Export</button>
-                        <button onClick={() => setActionModal({ isOpen: true, type: 'print' })} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-lg shadow-indigo-200 transition-all hover:scale-105 active:scale-95" title="Cetak Label QR"><QrCode size={18} /> Cetak QR</button>
                     </div>
-                </div>
+                )}
             </div>
 
             {/* Action Modal */}
@@ -644,6 +647,7 @@ const AssetList = ({ validationMode = false }) => {
                                     { id: '3x4', label: '12 Label (Sedang)', desc: '3 x 4' },
                                     { id: '3x7', label: '21 Label (Stiker)', desc: '3 x 7' },
                                     { id: '3x10', label: '30 Label (Kecil)', desc: '3 x 10' },
+                                    { id: '4x14', label: '56 Label (Super Kecil)', desc: '4 x 14' },
                                 ].map((layout) => (
                                     <button
                                         key={layout.id}
@@ -833,20 +837,22 @@ const AssetList = ({ validationMode = false }) => {
                         <table className="w-full text-sm text-left border-collapse">
                             <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100 uppercase text-[10px] tracking-wider">
                                 <tr>
-                                    <th className="px-6 py-4 w-10">
-                                        <input
-                                            type="checkbox"
-                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                            checked={paginatedAssets.length > 0 && selectedIds.length === paginatedAssets.length}
-                                            onChange={handleSelectAll}
-                                        />
-                                    </th>
+                                    {!isReadOnlyUser && (
+                                        <th className="px-6 py-4 w-10">
+                                            <input
+                                                type="checkbox"
+                                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                checked={paginatedAssets.length > 0 && selectedIds.length === paginatedAssets.length}
+                                                onChange={handleSelectAll}
+                                            />
+                                        </th>
+                                    )}
                                     <th className="px-6 py-4">Aset</th>
                                     <th className="px-6 py-4">Unit / Ruang</th>
                                     <th className="px-6 py-4">Kondisi</th>
                                     <th className="px-6 py-4">PIC / Pengguna</th>
                                     <th className="px-6 py-4">Harga / Tanggal</th>
-                                    <th className="px-6 py-4 text-center">Aksi</th>
+                                    {!isReadOnlyUser && <th className="px-6 py-4 text-center">Aksi</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -861,14 +867,16 @@ const AssetList = ({ validationMode = false }) => {
                                     </tr>
                                 ) : (Array.isArray(paginatedAssets) && paginatedAssets.length > 0) ? paginatedAssets.map((asset) => (
                                     <tr key={asset.id} className={`hover:bg-slate-50/80 transition-colors group ${selectedIds.includes(asset.id) ? 'bg-blue-50/30' : ''}`}>
-                                        <td className="px-6 py-4 text-center">
-                                            <input
-                                                type="checkbox"
-                                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                checked={selectedIds.includes(asset.id)}
-                                                onChange={() => handleToggleSelect(asset.id)}
-                                            />
-                                        </td>
+                                        {!isReadOnlyUser && (
+                                            <td className="px-6 py-4 text-center">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                    checked={selectedIds.includes(asset.id)}
+                                                    onChange={() => handleToggleSelect(asset.id)}
+                                                />
+                                            </td>
+                                        )}
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col">
                                                 <Link to={`/aset/view/${asset.id}`} className="font-bold text-slate-800 hover:text-blue-600 transition-colors">{asset.name}</Link>
@@ -908,19 +916,21 @@ const AssetList = ({ validationMode = false }) => {
                                                 <span className="text-[10px] text-slate-400">{asset.purchaseDate ? new Date(asset.purchaseDate).toLocaleDateString('id-ID') : '-'}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <div className="flex justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => openValidationModal([asset.id], asset.validationStatus || 'VALIDATED')} className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors" title="Validasi"><CheckCircle size={14} /></button>
-                                                <button onClick={() => openPrintModal(asset)} className="p-1.5 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors" title="Cetak QR"><QrCode size={14} /></button>
-                                                <button onClick={() => navigate(`/mutasi/request?assetId=${asset.id}`)} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors" title="Mutasi"><ArrowLeftRight size={14} /></button>
-                                                <button onClick={() => navigate(`/aset/edit/${asset.id}`)} className="p-1.5 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors" title="Edit"><Edit size={14} /></button>
-                                                {isGlobalAdmin && (
-                                                    <button onClick={() => handleDelete(asset.id)} className="p-1.5 bg-red-50 text-red-400 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors" title="Hapus">
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
+                                        {!isReadOnlyUser && (
+                                            <td className="px-6 py-4 text-center">
+                                                <div className="flex justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => openValidationModal([asset.id], asset.validationStatus || 'VALIDATED')} className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors" title="Validasi"><CheckCircle size={14} /></button>
+                                                    <button onClick={() => openPrintModal(asset)} className="p-1.5 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors" title="Cetak QR"><QrCode size={14} /></button>
+                                                    <button onClick={() => navigate(`/mutasi/request?assetId=${asset.id}`)} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors" title="Mutasi"><ArrowLeftRight size={14} /></button>
+                                                    <button onClick={() => navigate(`/aset/edit/${asset.id}`)} className="p-1.5 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors" title="Edit"><Edit size={14} /></button>
+                                                    {isGlobalAdmin && (
+                                                        <button onClick={() => handleDelete(asset.id)} className="p-1.5 bg-red-50 text-red-400 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors" title="Hapus">
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        )}
                                     </tr>
                                 )) : (
                                     <tr>
@@ -941,12 +951,14 @@ const AssetList = ({ validationMode = false }) => {
                             <div key={asset.id} className={`bg-white p-4 rounded-2xl shadow-sm border ${selectedIds.includes(asset.id) ? 'border-blue-500 ring-2 ring-blue-50' : 'border-slate-100'} transition-all`}>
                                 <div className="flex justify-between items-start mb-3">
                                     <div className="flex items-center gap-3">
-                                        <input
-                                            type="checkbox"
-                                            className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                            checked={selectedIds.includes(asset.id)}
-                                            onChange={() => handleToggleSelect(asset.id)}
-                                        />
+                                        {!isReadOnlyUser && (
+                                            <input
+                                                type="checkbox"
+                                                className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                checked={selectedIds.includes(asset.id)}
+                                                onChange={() => handleToggleSelect(asset.id)}
+                                            />
+                                        )}
                                         <div className="flex flex-col">
                                             <Link to={`/aset/view/${asset.id}`} className="font-bold text-slate-800 leading-tight mb-0.5 line-clamp-1">{asset.name}</Link>
                                             <span className="text-[10px] font-mono text-slate-400 tracking-wider bg-slate-50 w-fit px-1.5 rounded uppercase leading-relaxed">{asset.code}</span>
@@ -984,12 +996,14 @@ const AssetList = ({ validationMode = false }) => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-4 gap-2">
-                                    <button onClick={() => openValidationModal([asset.id], asset.validationStatus || 'VALIDATED')} className="flex items-center justify-center py-2 bg-green-50 text-green-600 border border-green-100 rounded-xl hover:bg-green-100 transition-all"><CheckCircle size={18} /></button>
-                                    <button onClick={() => openPrintModal(asset)} className="flex items-center justify-center py-2 bg-slate-50 text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-200 transition-all"><QrCode size={18} /></button>
-                                    <button onClick={() => navigate(`/aset/edit/${asset.id}`)} className="flex items-center justify-center py-2 bg-blue-50 text-blue-600 border border-blue-100 rounded-xl hover:bg-blue-100 transition-all"><Edit size={18} /></button>
-                                    <button onClick={() => navigate(`/mutasi/request?assetId=${asset.id}`)} className="flex items-center justify-center py-2 bg-orange-50 text-orange-600 border border-orange-100 rounded-xl hover:bg-orange-100 transition-all"><ArrowLeftRight size={18} /></button>
-                                </div>
+                                {!isReadOnlyUser && (
+                                    <div className="grid grid-cols-4 gap-2">
+                                        <button onClick={() => openValidationModal([asset.id], asset.validationStatus || 'VALIDATED')} className="flex items-center justify-center py-2 bg-green-50 text-green-600 border border-green-100 rounded-xl hover:bg-green-100 transition-all"><CheckCircle size={18} /></button>
+                                        <button onClick={() => openPrintModal(asset)} className="flex items-center justify-center py-2 bg-slate-50 text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-200 transition-all"><QrCode size={18} /></button>
+                                        <button onClick={() => navigate(`/aset/edit/${asset.id}`)} className="flex items-center justify-center py-2 bg-blue-50 text-blue-600 border border-blue-100 rounded-xl hover:bg-blue-100 transition-all"><Edit size={18} /></button>
+                                        <button onClick={() => navigate(`/mutasi/request?assetId=${asset.id}`)} className="flex items-center justify-center py-2 bg-orange-50 text-orange-600 border border-orange-100 rounded-xl hover:bg-orange-100 transition-all"><ArrowLeftRight size={18} /></button>
+                                    </div>
+                                )}
                             </div>
                         )) : (
                             <div className="col-span-full py-20 text-center bg-white rounded-2xl border border-dashed border-slate-200">

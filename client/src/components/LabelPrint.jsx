@@ -2,9 +2,33 @@ import React from 'react';
 import QRCode from 'react-qr-code';
 
 export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }, ref) => {
-    const containerStyle = size === 'small'
-        ? { width: '4cm', height: '5.5cm', backgroundColor: '#fff' }
-        : { width: '5.5cm', height: '7cm', backgroundColor: '#fff' };
+    const config = size === 'mini'
+        ? {
+            width: '3cm', height: '4cm',
+            qr: 65, logo: '16px',
+            title: '8px', room: '7px', code: '9px',
+            padding: '8px'
+        }
+        : size === 'small'
+            ? {
+                width: '4cm', height: '5.5cm',
+                qr: 90, logo: '22px',
+                title: '10px', room: '10px', code: '12px',
+                padding: '12px'
+            }
+            : {
+                width: '5.5cm', height: '7cm',
+                qr: 125, logo: '30px',
+                title: '14px', room: '14px', code: '16px',
+                padding: '20px'
+            };
+
+    const containerStyle = {
+        width: config.width,
+        height: config.height,
+        backgroundColor: '#fff',
+        padding: config.padding
+    };
 
     const orgName = institute?.orgName || "YAYASAN DAR EL IMAN";
     const orgLogo = institute?.orgLogo;
@@ -24,9 +48,9 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
                     }
                 }
             `}</style>
-            <div style={containerStyle} className="single-label-container flex flex-col items-center justify-center p-3 rounded-sm border border-slate-200 shadow-sm transition-all text-center overflow-hidden">
+            <div style={containerStyle} className="single-label-container flex flex-col items-center justify-center rounded-sm border border-slate-200 shadow-sm transition-all text-center overflow-hidden">
                 {/* Institute Title */}
-                <h2 className="font-bold text-[10px] uppercase text-slate-800 mb-2 leading-tight">
+                <h2 className="font-bold uppercase text-slate-800 mb-2 leading-tight" style={{ fontSize: config.title }}>
                     {orgName}
                 </h2>
 
@@ -34,15 +58,15 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
                 <div className="relative bg-white p-1 rounded-sm shadow-sm border border-slate-100 flex items-center justify-center mb-3">
                     <QRCode
                         value={`${window.location.origin}/public/asset/${asset?.id}`}
-                        size={size === 'small' ? 90 : 125}
+                        size={config.qr}
                         level="H"
                     />
                     {orgLogo && (
                         <div
                             className="absolute bg-white p-[2px] rounded-sm"
                             style={{
-                                width: size === 'small' ? '22px' : '30px',
-                                height: size === 'small' ? '22px' : '30px'
+                                width: config.logo,
+                                height: config.logo
                             }}
                         >
                             <img
@@ -56,11 +80,11 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
 
                 {/* Room and Asset Code below QR */}
                 <div className="flex flex-col items-center justify-center gap-1.5 w-full">
-                    <p className="room-text-bold text-[10px] uppercase tracking-tight truncate w-full italic px-1 text-black font-[800]">
+                    <p className="room-text-bold uppercase tracking-tight truncate w-full italic px-1 text-black font-[800]" style={{ fontSize: config.room }}>
                         {asset?.room?.name || 'TANPA RUANGAN'}
                     </p>
                     <div className="bg-slate-50 px-3 py-1 rounded-sm border border-slate-300">
-                        <p className="font-mono text-[12px] text-black font-extrabold tracking-wider leading-none">
+                        <p className="font-mono text-black font-extrabold tracking-wider leading-none" style={{ fontSize: config.code }}>
                             {asset?.code || '-'}
                         </p>
                     </div>
@@ -77,14 +101,16 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
     // Layout configuration (Adjusted for square labels with room visibility)
     const getLayoutConfigs = (id) => {
         switch (id) {
-            case '2x2': return { cols: 2, width: '90mm', height: '125mm', qr: 180, logoSize: '40px', title: '18pt', room: '14pt', code: '16pt', padding: '10mm' };
-            case '3x4': return { cols: 3, width: '60mm', height: '70mm', qr: 115, logoSize: '28px', title: '11pt', room: '9pt', code: '11pt', padding: '5mm' };
-            case '3x7': return { cols: 3, width: '60mm', height: '42mm', qr: 70, logoSize: '16px', title: '8pt', room: '7.5pt', code: '9pt', padding: '3mm' };
-            case '3x10': return { cols: 3, width: '60mm', height: '29mm', qr: 50, logoSize: '12px', title: '7pt', room: '6.5pt', code: '8pt', padding: '2mm' };
+            case '2x2': return { cols: 2, width: '90mm', height: '125mm', qr: 200, logoSize: '45px', title: '20pt', room: '16pt', code: '18pt', padding: '12mm' };
+            case '3x4': return { cols: 3, width: '60mm', height: '70mm', qr: 130, logoSize: '32px', title: '12pt', room: '10pt', code: '12pt', padding: '6mm' };
+            case '3x7': return { cols: 3, width: '60mm', height: '42mm', qr: 80, logoSize: '20px', title: '10pt', room: '8pt', code: '10pt', padding: '4mm' };
+            case '3x10': return { cols: 3, width: '60mm', height: '29mm', qr: 55, logoSize: '14px', title: '8pt', room: '7pt', code: '9pt', padding: '2.5mm' };
+            case '4x14': return { cols: 4, width: '48mm', height: '20mm', qr: 42, logoSize: '10px', title: '6pt', room: '5.5pt', code: '7.5pt', padding: '1.5mm' };
             case '2x4':
-            default: return { cols: 2, width: '90mm', height: '70mm', qr: 145, logoSize: '36px', title: '14pt', room: '11pt', code: '14pt', padding: '6mm' };
+            default: return { cols: 2, width: '90mm', height: '70mm', qr: 160, logoSize: '40px', title: '16pt', room: '12pt', code: '16pt', padding: '8mm' };
         }
     };
+
 
     const config = getLayoutConfigs(layout);
 
