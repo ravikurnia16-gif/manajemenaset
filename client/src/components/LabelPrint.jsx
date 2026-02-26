@@ -1,12 +1,47 @@
 import React from 'react';
 import QRCode from 'react-qr-code';
 
+// Paper dimensions in mm (width x height)
+const PAPER_DIMENSIONS = {
+    'A3': { w: 297, h: 420 },
+    'A4': { w: 210, h: 297 },
+    'A5': { w: 148, h: 210 },
+    'B4': { w: 250, h: 353 },
+    'B5': { w: 176, h: 250 },
+    'F4': { w: 215.9, h: 330.2 },
+    'letter': { w: 215.9, h: 279.4 },
+    'legal': { w: 215.9, h: 355.6 },
+};
+
+const MARGIN = 6; // mm total margin (3mm each side)
+
+// Helper: calculate font/qr sizes from label dimensions in mm
+function calcSizes(wMm, hMm) {
+    const mmToPx = 3.78;
+    const minDim = Math.min(wMm, hMm);
+    // QR should occupy ~50% of the smaller dimension
+    const qr = Math.max(Math.floor((hMm - 12) * mmToPx * 0.65), 30);
+    const logo = Math.max(Math.floor(qr * 0.22), 8);
+    // Font sizes scale with width
+    const base = Math.max(wMm / 7, 4);
+    return {
+        qr,
+        logoSize: logo,
+        title: `${(base * 0.85).toFixed(1)}px`,
+        name: `${(base * 1.1).toFixed(1)}px`,
+        room: `${(base * 0.85).toFixed(1)}px`,
+        code: `${(base * 0.95).toFixed(1)}px`,
+        gap: `${Math.max(minDim * 0.03, 0.5).toFixed(1)}mm`,
+        pad: `${Math.max(minDim * 0.04, 0.5).toFixed(1)}mm`,
+    };
+}
+
 export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }, ref) => {
     const config = size === 'mini'
-        ? { width: '40mm', height: '30mm', qr: 52, logoSize: 14, title: '7.5px', name: '9px', room: '7.5px', code: '8.5px', gap: '1.5mm', pad: '1.5mm' }
+        ? { width: '40mm', height: '30mm', ...calcSizes(40, 30) }
         : size === 'small'
-            ? { width: '50mm', height: '35mm', qr: 70, logoSize: 18, title: '8.5px', name: '11px', room: '8.5px', code: '9.5px', gap: '2mm', pad: '2mm' }
-            : { width: '60mm', height: '40mm', qr: 90, logoSize: 22, title: '10px', name: '13px', room: '10px', code: '11px', gap: '2.5mm', pad: '3mm' };
+            ? { width: '50mm', height: '35mm', ...calcSizes(50, 35) }
+            : { width: '60mm', height: '40mm', ...calcSizes(60, 40) };
 
     const orgName = institute?.name || institute?.orgName || "YAYASAN DAR EL IMAN";
     const orgLogo = institute?.orgLogo;
@@ -26,35 +61,20 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
                 fontFamily: 'Arial, Helvetica, sans-serif', fontWeight: 'bold', textTransform: 'uppercase',
                 overflow: 'hidden', boxSizing: 'border-box'
             }}>
-                {/* Title */}
                 <div style={{ fontSize: config.title, letterSpacing: '0.5px', textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.2 }}>
                     {orgName}
                 </div>
-
-                {/* QR Code with Logo Overlay */}
                 <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginTop: config.gap, marginBottom: config.gap, flexShrink: 0 }}>
-                    <QRCode
-                        value={`${window.location.origin}/public/asset/${asset?.id}`}
-                        size={config.qr}
-                        level="H"
-                    />
+                    <QRCode value={`${window.location.origin}/public/asset/${asset?.id}`} size={config.qr} level="H" />
                     {orgLogo && (
-                        <div style={{
-                            position: 'absolute', backgroundColor: '#fff', padding: '1px', borderRadius: '2px',
-                            width: config.logoSize, height: config.logoSize,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center'
-                        }}>
+                        <div style={{ position: 'absolute', backgroundColor: '#fff', padding: '1px', borderRadius: '2px', width: config.logoSize, height: config.logoSize, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <img src={orgLogo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                         </div>
                     )}
                 </div>
-
-                {/* Room */}
                 <div style={{ fontSize: config.room, textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {asset?.room?.name || '-'}
                 </div>
-
-                {/* Asset Code */}
                 <div style={{ fontSize: config.code, fontFamily: "'Courier New', monospace", letterSpacing: '1px', textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.2 }}>
                     {asset?.code || '-'}
                 </div>
@@ -67,115 +87,129 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
     const orgName = institute?.name || institute?.orgName || "YAYASAN DAR EL IMAN";
     const orgLogo = institute?.orgLogo;
 
-    // Paper size CSS values
-    const paperSizeMap = {
-        'A3': '297mm 420mm',
-        'A4': '210mm 297mm',
-        'A5': '148mm 210mm',
-        'B4': '250mm 353mm',
-        'B5': '176mm 250mm',
-        'F4': '215.9mm 330.2mm',
-        'letter': '215.9mm 279.4mm',
-        'legal': '215.9mm 355.6mm',
-    };
-    const pageSizeCSS = paperSizeMap[paperSize] || paperSizeMap['A4'];
+    const paper = PAPER_DIMENSIONS[paperSize] || PAPER_DIMENSIONS['A4'];
+    const usableW = paper.w - MARGIN;
+    const usableH = paper.h - MARGIN;
+
+    const pageSizeCSS = `${paper.w}mm ${paper.h}mm`;
 
     const getLayoutConfigs = (id) => {
         if (id === 'custom' && customConfig) {
             const cols = parseInt(customConfig.columns) || 3;
             const w = parseInt(customConfig.width) || 60;
             const h = parseInt(customConfig.height) || 40;
-            const mmToPx = 3.6;
-            const availableH = h - 14;
-            const qr = Math.max(Math.floor(Math.min(availableH, w * 0.6) * mmToPx), 40);
-            const logo = Math.floor(qr * 0.22);
-            return {
-                cols, width: `${w}mm`, height: `${h}mm`, qr, logoSize: logo,
-                title: w < 40 ? '6.5px' : '9px', name: w < 40 ? '8.5px' : '12px',
-                room: w < 40 ? '6.5px' : '9px', code: w < 40 ? '7.5px' : '10px',
-                gap: w < 40 ? '0.5mm' : '1.5mm', pad: w < 40 ? '0.5mm' : '1.5mm'
-            };
+            return { cols, rows: null, wMm: w, hMm: h, ...calcSizes(w, h) };
         }
-        const presets = {
-            '2x2': { cols: 2, width: '90mm', height: '125mm', qr: 180, logoSize: 40, title: '16px', name: '22px', room: '14px', code: '18px', gap: '4mm', pad: '6mm' },
-            '3x4': { cols: 3, width: '60mm', height: '70mm', qr: 120, logoSize: 28, title: '11px', name: '16px', room: '11px', code: '13px', gap: '3mm', pad: '4mm' },
-            '3x7': { cols: 3, width: '60mm', height: '42mm', qr: 90, logoSize: 22, title: '10px', name: '13px', room: '9px', code: '11px', gap: '2mm', pad: '3mm' },
-            '3x10': { cols: 3, width: '60mm', height: '29mm', qr: 52, logoSize: 14, title: '7.5px', name: '9px', room: '7.5px', code: '8.5px', gap: '1.5mm', pad: '1.5mm' },
-            '4x14': { cols: 4, width: '48mm', height: '21mm', qr: 42, logoSize: 11, title: '6px', name: '8px', room: '6px', code: '7px', gap: '1mm', pad: '1mm' },
-            '2x4': { cols: 2, width: '90mm', height: '70mm', qr: 150, logoSize: 34, title: '14px', name: '18px', room: '13px', code: '16px', gap: '3mm', pad: '4mm' },
-        };
-        return presets[id] || presets['2x4'];
+
+        // Parse layout like "3x7" => cols=3, rows=7
+        const match = id.match(/^(\d+)x(\d+)$/);
+        if (match) {
+            const cols = parseInt(match[1]);
+            const rows = parseInt(match[2]);
+            // Calculate exact label dimensions from paper size
+            const wMm = Math.floor((usableW / cols) * 100) / 100;
+            const hMm = Math.floor((usableH / rows) * 100) / 100;
+            return { cols, rows, wMm, hMm, ...calcSizes(wMm, hMm) };
+        }
+
+        // Fallback
+        const wMm = Math.floor((usableW / 2) * 100) / 100;
+        const hMm = Math.floor((usableH / 4) * 100) / 100;
+        return { cols: 2, rows: 4, wMm, hMm, ...calcSizes(wMm, hMm) };
     };
 
     const config = getLayoutConfigs(layout);
+    const labelsPerPage = config.rows ? config.cols * config.rows : null;
+
+    // Split assets into pages
+    const pages = [];
+    if (labelsPerPage) {
+        for (let i = 0; i < assets.length; i += labelsPerPage) {
+            pages.push(assets.slice(i, i + labelsPerPage));
+        }
+    } else {
+        pages.push(assets); // custom: no pagination
+    }
+
+    const labelWidth = `${config.wMm}mm`;
+    const labelHeight = `${config.hMm}mm`;
 
     return (
         <div ref={ref} style={{ background: '#fff', width: '100%', overflow: 'hidden' }}>
             <style>{`
                 @media print {
-                    @page { size: ${pageSizeCSS}; margin: 3mm; }
+                    @page { size: ${pageSizeCSS}; margin: ${MARGIN / 2}mm; }
                     * { box-sizing: border-box !important; }
-                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
+                    .batch-page { page-break-after: always; }
+                    .batch-page:last-child { page-break-after: auto; }
                 }
             `}</style>
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: `repeat(${config.cols}, 1fr)`,
-                width: '100%',
-                gap: '0.5mm'
-            }}>
-                {assets.map((asset, index) => (
-                    <div
-                        key={`${asset.id}-${index}`}
-                        style={{
-                            width: config.width, height: config.height,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            pageBreakInside: 'avoid'
-                        }}
-                    >
-                        <div style={{
-                            width: '100%', height: '100%', padding: config.pad,
-                            border: '2px solid #000', backgroundColor: '#fff',
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
-                            fontFamily: 'Arial, Helvetica, sans-serif', fontWeight: 'bold', textTransform: 'uppercase',
-                            overflow: 'hidden', boxSizing: 'border-box'
-                        }}>
-                            {/* Title */}
-                            <div style={{ fontSize: config.title, letterSpacing: '0.3px', textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.2 }}>
-                                {orgName}
-                            </div>
+            {pages.map((pageAssets, pageIndex) => (
+                <div
+                    key={pageIndex}
+                    className="batch-page"
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${config.cols}, ${labelWidth})`,
+                        gridAutoRows: labelHeight,
+                        width: '100%',
+                        gap: '0px',
+                        justifyContent: 'center',
+                    }}
+                >
+                    {pageAssets.map((asset, index) => (
+                        <div
+                            key={`${asset.id}-${index}`}
+                            style={{
+                                width: labelWidth, height: labelHeight,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}
+                        >
+                            <div style={{
+                                width: '100%', height: '100%', padding: config.pad,
+                                border: '1.5px solid #000', backgroundColor: '#fff',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
+                                fontFamily: 'Arial, Helvetica, sans-serif', fontWeight: 'bold', textTransform: 'uppercase',
+                                overflow: 'hidden', boxSizing: 'border-box'
+                            }}>
+                                {/* Title */}
+                                <div style={{ fontSize: config.title, letterSpacing: '0.3px', textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.2 }}>
+                                    {orgName}
+                                </div>
 
-                            {/* QR Code with Logo */}
-                            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginTop: config.gap, marginBottom: config.gap, flexShrink: 0 }}>
-                                <QRCode
-                                    value={`${window.location.origin}/public/asset/${asset?.id}`}
-                                    size={config.qr}
-                                    level="H"
-                                />
-                                {orgLogo && (
-                                    <div style={{
-                                        position: 'absolute', backgroundColor: '#fff', padding: '1px', borderRadius: '2px',
-                                        width: config.logoSize, height: config.logoSize,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                    }}>
-                                        <img src={orgLogo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                                    </div>
-                                )}
-                            </div>
+                                {/* QR Code with Logo */}
+                                <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginTop: config.gap, marginBottom: config.gap, flexShrink: 0 }}>
+                                    <QRCode
+                                        value={`${window.location.origin}/public/asset/${asset?.id}`}
+                                        size={config.qr}
+                                        level="H"
+                                    />
+                                    {orgLogo && (
+                                        <div style={{
+                                            position: 'absolute', backgroundColor: '#fff', padding: '1px', borderRadius: '2px',
+                                            width: config.logoSize, height: config.logoSize,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                        }}>
+                                            <img src={orgLogo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                        </div>
+                                    )}
+                                </div>
 
-                            {/* Room */}
-                            <div style={{ fontSize: config.room, textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {asset.room?.name || '-'}
-                            </div>
+                                {/* Room */}
+                                <div style={{ fontSize: config.room, textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {asset.room?.name || '-'}
+                                </div>
 
-                            {/* Asset Code */}
-                            <div style={{ fontSize: config.code, fontFamily: "'Courier New', monospace", letterSpacing: '0.5px', textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.2 }}>
-                                {asset.code || '-'}
+                                {/* Asset Code */}
+                                <div style={{ fontSize: config.code, fontFamily: "'Courier New', monospace", letterSpacing: '0.5px', textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.2 }}>
+                                    {asset.code || '-'}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            ))}
         </div>
     );
 });
