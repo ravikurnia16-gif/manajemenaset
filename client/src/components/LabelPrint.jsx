@@ -4,89 +4,59 @@ import QRCode from 'react-qr-code';
 export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }, ref) => {
     const config = size === 'mini'
         ? {
-            width: '3cm', height: '4cm',
-            qr: 65, logo: '16px',
-            title: '8px', room: '7px', code: '9px',
-            padding: '8px'
+            width: '40mm', height: '30mm',
+            qr: 55, fontSize: { title: 'text-[8px]', name: 'text-[10px]', room: 'text-[8px]', code: 'text-[9px]' },
+            padding: 'p-1.5'
         }
         : size === 'small'
             ? {
-                width: '4cm', height: '5.5cm',
-                qr: 90, logo: '22px',
-                title: '10px', room: '10px', code: '12px',
-                padding: '12px'
+                width: '50mm', height: '35mm',
+                qr: 75, fontSize: { title: 'text-[9px]', name: 'text-[12px]', room: 'text-[9px]', code: 'text-[10px]' },
+                padding: 'p-2'
             }
             : {
-                width: '5.5cm', height: '7cm',
-                qr: 125, logo: '30px',
-                title: '14px', room: '14px', code: '16px',
-                padding: '20px'
+                width: '60mm', height: '40mm',
+                qr: 95, fontSize: { title: 'text-[11px]', name: 'text-[14px]', room: 'text-[11px]', code: 'text-[12px]' },
+                padding: 'p-3'
             };
 
-    const containerStyle = {
-        width: config.width,
-        height: config.height,
-        backgroundColor: '#fff',
-        padding: config.padding
-    };
-
-    const orgName = institute?.orgName || "YAYASAN DAR EL IMAN";
-    const orgLogo = institute?.orgLogo;
+    const orgName = institute?.name || institute?.orgName || "YAYASAN DAR EL IMAN";
 
     return (
-        <div ref={ref} className="p-2 inline-block print:p-0">
-            <style>{`
-                @media print {
-                    .single-label-container {
-                        -webkit-print-color-adjust: exact;
-                        print-color-adjust: exact;
-                    }
-                    .room-text-bold {
-                        color: #000000 !important;
-                        font-weight: 800 !important;
-                        -webkit-print-color-adjust: exact;
-                    }
-                }
-            `}</style>
-            <div style={containerStyle} className="single-label-container flex flex-col items-center justify-center rounded-sm border border-slate-200 shadow-sm transition-all text-center overflow-hidden">
-                {/* Institute Title */}
-                <h2 className="font-bold uppercase text-slate-800 mb-2 leading-tight" style={{ fontSize: config.title }}>
-                    {orgName}
-                </h2>
-
-                {/* QR Code Container with Center Logo */}
-                <div className="relative bg-white p-1 rounded-sm shadow-sm border border-slate-100 flex items-center justify-center mb-3">
-                    <QRCode
-                        value={`${window.location.origin}/public/asset/${asset?.id}`}
-                        size={config.qr}
-                        level="H"
-                    />
-                    {orgLogo && (
-                        <div
-                            className="absolute bg-white p-[2px] rounded-sm"
-                            style={{
-                                width: config.logo,
-                                height: config.logo
-                            }}
-                        >
-                            <img
-                                src={orgLogo}
-                                alt="logo"
-                                className="w-full h-full object-contain"
-                            />
-                        </div>
-                    )}
+        <div ref={ref} className="p-2 inline-block print:p-0 bg-white">
+            <div
+                className={`flex flex-col items-center justify-between border-2 border-black bg-white text-black font-bold uppercase overflow-hidden ${config.padding}`}
+                style={{ width: config.width, height: config.height }}
+            >
+                {/* Header: Institution */}
+                <div className="w-full border-b-2 border-black pb-1 mb-1 text-center shrink-0">
+                    <h2 className={`${config.fontSize.title} tracking-wider truncate`}>
+                        {orgName}
+                    </h2>
                 </div>
 
-                {/* Room and Asset Code below QR */}
-                <div className="flex flex-col items-center justify-center gap-1.5 w-full">
-                    <p className="room-text-bold uppercase tracking-tight truncate w-full italic px-1 text-black font-[800]" style={{ fontSize: config.room }}>
-                        {asset?.room?.name || 'TANPA RUANGAN'}
-                    </p>
-                    <div className="bg-slate-50 px-3 py-1 rounded-sm border border-slate-300">
-                        <p className="font-mono text-black font-extrabold tracking-wider leading-none" style={{ fontSize: config.code }}>
-                            {asset?.code || '-'}
-                        </p>
+                {/* Body: Asset Name & QR Code */}
+                <div className="flex-1 flex flex-col items-center justify-center w-full gap-1 overflow-hidden">
+                    <div className="w-full text-center border-b border-black/20 pb-0.5">
+                        <span className={`${config.fontSize.name} leading-tight line-clamp-1`}>{asset?.name}</span>
+                    </div>
+
+                    <div className="p-1 border border-black rounded-sm bg-white shrink-0">
+                        <QRCode
+                            value={`${window.location.origin}/public/asset/${asset?.id}`}
+                            size={config.qr}
+                            level="H"
+                        />
+                    </div>
+                </div>
+
+                {/* Footer: Room & Asset Code */}
+                <div className="w-full mt-1 pt-1 border-t-2 border-black flex flex-col items-center shrink-0">
+                    <div className="w-full text-center border-b border-black/10 pb-0.5 mb-0.5">
+                        <span className={`${config.fontSize.room} truncate`}>{asset?.room?.name || '-'}</span>
+                    </div>
+                    <div className="w-full text-center">
+                        <span className={`${config.fontSize.code} tracking-widest font-mono`}>{asset?.code || '-'}</span>
                     </div>
                 </div>
             </div>
@@ -94,166 +64,99 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
     );
 });
 
-export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '2x4' }, ref) => {
-    const orgName = institute?.orgName || "YAYASAN DAR EL IMAN";
-    const orgLogo = institute?.orgLogo;
+export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '2x4', customConfig = null }, ref) => {
+    const orgName = institute?.name || institute?.orgName || "YAYASAN DAR EL IMAN";
 
-    // Layout configuration (Adjusted for square labels with room visibility)
     const getLayoutConfigs = (id) => {
+        if (id === 'custom' && customConfig) {
+            const cols = parseInt(customConfig.columns) || 3;
+            const w = parseInt(customConfig.width) || 60;
+            const h = parseInt(customConfig.height) || 40;
+
+            // Dynamic sizing based on dimensions
+            const qrSize = Math.floor(Math.min(w, h) * 1.8);
+            return {
+                cols,
+                width: `${w}mm`,
+                height: `${h}mm`,
+                qr: qrSize,
+                fontSize: {
+                    title: w < 45 ? 'text-[7px]' : 'text-[10px]',
+                    name: w < 45 ? 'text-[9px]' : 'text-[13px]',
+                    room: w < 45 ? 'text-[7px]' : 'text-[10px]',
+                    code: w < 45 ? 'text-[8px]' : 'text-[11px]'
+                },
+                padding: w < 45 ? 'p-1' : 'p-2'
+            };
+        }
+
         switch (id) {
-            case '2x2': return { cols: 2, width: '90mm', height: '125mm', qr: 200, logoSize: '45px', title: '20pt', room: '16pt', code: '18pt', padding: '12mm' };
-            case '3x4': return { cols: 3, width: '60mm', height: '70mm', qr: 130, logoSize: '32px', title: '12pt', room: '10pt', code: '12pt', padding: '6mm' };
-            case '3x7': return { cols: 3, width: '60mm', height: '42mm', qr: 80, logoSize: '20px', title: '10pt', room: '8pt', code: '10pt', padding: '4mm' };
-            case '3x10': return { cols: 3, width: '60mm', height: '29mm', qr: 55, logoSize: '14px', title: '8pt', room: '7pt', code: '9pt', padding: '2.5mm' };
-            case '4x14': return { cols: 4, width: '48mm', height: '20mm', qr: 42, logoSize: '10px', title: '6pt', room: '5.5pt', code: '7.5pt', padding: '1.5mm' };
+            case '2x2': return { cols: 2, width: '90mm', height: '125mm', qr: 180, fontSize: { title: 'text-[16px]', name: 'text-[24px]', room: 'text-[16px]', code: 'text-[20px]' }, padding: 'p-6' };
+            case '3x4': return { cols: 3, width: '60mm', height: '70mm', qr: 120, fontSize: { title: 'text-[12px]', name: 'text-[18px]', room: 'text-[12px]', code: 'text-[14px]' }, padding: 'p-4' };
+            case '3x7': return { cols: 3, width: '60mm', height: '42mm', qr: 95, fontSize: { title: 'text-[10px]', name: 'text-[14px]', room: 'text-[10px]', code: 'text-[12px]' }, padding: 'p-3' };
+            case '3x10': return { cols: 3, width: '60mm', height: '29mm', qr: 55, fontSize: { title: 'text-[8px]', name: 'text-[10px]', room: 'text-[8px]', code: 'text-[9px]' }, padding: 'p-1.5' };
+            case '4x14': return { cols: 4, width: '48mm', height: '20mm', qr: 45, fontSize: { title: 'text-[6px]', name: 'text-[8px]', room: 'text-[6px]', code: 'text-[7px]' }, padding: 'p-1' };
             case '2x4':
-            default: return { cols: 2, width: '90mm', height: '70mm', qr: 160, logoSize: '40px', title: '16pt', room: '12pt', code: '16pt', padding: '8mm' };
+            default: return { cols: 2, width: '90mm', height: '70mm', qr: 150, fontSize: { title: 'text-[14px]', name: 'text-[20px]', room: 'text-[14px]', code: 'text-[18px]' }, padding: 'p-4' };
         }
     };
-
 
     const config = getLayoutConfigs(layout);
 
     return (
-        <div ref={ref} className="print-container">
+        <div ref={ref} className="bg-white print:m-0 w-full overflow-hidden">
             <style>{`
                 @media print {
-                    @page {
-                        size: A4;
-                        margin: 10mm;
-                    }
-                    .print-container {
-                        width: 100%;
-                        display: grid;
-                        grid-template-columns: repeat(${config.cols}, 1fr);
-                        gap: 2mm;
-                        row-gap: 5mm;
-                        page-break-inside: avoid;
-                    }
-                    .label-item {
-                        width: ${config.width};
-                        height: ${config.height};
-                        page-break-inside: avoid;
-                        background-color: #fff !important;
-                        padding: ${config.padding};
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        justify-content: center;
-                        border: 0.2mm solid #eee;
-                        border-radius: 2px;
-                        -webkit-print-color-adjust: exact;
-                    }
-                    .batch-org-title { font-size: ${config.title}; }
-                    .batch-room-text { 
-                        font-size: ${config.room}; 
-                        font-weight: 800; 
-                        color: #000000 !important; 
-                        margin-bottom: 2mm;
-                        text-transform: uppercase;
-                        font-style: italic;
-                        -webkit-print-color-adjust: exact;
-                    }
-                    .batch-code-text { font-size: ${config.code}; }
-                    .batch-qr-container { margin-bottom: 2mm; position: relative; display: flex; align-items: center; justify-content: center; }
-                }
-                
-                .print-container {
-                    padding: 20px;
-                    display: grid;
-                    grid-template-columns: repeat(${config.cols}, 1fr);
-                    gap: 16px;
-                    max-width: 210mm;
-                    margin: 0 auto;
-                }
-                .label-item {
-                    width: 100%;
-                    height: ${config.height};
-                    border: 1px solid #e2e8f0;
-                    padding: ${config.padding};
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    background: white;
-                    border-radius: 8px;
-                }
-                .batch-org-title {
-                    font-weight: 800;
-                    color: #1e293b;
-                    text-transform: uppercase;
-                    margin-bottom: 2mm;
-                    width: 100%;
-                    text-align: center;
-                    font-size: ${config.title};
-                }
-                .batch-qr-container {
-                    position: relative;
-                    margin-bottom: 3mm;
-                    background: white;
-                    padding: 2px;
-                    border: 1px solid #f1f5f9;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }
-                .batch-logo-embed {
-                    position: absolute;
-                    background: white;
-                    padding: 2px;
-                    border-radius: 1px;
-                }
-                .batch-room-text {
-                    font-weight: 800;
-                    color: #000000;
-                    text-transform: uppercase;
-                    margin-bottom: 2mm;
-                    text-align: center;
-                    width: 100%;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    font-style: italic;
-                }
-                .batch-code-box {
-                    background: #f8fafc;
-                    padding: 1mm 4mm;
-                    border-radius: 1mm;
-                    border: 0.5px solid #cbd5e1;
-                }
-                .batch-code-text {
-                    font-family: 'Courier New', monospace;
-                    font-weight: 800;
-                    color: #000;
-                    font-size: ${config.code};
+                    @page { size: auto; margin: 5mm; }
+                    .print-page-break { page-break-inside: avoid; }
+                    body { -webkit-print-color-adjust: exact; }
                 }
             `}</style>
-            {assets.map(asset => (
-                <div key={asset.id} className="label-item">
-                    {/* Top: Org Name */}
-                    <h2 className="batch-org-title">{orgName}</h2>
-
-                    {/* Middle: QR with Logo */}
-                    <div className="batch-qr-container">
-                        <QRCode
-                            value={`${window.location.origin}/public/asset/${asset?.id}`}
-                            size={config.qr}
-                            level="H"
-                        />
-                        {orgLogo && (
-                            <div className="batch-logo-embed" style={{ width: config.logoSize, height: config.logoSize }}>
-                                <img src={orgLogo} alt="Logo" className="w-full h-full object-contain" />
+            <div
+                className="grid w-full gap-0.5"
+                style={{ gridTemplateColumns: `repeat(${config.cols}, 1fr)` }}
+            >
+                {assets.map((asset, index) => (
+                    <div
+                        key={`${asset.id}-${index}`}
+                        className="print-page-break flex items-center justify-center p-[0.5mm]"
+                        style={{ width: config.width, height: config.height }}
+                    >
+                        <div className={`w-full h-full ${config.padding} border-2 border-black flex flex-col items-center justify-between text-black font-bold uppercase overflow-hidden bg-white`}>
+                            {/* Header */}
+                            <div className="w-full border-b-2 border-black pb-0.5 mb-0.5 text-center shrink-0">
+                                <h2 className={`${config.fontSize.title} tracking-tight truncate`}>
+                                    {orgName}
+                                </h2>
                             </div>
-                        )}
-                    </div>
 
-                    {/* Bottom: Room and Asset Code */}
-                    <div className="batch-room-text">{asset?.room?.name || 'Tanpa Ruangan'}</div>
-                    <div className="batch-code-box">
-                        <span className="batch-code-text">{asset?.code || '-'}</span>
+                            {/* Body */}
+                            <div className="flex-1 flex flex-col items-center justify-center w-full gap-0.5 overflow-hidden">
+                                <div className="w-full text-center border-b border-black/10">
+                                    <span className={`${config.fontSize.name} leading-tight line-clamp-1`}>{asset.name}</span>
+                                </div>
+                                <div className="p-0.5 border border-black rounded-[1px] bg-white shrink-0">
+                                    <QRCode
+                                        value={`${window.location.origin}/public/asset/${asset?.id}`}
+                                        size={config.qr}
+                                        level="H"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="w-full mt-0.5 pt-0.5 border-t border-black flex flex-col items-center shrink-0">
+                                <div className="w-full text-center border-b border-black/5 pb-0.5 mb-0.5">
+                                    <span className={`${config.fontSize.room} truncate`}>{asset.room?.name || '-'}</span>
+                                </div>
+                                <div className="w-full text-center">
+                                    <span className={`${config.fontSize.code} tracking-tighter font-mono`}>{asset.code || '-'}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            ))}
+                ))}
+            </div>
         </div>
     );
 });

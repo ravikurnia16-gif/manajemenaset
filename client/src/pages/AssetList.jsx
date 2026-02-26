@@ -21,6 +21,7 @@ const AssetList = ({ validationMode = false }) => {
     const [loading, setLoading] = useState(true);
     const [isPreparingPrint, setIsPreparingPrint] = useState(false);
     const [printLayout, setPrintLayout] = useState('2x4'); // Default 8 labels per page
+    const [customConfig, setCustomConfig] = useState({ columns: 3, width: 60, height: 40 });
 
     // Filter Logic
     const [searchTerm, setSearchTerm] = useState('');
@@ -648,6 +649,7 @@ const AssetList = ({ validationMode = false }) => {
                                     { id: '3x7', label: '21 Label (Stiker)', desc: '3 x 7' },
                                     { id: '3x10', label: '30 Label (Kecil)', desc: '3 x 10' },
                                     { id: '4x14', label: '56 Label (Super Kecil)', desc: '4 x 14' },
+                                    { id: 'custom', label: 'Kustom', desc: 'Ukuran Bebas' },
                                 ].map((layout) => (
                                     <button
                                         key={layout.id}
@@ -660,10 +662,46 @@ const AssetList = ({ validationMode = false }) => {
                                         <span className={`text-sm font-bold ${printLayout === layout.id ? 'text-blue-700' : 'text-slate-700'}`}>
                                             {layout.label}
                                         </span>
-                                        <span className="text-[10px] text-slate-500 font-medium">Layout: {layout.desc}</span>
+                                        <span className="text-[10px] text-slate-500 font-medium">{layout.id === 'custom' ? 'Sesuaikan ukuran' : `Layout: ${layout.desc}`}</span>
                                     </button>
                                 ))}
                             </div>
+
+                            {/* Custom Config Inputs */}
+                            {printLayout === 'custom' && (
+                                <div className="mt-3 p-3 bg-white border border-blue-100 rounded-xl grid grid-cols-3 gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Kolom</label>
+                                        <input
+                                            type="number"
+                                            value={customConfig.columns}
+                                            onChange={(e) => setCustomConfig(prev => ({ ...prev, columns: e.target.value }))}
+                                            className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            min="1" max="10"
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Lebar (mm)</label>
+                                        <input
+                                            type="number"
+                                            value={customConfig.width}
+                                            onChange={(e) => setCustomConfig(prev => ({ ...prev, width: e.target.value }))}
+                                            className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            min="10"
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Tinggi (mm)</label>
+                                        <input
+                                            type="number"
+                                            value={customConfig.height}
+                                            onChange={(e) => setCustomConfig(prev => ({ ...prev, height: e.target.value }))}
+                                            className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            min="10"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="p-6 pt-2 flex justify-end gap-3">
@@ -1151,6 +1189,7 @@ const AssetList = ({ validationMode = false }) => {
                         assets={Array.isArray(batchPrintAssets) && batchPrintAssets.length > 0 ? batchPrintAssets : []}
                         institute={settings}
                         layout={printLayout}
+                        customConfig={customConfig}
                     />
                 </div>
             )}
