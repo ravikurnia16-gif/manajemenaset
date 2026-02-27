@@ -37,9 +37,23 @@ const WarehouseStock = () => {
 
     useEffect(() => { fetchData(); }, [categoryFilter, genderFilter, sizeFilter, typeFilter, yearFilter]);
 
-    const filtered = items.filter(i =>
-        !search || (i.name?.toLowerCase() || '').includes(search.toLowerCase()) || (i.code?.toLowerCase() || '').includes(search.toLowerCase())
-    );
+    const filtered = items.filter(i => {
+        if (!search) return true;
+        const displayGender = i.gender === 'L' ? 'Ikhwan' : i.gender === 'P' ? 'Akhwat' : i.gender;
+        const searchableText = [
+            i.code,
+            i.name,
+            i.type,
+            displayGender,
+            i.itemUnit,
+            i.size ? `Ukuran ${i.size}` : null,
+            i.purchaseYear,
+            i.category?.name
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        const searchTerms = search.toLowerCase().split(/\s+/).filter(Boolean);
+        return searchTerms.every(term => searchableText.includes(term));
+    });
 
     const handleDelete = async (id) => {
         if (!confirm('Hapus item ini?')) return;
