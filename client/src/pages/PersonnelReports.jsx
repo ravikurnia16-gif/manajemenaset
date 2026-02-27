@@ -404,56 +404,58 @@ const PersonnelReports = () => {
                                     </button>
                                 </div>
                                 <div className="space-y-3 mb-4">
-                                    <div key={idx} className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative group">
-                                        <div className="flex gap-2 items-start">
-                                            <div className="flex-1">
-                                                <input
-                                                    placeholder="Deskripsi Aktivitas"
-                                                    value={item.activity}
-                                                    onChange={e => handleGeneralItemChange(idx, 'activity', e.target.value)}
-                                                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                                                />
+                                    {form.generalItems.map((item, idx) => (
+                                        <div key={idx} className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative group">
+                                            <div className="flex gap-2 items-start">
+                                                <div className="flex-1">
+                                                    <input
+                                                        placeholder="Deskripsi Aktivitas"
+                                                        value={item.activity}
+                                                        onChange={e => handleGeneralItemChange(idx, 'activity', e.target.value)}
+                                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                </div>
+                                                <div className="w-32">
+                                                    <select
+                                                        value={item.status}
+                                                        onChange={e => handleGeneralItemChange(idx, 'status', e.target.value)}
+                                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600"
+                                                    >
+                                                        <option value="SELESAI">SELESAI</option>
+                                                        <option value="PROSES">PROSES</option>
+                                                        <option value="PENDING">PENDING</option>
+                                                    </select>
+                                                </div>
+                                                {form.generalItems.length > 1 && (
+                                                    <button type="button" onClick={() => removeGeneralItem(idx)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
                                             </div>
-                                            <div className="w-32">
-                                                <select
-                                                    value={item.status}
-                                                    onChange={e => handleGeneralItemChange(idx, 'status', e.target.value)}
-                                                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600"
-                                                >
-                                                    <option value="SELESAI">SELESAI</option>
-                                                    <option value="PROSES">PROSES</option>
-                                                    <option value="PENDING">PENDING</option>
-                                                </select>
-                                            </div>
-                                            {form.generalItems.length > 1 && (
-                                                <button type="button" onClick={() => removeGeneralItem(idx)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg">
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            )}
-                                        </div>
 
-                                        <div className="flex flex-wrap gap-4 items-center pl-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Progres:</span>
-                                                <input
-                                                    type="range"
-                                                    min="0" max="100" step="5"
-                                                    value={item.percentage}
-                                                    onChange={e => handleGeneralItemChange(idx, 'percentage', e.target.value)}
-                                                    className="w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                                                />
-                                                <span className="text-xs font-bold text-blue-600 w-8">{item.percentage}%</span>
-                                            </div>
-                                            <div className="flex-1">
-                                                <input
-                                                    placeholder="Catatan Pekerjaan (Kendala/Hasil)"
-                                                    value={item.note || ''}
-                                                    onChange={e => handleGeneralItemChange(idx, 'note', e.target.value)}
-                                                    className="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-[11px] focus:ring-1 focus:ring-blue-500 outline-none"
-                                                />
+                                            <div className="flex flex-wrap gap-4 items-center pl-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Progres:</span>
+                                                    <input
+                                                        type="range"
+                                                        min="0" max="100" step="5"
+                                                        value={item.percentage}
+                                                        onChange={e => handleGeneralItemChange(idx, 'percentage', e.target.value)}
+                                                        className="w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                                    />
+                                                    <span className="text-xs font-bold text-blue-600 w-8">{item.percentage}%</span>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <input
+                                                        placeholder="Catatan Pekerjaan (Kendala/Hasil)"
+                                                        value={item.note || ''}
+                                                        onChange={e => handleGeneralItemChange(idx, 'note', e.target.value)}
+                                                        className="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-[11px] focus:ring-1 focus:ring-blue-500 outline-none"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    ))}
                                 </div>
 
                                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Catatan Tambahan (Opsional)</label>

@@ -141,8 +141,6 @@ exports.createAsset = async (req, res) => {
         });
 
         res.json(result);
-
-        res.json(result);
     } catch (error) {
         console.error("Create asset error:", error);
         res.status(500).json({ error: error.message });
