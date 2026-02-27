@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, FileText, Upload, DollarSign, Store, ArrowLeft, Plus, Trash2, ShoppingCart, UserCheck, Camera, Image } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, Upload, DollarSign, Store, ArrowLeft, Plus, Trash2, ShoppingCart, UserCheck, Camera, Image, MapPin } from 'lucide-react';
 import api from '../lib/axios';
 import SearchableSelect from '../components/SearchableSelect';
 
@@ -9,10 +9,13 @@ const ProcurementDetail = () => {
     const navigate = useNavigate();
     const [req, setReq] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [bastDate, setBastDate] = useState('');
+    const [bastDate, setBastDate] = useState(new Date().toISOString().split('T')[0]);
     const [users, setUsers] = useState([]);
     const [units, setUnits] = useState([]);
     const [handoverPhoto, setHandoverPhoto] = useState(null);
+
+    const [rooms, setRooms] = useState([]);
+    const [roomAllocation, setRoomAllocation] = useState({ type: 'SAME', roomId: '', itemRooms: {} });
     const [notifying, setNotifying] = useState(false);
     const [selectedUnits, setSelectedUnits] = useState({}); // Tracking Unit choice per item for filtering staff
 
@@ -61,8 +64,11 @@ const ProcurementDetail = () => {
 
     const fetchDetail = async () => {
         try {
-            const res = await api.get(`/procurements/${id}`);
-            const data = res.data;
+            const [procRes, roomsRes] = await Promise.all([
+                api.get(`/procurements/${id}`),
+                api.get('/master/rooms')
+            ]);
+            const data = procRes.data;
 
             // Safe Parse JSON logic
             const safeJSONParse = (str) => {
@@ -94,6 +100,13 @@ const ProcurementDetail = () => {
                 data.items = []; // Safety items array
             }
             setReq(data);
+            setRooms(roomsRes.data.filter(r => r.unitId === data.unitId));
+            // Initialize itemRooms if many
+            if (data.type === 'ASSET' && data.items.length > 1) {
+                const initial = {};
+                data.items.forEach(it => initial[it.id] = '');
+                setRoomAllocation(prev => ({ ...prev, itemRooms: initial }));
+            }
         } catch (error) {
             console.error(error);
             // Don't alert immediately on mount to avoid spam, show UI error
@@ -161,16 +174,29 @@ const ProcurementDetail = () => {
     };
 
     const handleBAST = async () => {
-        if (!bastDate) return alert('Pilih tanggal BAST');
-        if (!confirm('Proses ini akan menyelesaikan pengadaan dan otomatis mencatat aset. Pastikan semua Detail Barang (Vendor, Merk, Harga Final, dll) sudah diisi dengan benar. Lanjut?')) return;
+        if (!bastDate) return alert('Pilih tanggal serah terima');
+
+        // Validate Room Allocation
+        if (req.type === 'ASSET') {
+            if (roomAllocation.type === 'SAME' && !roomAllocation.roomId) {
+                return alert('Pilih Ruangan Aset');
+            }
+            if (roomAllocation.type === 'INDIVIDUAL') {
+                const allSelected = req.items.every(it => roomAllocation.itemRooms[it.id]);
+                if (!allSelected) return alert('Pilih Ruangan untuk setiap item');
+            }
+        }
 
         try {
+            // Assuming setSubmitting is defined elsewhere or needs to be added
+            // setLoading(true); // Or a dedicated submitting state
             await api.post(`/procurements/${id}/bast`, {
                 bastDate,
-                bastFile: handoverPhoto // Send the Base64 photo
+                bastFile: handoverPhoto,
+                roomAllocation: req.type === 'ASSET' ? roomAllocation : null
             });
-            alert('Pengadaan Selesai!');
-            fetchDetail();
+            alert('BAST Berhasil diproses. Aset telah dibuat.');
+            window.location.reload();
         } catch (error) {
             alert(error.response?.data?.error);
         }
@@ -934,6 +960,67 @@ const ProcurementDetail = () => {
                                             />
                                         </div>
                                     </div>
+
+                                    {/* Room Allocation Selection */}
+                                    {req.type === 'ASSET' && (
+                                        <div className="space-y-4 bg-blue-50/50 p-4 rounded-xl border border-blue-100 mt-4">
+                                            <h4 className="text-sm font-bold text-blue-800 flex items-center gap-2">
+                                                <MapPin size={16} /> Lokasi Penempatan Aset
+                                            </h4>
+
+                                            {req.items.length > 1 && (
+                                                <div className="flex gap-4 mb-4">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setRoomAllocation({ ...roomAllocation, type: 'SAME' })}
+                                                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${roomAllocation.type === 'SAME' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200'}`}
+                                                    >SATU RUANGAN (SAMA)</button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setRoomAllocation({ ...roomAllocation, type: 'INDIVIDUAL' })}
+                                                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${roomAllocation.type === 'INDIVIDUAL' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200'}`}
+                                                    >BEDA RUANGAN (PER ITEM)</button>
+                                                </div>
+                                            )}
+
+                                            {roomAllocation.type === 'SAME' ? (
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Pilih Ruangan</label>
+                                                    <select
+                                                        className="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                                                        value={roomAllocation.roomId}
+                                                        onChange={e => setRoomAllocation({ ...roomAllocation, roomId: e.target.value })}
+                                                    >
+                                                        <option value="">- Pilih Ruangan -</option>
+                                                        {rooms.map(r => (
+                                                            <option key={r.id} value={r.id}>{r.name} {r.building ? `(${r.building})` : ''}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    {req.items.map(it => (
+                                                        <div key={it.id} className="flex flex-col gap-1 p-2 bg-white rounded-lg border border-slate-100">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase truncate px-1">{it.name}</p>
+                                                            <select
+                                                                className="w-full border border-slate-200 rounded p-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none font-medium text-slate-700"
+                                                                value={roomAllocation.itemRooms[it.id] || ''}
+                                                                onChange={e => setRoomAllocation({
+                                                                    ...roomAllocation,
+                                                                    itemRooms: { ...roomAllocation.itemRooms, [it.id]: e.target.value }
+                                                                })}
+                                                            >
+                                                                <option value="">- Pilih Ruangan -</option>
+                                                                {rooms.map(r => (
+                                                                    <option key={r.id} value={r.id}>{r.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
                                     <button
                                         onClick={handleBAST}

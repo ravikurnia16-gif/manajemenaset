@@ -33,12 +33,23 @@ const WarehouseTransactionForm = () => {
 
     const getFilteredItems = (searchTerm) => {
         if (!searchTerm) return allItems.slice(0, 15);
-        const s = searchTerm.toLowerCase();
-        return allItems.filter(i =>
-            (i.name?.toLowerCase() || '').includes(s) ||
-            (i.code?.toLowerCase() || '').includes(s) ||
-            (i.size?.toLowerCase() || '').includes(s)
-        ).slice(0, 15);
+        const searchTerms = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+
+        return allItems.filter(i => {
+            const displayGender = i.gender === 'L' ? 'Ikhwan' : i.gender === 'P' ? 'Akhwat' : i.gender;
+            const searchableText = [
+                i.code,
+                i.name,
+                i.type,
+                displayGender,
+                i.itemUnit,
+                i.size ? `Ukuran ${i.size}` : null,
+                i.purchaseYear,
+                i.category?.name
+            ].filter(Boolean).join(' ').toLowerCase();
+
+            return searchTerms.every(term => searchableText.includes(term));
+        }).slice(0, 15);
     };
 
     const handleSubmit = async (e) => {

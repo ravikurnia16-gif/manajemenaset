@@ -679,7 +679,7 @@ exports.addVendorOffer = async (req, res) => {
 // Process BAST & Auto-Asset Creation
 exports.processBAST = async (req, res) => {
     const { id } = req.params;
-    const { bastDate, bastFile } = req.body;
+    const { bastDate, bastFile, roomAllocation } = req.body;
 
     try {
         const procurement = await prisma.procurement.findUnique({
@@ -735,6 +735,16 @@ exports.processBAST = async (req, res) => {
 
                         const fundingSource = item.fundingSource || 'Yayasan';
 
+                        // Determine Room ID for this item
+                        let roomId = null;
+                        if (roomAllocation) {
+                            if (roomAllocation.type === 'SAME') {
+                                roomId = roomAllocation.roomId ? parseInt(roomAllocation.roomId) : null;
+                            } else if (roomAllocation.type === 'INDIVIDUAL') {
+                                roomId = roomAllocation.itemRooms?.[item.id] ? parseInt(roomAllocation.itemRooms[item.id]) : null;
+                            }
+                        }
+
                         await prisma.asset.create({
                             data: {
                                 code: assetCode,
@@ -747,6 +757,7 @@ exports.processBAST = async (req, res) => {
                                 sourceOfFunds: fundingSource,
                                 acquisitionStatus: 'Pembelian',
                                 unitId: procurement.unitId,
+                                roomId: roomId,
                                 categoryId: defaultCategory.id,
                                 usefulLife: item.usefulLife || 4,
                                 vendorId: item.vendorId,

@@ -692,6 +692,10 @@ model PersonnelAssignment {
   startDate   DateTime?
   dueDate     DateTime?
   status      AssignmentStatus @default(PENDING)
+  actualStartDate DateTime?
+  actualCompletionDate DateTime?
+  progressPercentage Int       @default(0)
+  notes       String?          @db.Text
   
   calendarEventId Int?
   calendarEvent   SarprasCalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)

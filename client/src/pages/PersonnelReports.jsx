@@ -38,7 +38,7 @@ const PersonnelReports = () => {
         // New fields for generic report
         startTime: '08:00',
         endTime: '17:00',
-        generalItems: [{ activity: '', status: 'SELESAI' }]
+        generalItems: [{ activity: '', status: 'SELESAI', percentage: 100, note: '' }]
     });
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
@@ -98,7 +98,7 @@ const PersonnelReports = () => {
     const addGeneralItem = () => {
         setForm({
             ...form,
-            generalItems: [...form.generalItems, { activity: '', status: 'SELESAI' }]
+            generalItems: [...form.generalItems, { activity: '', status: 'SELESAI', percentage: 100, note: '' }]
         });
     };
 
@@ -207,7 +207,11 @@ const PersonnelReports = () => {
         if (form.generalItems.length > 0 && form.generalItems[0].activity) {
             const itemsList = form.generalItems
                 .filter(it => it.activity.trim())
-                .map(it => `- ${it.activity} [${it.status}]`)
+                .map(it => {
+                    const progress = it.status !== 'SELESAI' ? ` [${it.percentage}%]` : '';
+                    const note = it.note ? ` - Catatan: ${it.note}` : '';
+                    return `- ${it.activity} [${it.status}]${progress}${note}`;
+                })
                 .join('\n');
             details = `🕒 *Jam Kerja*: ${form.startTime} - ${form.endTime}\n📋 *Aktivitas*:\n${itemsList}`;
 
@@ -218,6 +222,8 @@ const PersonnelReports = () => {
                 items: form.generalItems.filter(it => it.activity.trim()).map(it => ({
                     name: it.activity,
                     qty: it.status,
+                    percentage: it.percentage,
+                    note: it.note,
                     target: ''
                 }))
             };
@@ -254,7 +260,7 @@ const PersonnelReports = () => {
                 vehicle: { kmStart: '', kmEnd: '', fuel: '', condition: 'BAIK' },
                 startTime: '08:00',
                 endTime: '17:00',
-                generalItems: [{ activity: '', status: 'SELESAI' }]
+                generalItems: [{ activity: '', status: 'SELESAI', percentage: 100, note: '' }]
             });
             fetchReports();
             alert('Laporan berhasil dikirim');
@@ -398,21 +404,21 @@ const PersonnelReports = () => {
                                     </button>
                                 </div>
                                 <div className="space-y-3 mb-4">
-                                    {form.generalItems.map((item, idx) => (
-                                        <div key={idx} className="flex gap-2 items-start">
+                                    <div key={idx} className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl relative group">
+                                        <div className="flex gap-2 items-start">
                                             <div className="flex-1">
                                                 <input
                                                     placeholder="Deskripsi Aktivitas"
                                                     value={item.activity}
                                                     onChange={e => handleGeneralItemChange(idx, 'activity', e.target.value)}
-                                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                                                 />
                                             </div>
                                             <div className="w-32">
                                                 <select
                                                     value={item.status}
                                                     onChange={e => handleGeneralItemChange(idx, 'status', e.target.value)}
-                                                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-600"
+                                                    className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600"
                                                 >
                                                     <option value="SELESAI">SELESAI</option>
                                                     <option value="PROSES">PROSES</option>
@@ -425,7 +431,29 @@ const PersonnelReports = () => {
                                                 </button>
                                             )}
                                         </div>
-                                    ))}
+
+                                        <div className="flex flex-wrap gap-4 items-center pl-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Progres:</span>
+                                                <input
+                                                    type="range"
+                                                    min="0" max="100" step="5"
+                                                    value={item.percentage}
+                                                    onChange={e => handleGeneralItemChange(idx, 'percentage', e.target.value)}
+                                                    className="w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                                />
+                                                <span className="text-xs font-bold text-blue-600 w-8">{item.percentage}%</span>
+                                            </div>
+                                            <div className="flex-1">
+                                                <input
+                                                    placeholder="Catatan Pekerjaan (Kendala/Hasil)"
+                                                    value={item.note || ''}
+                                                    onChange={e => handleGeneralItemChange(idx, 'note', e.target.value)}
+                                                    className="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-[11px] focus:ring-1 focus:ring-blue-500 outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Catatan Tambahan (Opsional)</label>
@@ -493,11 +521,16 @@ const PersonnelReports = () => {
                                                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">Rincian Pekerjaan:</div>
                                                     <div className="space-y-1">
                                                         {report.metadata.items.map((item, i) => (
-                                                            <div key={i} className="text-xs flex items-center gap-2">
-                                                                <span className="w-5 h-5 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[10px]">{i + 1}</span>
-                                                                <span className="font-semibold">{item?.name || '-'}</span>
-                                                                <span className="text-slate-400">({item?.qty || '-'})</span>
-                                                                {item?.target && <span className="text-blue-500 flex items-center gap-1"><ChevronRight size={12} /> {item.target}</span>}
+                                                            <div key={i} className="text-xs space-y-1 py-1 border-b border-slate-100 last:border-0 border-dashed">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="w-5 h-5 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[10px]">{i + 1}</span>
+                                                                    <span className="font-semibold">{item?.name || '-'}</span>
+                                                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${item.qty === 'SELESAI' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                                        {item?.qty || '-'}
+                                                                    </span>
+                                                                    {item.qty !== 'SELESAI' && <span className="text-blue-600 font-bold ml-auto">{item.percentage || 0}%</span>}
+                                                                </div>
+                                                                {item.note && <div className="pl-7 text-[10px] text-slate-500 italic">Catatan: {item.note}</div>}
                                                             </div>
                                                         ))}
                                                     </div>

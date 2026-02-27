@@ -282,7 +282,7 @@ exports.getAssignments = async (req, res) => {
 
 exports.updateAssignmentStatus = async (req, res) => {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, progressPercentage, notes } = req.body;
     const user = req.user;
 
     try {
@@ -296,9 +296,32 @@ exports.updateAssignmentStatus = async (req, res) => {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
+        const data = {};
+        if (status) {
+            data.status = status;
+            // Record actual times
+            if (status === 'IN_PROGRESS' && !assignment.actualStartDate) {
+                data.actualStartDate = new Date();
+            }
+            if (status === 'COMPLETED') {
+                data.actualCompletionDate = new Date();
+                data.progressPercentage = 100;
+            }
+        }
+
+        if (progressPercentage !== undefined) {
+            data.progressPercentage = parseInt(progressPercentage);
+            if (parseInt(progressPercentage) === 100) {
+                data.status = 'COMPLETED';
+                data.actualCompletionDate = new Date();
+            }
+        }
+
+        if (notes !== undefined) data.notes = notes;
+
         const updated = await prisma.personnelAssignment.update({
             where: { id: parseInt(id) },
-            data: { status }
+            data
         });
 
         res.json(updated);
