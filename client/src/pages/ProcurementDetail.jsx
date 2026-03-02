@@ -94,7 +94,8 @@ const ProcurementDetail = () => {
                     comparisonVendors: safeJSONParse(item.comparisonVendors),
                     needComparison: item.needComparison !== false, // Default true
                     assignedTo: item.assignedTo || '',
-                    assignedToId: item.assignedToId || null
+                    assignedToId: item.assignedToId || null,
+                    assignmentNote: item.assignmentNote || ''
                 }));
             } else {
                 data.items = []; // Safety items array
@@ -138,7 +139,8 @@ const ProcurementDetail = () => {
                 comparisonVendors: item.comparisonVendors,
                 needComparison: item.needComparison,
                 assignedTo: item.assignedTo,
-                assignedToId: item.assignedToId
+                assignedToId: item.assignedToId,
+                assignmentNote: item.assignmentNote
             });
 
             if (!silent) {
@@ -501,6 +503,18 @@ const ProcurementDetail = () => {
                                                     <p className="text-[10px] text-red-500 mt-1">Belum ada staf di unit ini.</p>
                                                 )}
                                             </div>
+                                            {item.assignedToId && (
+                                                <div className="animate-in fade-in slide-in-from-top-1">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Detail Penugasan (Opsional)</label>
+                                                    <textarea
+                                                        className="w-full border border-slate-300 rounded-lg px-2 py-2 text-xs bg-white focus:ring-1 focus:ring-blue-500 outline-none mt-0.5"
+                                                        placeholder="Contoh: Tolong cek spesifikasi RAM minimal 16GB..."
+                                                        rows={2}
+                                                        value={item.assignmentNote || ''}
+                                                        onChange={(e) => handleItemChange(index, 'assignmentNote', e.target.value)}
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -566,6 +580,17 @@ const ProcurementDetail = () => {
                                                         </select>
                                                         {filteredUsers.length === 0 && itemUnitId && (
                                                             <p className="text-[10px] text-red-500 mt-1">Belum ada staf di unit ini.</p>
+                                                        )}
+                                                        {item.assignedToId && (
+                                                            <div className="mt-2 animate-in fade-in slide-in-from-top-1">
+                                                                <textarea
+                                                                    className="w-full border border-slate-300 rounded-lg px-2 py-2 text-[10px] bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none"
+                                                                    placeholder="Detail Instruksi Penugasan (Opsional)..."
+                                                                    rows={2}
+                                                                    value={item.assignmentNote || ''}
+                                                                    onChange={(e) => handleItemChange(index, 'assignmentNote', e.target.value)}
+                                                                />
+                                                            </div>
                                                         )}
                                                     </td>
                                                 </tr>

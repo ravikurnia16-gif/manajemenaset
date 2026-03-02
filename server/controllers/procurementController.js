@@ -496,7 +496,7 @@ exports.updateStatus = async (req, res) => {
 // Update Item Detail (Vendor, Brand, Specs)
 exports.updateItemDetail = async (req, res) => {
     const { itemId } = req.params;
-    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison, assignedTo, assignedToId } = req.body;
+    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison, assignedTo, assignedToId, assignmentNote } = req.body;
 
     try {
         let finalVendorId = vendorId;
@@ -524,7 +524,8 @@ exports.updateItemDetail = async (req, res) => {
             vendorId: finalVendorId ? parseInt(finalVendorId) : undefined,
             finalPrice: finalPrice ? parseFloat(finalPrice) : undefined,
             assignedTo,
-            assignedToId: assignedToId ? parseInt(assignedToId) : null
+            assignedToId: assignedToId ? parseInt(assignedToId) : null,
+            assignmentNote: assignmentNote || undefined
         };
 
         // Explicitly handle comparisonVendors
@@ -575,7 +576,9 @@ exports.updateItemDetail = async (req, res) => {
                     if (!procurement || procurement.items.length === 0) return;
 
                     const itemListMsg = procurement.items.map((it, idx) =>
-                        `${idx + 1}. *${it.name}*` + (it.spec && it.spec !== '-' ? ` (${it.spec})` : '')
+                        `${idx + 1}. *${it.name}*` +
+                        (it.spec && it.spec !== '-' ? ` (${it.spec})` : '') +
+                        (it.assignmentNote ? `\n   _Catatan: ${it.assignmentNote}_` : '')
                     ).join('\n');
 
                     const msg = `Bismillah\n\n` +

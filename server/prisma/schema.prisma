@@ -418,6 +418,7 @@ model ProcurementItem {
   assignedTo    String?     // Nama (Internal/Manual)
   assignedToId  Int?
   assignedToUser User?      @relation("ItemAssignee", fields: [assignedToId], references: [id])
+  assignmentNote String?    @db.Text
 }
 
 model VendorOffer {
