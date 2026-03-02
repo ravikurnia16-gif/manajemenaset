@@ -10,11 +10,13 @@ const WarehouseStockForm = () => {
     const [categories, setCategories] = useState([]);
     const [saving, setSaving] = useState(false);
     const [isSeragam, setIsSeragam] = useState(false);
+    const [isAlQuran, setIsAlQuran] = useState(false);
     const [newCatName, setNewCatName] = useState('');
 
     const [form, setForm] = useState({
         name: '', categoryId: '', type: '', gender: '', size: '',
-        purchaseYear: '', itemUnit: '', stock: '0', minStock: '5', purchasePrice: '', supplier: '', location: ''
+        purchaseYear: '', itemUnit: '', stock: '0', minStock: '5', purchasePrice: '', supplier: '', location: '',
+        image: null
     });
 
     useEffect(() => {
@@ -28,16 +30,21 @@ const WarehouseStockForm = () => {
                     purchaseYear: d.purchaseYear?.toString() || '', itemUnit: d.itemUnit || '',
                     stock: d.stock?.toString() || '0', minStock: d.minStock?.toString() || '5',
                     purchasePrice: d.purchasePrice?.toString() || '',
-                    supplier: d.supplier || '', location: d.location || ''
+                    supplier: d.supplier || '', location: d.location || '',
+                    image: d.image || null
                 });
-                setIsSeragam(d.category?.name?.toLowerCase().includes('seragam'));
+                const catName = d.category?.name?.toLowerCase() || '';
+                setIsSeragam(catName.includes('seragam'));
+                setIsAlQuran(catName.includes('qur\'an'));
             });
         }
     }, [id]);
 
     useEffect(() => {
         const cat = categories.find(c => c.id === parseInt(form.categoryId));
-        setIsSeragam(cat?.name?.toLowerCase().includes('seragam') || false);
+        const name = cat?.name?.toLowerCase() || '';
+        setIsSeragam(name.includes('seragam'));
+        setIsAlQuran(name.includes('qur\'an'));
     }, [form.categoryId, categories]);
 
     const handleAddCategory = async () => {
@@ -173,6 +180,38 @@ const WarehouseStockForm = () => {
                         <div>
                             <label className="block text-xs font-semibold text-slate-600 mb-1">Lokasi</label>
                             <input type="text" value={form.location} onChange={e => setForm(prev => ({ ...prev, location: e.target.value }))} placeholder="Misal: Rak A1" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
+                        </div>
+                    </div>
+                )}
+
+                {/* Al Qur'an: Photo Upload */}
+                {isAlQuran && (
+                    <div className="space-y-2">
+                        <label className="block text-sm font-semibold text-slate-700">Foto Al Qur'an</label>
+                        <div className="flex items-center gap-4">
+                            <div className="w-24 h-24 bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden">
+                                {form.image ? (
+                                    <img src={form.image} alt="Preview" className="w-full h-full object-cover" />
+                                ) : (
+                                    <Package className="text-slate-300" size={32} />
+                                )}
+                            </div>
+                            <div className="flex-1">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        const file = e.target.files[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => setForm(prev => ({ ...prev, image: reader.result }));
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }}
+                                    className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                />
+                                <p className="text-[10px] text-slate-400 mt-1">Format: JPG, PNG. Rekomendasi 1:1</p>
+                            </div>
                         </div>
                     </div>
                 )}

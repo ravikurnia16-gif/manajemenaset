@@ -110,6 +110,12 @@ const PersonnelReports = () => {
     const handleGeneralItemChange = (index, field, value) => {
         const newItems = [...form.generalItems];
         newItems[index][field] = value;
+
+        // Auto-set 100% if status is SELESAI
+        if (field === 'status' && value === 'SELESAI') {
+            newItems[index].percentage = 100;
+        }
+
         setForm({ ...form, generalItems: newItems });
     };
 
@@ -434,17 +440,19 @@ const PersonnelReports = () => {
                                             </div>
 
                                             <div className="flex flex-wrap gap-4 items-center pl-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Progres:</span>
-                                                    <input
-                                                        type="range"
-                                                        min="0" max="100" step="5"
-                                                        value={item.percentage}
-                                                        onChange={e => handleGeneralItemChange(idx, 'percentage', e.target.value)}
-                                                        className="w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                                                    />
-                                                    <span className="text-xs font-bold text-blue-600 w-8">{item.percentage}%</span>
-                                                </div>
+                                                {item.status !== 'SELESAI' && (
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">Progres:</span>
+                                                        <input
+                                                            type="range"
+                                                            min="0" max="100" step="5"
+                                                            value={item.percentage}
+                                                            onChange={e => handleGeneralItemChange(idx, 'percentage', e.target.value)}
+                                                            className="w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                                        />
+                                                        <span className="text-xs font-bold text-blue-600 w-8">{item.percentage}%</span>
+                                                    </div>
+                                                )}
                                                 <div className="flex-1">
                                                     <input
                                                         placeholder="Catatan Pekerjaan (Kendala/Hasil)"

@@ -241,7 +241,16 @@ const WarehouseStock = () => {
                                     return (
                                         <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
                                             <td className="p-3 font-mono text-xs">{item.code}</td>
-                                            <td className="p-3 font-medium">{parts.join(' ')}</td>
+                                            <td className="p-3">
+                                                <div className="flex items-center gap-3">
+                                                    {item.image && (
+                                                        <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
+                                                            <img src={item.image} alt="" className="w-full h-full object-cover" />
+                                                        </div>
+                                                    )}
+                                                    <div className="font-medium">{parts.join(' ')}</div>
+                                                </div>
+                                            </td>
                                             <td className="p-3"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">{item.category?.name}</span></td>
                                             <td className="p-3 text-sm text-slate-600">{item.location || '-'}</td>
                                             <td className="p-3 text-center">

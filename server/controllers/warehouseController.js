@@ -110,7 +110,7 @@ const generateItemCode = async (categoryName) => {
 };
 
 exports.createItem = async (req, res) => {
-    const { name, categoryId, type, gender, size, purchaseYear, itemUnit, stock, minStock, purchasePrice, supplier, location } = req.body;
+    const { name, categoryId, type, gender, size, purchaseYear, itemUnit, stock, minStock, purchasePrice, supplier, location, image } = req.body;
     try {
         const category = await prisma.warehouseCategory.findUnique({ where: { id: parseInt(categoryId) } });
         const code = await generateItemCode(category?.name);
@@ -128,7 +128,8 @@ exports.createItem = async (req, res) => {
                 minStock: parseInt(minStock) || 5,
                 purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
                 supplier: supplier || null,
-                location: location || null
+                location: location || null,
+                image: image || null
             }
         });
         res.json(item);
@@ -136,7 +137,7 @@ exports.createItem = async (req, res) => {
 };
 
 exports.updateItem = async (req, res) => {
-    const { name, categoryId, type, gender, size, purchaseYear, itemUnit, stock, minStock, purchasePrice, supplier, location } = req.body;
+    const { name, categoryId, type, gender, size, purchaseYear, itemUnit, stock, minStock, purchasePrice, supplier, location, image } = req.body;
     try {
         const item = await prisma.warehouseItem.update({
             where: { id: parseInt(req.params.id) },
@@ -148,7 +149,8 @@ exports.updateItem = async (req, res) => {
                 stock: stock !== undefined ? parseInt(stock) : undefined,
                 minStock: minStock !== undefined ? parseInt(minStock) : undefined,
                 purchasePrice: purchasePrice !== undefined ? parseFloat(purchasePrice) : undefined,
-                supplier, location
+                supplier, location,
+                image: image !== undefined ? image : undefined
             }
         });
         res.json(item);
@@ -187,7 +189,8 @@ exports.importItems = async (req, res) => {
                     minStock: parseInt(row.minStock) || 5,
                     purchasePrice: row.purchasePrice ? parseFloat(row.purchasePrice) : null,
                     supplier: row.supplier || null,
-                    location: row.location || null
+                    location: row.location || null,
+                    image: row.image || null
                 }
             });
             created++;

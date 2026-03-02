@@ -581,6 +581,7 @@ model WarehouseItem {
   purchasePrice Float?   // Harga beli per unit
   supplier      String?  // Pemasok
   location      String?  // Rak / lokasi gudang
+  image         String?  @db.LongText
   
   transactionItems WarehouseTransactionItem[]
   orderItems       UniformOrderItem[]
