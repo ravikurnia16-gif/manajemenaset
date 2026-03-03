@@ -462,6 +462,8 @@ const sendCalendarReminders = async (req = null, res = null) => {
             include: { pics: { select: { id: true, name: true, phone: true } } }
         });
 
+        const allUpcoming = [...regularEvents];
+
         recurringEvents.forEach(ev => {
             if (isEventOccurringOn(ev, tomorrow)) {
                 allUpcoming.push(ev);
@@ -575,11 +577,25 @@ const sendWeeklyCalendarSummary = async () => {
             orderBy: { date: 'asc' }
         });
 
+        const recurringEvents = await prisma.sarprasCalendarEvent.findMany({
+            where: {
+                isRecurring: true,
+                date: { lte: sunday },
+                OR: [
+                    { recurringEndDate: null },
+                    { recurringEndDate: { gte: monday } }
+                ]
+            },
+            include: { pics: { select: { name: true } } }
+        });
+
+        const allWeekly = [...regularEvents];
+
         recurringEvents.forEach(ev => {
             for (let d = new Date(monday); d <= sunday; d.setDate(d.getDate() + 1)) {
                 const targetDate = new Date(d);
                 if (isEventOccurringOn(ev, targetDate)) {
-                    allWeekly.push({ ...ev, date: targetDate });
+                    allWeekly.push({ ...ev, date: new Date(targetDate) });
                 }
             }
         });

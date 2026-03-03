@@ -421,14 +421,7 @@ const ProcurementDetail = () => {
                                                         await handleSaveItem(item, true);
                                                     }
 
-                                                    // AUTOMATIC NOTIFICATION
-                                                    try {
-                                                        await api.post(`/procurements/${id}/notify-assignees`);
-                                                    } catch (notifErr) {
-                                                        console.error('Failed to auto-notify:', notifErr);
-                                                        // We don't block the UI if notification fails, but maybe log it
-                                                    }
-
+                                                    // AUTOMATIC NOTIFICATION REMOVED (Relies on Backend Debounce)
                                                     setActiveTab(3);
                                                 } catch (error) {
                                                     alert('Gagal menyimpan penugasan. Periksa koneksi.');

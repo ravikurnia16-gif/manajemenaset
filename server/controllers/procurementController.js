@@ -859,6 +859,13 @@ exports.notifyAssignees = async (req, res) => {
             const { user, items } = assignmentMap[userId];
             if (!user.phone) continue;
 
+            // CLEAR PENDING DEBOUNCE TIMER to avoid double notification
+            const key = `${userId}-${id}`;
+            if (assignmentTimers.has(key)) {
+                clearTimeout(assignmentTimers.get(key));
+                assignmentTimers.delete(key);
+            }
+
             const itemListMsg = items.map((it, idx) =>
                 `${idx + 1}. *${it.name}*` + (it.spec && it.spec !== '-' ? ` (${it.spec})` : '')
             ).join('\n');
