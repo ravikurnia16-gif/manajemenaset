@@ -29,6 +29,7 @@ const UnitOrderForm = () => {
     const [other, setOther] = useState({
         itemId: '',
         itemName: '',
+        image: '',
         quantity: 1
     });
 
@@ -79,7 +80,7 @@ const UnitOrderForm = () => {
             itemId: other.itemId || null
         };
         setCart([...cart, newItem]);
-        setOther({ itemId: '', itemName: '', quantity: 1 });
+        setOther({ itemId: '', itemName: '', image: '', quantity: 1 });
         setItemSearch('');
     };
 
@@ -214,29 +215,65 @@ const UnitOrderForm = () => {
                             <div className="space-y-4">
                                 <div className="space-y-1.5 relative">
                                     <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Search size={14} /> Nama Barang</label>
-                                    <input
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        placeholder="Cari item dari stok gudang atau ketik manual..."
-                                        value={itemSearch}
-                                        onChange={e => {
-                                            setItemSearch(e.target.value);
-                                            setOther({ ...other, itemName: e.target.value, itemId: '' });
-                                        }}
-                                    />
-                                    {filteredItems.length > 0 && (
+
+                                    {!other.itemId ? (
+                                        <input
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            placeholder="Cari item dari stok gudang atau ketik manual..."
+                                            value={itemSearch}
+                                            onChange={e => {
+                                                setItemSearch(e.target.value);
+                                                setOther({ ...other, itemName: e.target.value, itemId: '' });
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="flex items-center gap-4 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                                            {other.image ? (
+                                                <div className="w-16 h-16 rounded-lg overflow-hidden border border-white shadow-sm flex-shrink-0">
+                                                    <img src={other.image} alt="" className="w-full h-full object-cover" />
+                                                </div>
+                                            ) : (
+                                                <div className="w-16 h-16 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-300 flex-shrink-0">
+                                                    <Package size={24} />
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-bold text-slate-800 truncate">{other.itemName}</div>
+                                                <div className="text-[10px] text-slate-500">Item Terpilih</div>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setOther({ ...other, itemId: '', itemName: '', image: '' });
+                                                    setItemSearch('');
+                                                }}
+                                                className="p-1.5 hover:bg-white rounded-lg text-slate-400 hover:text-red-500 transition"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {filteredItems.length > 0 && !other.itemId && (
                                         <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden border-t-0 animate-in slide-in-from-top-1">
                                             {filteredItems.map(item => (
                                                 <button
                                                     key={item.id}
                                                     onClick={() => {
-                                                        setOther({ ...other, itemName: item.name, itemId: item.id });
-                                                        setItemSearch(item.name);
+                                                        setOther({ ...other, itemName: item.name, itemId: item.id, image: item.image || '' });
+                                                        setItemSearch('');
                                                     }}
-                                                    className="w-full text-left p-3 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0 transition"
+                                                    className="w-full text-left p-3 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0 transition flex items-center gap-3"
                                                 >
-                                                    <div className="font-bold text-slate-700">{item.name}</div>
-                                                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                                        {item.code} {item.size ? `• Ukuran ${item.size}` : ''} • Stok: {item.stock}
+                                                    {item.image && (
+                                                        <div className="w-8 h-8 rounded border border-slate-100 overflow-hidden flex-shrink-0">
+                                                            <img src={item.image} alt="" className="w-full h-full object-cover" />
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-bold text-slate-700 truncate">{item.name}</div>
+                                                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                                            {item.code} {item.size ? `• Ukuran ${item.size}` : ''} • Stok: {item.stock}
+                                                        </div>
                                                     </div>
                                                 </button>
                                             ))}

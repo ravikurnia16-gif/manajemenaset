@@ -73,9 +73,6 @@ const ProcurementForm = () => {
                 if (!qty || qty <= 0) errors.push(`Baris ${rowNum}: Jumlah harus lebih dari 0.`);
                 if (!unit) errors.push(`Baris ${rowNum}: Satuan wajib diisi (Pcs/Unit/dll).`);
 
-                const rawType = row['Jenis'] || row['Type'] || 'Aset';
-                const type = (rawType.toLowerCase().includes('non')) ? 'NON_ASSET' : 'ASSET';
-
                 return {
                     name,
                     spec: row['Spesifikasi'] || row['Spec'] || '-',
@@ -83,7 +80,7 @@ const ProcurementForm = () => {
                     unit,
                     estPrice: parseFloat(row['Harga'] || row['Estimasi Harga'] || 0) || 0,
                     fundingSource: row['Sumber Dana'] || row['Funding'] || 'Mandiri',
-                    type
+                    type: 'ASSET'
                 };
             });
 
@@ -118,8 +115,7 @@ const ProcurementForm = () => {
             { header: 'Jumlah', key: 'qty', width: 10 },
             { header: 'Satuan', key: 'unit', width: 10 },
             { header: 'Estimasi Harga', key: 'estPrice', width: 15 },
-            { header: 'Sumber Dana', key: 'fundingSource', width: 15 },
-            { header: 'Jenis', key: 'type', width: 15 }
+            { header: 'Sumber Dana', key: 'fundingSource', width: 15 }
         ];
 
         // Style the header
@@ -131,21 +127,8 @@ const ProcurementForm = () => {
         };
 
         // Add sample data
-        worksheet.addRow({ name: 'Laptop', spec: 'RAM 16GB', qty: 1, unit: 'Unit', estPrice: 15000000, fundingSource: 'Mandiri', type: 'Aset' });
-        worksheet.addRow({ name: 'Kertas A4', spec: '70gr', qty: 10, unit: 'Rim', estPrice: 55000, fundingSource: 'Mandiri', type: 'Non-Aset' });
-
-        // Add data validation for "Jenis" column (Column G)
-        for (let i = 2; i <= 100; i++) {
-            worksheet.getCell(`G${i}`).dataValidation = {
-                type: 'list',
-                allowBlank: true,
-                formulae: ['"Aset,Non-Aset"'],
-                showErrorMessage: true,
-                errorStyle: 'stop',
-                errorTitle: 'Input Tidak Valid',
-                error: 'Mohon pilih kategori yang sesuai: Aset atau Non-Aset'
-            };
-        }
+        worksheet.addRow({ name: 'Laptop', spec: 'RAM 16GB', qty: 1, unit: 'Unit', estPrice: 15000000, fundingSource: 'Mandiri' });
+        worksheet.addRow({ name: 'Printer', spec: 'Laserjet', qty: 2, unit: 'Unit', estPrice: 3500000, fundingSource: 'Mandiri' });
 
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -254,15 +237,11 @@ const ProcurementForm = () => {
                                                 />
                                             </div>
                                             <div className="md:col-span-1">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Jenis</label>
-                                                <select
-                                                    className="border border-slate-300 p-2 rounded text-sm w-full focus:border-blue-500 outline-none bg-white font-bold text-blue-800"
-                                                    value={item.type}
-                                                    onChange={e => handleItemChange(index, 'type', e.target.value)}
-                                                >
-                                                    <option value="ASSET">Aset</option>
-                                                    <option value="NON_ASSET">Non-Aset</option>
-                                                </select>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Tujuan</label>
+                                                <div className="bg-slate-50 border border-slate-200 p-2 rounded text-xs text-slate-500 font-bold flex items-center gap-2">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                                                    Pencatatan Aset
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
