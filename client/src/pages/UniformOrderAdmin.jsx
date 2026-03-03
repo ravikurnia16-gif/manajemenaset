@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ClipboardList, Filter, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -15,6 +16,7 @@ const statusColor = {
 };
 
 const UniformOrderAdmin = () => {
+    const navigate = useNavigate();
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState({ status: '', unit: '' });
