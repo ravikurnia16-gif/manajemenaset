@@ -919,6 +919,7 @@ const AssetList = ({ validationMode = false }) => {
                                     <th className="px-6 py-4">Kondisi</th>
                                     <th className="px-6 py-4">PIC / Pengguna</th>
                                     <th className="px-6 py-4">Harga / Tanggal</th>
+                                    <th className="px-6 py-4">Nilai Buku</th>
                                     {!isReadOnlyUser && <th className="px-6 py-4 text-center">Aksi</th>}
                                 </tr>
                             </thead>
@@ -982,6 +983,23 @@ const AssetList = ({ validationMode = false }) => {
                                                 <span className="text-xs font-bold text-slate-800">Rp {(asset.price || 0).toLocaleString()}</span>
                                                 <span className="text-[10px] text-slate-400">{asset.purchaseDate ? new Date(asset.purchaseDate).toLocaleDateString('id-ID') : '-'}</span>
                                             </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            {(() => {
+                                                const now = new Date();
+                                                const purchaseDate = new Date(asset.purchaseDate);
+                                                const monthsElapsed = Math.max(0, (now.getFullYear() - purchaseDate.getFullYear()) * 12 + (now.getMonth() - purchaseDate.getMonth()));
+                                                const totalMonths = (asset.usefulLife || 5) * 12;
+                                                const monthlyDepreciation = Math.round(asset.price / totalMonths);
+                                                const accumulatedDepreciation = Math.min(asset.price, monthlyDepreciation * monthsElapsed);
+                                                const bookValue = Math.max(0, asset.price - accumulatedDepreciation);
+                                                return (
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xs font-bold text-blue-700">Rp {bookValue.toLocaleString()}</span>
+                                                        <span className="text-[9px] text-slate-400 italic">Susut: Rp {accumulatedDepreciation.toLocaleString()}</span>
+                                                    </div>
+                                                );
+                                            })()}
                                         </td>
                                         {!isReadOnlyUser && (
                                             <td className="px-6 py-4 text-center">
@@ -1052,14 +1070,29 @@ const AssetList = ({ validationMode = false }) => {
                                     </div>
                                 </div>
 
-                                <div className="flex justify-between items-center bg-slate-50/50 p-2 rounded-xl border border-slate-100 mb-4">
+                                <div className="grid grid-cols-2 gap-3 py-3 border-y border-slate-50 mb-3">
                                     <div className="flex flex-col">
                                         <span className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Harga Perolehan</span>
                                         <span className="text-xs font-black text-slate-800">Rp {(asset.price || 0).toLocaleString()}</span>
+                                        <span className="text-[9px] text-slate-500">{asset.purchaseDate ? new Date(asset.purchaseDate).toLocaleDateString('id-ID') : '-'}</span>
                                     </div>
-                                    <div className="flex flex-col items-end">
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Tgl Beli</span>
-                                        <span className="text-xs font-medium text-slate-600">{asset.purchaseDate ? new Date(asset.purchaseDate).toLocaleDateString('id-ID') : '-'}</span>
+                                    <div className="flex flex-col text-right">
+                                        {(() => {
+                                            const now = new Date();
+                                            const purchaseDate = new Date(asset.purchaseDate);
+                                            const monthsElapsed = Math.max(0, (now.getFullYear() - purchaseDate.getFullYear()) * 12 + (now.getMonth() - purchaseDate.getMonth()));
+                                            const totalMonths = (asset.usefulLife || 5) * 12;
+                                            const monthlyDepreciation = Math.round(asset.price / totalMonths);
+                                            const accumulatedDepreciation = Math.min(asset.price, monthlyDepreciation * monthsElapsed);
+                                            const bookValue = Math.max(0, asset.price - accumulatedDepreciation);
+                                            return (
+                                                <>
+                                                    <span className="text-[8px] font-bold text-blue-500 uppercase leading-none mb-0.5">Nilai Buku Saat Ini</span>
+                                                    <span className="text-xs font-black text-blue-700">Rp {bookValue.toLocaleString()}</span>
+                                                    <span className="text-[9px] text-slate-400 italic">Akum. Susut: Rp {accumulatedDepreciation.toLocaleString()}</span>
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
 

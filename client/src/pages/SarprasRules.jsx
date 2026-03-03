@@ -285,9 +285,7 @@ const SarprasRules = () => {
                                             </a>
                                             <a
                                                 href={rule.fileUrl}
-                                                download
-                                                target="_blank"
-                                                rel="noopener noreferrer"
+                                                download={rule.fileName}
                                                 className="flex items-center gap-2 bg-blue-600 text-white border border-transparent px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 transition-all shadow-sm shadow-blue-200"
                                             >
                                                 <Download size={14} /> Download
