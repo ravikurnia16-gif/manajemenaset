@@ -41,6 +41,7 @@ import LoanList from './pages/LoanList';
 import SarprasRules from './pages/SarprasRules';
 import SarprasCalendar from './pages/SarprasCalendar';
 import VendorManagement from './pages/VendorManagement';
+import ReportPage from './pages/ReportPage';
 import ModulePlaceholder from './components/ModulePlaceholder';
 
 // Komponen untuk melindungi route yang butuh login
@@ -119,6 +120,7 @@ function App() {
           <Route path="personalia/laporan" element={<PersonnelReports />} />
           <Route path="personalia/penugasan" element={<PersonnelAssignments />} />
           <Route path="personalia/kalender" element={<SarprasCalendar />} />
+          <Route path="laporan" element={<ReportPage />} />
 
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />
         </Route>
