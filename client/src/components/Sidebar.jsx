@@ -189,7 +189,7 @@ const Sidebar = ({ isOpen = true }) => {
                                     <ArrowLeftRight size={16} /> Transaksi
                                 </Link>
                                 <Link to="/gudang/pesanan" className={subNavItemClass('/gudang/pesanan')}>
-                                    <ShoppingCart size={16} /> Pesanan Seragam
+                                    <ShoppingCart size={16} /> Pesanan
                                 </Link>
                             </>
                         )}

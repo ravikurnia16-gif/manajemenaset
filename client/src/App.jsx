@@ -21,6 +21,7 @@ import WarehouseTransactionForm from './pages/WarehouseTransactionForm';
 import Settings from './pages/Settings';
 import UniformOrderPage from './pages/UniformOrderPage';
 import UniformOrderAdmin from './pages/UniformOrderAdmin';
+import UnitOrderForm from './pages/UnitOrderForm';
 import VehicleDashboard from './pages/VehicleDashboard';
 import PersonnelDashboard from './pages/PersonnelDashboard';
 import VehicleList from './pages/VehicleList';
@@ -107,6 +108,7 @@ function App() {
           <Route path="gudang/transaksi" element={<WarehouseTransactions />} />
           <Route path="gudang/transaksi/input" element={<WarehouseTransactionForm />} />
           <Route path="gudang/pesanan" element={<UniformOrderAdmin />} />
+          <Route path="gudang/pesanan/unit" element={<UnitOrderForm />} />
 
           {/* Module: Manajemen Personalia */}
           <Route path="personalia/dashboard" element={

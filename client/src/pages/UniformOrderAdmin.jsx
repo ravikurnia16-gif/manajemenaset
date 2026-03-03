@@ -86,11 +86,16 @@ const UniformOrderAdmin = () => {
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><ClipboardList className="text-indigo-600" /> Pesanan Seragam</h1>
+                    <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><ClipboardList className="text-indigo-600" /> Pesanan</h1>
                 </div>
-                <a href="/pesan-seragam" target="_blank" className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-bold border border-indigo-200 hover:bg-indigo-100 transition">
-                    Buka Halaman Publik ↗
-                </a>
+                <div className="flex gap-2">
+                    <button onClick={() => navigate('/gudang/pesanan/unit')} className="text-xs bg-white text-indigo-600 px-3 py-1.5 rounded-lg font-bold border border-indigo-200 hover:bg-indigo-50 transition">
+                        Pesanan Unit
+                    </button>
+                    <a href="/pesan-seragam" target="_blank" className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-bold border border-indigo-200 hover:bg-indigo-100 transition">
+                        Pesanan Warid ↗
+                    </a>
+                </div>
             </div>
 
             {/* Filter */}
