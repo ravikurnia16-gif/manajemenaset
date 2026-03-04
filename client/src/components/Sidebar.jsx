@@ -166,6 +166,9 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/kendaraan/peminjaman" className={subNavItemClass('/kendaraan/peminjaman')}>
                             <Calendar size={16} /> Peminjaman
                         </Link>
+                        <Link to="/kendaraan/booking-bus" className={subNavItemClass('/kendaraan/booking-bus')}>
+                            <Calendar size={16} /> Booking Jadwal Bus
+                        </Link>
                         {isVehicleAdmin && (
                             <Link to="/kendaraan/pemeliharaan" className={subNavItemClass('/kendaraan/pemeliharaan')}>
                                 <Settings size={16} /> Pemeliharaan

@@ -56,6 +56,7 @@ model User {
   procurements Procurement[]
   validatedAssets Asset[] @relation("AssetValidator")
   vehicleBookings VehicleBooking[]
+  busBookings     BusBooking[]
   maintenances    Maintenance[]
   warehouseTransactions WarehouseTransaction[]
   requestedMovements Movement[]    @relation("RequestedMovements")
@@ -459,6 +460,7 @@ model Vehicle {
   // Relations
   assetId       Int?      @unique // Optional link to Asset table
   bookings      VehicleBooking[]
+  busBookings   BusBooking[]
   pics          User[]    @relation("VehiclePICs")
   services      VehicleService[]
   fuelLogs      VehicleFuelLog[]
@@ -808,4 +810,20 @@ model AssetLoan {
   
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
+}
+
+model BusBooking {
+  id          Int      @id @default(autoincrement())
+  vehicleId   Int
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  destination String
+  purpose     String?
+  startDate   DateTime
+  endDate     DateTime
+  passengerCount Int    @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

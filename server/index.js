@@ -31,6 +31,7 @@ app.use('/api/procurements', require('./routes/procurementRoutes'));
 app.use('/api/maintenance', require('./routes/maintenanceRoutes'));
 app.use('/api/warehouse', require('./routes/warehouseRoutes'));
 app.use('/api/uniform-order', require('./routes/uniformOrderRoutes'));
+app.use('/api/bus-bookings', require('./routes/busBookingRoutes')); // Added bus booking routes
 app.use('/api/vehicles', require('./routes/vehicleRoutes'));
 app.use('/api/personnel', require('./routes/personnelRoutes'));
 app.use('/api/disposals', require('./routes/disposalRoutes'));

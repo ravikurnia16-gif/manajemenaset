@@ -27,6 +27,7 @@ import PersonnelDashboard from './pages/PersonnelDashboard';
 import VehicleList from './pages/VehicleList';
 import VehicleForm from './pages/VehicleForm';
 import VehicleBooking from './pages/VehicleBooking';
+import BusBooking from './pages/BusBooking';
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
 import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
 import VehicleWeeklyReport from './pages/VehicleWeeklyReport';
@@ -96,6 +97,7 @@ function App() {
           <Route path="kendaraan/data/new" element={<VehicleForm />} />
           <Route path="kendaraan/data/edit/:id" element={<VehicleForm />} />
           <Route path="kendaraan/peminjaman" element={<VehicleBooking />} />
+          <Route path="kendaraan/booking-bus" element={<BusBooking />} />
           <Route path="kendaraan/pemeliharaan" element={<VehicleMaintenanceList />} />
           <Route path="kendaraan/pemeliharaan/new" element={<VehicleMaintenanceForm />} />
           <Route path="kendaraan/pemeliharaan/edit/:id" element={<VehicleMaintenanceForm />} />
