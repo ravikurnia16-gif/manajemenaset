@@ -3,10 +3,9 @@ const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
 
 // 1. Create Bus Booking (No Approval Flow)
-exports.createBusBooking = async (req, res) => {
+const createBusBooking = async (req, res) => {
     try {
         const { vehicleId, startDate, endDate, destination, purpose, passengerCount } = req.body;
-        const userId = req.user.id;
 
         const vehicle = await prisma.vehicle.findUnique({
             where: { id: parseInt(vehicleId) }

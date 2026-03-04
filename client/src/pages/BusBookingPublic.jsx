@@ -2,11 +2,7 @@ import { useState, useEffect } from 'react';
 import {
     Bus, Calendar, MapPin, Clock, Users, Plus, X, ArrowRight, Info, ChevronLeft, ChevronRight, Phone, User
 } from 'lucide-react';
-import axios from 'axios';
-
-const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
-});
+import api from '../lib/axios';
 
 const DAY_NAMES = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 const MONTH_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
