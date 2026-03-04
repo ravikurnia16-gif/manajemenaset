@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const busBookingController = require('../controllers/busBookingController');
-const { protect } = require('../controllers/authController');
+const { verifyToken } = require('../middleware/authMiddleware');
 
-router.use(protect);
+router.use(verifyToken);
 
 router.post('/', busBookingController.createBusBooking);
 router.get('/', busBookingController.getAllBusBookings);
