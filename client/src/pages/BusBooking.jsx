@@ -179,7 +179,13 @@ const BusBooking = () => {
                                                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                                                     <div className="flex items-center gap-1.5">
                                                         <Calendar size={14} className="text-blue-500" />
-                                                        {new Date(b.startDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' })}
+                                                        {new Date(b.startDate).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                                        {new Date(b.startDate).toDateString() !== new Date(b.endDate).toDateString() && (
+                                                            <>
+                                                                <ArrowRight size={10} className="mx-0.5" />
+                                                                {new Date(b.endDate).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                                            </>
+                                                        )}
                                                     </div>
                                                     <div className="flex items-center gap-1.5 font-bold text-slate-700">
                                                         <Clock size={14} className="text-blue-500" />
@@ -242,37 +248,45 @@ const BusBooking = () => {
                                 </select>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Tanggal</label>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Mulai Tanggal</label>
                                     <input
                                         type="date" required
                                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                         value={formData.startDate}
-                                        onChange={e => {
-                                            setFormData({ ...formData, startDate: e.target.value, endDate: e.target.value });
-                                        }}
+                                        onChange={e => setFormData({ ...formData, startDate: e.target.value })}
                                     />
                                 </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Mulai</label>
-                                        <input
-                                            type="time" required
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                            value={formData.startTime}
-                                            onChange={e => setFormData({ ...formData, startTime: e.target.value })}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Selesai</label>
-                                        <input
-                                            type="time" required
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                            value={formData.endTime}
-                                            onChange={e => setFormData({ ...formData, endTime: e.target.value })}
-                                        />
-                                    </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Selesai Tanggal</label>
+                                    <input
+                                        type="date" required
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={formData.endDate}
+                                        onChange={e => setFormData({ ...formData, endDate: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Jam Mulai</label>
+                                    <input
+                                        type="time" required
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={formData.startTime}
+                                        onChange={e => setFormData({ ...formData, startTime: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Jam Selesai</label>
+                                    <input
+                                        type="time" required
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={formData.endTime}
+                                        onChange={e => setFormData({ ...formData, endTime: e.target.value })}
+                                    />
                                 </div>
                             </div>
 
