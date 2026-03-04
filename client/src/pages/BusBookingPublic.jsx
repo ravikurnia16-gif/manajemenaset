@@ -247,10 +247,10 @@ const BusBookingPublic = () => {
                                                                 e.stopPropagation();
                                                                 setSelectedBooking(b);
                                                             }}
-                                                            className="text-[9px] px-2 py-1 rounded-lg truncate font-bold bg-blue-100 text-blue-700 border border-blue-200 leading-tight hover:bg-blue-600 hover:text-white transition-all active:scale-95"
+                                                            className="text-[8px] sm:text-[9px] px-1 sm:px-2 py-0.5 sm:py-1 rounded-md sm:rounded-lg font-bold bg-blue-100 text-blue-700 border border-blue-200 leading-tight hover:bg-blue-600 hover:text-white transition-all active:scale-95 overflow-hidden"
                                                         >
-                                                            {b.vehicle.name}
-                                                            <div className="text-[7.5px] opacity-70 font-medium">@{b.unit || 'Umum'}</div>
+                                                            <div className="truncate">{b.vehicle.name}</div>
+                                                            <div className="text-[7px] sm:text-[7.5px] opacity-70 font-medium truncate">@{b.unit || 'Umum'}</div>
                                                         </div>
                                                     ))}
                                                     {dayBookings.length > 3 && (
