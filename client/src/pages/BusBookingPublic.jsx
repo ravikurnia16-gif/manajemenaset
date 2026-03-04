@@ -57,8 +57,8 @@ const BusBookingPublic = () => {
             ]);
             const busList = vRes.data.filter(v => v.type?.toLowerCase().includes('bus') || v.name?.toLowerCase().includes('bus'));
             setVehicles(busList);
-            setBookings(bRes.data);
-            setUnits(uRes.data);
+            setBookings(bRes.data || []);
+            setUnits(uRes.data || []);
         } catch (err) {
             showToast('Gagal memuat data', 'error');
         } finally {

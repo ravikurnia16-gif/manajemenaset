@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
-    Bus, Calendar, MapPin, Clock, Users, Plus, X, ArrowRight, Trash2, LayoutList, Phone, CheckCircle2
+    Bus, Calendar, MapPin, Clock, Users, Plus, X, ArrowRight, Trash2, LayoutList, Phone, CheckCircle2,
+    ChevronLeft, ChevronRight
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -73,7 +74,7 @@ const BusBooking = () => {
         try {
             setLoading(true);
             const res = await api.get('/bus-bookings');
-            setBookings(res.data);
+            setBookings(res.data || []);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
