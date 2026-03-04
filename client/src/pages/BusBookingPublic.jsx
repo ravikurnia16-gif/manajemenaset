@@ -9,6 +9,7 @@ const MONTH_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Ju
 
 const BusBookingPublic = () => {
     const [vehicles, setVehicles] = useState([]);
+    const [units, setUnits] = useState([]);
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -19,6 +20,7 @@ const BusBookingPublic = () => {
     const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1);
     const [currentYear, setCurrentYear] = useState(today.getFullYear());
     const [selectedDate, setSelectedDate] = useState(null);
+    const [selectedBooking, setSelectedBooking] = useState(null);
 
     // Modal States
     const [showBorrowModal, setShowBorrowModal] = useState(false);
@@ -26,6 +28,7 @@ const BusBookingPublic = () => {
         vehicleId: '',
         requesterName: '',
         requesterPhone: '',
+        unit: '',
         destination: '',
         purpose: '',
         startDate: '',
@@ -42,12 +45,14 @@ const BusBookingPublic = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [vRes, bRes] = await Promise.all([
+            const [vRes, bRes, uRes] = await Promise.all([
                 api.get('/vehicles/public'),
-                api.get('/bus-bookings/public')
+                api.get('/bus-bookings/public'),
+                api.get('/master/units/public')
             ]);
-            setVehicles(vRes.data.filter(v => v.type.toLowerCase().includes('bus') || v.name.toLowerCase().includes('bus')));
+            setVehicles(vRes.data.filter(v => v.type?.toLowerCase().includes('bus') || v.name?.toLowerCase().includes('bus')));
             setBookings(bRes.data);
+            setUnits(uRes.data);
         } catch (err) {
             showToast('Gagal memuat data', 'error');
         } finally {
@@ -84,6 +89,7 @@ const BusBookingPublic = () => {
                 vehicleId: '',
                 requesterName: '',
                 requesterPhone: '',
+                unit: '',
                 destination: '',
                 purpose: '',
                 startDate: '',
@@ -206,14 +212,14 @@ const BusBookingPublic = () => {
                                 </div>
                                 <div className="grid grid-cols-7 gap-2">
                                     {calendarDays.map((day, i) => {
-                                        if (!day) return <div key={`empty-${i}`} className="min-h-[100px] bg-slate-50/30 rounded-2xl" />;
+                                        if (!day) return <div key={`empty-${i}`} className="min-h-[120px] bg-slate-50/30 rounded-2xl" />;
                                         const dayBookings = getBookingsForDay(day);
                                         const isSunday = new Date(currentYear, currentMonth - 1, day).getDay() === 0;
                                         return (
                                             <div
                                                 key={day}
                                                 onClick={() => setSelectedDate(selectedDate === day ? null : day)}
-                                                className={`min-h-[100px] p-2 rounded-2xl border cursor-pointer transition-all hover:shadow-lg relative group ${isToday(day) ? 'border-blue-400 bg-blue-50/30 ring-1 ring-blue-100' :
+                                                className={`min-h-[120px] p-2 rounded-2xl border cursor-pointer transition-all hover:shadow-lg relative group ${isToday(day) ? 'border-blue-400 bg-blue-50/30 ring-1 ring-blue-100' :
                                                     selectedDate === day ? 'border-slate-400 bg-slate-50 ring-1 ring-slate-300' :
                                                         'border-slate-100 hover:border-slate-200 bg-white'
                                                     }`}
@@ -223,8 +229,9 @@ const BusBookingPublic = () => {
                                                 </div>
                                                 <div className="space-y-1">
                                                     {dayBookings.slice(0, 3).map((b, idx) => (
-                                                        <div key={b.id} className="text-[9px] px-2 py-1 rounded-lg truncate font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                                                        <div key={b.id} className="text-[9px] px-2 py-1 rounded-lg truncate font-bold bg-blue-100 text-blue-700 border border-blue-200 leading-tight">
                                                             {b.vehicle.name}
+                                                            <div className="text-[7.5px] opacity-70 font-medium">@{b.unit || 'Umum'}</div>
                                                         </div>
                                                     ))}
                                                     {dayBookings.length > 3 && (
@@ -251,19 +258,25 @@ const BusBookingPublic = () => {
                                             <div className="p-8 text-center text-slate-400 italic">Tidak ada jadwal pada tanggal ini.</div>
                                         ) : (
                                             getBookingsForDay(selectedDate).map(b => (
-                                                <div key={b.id} className="p-5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                                                <div
+                                                    key={b.id}
+                                                    onClick={() => setSelectedBooking(b)}
+                                                    className="p-5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between cursor-pointer hover:bg-blue-50/50 hover:border-blue-200 transition-all group"
+                                                >
                                                     <div className="flex gap-4 items-center">
-                                                        <div className="bg-blue-600 text-white p-3 rounded-2xl shadow-md">
+                                                        <div className="bg-blue-600 text-white p-3 rounded-2xl shadow-md group-hover:scale-110 transition-transform">
                                                             <Bus size={20} />
                                                         </div>
                                                         <div>
                                                             <div className="text-lg font-bold text-slate-800">{b.vehicle.name} ({b.vehicle.plateNumber})</div>
                                                             <div className="text-sm text-slate-500 flex items-center gap-4 mt-1">
-                                                                <span className="flex items-center gap-1.5 font-medium"><MapPin size={14} className="text-blue-500" /> {b.destination}</span>
-                                                                <span className="flex items-center gap-1.5 font-medium text-slate-700"><Clock size={14} className="text-blue-500" /> {new Date(b.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                                <span className="flex items-center gap-1.5 font-medium text-blue-600"><Plus size={14} /> {b.unit || 'Umum'}</span>
+                                                                <span className="flex items-center gap-1.5 font-medium"><MapPin size={14} className="text-slate-400" /> {b.destination}</span>
+                                                                <span className="flex items-center gap-1.5 font-medium text-slate-700"><Clock size={14} className="text-slate-400" /> {new Date(b.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                                             </div>
                                                         </div>
                                                     </div>
+                                                    <ArrowRight size={20} className="text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
                                                 </div>
                                             ))
                                         )}
@@ -323,6 +336,21 @@ const BusBookingPublic = () => {
                                     </div>
                                 </div>
                                 <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Unit / Departemen</label>
+                                    <select
+                                        required
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                        value={formData.unit}
+                                        onChange={e => setFormData({ ...formData, unit: e.target.value })}
+                                    >
+                                        <option value="">-- Pilih Unit --</option>
+                                        {units.map(u => (
+                                            <option key={u.id} value={u.name}>{u.name}</option>
+                                        ))}
+                                        <option value="LAINNYA">Lainnya / Umum</option>
+                                    </select>
+                                </div>
+                                <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">No. HP / WhatsApp</label>
                                     <div className="relative">
                                         <Phone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -336,6 +364,7 @@ const BusBookingPublic = () => {
                                         />
                                     </div>
                                 </div>
+                                <div className="hidden md:block"></div>
 
                                 {/* Dates */}
                                 <div>
@@ -439,8 +468,80 @@ const BusBookingPublic = () => {
                 </div>
             )}
 
+            {/* Detail Modal */}
+            {selectedBooking && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-6 bg-blue-600 text-white flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-white/20 p-2 rounded-xl">
+                                    <Bus size={24} />
+                                </div>
+                                <h3 className="text-xl font-bold italic tracking-tight">Detail Booking Bus</h3>
+                            </div>
+                            <button onClick={() => setSelectedBooking(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div className="p-8 space-y-6">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Armada</label>
+                                    <div className="text-lg font-bold text-slate-800">{selectedBooking.vehicle.name} ({selectedBooking.vehicle.plateNumber})</div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Pemesan</label>
+                                        <div className="font-bold text-slate-700">{selectedBooking.requesterName || selectedBooking.user?.name || '-'}</div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Unit</label>
+                                        <div className="font-bold text-blue-600">{selectedBooking.unit || 'Umum'}</div>
+                                    </div>
+                                </div>
+                                <div className="bg-slate-50 p-4 rounded-2xl space-y-3 border border-slate-100">
+                                    <div className="flex items-start gap-3">
+                                        <MapPin size={16} className="text-blue-500 mt-1" />
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Tujuan</label>
+                                            <div className="text-sm font-bold text-slate-800">{selectedBooking.destination}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <Calendar size={16} className="text-blue-500 mt-1" />
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Jadwal</label>
+                                            <div className="text-sm font-bold text-slate-800">
+                                                {new Date(selectedBooking.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} -
+                                                {new Date(selectedBooking.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                            </div>
+                                            <div className="text-xs text-slate-500 font-medium mt-0.5">
+                                                {new Date(selectedBooking.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} s/d {new Date(selectedBooking.endDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <Users size={16} className="text-blue-500 mt-1" />
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Penumpang</label>
+                                            <div className="text-sm font-bold text-slate-800">{selectedBooking.passengerCount} Orang</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Keperluan</label>
+                                    <div className="text-sm text-slate-600 bg-slate-50 p-4 rounded-2xl italic border border-slate-100">
+                                        {selectedBooking.purpose || 'Tidak ada keterangan tambahan.'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Toasts */}
-            <div className="fixed bottom-8 right-8 z-[60] flex flex-col gap-3">
+            <div className="fixed bottom-8 right-8 z-[100] flex flex-col gap-3">
                 {toasts.map(t => (
                     <div
                         key={t.id}

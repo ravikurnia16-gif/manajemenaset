@@ -49,6 +49,16 @@ const createBusBooking = async (req, res) => {
             });
         }
 
+        // Determine Unit
+        let bookingUnit = req.body.unit;
+        if (req.user) {
+            const userWithUnit = await prisma.user.findUnique({
+                where: { id: req.user.id },
+                include: { unit: true }
+            });
+            bookingUnit = userWithUnit?.unit?.name || 'Internal';
+        }
+
         const booking = await prisma.busBooking.create({
             data: {
                 vehicleId: parseInt(vehicleId),
@@ -56,6 +66,7 @@ const createBusBooking = async (req, res) => {
                 isPublic: !req.user,
                 requesterName: req.user ? req.user.name : req.body.requesterName,
                 requesterPhone: req.user ? req.user.phone : req.body.requesterPhone,
+                unit: bookingUnit,
                 destination,
                 purpose,
                 startDate: start,
@@ -126,7 +137,10 @@ const getAllBusBookings = async (req, res) => {
 
         const bookings = await prisma.busBooking.findMany({
             where,
-            include: { vehicle: true, user: true },
+            include: {
+                vehicle: true,
+                user: { include: { unit: true } }
+            },
             orderBy: { startDate: 'asc' }
         });
         res.json(bookings);

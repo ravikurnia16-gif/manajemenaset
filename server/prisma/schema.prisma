@@ -821,6 +821,7 @@ model BusBooking {
   isPublic       Boolean  @default(false)
   requesterName  String?
   requesterPhone String?
+  unit           String?
   destination    String
   purpose        String?
   startDate      DateTime

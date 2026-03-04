@@ -20,6 +20,7 @@ const BusBooking = () => {
     const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1);
     const [currentYear, setCurrentYear] = useState(today.getFullYear());
     const [selectedDate, setSelectedDate] = useState(null);
+    const [selectedBooking, setSelectedBooking] = useState(null);
 
     // Modal States
     const [showBorrowModal, setShowBorrowModal] = useState(false);
@@ -232,15 +233,20 @@ const BusBooking = () => {
                             ) : (
                                 <div className="divide-y divide-slate-100">
                                     {bookings.map(b => (
-                                        <div key={b.id} className="p-4 hover:bg-slate-50/50 transition-colors flex items-center justify-between group">
+                                        <div
+                                            key={b.id}
+                                            onClick={() => setSelectedBooking(b)}
+                                            className="p-4 hover:bg-slate-50/50 transition-colors flex items-center justify-between group cursor-pointer"
+                                        >
                                             <div className="flex gap-4 items-start">
-                                                <div className="bg-blue-50 text-blue-600 p-3 rounded-xl">
+                                                <div className="bg-blue-50 text-blue-600 p-3 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all">
                                                     <Bus size={20} />
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-2">
                                                         <span className="font-bold text-slate-800">{b.vehicle.name}</span>
                                                         <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono font-bold uppercase">{b.vehicle.plateNumber}</span>
+                                                        <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-bold">{b.unit || 'Umum'}</span>
                                                     </div>
                                                     <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                                                         <div className="flex items-center gap-1.5">
@@ -262,21 +268,25 @@ const BusBooking = () => {
                                                         </div>
                                                     </div>
                                                     <div className="mt-2 text-xs text-slate-400 flex items-center gap-2">
-                                                        <span className="font-bold text-slate-600">Pemohon: {b.user.name}</span>
+                                                        <span className="font-bold text-slate-600">Pemohon: {b.requesterName || b.user?.name}</span>
                                                         <span>•</span>
                                                         <span>Kapasitas: {b.passengerCount} Orang</span>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex gap-2">
                                                 {(b.userId === user.id || ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) && (
                                                     <button
-                                                        onClick={() => handleDelete(b.id)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDelete(b.id);
+                                                        }}
                                                         className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                                                     >
                                                         <Trash2 size={18} />
                                                     </button>
                                                 )}
+                                                <ArrowRight size={20} className="text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
                                             </div>
                                         </div>
                                     ))}
@@ -310,7 +320,7 @@ const BusBooking = () => {
                                             <div
                                                 key={day}
                                                 onClick={() => setSelectedDate(selectedDate === day ? null : day)}
-                                                className={`min-h-[100px] p-2 rounded-2xl border cursor-pointer transition-all hover:shadow-md relative group ${isToday(day) ? 'border-blue-400 bg-blue-50/30 shadow-sm ring-1 ring-blue-100' :
+                                                className={`min-h-[110px] p-2 rounded-2xl border cursor-pointer transition-all hover:shadow-md relative group ${isToday(day) ? 'border-blue-400 bg-blue-50/30 shadow-sm ring-1 ring-blue-100' :
                                                     selectedDate === day ? 'border-slate-400 bg-slate-50 ring-1 ring-slate-300' :
                                                         'border-slate-100 hover:border-slate-200'
                                                     }`}
@@ -320,8 +330,9 @@ const BusBooking = () => {
                                                 </div>
                                                 <div className="space-y-1">
                                                     {dayBookings.slice(0, 3).map((b, idx) => (
-                                                        <div key={b.id} className="text-[9px] px-1.5 py-1 rounded-lg truncate font-bold bg-blue-100 text-blue-700 border border-blue-200" title={`${b.vehicle.name} - ${b.destination}`}>
+                                                        <div key={b.id} className="text-[9px] px-1.5 py-1 rounded-lg truncate font-bold bg-blue-100 text-blue-700 border border-blue-200 leading-tight" title={`${b.vehicle.name} - ${b.destination}`}>
                                                             {b.vehicle.name}
+                                                            <div className="text-[7px] opacity-70">@{b.unit || 'Umum'}</div>
                                                         </div>
                                                     ))}
                                                     {dayBookings.length > 3 && (
@@ -348,27 +359,25 @@ const BusBooking = () => {
                                             <p className="text-sm text-slate-400 italic text-center py-4">Tidak ada jadwal pada tanggal ini.</p>
                                         ) : (
                                             getBookingsForDay(selectedDate).map(b => (
-                                                <div key={b.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group">
+                                                <div
+                                                    key={b.id}
+                                                    onClick={() => setSelectedBooking(b)}
+                                                    className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group cursor-pointer hover:bg-blue-50/50 hover:border-blue-200 transition-all"
+                                                >
                                                     <div className="flex gap-3 items-center">
-                                                        <div className="bg-blue-600 text-white p-2 rounded-xl">
+                                                        <div className="bg-blue-600 group-hover:scale-110 transition-transform text-white p-2 rounded-xl">
                                                             <Bus size={16} />
                                                         </div>
                                                         <div>
                                                             <div className="text-sm font-bold text-slate-800">{b.vehicle.name} ({b.vehicle.plateNumber})</div>
-                                                            <div className="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                                                            <div className="text-[10px] text-slate-500 flex items-center gap-3 mt-0.5">
+                                                                <span className="flex items-center gap-1 font-bold text-blue-600">@{b.unit || 'Umum'}</span>
                                                                 <span className="flex items-center gap-1"><MapPin size={10} /> {b.destination}</span>
                                                                 <span className="flex items-center gap-1"><Clock size={10} /> {new Date(b.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    {(b.userId === user.id || ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) && (
-                                                        <button
-                                                            onClick={() => handleDelete(b.id)}
-                                                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                                        >
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                    )}
+                                                    <ArrowRight size={16} className="text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
                                                 </div>
                                             ))
                                         )}
@@ -499,6 +508,91 @@ const BusBooking = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Detail Modal */}
+            {selectedBooking && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setSelectedBooking(null)}>
+                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 bg-blue-600 text-white flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-white/20 p-2 rounded-xl">
+                                    <Bus size={24} />
+                                </div>
+                                <h3 className="text-xl font-bold italic tracking-tight">Detail Booking Bus</h3>
+                            </div>
+                            <button onClick={() => setSelectedBooking(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div className="p-8 space-y-6">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Armada</label>
+                                    <div className="text-lg font-bold text-slate-800">{selectedBooking.vehicle.name} ({selectedBooking.vehicle.plateNumber})</div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Pemesan</label>
+                                        <div className="font-bold text-slate-700">{selectedBooking.requesterName || selectedBooking.user?.name || '-'}</div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Unit</label>
+                                        <div className="font-bold text-blue-600">{selectedBooking.unit || 'Umum'}</div>
+                                    </div>
+                                </div>
+                                <div className="bg-slate-50 p-4 rounded-2xl space-y-3 border border-slate-100">
+                                    <div className="flex items-start gap-3">
+                                        <MapPin size={16} className="text-blue-500 mt-1" />
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Tujuan</label>
+                                            <div className="text-sm font-bold text-slate-800">{selectedBooking.destination}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <Calendar size={16} className="text-blue-500 mt-1" />
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Jadwal</label>
+                                            <div className="text-sm font-bold text-slate-800">
+                                                {new Date(selectedBooking.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} -
+                                                {new Date(selectedBooking.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                            </div>
+                                            <div className="text-xs text-slate-500 font-medium mt-0.5">
+                                                {new Date(selectedBooking.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} s/d {new Date(selectedBooking.endDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <Users size={16} className="text-blue-500 mt-1" />
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Penumpang</label>
+                                            <div className="text-sm font-bold text-slate-800">{selectedBooking.passengerCount} Orang</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Keperluan</label>
+                                    <div className="text-sm text-slate-600 bg-slate-50 p-4 rounded-2xl italic border border-slate-100">
+                                        {selectedBooking.purpose || 'Tidak ada keterangan tambahan.'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {(selectedBooking.userId === user.id || ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) && (
+                            <div className="p-6 bg-slate-50 border-t border-slate-100">
+                                <button
+                                    onClick={() => {
+                                        handleDelete(selectedBooking.id);
+                                        setSelectedBooking(null);
+                                    }}
+                                    className="w-full py-3 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-600 hover:text-white transition-all flex justify-center items-center gap-2"
+                                >
+                                    <Trash2 size={16} /> Hapus Booking
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

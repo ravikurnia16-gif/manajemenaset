@@ -8,6 +8,7 @@ const {
 const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 const router = express.Router();
 
+router.get('/units/public', getAllUnits);
 router.get('/units', verifyToken, getAllUnits);
 router.get('/units/:id', verifyToken, getUnitById);
 router.post('/units', verifyToken, authorizeRole(['SUPER_ADMIN']), createUnit);
