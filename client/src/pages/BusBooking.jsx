@@ -330,7 +330,15 @@ const BusBooking = () => {
                                                 </div>
                                                 <div className="space-y-1">
                                                     {dayBookings.slice(0, 3).map((b, idx) => (
-                                                        <div key={b.id} className="text-[9px] px-1.5 py-1 rounded-lg truncate font-bold bg-blue-100 text-blue-700 border border-blue-200 leading-tight" title={`${b.vehicle.name} - ${b.destination}`}>
+                                                        <div
+                                                            key={b.id}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedBooking(b);
+                                                            }}
+                                                            className="text-[9px] px-1.5 py-1 rounded-lg truncate font-bold bg-blue-100 text-blue-700 border border-blue-200 leading-tight hover:bg-blue-600 hover:text-white transition-all active:scale-95"
+                                                            title={`${b.vehicle.name} - ${b.destination}`}
+                                                        >
                                                             {b.vehicle.name}
                                                             <div className="text-[7px] opacity-70">@{b.unit || 'Umum'}</div>
                                                         </div>

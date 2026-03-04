@@ -175,14 +175,26 @@ const BusBookingPublic = () => {
                                 <div className="bg-white p-6 rounded-2xl border border-slate-100 text-center text-slate-400 italic text-sm">Tidak ada bus tersedia.</div>
                             ) : vehicles.map(v => (
                                 <div key={v.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-                                    <div className="flex items-center gap-4">
-                                        <div className="bg-slate-100 p-3 rounded-xl text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
-                                            <Bus size={24} />
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="bg-slate-100 p-3 rounded-xl text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
+                                                <Bus size={24} />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-slate-800">{v.name}</h3>
+                                                <p className="text-xs text-slate-400 font-mono mt-0.5">{v.plateNumber}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h3 className="font-bold text-slate-800">{v.name}</h3>
-                                            <p className="text-xs text-slate-400 font-mono mt-0.5">{v.plateNumber}</p>
-                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setFormData(prev => ({ ...prev, vehicleId: v.id }));
+                                                setShowBorrowModal(true);
+                                            }}
+                                            className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                                            title="Pesan Bus Ini"
+                                        >
+                                            <Plus size={18} />
+                                        </button>
                                     </div>
                                 </div>
                             ))}
@@ -229,7 +241,14 @@ const BusBookingPublic = () => {
                                                 </div>
                                                 <div className="space-y-1">
                                                     {dayBookings.slice(0, 3).map((b, idx) => (
-                                                        <div key={b.id} className="text-[9px] px-2 py-1 rounded-lg truncate font-bold bg-blue-100 text-blue-700 border border-blue-200 leading-tight">
+                                                        <div
+                                                            key={b.id}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedBooking(b);
+                                                            }}
+                                                            className="text-[9px] px-2 py-1 rounded-lg truncate font-bold bg-blue-100 text-blue-700 border border-blue-200 leading-tight hover:bg-blue-600 hover:text-white transition-all active:scale-95"
+                                                        >
                                                             {b.vehicle.name}
                                                             <div className="text-[7.5px] opacity-70 font-medium">@{b.unit || 'Umum'}</div>
                                                         </div>
