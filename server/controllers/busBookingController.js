@@ -92,7 +92,27 @@ const createBusBooking = async (req, res) => {
         // --- Notifications (Async) ---
         (async () => {
             try {
-                // Find Recipients
+                const requesterLabel = req.user ? req.user.name : req.body.requesterName;
+                const requesterPhone = req.user ? req.user.phone : req.body.requesterPhone;
+                const vehicleNames = createdBookings.map(b => `${b.vehicle.name} (${b.vehicle.plateNumber})`).join(', ');
+
+                // 1. Notify Requester
+                if (requesterPhone) {
+                    const requesterMsg = `*HALO ${requesterLabel.toUpperCase()}*\n\n` +
+                        `Booking bus Anda telah dicatat.\n` +
+                        `Armada: ${vehicleNames}\n` +
+                        `Token Batal: *${token}*\n\n` +
+                        `Simpan token ini jika Anda ingin membatalkan pesanan secara mandiri di halaman publik.\n\n` +
+                        `_Sistem Manajemen Aset_`;
+
+                    try {
+                        await whatsappService.sendMessage(requesterPhone, requesterMsg);
+                    } catch (waError) {
+                        console.error(`[Bus Booking] Requester WA Failed:`, waError.message);
+                    }
+                }
+
+                // 2. Notify Admins
                 const recipients = await prisma.user.findMany({
                     where: {
                         OR: [
@@ -104,23 +124,25 @@ const createBusBooking = async (req, res) => {
                 });
 
                 if (recipients.length > 0) {
-                    const vehicleNames = createdBookings.map(b => `${b.vehicle.name} (${b.vehicle.plateNumber})`).join(', ');
-                    const requesterLabel = req.user ? req.user.name : req.body.requesterName;
-                    const msg = `*BOOKING BUS BARU*\n\n` +
+                    const waLink = `https://wa.me/${requesterPhone.replace(/\D/g, '').startsWith('0') ? '62' + requesterPhone.replace(/\D/g, '').substring(1) : requesterPhone.replace(/\D/g, '')}`;
+
+                    const adminMsg = `*BOOKING BUS BARU*\n\n` +
                         `Pemohon: ${requesterLabel}\n` +
+                        `No. HP: ${requesterPhone}\n` +
                         `Armada: ${vehicleNames}\n` +
                         `Tujuan: ${destination}\n` +
                         `Keperluan: ${purpose || '-'}\n` +
                         `Penumpang: ${passengerCount} Orang\n` +
                         `Jadwal: ${new Date(startDate).toLocaleString('id-ID')} s/d ${new Date(endDate).toLocaleString('id-ID')}\n` +
                         `Token: ${token}\n\n` +
+                        `*Hubungi Pemesan:* ${waLink}\n\n` +
                         `_Sistem Manajemen Aset_`;
 
                     for (const person of recipients) {
                         try {
-                            await whatsappService.sendMessage(person.phone, msg);
+                            await whatsappService.sendMessage(person.phone, adminMsg);
                         } catch (waError) {
-                            console.error(`[Bus Booking] WA Failed for ${person.name}:`, waError.message);
+                            console.error(`[Bus Booking] Admin WA Failed for ${person.name}:`, waError.message);
                         }
                     }
                 }
