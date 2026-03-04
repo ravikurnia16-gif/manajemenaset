@@ -216,8 +216,8 @@ const BusBooking = () => {
                                             </div>
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex flex-wrap items-center gap-2">
-                                                    <span className="font-bold text-slate-800 text-sm md:text-base truncate">{b.vehicle.name}</span>
-                                                    <span className="text-[9px] md:text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono font-bold uppercase">{b.vehicle.plateNumber}</span>
+                                                    <span className="font-bold text-slate-800 text-sm md:text-base truncate">{b.vehicle?.name}</span>
+                                                    <span className="text-[9px] md:text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono font-bold uppercase">{b.vehicle?.plateNumber}</span>
                                                     <span className="text-[9px] md:text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-bold underline underline-offset-2 decoration-blue-100">{b.unit || 'Umum'}</span>
                                                 </div>
                                                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] md:text-xs text-slate-500">
@@ -290,7 +290,7 @@ const BusBooking = () => {
                                                             }}
                                                             className="text-[7px] md:text-[9px] px-1 md:px-1.5 py-0.5 md:py-1 rounded-md md:rounded-lg font-bold bg-blue-100 text-blue-700 border border-blue-200 leading-tight hover:bg-blue-600 hover:text-white transition-all overflow-hidden"
                                                         >
-                                                            <div className="truncate">{b.vehicle.name}</div>
+                                                            <div className="truncate">{b.vehicle?.name}</div>
                                                             <div className="text-[6px] md:text-[7.5px] opacity-70 truncate">@{b.unit || 'Umum'}</div>
                                                         </div>
                                                     ))}
@@ -329,7 +329,7 @@ const BusBooking = () => {
                                                         <Bus size={14} />
                                                     </div>
                                                     <div>
-                                                        <div className="text-xs md:text-sm font-bold text-slate-800">{b.vehicle.name}</div>
+                                                        <div className="text-xs md:text-sm font-bold text-slate-800">{b.vehicle?.name}</div>
                                                         <div className="text-[9px] md:text-[10px] text-slate-500 flex items-center gap-3 mt-0.5">
                                                             <span className="text-blue-600 font-bold">@{b.unit || 'Umum'}</span>
                                                             <span className="flex items-center gap-1"><MapPin size={10} /> {b.destination}</span>
@@ -426,8 +426,8 @@ const BusBooking = () => {
                         </div>
                         <div className="p-6 md:p-8 space-y-6 overflow-y-auto max-h-[80vh]">
                             <div className="grid grid-cols-2 gap-4 text-xs md:text-sm">
-                                <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1 tracking-widest">Armada</label><div className="font-bold text-slate-800">{selectedBooking.vehicle.name}</div></div>
-                                <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1 tracking-widest">Plat</label><div className="font-bold text-slate-700">{selectedBooking.vehicle.plateNumber}</div></div>
+                                <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1 tracking-widest">Armada</label><div className="font-bold text-slate-800">{selectedBooking.vehicle?.name}</div></div>
+                                <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1 tracking-widest">Plat</label><div className="font-bold text-slate-700">{selectedBooking.vehicle?.plateNumber}</div></div>
                                 <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1 tracking-widest">Pemesan</label><div className="font-bold text-slate-700">{selectedBooking.requesterName || selectedBooking.user?.name || '-'}</div></div>
                                 <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1 tracking-widest">Unit</label><div className="font-bold text-blue-600">{selectedBooking.unit || 'Umum'}</div></div>
                             </div>

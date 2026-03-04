@@ -231,7 +231,7 @@ const BusBookingPublic = () => {
                                                             }}
                                                             className="text-[7px] md:text-[9px] px-1 md:px-2 py-0.5 md:py-1 rounded-md md:rounded-lg font-bold bg-blue-100 text-blue-700 border border-blue-200 leading-tight hover:bg-blue-600 hover:text-white transition-all active:scale-95 overflow-hidden"
                                                         >
-                                                            <div className="truncate">{b.vehicle.name}</div>
+                                                            <div className="truncate">{b.vehicle?.name}</div>
                                                             <div className="text-[6px] md:text-[7.5px] opacity-70 font-medium truncate">@{b.unit || 'Umum'}</div>
                                                         </div>
                                                     ))}
@@ -270,7 +270,7 @@ const BusBookingPublic = () => {
                                                         <Bus size={20} />
                                                     </div>
                                                     <div>
-                                                        <div className="text-base md:text-lg font-bold text-slate-800">{b.vehicle.name} ({b.vehicle.plateNumber})</div>
+                                                        <div className="text-base md:text-lg font-bold text-slate-800">{b.vehicle?.name} ({b.vehicle?.plateNumber})</div>
                                                         <div className="text-xs md:text-sm text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
                                                             <span className="flex items-center gap-1.5 font-medium text-blue-600"><Plus size={14} /> {b.unit || 'Umum'}</span>
                                                             <span className="flex items-center gap-1.5 font-medium"><MapPin size={14} className="text-slate-400" /> {b.destination}</span>
@@ -476,11 +476,11 @@ const BusBookingPublic = () => {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Armada</label>
-                                    <div className="text-sm font-bold text-slate-800">{selectedBooking.vehicle.name}</div>
+                                    <div className="text-sm font-bold text-slate-800">{selectedBooking.vehicle?.name}</div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">No. Polisi</label>
-                                    <div className="text-sm font-bold text-slate-700">{selectedBooking.vehicle.plateNumber}</div>
+                                    <div className="text-sm font-bold text-slate-700">{selectedBooking.vehicle?.plateNumber}</div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Pemesan</label>
