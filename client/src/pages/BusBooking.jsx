@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-    Bus, Calendar, MapPin, Clock, Users, Plus, X, ArrowRight, Trash2, Search, Info, ChevronLeft, ChevronRight, LayoutList
+    Bus, Calendar, MapPin, Clock, Users, Plus, X, ArrowRight, Trash2, Search, Info, ChevronLeft, ChevronRight, LayoutList, Phone, CheckCircle2
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -21,6 +21,7 @@ const BusBooking = () => {
     const [currentYear, setCurrentYear] = useState(today.getFullYear());
     const [selectedDate, setSelectedDate] = useState(null);
     const [selectedBooking, setSelectedBooking] = useState(null);
+    const [selectedBusFilters, setSelectedBusFilters] = useState([]);
 
     // Modal States
     const [showBorrowModal, setShowBorrowModal] = useState(false);
@@ -28,17 +29,23 @@ const BusBooking = () => {
 
     // Form State
     const [formData, setFormData] = useState({
-        vehicleId: '',
+        vehicleIds: [],
         startDate: '',
         startTime: '08:00',
         endDate: '',
         endTime: '17:00',
         destination: '',
         purpose: '',
+        requesterName: '',
+        requesterPhone: '',
+        unit: '',
         passengerCount: 1
     });
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const isAuthorizedForWA = user.name?.toLowerCase().includes('wegi') ||
+        user.position === 'Kepala Bidang Sarana dan Prasarana' ||
+        user.role === 'SUPER_ADMIN';
 
     const showToast = (message, type = 'success') => {
         const id = Date.now();
@@ -62,6 +69,7 @@ const BusBooking = () => {
                 v.name?.toUpperCase().includes('BUS')
             );
             setVehicles(busOnly);
+            setSelectedBusFilters(busOnly.map(v => v.id));
         } catch (err) { console.error(err); }
     };
 
@@ -76,6 +84,10 @@ const BusBooking = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (formData.vehicleIds.length === 0) {
+            showToast('Pilih setidaknya satu armada', 'error');
+            return;
+        }
         try {
             setSubmitting(true);
             const startStr = `${formData.startDate}T${formData.startTime}`;
@@ -87,12 +99,12 @@ const BusBooking = () => {
                 endDate: new Date(endStr)
             });
 
-            showToast('Booking berhasil dicatat!', 'success');
+            showToast('Booking berhasil dicatat!');
             setShowBorrowModal(false);
             fetchBookings();
             setFormData({
-                vehicleId: '', startDate: '', startTime: '08:00', endDate: '', endTime: '17:00',
-                destination: '', purpose: '', passengerCount: 1
+                vehicleIds: [], startDate: '', startTime: '08:00', endDate: '', endTime: '17:00',
+                destination: '', purpose: '', passengerCount: 1, requesterName: '', requesterPhone: '', unit: ''
             });
         } catch (err) {
             showToast('Gagal mencatat booking: ' + (err.response?.data?.error || err.message), 'error');
@@ -127,6 +139,9 @@ const BusBooking = () => {
         const targetTime = targetDate.getTime();
 
         return bookings.filter(b => {
+            // Apply Bus Filter
+            if (!selectedBusFilters.includes(b.vehicleId)) return false;
+
             const start = new Date(b.startDate);
             start.setHours(0, 0, 0, 0);
             const end = new Date(b.endDate);
@@ -181,34 +196,54 @@ const BusBooking = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Available Buses */}
+                {/* Available Buses / Filters */}
                 <div className="lg:col-span-1 space-y-4">
-                    <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest px-1">Armada Bus</h2>
+                    <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest px-1 flex justify-between items-center">
+                        Armada Bus
+                        <span className="text-[10px] lowercase font-normal italic">*Klik untuk filter kalender</span>
+                    </h2>
                     {vehicles.length === 0 ? (
                         <div className="bg-white p-8 text-center rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
                             Tidak ada armada bus ditemukan.
                         </div>
                     ) : (
                         vehicles.map(v => (
-                            <div key={v.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all">
+                            <div
+                                key={v.id}
+                                onClick={() => {
+                                    setSelectedBusFilters(prev =>
+                                        prev.includes(v.id) ? prev.filter(id => id !== v.id) : [...prev, v.id]
+                                    );
+                                }}
+                                className={`p-4 rounded-2xl border transition-all cursor-pointer group relative ${selectedBusFilters.includes(v.id)
+                                        ? 'bg-white border-blue-400 shadow-md ring-1 ring-blue-100'
+                                        : 'bg-slate-50 border-slate-100 opacity-60 grayscale hover:grayscale-0 hover:opacity-100 hover:border-slate-200'
+                                    }`}
+                            >
                                 <div className="flex gap-4 items-center">
-                                    <div className="w-16 h-16 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300">
-                                        <Bus size={32} />
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${selectedBusFilters.includes(v.id) ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'
+                                        }`}>
+                                        <Bus size={24} />
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="font-bold text-slate-800">{v.name}</h3>
-                                        <p className="text-[10px] font-mono font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded inline-block mt-1">{v.plateNumber}</p>
+                                        <h3 className={`font-bold transition-colors ${selectedBusFilters.includes(v.id) ? 'text-slate-800' : 'text-slate-500'}`}>{v.name}</h3>
+                                        <p className="text-[10px] font-mono font-bold text-slate-400 uppercase">{v.plateNumber}</p>
                                     </div>
                                     <button
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                            e.stopPropagation();
                                             setSelectedVehicle(v);
-                                            setFormData(prev => ({ ...prev, vehicleId: v.id }));
+                                            setFormData(prev => ({ ...prev, vehicleIds: [v.id] }));
                                             setShowBorrowModal(true);
                                         }}
-                                        className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all"
+                                        className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                                        title="Tambah Jadwal"
                                     >
                                         <Plus size={18} />
                                     </button>
+                                </div>
+                                <div className="absolute top-2 right-2 flex items-center gap-1">
+                                    <div className={`w-2 h-2 rounded-full ${selectedBusFilters.includes(v.id) ? 'bg-blue-600 animate-pulse' : 'bg-slate-300'}`} />
                                 </div>
                             </div>
                         ))
@@ -246,7 +281,7 @@ const BusBooking = () => {
                                                     <div className="flex items-center gap-2">
                                                         <span className="font-bold text-slate-800">{b.vehicle.name}</span>
                                                         <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono font-bold uppercase">{b.vehicle.plateNumber}</span>
-                                                        <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-bold">{b.unit || 'Umum'}</span>
+                                                        <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-bold underline underline-offset-2 decoration-blue-100">{b.unit || 'Umum'}</span>
                                                     </div>
                                                     <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                                                         <div className="flex items-center gap-1.5">
@@ -268,9 +303,9 @@ const BusBooking = () => {
                                                         </div>
                                                     </div>
                                                     <div className="mt-2 text-xs text-slate-400 flex items-center gap-2">
-                                                        <span className="font-bold text-slate-600">Pemohon: {b.requesterName || b.user?.name}</span>
+                                                        <span className="font-bold text-slate-600 text-[10px] uppercase tracking-wider">Pemohon: {b.requesterName || b.user?.name}</span>
                                                         <span>•</span>
-                                                        <span>Kapasitas: {b.passengerCount} Orang</span>
+                                                        <span>{b.passengerCount} Orang</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -336,7 +371,7 @@ const BusBooking = () => {
                                                                 e.stopPropagation();
                                                                 setSelectedBooking(b);
                                                             }}
-                                                            className="text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg font-bold bg-blue-100 text-blue-700 border border-blue-200 leading-tight hover:bg-blue-600 hover:text-white transition-all active:scale-95 overflow-hidden"
+                                                            className="text-[8px] sm:text-[9px] px-1.5 py-1 rounded-lg font-bold bg-blue-100 text-blue-700 border border-blue-200 leading-tight hover:bg-blue-600 hover:text-white transition-all active:scale-95 overflow-hidden"
                                                             title={`${b.vehicle.name} - ${b.destination}`}
                                                         >
                                                             <div className="truncate">{b.vehicle.name}</div>
@@ -400,7 +435,7 @@ const BusBooking = () => {
             {/* Modal Form */}
             {showBorrowModal && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300">
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
                             <h2 className="text-xl font-bold flex items-center gap-3">
                                 <Bus size={24} /> Catat Jadwal Bus
@@ -409,37 +444,102 @@ const BusBooking = () => {
                                 <X size={24} />
                             </button>
                         </div>
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                        <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[85vh] overflow-y-auto">
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Pilih Armada Bus</label>
-                                <select
-                                    required
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                    value={formData.vehicleId}
-                                    onChange={e => setFormData({ ...formData, vehicleId: e.target.value })}
-                                >
-                                    <option value="">Pilih Bus...</option>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-3 ml-1 tracking-widest">Pilih Armada (Bisa pilih multi)</label>
+                                <div className="grid grid-cols-2 gap-3 mb-2">
                                     {vehicles.map(v => (
-                                        <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
+                                        <div
+                                            key={v.id}
+                                            onClick={() => {
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    vehicleIds: prev.vehicleIds.includes(v.id)
+                                                        ? prev.vehicleIds.filter(id => id !== v.id)
+                                                        : [...prev.vehicleIds, v.id]
+                                                }));
+                                            }}
+                                            className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-3 ${formData.vehicleIds.includes(v.id)
+                                                    ? 'border-blue-500 bg-blue-50'
+                                                    : 'border-slate-100 bg-slate-50 hover:border-slate-200'
+                                                }`}
+                                        >
+                                            <div className={`p-2 rounded-xl transition-colors ${formData.vehicleIds.includes(v.id) ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                                                <Bus size={18} />
+                                            </div>
+                                            <div className="flex-1 truncate">
+                                                <div className="text-xs font-bold text-slate-800 truncate">{v.name}</div>
+                                                <div className="text-[9px] text-slate-400 font-mono italic uppercase truncate">{v.plateNumber}</div>
+                                            </div>
+                                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${formData.vehicleIds.includes(v.id) ? 'bg-blue-600 border-blue-600' : 'border-slate-300'
+                                                }`}>
+                                                {formData.vehicleIds.includes(v.id) && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                                            </div>
+                                        </div>
                                     ))}
-                                </select>
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Mulai Tanggal</label>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Nama Pemesan</label>
+                                    <input
+                                        type="text" required
+                                        placeholder="Masukkan nama pemesan"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={formData.requesterName}
+                                        onChange={e => setFormData({ ...formData, requesterName: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">No. HP Pemesan</label>
+                                    <input
+                                        type="text" required
+                                        placeholder="Contoh: 08123456789"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={formData.requesterPhone}
+                                        onChange={e => setFormData({ ...formData, requesterPhone: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="md:col-span-1">
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Unit / Departemen</label>
+                                    <input
+                                        type="text" required
+                                        placeholder="Contoh: Sekretariat / Umum"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                        value={formData.unit}
+                                        onChange={e => setFormData({ ...formData, unit: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Jumlah Penumpang</label>
+                                    <input
+                                        type="number" min="1" required
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={formData.passengerCount}
+                                        onChange={e => setFormData({ ...formData, passengerCount: parseInt(e.target.value) })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Mulai Tanggal</label>
                                     <input
                                         type="date" required
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                         value={formData.startDate}
                                         onChange={e => setFormData({ ...formData, startDate: e.target.value })}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Selesai Tanggal</label>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Selesai Tanggal</label>
                                     <input
                                         type="date" required
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                         value={formData.endDate}
                                         onChange={e => setFormData({ ...formData, endDate: e.target.value })}
                                     />
@@ -448,19 +548,19 @@ const BusBooking = () => {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Jam Mulai</label>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Jam Mulai</label>
                                     <input
                                         type="time" required
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                         value={formData.startTime}
                                         onChange={e => setFormData({ ...formData, startTime: e.target.value })}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Jam Selesai</label>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Jam Selesai</label>
                                     <input
                                         type="time" required
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                         value={formData.endTime}
                                         onChange={e => setFormData({ ...formData, endTime: e.target.value })}
                                     />
@@ -468,49 +568,38 @@ const BusBooking = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Tujuan</label>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Tujuan</label>
                                 <input
                                     type="text" required
                                     placeholder="Contoh: Gedung A, Lokasi Kegiatan"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                     value={formData.destination}
                                     onChange={e => setFormData({ ...formData, destination: e.target.value })}
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Jumlah Penumpang</label>
-                                    <input
-                                        type="number" min="1" required
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                        value={formData.passengerCount}
-                                        onChange={e => setFormData({ ...formData, passengerCount: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Keperluan (Opsional)</label>
-                                    <input
-                                        type="text"
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                        value={formData.purpose}
-                                        onChange={e => setFormData({ ...formData, purpose: e.target.value })}
-                                    />
-                                </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Keperluan (Opsional)</label>
+                                <textarea
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                    rows="2"
+                                    value={formData.purpose}
+                                    onChange={e => setFormData({ ...formData, purpose: e.target.value })}
+                                />
                             </div>
 
                             <div className="flex gap-3 pt-4">
                                 <button
                                     type="button"
                                     onClick={() => setShowBorrowModal(false)}
-                                    className="flex-1 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600"
+                                    className="flex-1 py-4 border border-slate-200 rounded-2xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all"
                                 >
                                     Batal
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={submitting}
-                                    className="flex-[2] py-3 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 disabled:opacity-50 flex justify-center items-center gap-2"
+                                    className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl text-sm font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 disabled:opacity-50 flex justify-center items-center gap-2"
                                 >
                                     {submitting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'Simpan Jadwal'}
                                 </button>
@@ -523,7 +612,7 @@ const BusBooking = () => {
             {/* Detail Modal */}
             {selectedBooking && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setSelectedBooking(null)}>
-                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+                    <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
                         <div className="p-6 bg-blue-600 text-white flex justify-between items-center">
                             <div className="flex items-center gap-3">
                                 <div className="bg-white/20 p-2 rounded-xl">
@@ -547,9 +636,13 @@ const BusBooking = () => {
                                         <div className="font-bold text-slate-700">{selectedBooking.requesterName || selectedBooking.user?.name || '-'}</div>
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Unit</label>
-                                        <div className="font-bold text-blue-600">{selectedBooking.unit || 'Umum'}</div>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">No. HP</label>
+                                        <div className="font-bold text-slate-700">{selectedBooking.requesterPhone || '-'}</div>
                                     </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Unit</label>
+                                    <div className="font-bold text-blue-600 underline decoration-blue-100 underline-offset-4">{selectedBooking.unit || 'Umum'}</div>
                                 </div>
                                 <div className="bg-slate-50 p-4 rounded-2xl space-y-3 border border-slate-100">
                                     <div className="flex items-start gap-3">
@@ -588,19 +681,29 @@ const BusBooking = () => {
                                 </div>
                             </div>
                         </div>
-                        {(selectedBooking.userId === user.id || ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) && (
-                            <div className="p-6 bg-slate-50 border-t border-slate-100">
+                        <div className="p-6 bg-slate-50 border-t border-slate-100 space-y-3">
+                            {isAuthorizedForWA && selectedBooking.requesterPhone && (
+                                <a
+                                    href={`https://wa.me/${selectedBooking.requesterPhone.replace(/\D/g, '').startsWith('0') ? '62' + selectedBooking.requesterPhone.replace(/\D/g, '').substring(1) : selectedBooking.requesterPhone.replace(/\D/g, '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full py-4 bg-green-600 text-white rounded-2xl text-sm font-bold hover:bg-green-700 transition-all flex justify-center items-center gap-2 shadow-lg shadow-green-100"
+                                >
+                                    <Phone size={16} /> Chat WhatsApp Pemesan
+                                </a>
+                            )}
+                            {(selectedBooking.userId === user.id || ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) && (
                                 <button
                                     onClick={() => {
                                         handleDelete(selectedBooking.id);
                                         setSelectedBooking(null);
                                     }}
-                                    className="w-full py-3 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-600 hover:text-white transition-all flex justify-center items-center gap-2"
+                                    className="w-full py-4 bg-red-50 text-red-600 rounded-2xl text-sm font-bold hover:bg-red-600 hover:text-white transition-all flex justify-center items-center gap-2"
                                 >
                                     <Trash2 size={16} /> Hapus Booking
                                 </button>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

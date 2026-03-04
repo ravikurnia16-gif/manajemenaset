@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-    Bus, Calendar, MapPin, Clock, Users, Plus, X, ArrowRight, Info, ChevronLeft, ChevronRight, Phone, User
+    Bus, Calendar, MapPin, Clock, Users, Plus, X, ArrowRight, Info, ChevronLeft, ChevronRight, Phone, User, Copy, CheckCircle2, Trash
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -25,7 +25,7 @@ const BusBookingPublic = () => {
     // Modal States
     const [showBorrowModal, setShowBorrowModal] = useState(false);
     const [formData, setFormData] = useState({
-        vehicleId: '',
+        vehicleIds: [], // Now an array
         requesterName: '',
         requesterPhone: '',
         unit: '',
@@ -37,6 +37,12 @@ const BusBookingPublic = () => {
         endTime: '17:00',
         passengerCount: 1
     });
+
+    const [selectedBusFilters, setSelectedBusFilters] = useState([]);
+    const [bookingSuccessToken, setBookingSuccessToken] = useState(null);
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [cancelToken, setCancelToken] = useState('');
+    const [cancelling, setCancelling] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -50,13 +56,32 @@ const BusBookingPublic = () => {
                 api.get('/bus-bookings/public'),
                 api.get('/master/units/public')
             ]);
-            setVehicles(vRes.data.filter(v => v.type?.toLowerCase().includes('bus') || v.name?.toLowerCase().includes('bus')));
+            const busList = vRes.data.filter(v => v.type?.toLowerCase().includes('bus') || v.name?.toLowerCase().includes('bus'));
+            setVehicles(busList);
             setBookings(bRes.data);
             setUnits(uRes.data);
+            setSelectedBusFilters(busList.map(v => v.id)); // Default: all checked
         } catch (err) {
             showToast('Gagal memuat data', 'error');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleCancelBooking = async (e) => {
+        e.preventDefault();
+        if (!cancelToken) return;
+        setCancelling(true);
+        try {
+            const res = await api.post('/bus-bookings/cancel-by-token', { token: cancelToken });
+            showToast(res.data.message);
+            setShowCancelModal(false);
+            setCancelToken('');
+            fetchData();
+        } catch (err) {
+            showToast(err.response?.data?.error || 'Gagal membatalkan booking', 'error');
+        } finally {
+            setCancelling(false);
         }
     };
 
@@ -77,16 +102,16 @@ const BusBookingPublic = () => {
                 throw new Error('Waktu selesai harus setelah waktu mulai');
             }
 
-            await api.post('/bus-bookings/public', {
+            const res = await api.post('/bus-bookings/public', {
                 ...formData,
                 startDate: startStr,
                 endDate: endStr
             });
 
-            showToast('Booking berhasil diajukan!');
+            setBookingSuccessToken(res.data.token);
             setShowBorrowModal(false);
             setFormData({
-                vehicleId: '',
+                vehicleIds: [],
                 requesterName: '',
                 requesterPhone: '',
                 unit: '',
@@ -98,6 +123,7 @@ const BusBookingPublic = () => {
                 endTime: '17:00',
                 passengerCount: 1
             });
+            fetchData();
             fetchData();
         } catch (err) {
             showToast(err.response?.data?.error || err.message, 'error');
@@ -123,6 +149,9 @@ const BusBookingPublic = () => {
         const targetTime = targetDate.getTime();
 
         return bookings.filter(b => {
+            // Apply Bus Filter
+            if (!selectedBusFilters.includes(b.vehicleId)) return false;
+
             const start = new Date(b.startDate);
             start.setHours(0, 0, 0, 0);
             const end = new Date(b.endDate);
@@ -156,12 +185,20 @@ const BusBookingPublic = () => {
                         </div>
                         <p className="text-slate-500">Lihat jadwal dan ajukan pemesanan bus operasional secara publik.</p>
                     </div>
-                    <button
-                        onClick={() => setShowBorrowModal(true)}
-                        className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-95"
-                    >
-                        <Plus size={20} /> Buat Pesanan Baru
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <button
+                            onClick={() => setShowCancelModal(true)}
+                            className="bg-white text-red-600 border border-red-100 px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-red-50 transition-all active:scale-95 shadow-sm"
+                        >
+                            <Trash size={18} /> Batalkan Pesanan
+                        </button>
+                        <button
+                            onClick={() => setShowBorrowModal(true)}
+                            className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-95"
+                        >
+                            <Plus size={20} /> Buat Pesanan Baru
+                        </button>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -174,10 +211,21 @@ const BusBookingPublic = () => {
                             ) : vehicles.length === 0 ? (
                                 <div className="bg-white p-6 rounded-2xl border border-slate-100 text-center text-slate-400 italic text-sm">Tidak ada bus tersedia.</div>
                             ) : vehicles.map(v => (
-                                <div key={v.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+                                <div
+                                    key={v.id}
+                                    onClick={() => {
+                                        setSelectedBusFilters(prev =>
+                                            prev.includes(v.id) ? prev.filter(id => id !== v.id) : [...prev, v.id]
+                                        );
+                                    }}
+                                    className={`bg-white p-4 rounded-2xl border transition-all cursor-pointer group relative ${selectedBusFilters.includes(v.id)
+                                        ? 'border-blue-400 shadow-md ring-1 ring-blue-100'
+                                        : 'border-slate-100 opacity-60 grayscale hover:grayscale-0 hover:opacity-100 hover:border-slate-200 shadow-sm'
+                                        }`}
+                                >
                                     <div className="flex items-center justify-between gap-4">
                                         <div className="flex items-center gap-4">
-                                            <div className="bg-slate-100 p-3 rounded-xl text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
+                                            <div className={`${selectedBusFilters.includes(v.id) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'} p-3 rounded-xl transition-colors`}>
                                                 <Bus size={24} />
                                             </div>
                                             <div>
@@ -185,17 +233,21 @@ const BusBookingPublic = () => {
                                                 <p className="text-xs text-slate-400 font-mono mt-0.5">{v.plateNumber}</p>
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => {
-                                                setFormData(prev => ({ ...prev, vehicleId: v.id }));
-                                                setShowBorrowModal(true);
-                                            }}
-                                            className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-                                            title="Pesan Bus Ini"
-                                        >
-                                            <Plus size={18} />
-                                        </button>
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${selectedBusFilters.includes(v.id) ? 'bg-blue-600 border-blue-600' : 'border-slate-200'
+                                            }`}>
+                                            {selectedBusFilters.includes(v.id) && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                                        </div>
                                     </div>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setFormData(prev => ({ ...prev, vehicleIds: [v.id] }));
+                                            setShowBorrowModal(true);
+                                        }}
+                                        className="mt-3 w-full py-2 bg-slate-50 text-blue-600 rounded-xl text-xs font-bold hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-1.5"
+                                    >
+                                        <Plus size={14} /> Pesan Bus Ini
+                                    </button>
                                 </div>
                             ))}
                         </div>
@@ -325,18 +377,41 @@ const BusBookingPublic = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Armada */}
                                 <div className="md:col-span-2">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Pilih Armada Bus</label>
-                                    <select
-                                        required
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                        value={formData.vehicleId}
-                                        onChange={e => setFormData({ ...formData, vehicleId: e.target.value })}
-                                    >
-                                        <option value="">-- Pilih Bus --</option>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Pilih Armada Bus (Bisa pilih 1 atau 2 sekaligus)</label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         {vehicles.map(v => (
-                                            <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
+                                            <div
+                                                key={v.id}
+                                                onClick={() => {
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        vehicleIds: prev.vehicleIds.includes(v.id)
+                                                            ? prev.vehicleIds.filter(id => id !== v.id)
+                                                            : [...prev.vehicleIds, v.id]
+                                                    }));
+                                                }}
+                                                className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-4 ${formData.vehicleIds.includes(v.id)
+                                                    ? 'border-blue-500 bg-blue-50/50'
+                                                    : 'border-slate-100 bg-slate-50 hover:border-slate-200'
+                                                    }`}
+                                            >
+                                                <div className={`p-2 rounded-xl ${formData.vehicleIds.includes(v.id) ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                                                    <Bus size={20} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="text-sm font-bold text-slate-800">{v.name}</div>
+                                                    <div className="text-[10px] text-slate-400 font-mono uppercase">{v.plateNumber}</div>
+                                                </div>
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${formData.vehicleIds.includes(v.id) ? 'bg-blue-600 border-blue-600' : 'border-slate-300'
+                                                    }`}>
+                                                    {formData.vehicleIds.includes(v.id) && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                                                </div>
+                                            </div>
                                         ))}
-                                    </select>
+                                    </div>
+                                    {formData.vehicleIds.length === 0 && (
+                                        <p className="text-[10px] text-red-500 mt-2 font-medium">* Silakan pilih setidaknya satu armada</p>
+                                    )}
                                 </div>
 
                                 {/* Personal Info */}
@@ -366,7 +441,6 @@ const BusBookingPublic = () => {
                                         {units.map(u => (
                                             <option key={u.id} value={u.name}>{u.name}</option>
                                         ))}
-                                        <option value="LAINNYA">Lainnya / Umum</option>
                                     </select>
                                 </div>
                                 <div>
@@ -514,9 +588,13 @@ const BusBookingPublic = () => {
                                         <div className="font-bold text-slate-700">{selectedBooking.requesterName || selectedBooking.user?.name || '-'}</div>
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Unit</label>
-                                        <div className="font-bold text-blue-600">{selectedBooking.unit || 'Umum'}</div>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">No. HP</label>
+                                        <div className="font-bold text-slate-700">{selectedBooking.requesterPhone || '-'}</div>
                                     </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Unit</label>
+                                    <div className="font-bold text-blue-600 underline decoration-blue-100 underline-offset-4">{selectedBooking.unit || 'Umum'}</div>
                                 </div>
                                 <div className="bg-slate-50 p-4 rounded-2xl space-y-3 border border-slate-100">
                                     <div className="flex items-start gap-3">
@@ -553,24 +631,99 @@ const BusBookingPublic = () => {
                                         {selectedBooking.purpose || 'Tidak ada keterangan tambahan.'}
                                     </div>
                                 </div>
+
+                                <button
+                                    onClick={() => {
+                                        setSelectedBooking(null);
+                                        setShowCancelModal(true);
+                                    }}
+                                    className="w-full flex items-center justify-center gap-2 py-4 text-red-600 font-bold bg-red-50 rounded-2xl hover:bg-red-600 hover:text-white transition-all group"
+                                >
+                                    <Trash size={18} className="group-hover:rotate-12 transition-transform" /> Batalkan Booking Ini
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Toasts */}
-            <div className="fixed bottom-8 right-8 z-[100] flex flex-col gap-3">
-                {toasts.map(t => (
-                    <div
-                        key={t.id}
-                        className={`${t.type === 'error' ? 'bg-red-500' : 'bg-blue-600'} text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right-full duration-300 font-bold`}
-                    >
-                        {t.type === 'error' ? <Info size={20} /> : <div className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">✓</div>}
-                        {t.message}
+            {/* Booking Success Modal */}
+            {bookingSuccessToken && (
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-500">
+                    <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
+                        <div className="p-8 text-center space-y-6">
+                            <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-2 animate-bounce">
+                                <CheckCircle2 size={40} />
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-extrabold text-slate-800">Booking Berhasil!</h3>
+                                <p className="text-slate-500 mt-2">Pesanan Anda telah diterima dan sedang diproses.</p>
+                            </div>
+
+                            <div className="bg-slate-50 p-6 rounded-3xl border border-dashed border-slate-200 relative group truncate">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mb-2 text-center"> TOKEN PEMBATALAN RAHASIA </label>
+                                <div className="text-4xl font-black text-blue-600 tracking-[0.3em] font-mono">{bookingSuccessToken}</div>
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(bookingSuccessToken);
+                                        showToast('Token berhasil disalin!');
+                                    }}
+                                    className="mt-4 flex items-center gap-2 mx-auto text-blue-600 font-bold text-sm bg-blue-50 px-4 py-2 rounded-xl hover:bg-blue-600 hover:text-white transition-all"
+                                >
+                                    <Copy size={16} /> Salin Token
+                                </button>
+                            </div>
+
+                            <p className="text-xs text-red-500 font-medium leading-relaxed italic">
+                                * Simpan token ini baik-baik. Token ini digunakan jika Anda ingin membatalkan pesanan di kemudian hari.
+                            </p>
+
+                            <button
+                                onClick={() => setBookingSuccessToken(null)}
+                                className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl hover:bg-slate-800 transition-all active:scale-95"
+                            >
+                                Selesai
+                            </button>
+                        </div>
                     </div>
-                ))}
-            </div>
+                </div>
+            )}
+
+            {/* Cancel Booking Modal */}
+            {showCancelModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                            <h3 className="font-bold text-slate-800 text-lg">Batalkan Pesanan</h3>
+                            <button onClick={() => setShowCancelModal(false)} className="p-2 hover:bg-slate-50 rounded-full text-slate-400"><X size={20} /></button>
+                        </div>
+                        <form onSubmit={handleCancelBooking} className="p-8 space-y-6">
+                            <div className="text-center space-y-2">
+                                <div className="p-3 bg-red-50 text-red-600 rounded-2xl w-fit mx-auto">
+                                    <Trash size={24} />
+                                </div>
+                                <p className="text-sm text-slate-600">Masukkan 6 digit token rahasia Anda untuk membatalkan pesanan.</p>
+                            </div>
+                            <input
+                                type="text"
+                                required
+                                maxLength={6}
+                                placeholder="CONTOH: X1Y2Z3"
+                                className="w-full text-center text-3xl font-black font-mono tracking-[0.5em] bg-slate-50 border-2 border-slate-100 rounded-2xl p-6 focus:border-blue-500 focus:ring-0 outline-none uppercase placeholder:text-slate-200"
+                                value={cancelToken}
+                                onChange={e => setCancelToken(e.target.value)}
+                            />
+                            <button
+                                type="submit"
+                                disabled={cancelling || !cancelToken}
+                                className="w-full bg-red-600 text-white font-bold py-4 rounded-2xl hover:bg-red-700 transition-all shadow-lg shadow-red-100 disabled:opacity-50"
+                            >
+                                {cancelling ? 'Memproses...' : 'Konfirmasi Pembatalan'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

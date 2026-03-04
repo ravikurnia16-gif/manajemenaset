@@ -5,48 +5,55 @@ const whatsappService = require('../services/whatsappService');
 // 1. Create Bus Booking (No Approval Flow)
 const createBusBooking = async (req, res) => {
     try {
-        const { vehicleId, startDate, endDate, destination, purpose, passengerCount } = req.body;
+        const { vehicleId, vehicleIds, startDate, endDate, destination, purpose, passengerCount } = req.body;
 
-        const vehicle = await prisma.vehicle.findUnique({
-            where: { id: parseInt(vehicleId) }
-        });
+        // Support both single vehicleId and array of vehicleIds
+        const vIds = vehicleIds || [vehicleId];
 
-        if (!vehicle) return res.status(404).json({ error: 'Bus tidak ditemukan' });
+        if (!vIds || vIds.length === 0) {
+            return res.status(400).json({ error: 'Pilih setidaknya satu armada' });
+        }
 
-        // --- Check for Overlapping Bookings ---
+        // Generate a 6-character secret token
+        const token = Math.random().toString(36).substring(2, 8).toUpperCase();
+
         const start = new Date(startDate);
         const end = new Date(endDate);
 
-        const overlapping = await prisma.busBooking.findFirst({
-            where: {
-                vehicleId: parseInt(vehicleId),
-                OR: [
-                    {
-                        AND: [
-                            { startDate: { lte: start } },
-                            { endDate: { gte: start } }
-                        ]
-                    },
-                    {
-                        AND: [
-                            { startDate: { lte: end } },
-                            { endDate: { gte: end } }
-                        ]
-                    },
-                    {
-                        AND: [
-                            { startDate: { gte: start } },
-                            { endDate: { lte: end } }
-                        ]
-                    }
-                ]
-            }
-        });
-
-        if (overlapping) {
-            return res.status(400).json({
-                error: `Jadwal bertabrakan dengan booking lain (${new Date(overlapping.startDate).toLocaleString('id-ID')} s/d ${new Date(overlapping.endDate).toLocaleString('id-ID')})`
+        // Check for overlaps for each vehicle
+        for (const vId of vIds) {
+            const overlapping = await prisma.busBooking.findFirst({
+                where: {
+                    vehicleId: parseInt(vId),
+                    OR: [
+                        {
+                            AND: [
+                                { startDate: { lte: start } },
+                                { endDate: { gte: start } }
+                            ]
+                        },
+                        {
+                            AND: [
+                                { startDate: { lte: end } },
+                                { endDate: { gte: end } }
+                            ]
+                        },
+                        {
+                            AND: [
+                                { startDate: { gte: start } },
+                                { endDate: { lte: end } }
+                            ]
+                        }
+                    ]
+                },
+                include: { vehicle: true }
             });
+
+            if (overlapping) {
+                return res.status(400).json({
+                    error: `Jadwal bertabrakan dengan booking lain untuk ${overlapping.vehicle.name} (${new Date(overlapping.startDate).toLocaleString('id-ID')} s/d ${new Date(overlapping.endDate).toLocaleString('id-ID')})`
+                });
+            }
         }
 
         // Determine Unit
@@ -59,29 +66,33 @@ const createBusBooking = async (req, res) => {
             bookingUnit = userWithUnit?.unit?.name || 'Internal';
         }
 
-        const booking = await prisma.busBooking.create({
-            data: {
-                vehicleId: parseInt(vehicleId),
-                userId: req.user ? req.user.id : null,
-                isPublic: !req.user,
-                requesterName: req.user ? req.user.name : req.body.requesterName,
-                requesterPhone: req.user ? req.user.phone : req.body.requesterPhone,
-                unit: bookingUnit,
-                destination,
-                purpose,
-                startDate: start,
-                endDate: end,
-                passengerCount: parseInt(passengerCount)
-            },
-            include: { vehicle: true, user: true }
-        });
+        // Create multiple bookings if needed
+        const createdBookings = [];
+        for (const vId of vIds) {
+            const booking = await prisma.busBooking.create({
+                data: {
+                    vehicleId: parseInt(vId),
+                    userId: req.user ? req.user.id : null,
+                    isPublic: !req.user,
+                    requesterName: req.user ? req.user.name : req.body.requesterName,
+                    requesterPhone: req.user ? req.user.phone : req.body.requesterPhone,
+                    unit: bookingUnit,
+                    destination,
+                    purpose,
+                    startDate: start,
+                    endDate: end,
+                    passengerCount: parseInt(passengerCount),
+                    token: token
+                },
+                include: { vehicle: true, user: true }
+            });
+            createdBookings.push(booking);
+        }
 
         // --- Notifications (Async) ---
         (async () => {
             try {
                 // Find Recipients
-                // 1. Wegi (Staff Kendaraan)
-                // 2. Kepala Bidang Sarana dan Prasarana
                 const recipients = await prisma.user.findMany({
                     where: {
                         OR: [
@@ -93,14 +104,16 @@ const createBusBooking = async (req, res) => {
                 });
 
                 if (recipients.length > 0) {
+                    const vehicleNames = createdBookings.map(b => `${b.vehicle.name} (${b.vehicle.plateNumber})`).join(', ');
                     const requesterLabel = req.user ? req.user.name : req.body.requesterName;
                     const msg = `*BOOKING BUS BARU*\n\n` +
                         `Pemohon: ${requesterLabel}\n` +
-                        `Armada: ${vehicle.name} (${vehicle.plateNumber})\n` +
+                        `Armada: ${vehicleNames}\n` +
                         `Tujuan: ${destination}\n` +
                         `Keperluan: ${purpose || '-'}\n` +
                         `Penumpang: ${passengerCount} Orang\n` +
-                        `Jadwal: ${new Date(startDate).toLocaleString('id-ID')} s/d ${new Date(endDate).toLocaleString('id-ID')}\n\n` +
+                        `Jadwal: ${new Date(startDate).toLocaleString('id-ID')} s/d ${new Date(endDate).toLocaleString('id-ID')}\n` +
+                        `Token: ${token}\n\n` +
                         `_Sistem Manajemen Aset_`;
 
                     for (const person of recipients) {
@@ -116,7 +129,7 @@ const createBusBooking = async (req, res) => {
             }
         })();
 
-        res.status(201).json(booking);
+        res.status(201).json({ bookings: createdBookings, token });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -155,9 +168,11 @@ const getPublicBusBookings = async (req, res) => {
             include: { vehicle: true },
             orderBy: { startDate: 'asc' }
         });
-        // Remove user sensitive info if any (though user is null for public)
+
+        // Remove user sensitive info and TOKEN for public
         const sanitized = bookings.map(b => ({
             ...b,
+            token: null, // Critical: Hide token
             user: b.user ? { name: b.user.name } : null
         }));
         res.json(sanitized);
@@ -166,7 +181,7 @@ const getPublicBusBookings = async (req, res) => {
     }
 };
 
-// 3. Delete/Cancel (Optional but useful)
+// 3. Delete/Cancel (Internal)
 const deleteBusBooking = async (req, res) => {
     try {
         const { id } = req.params;
@@ -186,9 +201,34 @@ const deleteBusBooking = async (req, res) => {
     }
 };
 
+// 4. Cancel by Token (Public/Internal)
+const cancelByToken = async (req, res) => {
+    try {
+        const { token } = req.body;
+        if (!token) return res.status(400).json({ error: 'Token diperlukan' });
+
+        const bookings = await prisma.busBooking.findMany({
+            where: { token: token.toUpperCase() }
+        });
+
+        if (bookings.length === 0) {
+            return res.status(404).json({ error: 'Token tidak valid atau tidak ditemukan' });
+        }
+
+        await prisma.busBooking.deleteMany({
+            where: { token: token.toUpperCase() }
+        });
+
+        res.json({ message: 'Booking berhasil dibatalkan', count: bookings.length });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 module.exports = {
     getAllBusBookings,
     getPublicBusBookings,
     createBusBooking,
-    deleteBusBooking
+    deleteBusBooking,
+    cancelByToken
 };
