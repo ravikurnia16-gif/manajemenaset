@@ -14,20 +14,56 @@ exports.createBusBooking = async (req, res) => {
 
         if (!vehicle) return res.status(404).json({ error: 'Bus tidak ditemukan' });
 
+        // --- Check for Overlapping Bookings ---
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        const overlapping = await prisma.busBooking.findFirst({
+            where: {
+                vehicleId: parseInt(vehicleId),
+                OR: [
+                    {
+                        AND: [
+                            { startDate: { lte: start } },
+                            { endDate: { gte: start } }
+                        ]
+                    },
+                    {
+                        AND: [
+                            { startDate: { lte: end } },
+                            { endDate: { gte: end } }
+                        ]
+                    },
+                    {
+                        AND: [
+                            { startDate: { gte: start } },
+                            { endDate: { lte: end } }
+                        ]
+                    }
+                ]
+            }
+        });
+
+        if (overlapping) {
+            return res.status(400).json({
+                error: `Jadwal bertabrakan dengan booking lain (${new Date(overlapping.startDate).toLocaleString('id-ID')} s/d ${new Date(overlapping.endDate).toLocaleString('id-ID')})`
+            });
+        }
+
         const booking = await prisma.busBooking.create({
             data: {
                 vehicleId: parseInt(vehicleId),
-                userId,
+                userId: req.user ? req.user.id : null,
+                isPublic: !req.user,
+                requesterName: req.user ? req.user.name : req.body.requesterName,
+                requesterPhone: req.user ? req.user.phone : req.body.requesterPhone,
                 destination,
                 purpose,
-                startDate: new Date(startDate),
-                endDate: new Date(endDate),
-                passengerCount: parseInt(passengerCount) || 0
+                startDate: start,
+                endDate: end,
+                passengerCount: parseInt(passengerCount)
             },
-            include: {
-                user: { select: { name: true, phone: true } },
-                vehicle: { select: { name: true, plateNumber: true } }
-            }
+            include: { vehicle: true, user: true }
         });
 
         // --- Notifications (Async) ---
@@ -47,14 +83,15 @@ exports.createBusBooking = async (req, res) => {
                 });
 
                 if (recipients.length > 0) {
-                    const msg = `🚌 *BOOKING JADWAL BUS BARU*\n\n` +
-                        `Pemohon: ${booking.user.name}\n` +
+                    const requesterLabel = req.user ? req.user.name : req.body.requesterName;
+                    const msg = `*BOOKING BUS BARU*\n\n` +
+                        `Pemohon: ${requesterLabel}\n` +
                         `Armada: ${vehicle.name} (${vehicle.plateNumber})\n` +
-                        `Jadwal: ${new Date(startDate).toLocaleString('id-ID')} s/d ${new Date(endDate).toLocaleString('id-ID')}\n` +
                         `Tujuan: ${destination}\n` +
                         `Keperluan: ${purpose || '-'}\n` +
-                        `Penumpang: ${passengerCount} Orang\n\n` +
-                        `_Sistem mencatat booking ini secara otomatis._`;
+                        `Penumpang: ${passengerCount} Orang\n` +
+                        `Jadwal: ${new Date(startDate).toLocaleString('id-ID')} s/d ${new Date(endDate).toLocaleString('id-ID')}\n\n` +
+                        `_Sistem Manajemen Aset_`;
 
                     for (const person of recipients) {
                         try {
@@ -76,7 +113,7 @@ exports.createBusBooking = async (req, res) => {
 };
 
 // 2. Get All Bus Bookings
-exports.getAllBusBookings = async (req, res) => {
+const getAllBusBookings = async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
         const where = {};
@@ -90,21 +127,34 @@ exports.getAllBusBookings = async (req, res) => {
 
         const bookings = await prisma.busBooking.findMany({
             where,
-            include: {
-                user: { select: { name: true, unit: { select: { name: true } } } },
-                vehicle: { select: { name: true, plateNumber: true } }
-            },
+            include: { vehicle: true, user: true },
             orderBy: { startDate: 'asc' }
         });
-
         res.json(bookings);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+const getPublicBusBookings = async (req, res) => {
+    try {
+        const bookings = await prisma.busBooking.findMany({
+            include: { vehicle: true },
+            orderBy: { startDate: 'asc' }
+        });
+        // Remove user sensitive info if any (though user is null for public)
+        const sanitized = bookings.map(b => ({
+            ...b,
+            user: b.user ? { name: b.user.name } : null
+        }));
+        res.json(sanitized);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 };
 
 // 3. Delete/Cancel (Optional but useful)
-exports.deleteBusBooking = async (req, res) => {
+const deleteBusBooking = async (req, res) => {
     try {
         const { id } = req.params;
         const booking = await prisma.busBooking.findUnique({ where: { id: parseInt(id) } });
@@ -121,4 +171,11 @@ exports.deleteBusBooking = async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
+};
+
+module.exports = {
+    getAllBusBookings,
+    getPublicBusBookings,
+    createBusBooking,
+    deleteBusBooking
 };

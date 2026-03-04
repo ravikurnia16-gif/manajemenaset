@@ -28,6 +28,7 @@ import VehicleList from './pages/VehicleList';
 import VehicleForm from './pages/VehicleForm';
 import VehicleBooking from './pages/VehicleBooking';
 import BusBooking from './pages/BusBooking';
+import BusBookingPublic from './pages/BusBookingPublic';
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
 import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
 import VehicleWeeklyReport from './pages/VehicleWeeklyReport';
@@ -61,6 +62,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/pesan-seragam" element={<UniformOrderPage />} />
         <Route path="/public/asset/:id" element={<PublicAssetView />} />
+        <Route path="/public/booking-bus" element={<BusBookingPublic />} />
 
         {/* Semua route di dalam sini diproteksi */}
         <Route path="/" element={

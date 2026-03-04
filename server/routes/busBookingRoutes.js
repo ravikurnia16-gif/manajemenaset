@@ -1,12 +1,20 @@
 const express = require('express');
 const router = express.Router();
-const busBookingController = require('../controllers/busBookingController');
+const {
+    getAllBusBookings,
+    getPublicBusBookings,
+    createBusBooking,
+    deleteBusBooking
+} = require('../controllers/busBookingController');
 const { verifyToken } = require('../middleware/authMiddleware');
 
-router.use(verifyToken);
+// Public Routes
+router.get('/public', getPublicBusBookings);
+router.post('/public', createBusBooking); // createBusBooking now handles optional req.user
 
-router.post('/', busBookingController.createBusBooking);
-router.get('/', busBookingController.getAllBusBookings);
-router.delete('/:id', busBookingController.deleteBusBooking);
+// Protected Routes
+router.get('/', verifyToken, getAllBusBookings);
+router.post('/', verifyToken, createBusBooking);
+router.delete('/:id', verifyToken, deleteBusBooking);
 
 module.exports = router;

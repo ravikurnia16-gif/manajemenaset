@@ -3,6 +3,10 @@ const router = express.Router();
 const vehicleController = require('../controllers/vehicleController');
 const { verifyToken } = require('../middleware/authMiddleware');
 
+// Public Routes
+router.get('/public', vehicleController.getAllVehicles);
+
+// Protected Routes
 router.get('/', verifyToken, vehicleController.getAllVehicles);
 router.get('/dashboard', verifyToken, vehicleController.getVehicleDashboard);
 router.get('/:id', verifyToken, vehicleController.getVehicleById);

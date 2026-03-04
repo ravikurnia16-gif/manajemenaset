@@ -813,17 +813,20 @@ model AssetLoan {
 }
 
 model BusBooking {
-  id          Int      @id @default(autoincrement())
-  vehicleId   Int
-  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  destination String
-  purpose     String?
-  startDate   DateTime
-  endDate     DateTime
-  passengerCount Int    @default(0)
+  id             Int      @id @default(autoincrement())
+  vehicleId      Int
+  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id])
+  userId         Int?
+  user           User?    @relation(fields: [userId], references: [id])
+  isPublic       Boolean  @default(false)
+  requesterName  String?
+  requesterPhone String?
+  destination    String
+  purpose        String?
+  startDate      DateTime
+  endDate        DateTime
+  passengerCount Int      @default(0)
   
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
