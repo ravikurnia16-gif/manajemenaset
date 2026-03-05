@@ -38,7 +38,7 @@ const BusBooking = () => {
         requesterName: '',
         requesterPhone: '',
         unit: '',
-        passengerCount: 1
+        passengerCount: ''
     });
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -110,6 +110,10 @@ const BusBooking = () => {
             showToast('Pilih setidaknya satu armada', 'error');
             return;
         }
+        if (!formData.requesterName || !formData.requesterPhone) {
+            showToast('Nama dan No. HP wajib diisi', 'error');
+            return;
+        }
         try {
             setSubmitting(true);
             const startStr = `${formData.startDate}T${formData.startTime}`;
@@ -126,7 +130,7 @@ const BusBooking = () => {
             fetchBookings();
             setFormData({
                 vehicleIds: [], startDate: '', startTime: '08:00', endDate: '', endTime: '17:00',
-                destination: '', purpose: '', passengerCount: 1, requesterName: '', requesterPhone: '', unit: ''
+                destination: '', purpose: '', passengerCount: '', requesterName: '', requesterPhone: '', unit: ''
             });
         } catch (err) {
             showToast('Gagal mencatat booking: ' + (err.response?.data?.error || err.message), 'error');

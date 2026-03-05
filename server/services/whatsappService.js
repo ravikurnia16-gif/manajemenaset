@@ -1,6 +1,7 @@
 const axios = require('axios');
 
 const WHATSAPP_API_URL = 'https://bidang-sarana-wawebjs.ltdh6w.easypanel.host/api/send-message';
+const { formatPhoneForWA } = require('../utils/phoneFormatter');
 
 // --- STAGGERED QUEUE SYSTEM ---
 let messageQueue = [];
@@ -33,10 +34,7 @@ const processQueue = async () => {
             // 1. Format Phone Number
             let formattedPhone = phoneNumber;
             if (!phoneNumber.includes('@g.us')) {
-                formattedPhone = phoneNumber.replace(/\D/g, '');
-                if (formattedPhone.startsWith('0')) {
-                    formattedPhone = '62' + formattedPhone.substring(1);
-                }
+                formattedPhone = formatPhoneForWA(phoneNumber);
             }
 
             // 2. Send Request

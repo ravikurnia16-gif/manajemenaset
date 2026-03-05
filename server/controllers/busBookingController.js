@@ -2,6 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
 const { createNotification } = require('./notificationController');
+const { formatPhoneForWA } = require('../utils/phoneFormatter');
 
 // 1. Create Bus Booking (No Approval Flow)
 const createBusBooking = async (req, res) => {
@@ -64,7 +65,17 @@ const createBusBooking = async (req, res) => {
                 where: { id: req.user.id },
                 include: { unit: true }
             });
-            bookingUnit = userWithUnit?.unit?.name || 'Internal';
+            bookingUnit = req.body.unit || userWithUnit?.unit?.name || 'Internal';
+        }
+
+        const requesterPhone = req.body.requesterPhone || (req.user ? req.user.phone : null);
+        const requesterName = req.body.requesterName || (req.user ? req.user.name : null);
+
+        if (!requesterPhone) {
+            return res.status(400).json({ error: 'Nomor HP wajib diisi' });
+        }
+        if (!requesterName) {
+            return res.status(400).json({ error: 'Nama pemesan wajib diisi' });
         }
 
         // Create multiple bookings if needed
@@ -75,8 +86,8 @@ const createBusBooking = async (req, res) => {
                     vehicleId: parseInt(vId),
                     userId: req.user ? req.user.id : null,
                     isPublic: !req.user,
-                    requesterName: req.user ? req.user.name : req.body.requesterName,
-                    requesterPhone: req.user ? req.user.phone : req.body.requesterPhone,
+                    requesterName,
+                    requesterPhone,
                     unit: bookingUnit,
                     destination,
                     purpose,
@@ -93,8 +104,7 @@ const createBusBooking = async (req, res) => {
         // --- Notifications (Async) ---
         (async () => {
             try {
-                const requesterLabel = req.user ? req.user.name : req.body.requesterName;
-                const requesterPhone = req.user ? req.user.phone : req.body.requesterPhone;
+                const requesterLabel = requesterName;
                 const vehicleNames = createdBookings.map(b => `${b.vehicle.name} (${b.vehicle.plateNumber})`).join(', ');
 
                 // 1. Notify Requester
@@ -144,18 +154,19 @@ const createBusBooking = async (req, res) => {
                 });
 
                 if (finalRecipients.length > 0) {
-                    const waLink = `https://wa.me/${requesterPhone.replace(/\D/g, '').startsWith('0') ? '62' + requesterPhone.replace(/\D/g, '').substring(1) : requesterPhone.replace(/\D/g, '')}`;
+                    const cleanPhone = formatPhoneForWA(requesterPhone);
+                    const waLink = cleanPhone ? `https://wa.me/${cleanPhone}` : null;
 
                     const adminMsg = `*BOOKING BUS BARU*\n\n` +
                         `Pemohon: ${requesterLabel}\n` +
-                        `No. HP: ${requesterPhone}\n` +
+                        `No. HP: ${requesterPhone || '-'}\n` +
                         `Armada: ${vehicleNames}\n` +
                         `Tujuan: ${destination}\n` +
                         `Keperluan: ${purpose || '-'}\n` +
                         `Penumpang: ${passengerCount} Orang\n` +
                         `Jadwal: ${new Date(startDate).toLocaleString('id-ID')} s/d ${new Date(endDate).toLocaleString('id-ID')}\n` +
                         `Token: ${token}\n\n` +
-                        `*Hubungi Pemesan:* ${waLink}\n\n` +
+                        (waLink ? `*Hubungi Pemesan:* ${waLink}\n\n` : '') +
                         `_Sistem Manajemen Aset_`;
 
                     for (const person of finalRecipients) {

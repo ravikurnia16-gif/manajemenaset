@@ -35,7 +35,7 @@ const BusBookingPublic = () => {
         endDate: '',
         startTime: '08:00',
         endTime: '17:00',
-        passengerCount: 1
+        passengerCount: ''
     });
 
     const [bookingSuccessToken, setBookingSuccessToken] = useState(null);
@@ -91,6 +91,14 @@ const BusBookingPublic = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (formData.vehicleIds.length === 0) {
+            showToast('Pilih setidaknya satu armada', 'error');
+            return;
+        }
+        if (!formData.requesterName || !formData.requesterPhone) {
+            showToast('Nama dan No. HP wajib diisi', 'error');
+            return;
+        }
         setSubmitting(true);
         try {
             const startStr = `${formData.startDate}T${formData.startTime}:00`;
@@ -107,7 +115,7 @@ const BusBookingPublic = () => {
             setFormData({
                 vehicleIds: [], requesterName: '', requesterPhone: '', unit: '',
                 destination: '', purpose: '', startDate: '', endDate: '',
-                startTime: '08:00', endTime: '17:00', passengerCount: 1
+                startTime: '08:00', endTime: '17:00', passengerCount: ''
             });
             fetchData();
         } catch (err) {
