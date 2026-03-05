@@ -3,7 +3,7 @@ import { Save, Building2, UserCheck, ShieldCheck, Globe, Mail, MapPin, Phone } f
 import api from '../lib/axios';
 
 const Settings = () => {
-    const [activeTab, setActiveTab] = useState('profile'); // 'profile' or 'users'
+    const [activeTab, setActiveTab] = useState('myProfile'); // Default to my profile
     const [settings, setSettings] = useState({
         orgName: '',
         orgAddress: '',
@@ -13,6 +13,14 @@ const Settings = () => {
         orgHeadName: '',
         orgHeadNip: '',
         assetCodePrefix: 'AST'
+    });
+    const [myProfile, setMyProfile] = useState({
+        name: '',
+        email: '',
+        phone: '',
+        username: '',
+        position: '',
+        unitName: ''
     });
     const [users, setUsers] = useState([]);
     const [unitList, setUnitList] = useState([]);
@@ -62,11 +70,24 @@ const Settings = () => {
 
     useEffect(() => {
         fetchSettings();
+        fetchMyProfile();
         if (['SUPER_ADMIN', 'BIDANG_IT'].includes(currentUser.role)) {
             fetchUsers();
             fetchUnits();
         }
     }, []);
+
+    const fetchMyProfile = async () => {
+        try {
+            const res = await api.get('/users/profile');
+            setMyProfile({
+                ...res.data,
+                unitName: res.data.unit?.name || 'GLOBAL'
+            });
+        } catch (error) {
+            console.error("Fetch profile error:", error);
+        }
+    };
 
     const fetchSettings = async () => {
         try {
@@ -121,10 +142,37 @@ const Settings = () => {
         try {
             setSaving(true);
             await api.put('/settings', settings);
-            alert('Pengaturan berhasil disimpan!');
+            alert('Pengaturan instansi berhasil disimpan!');
         } catch (error) {
             console.error("Save settings error:", error);
-            alert('Gagal menyimpan pengaturan.');
+            alert('Gagal menyimpan pengaturan instansi.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSaveMyProfile = async (e) => {
+        e.preventDefault();
+        try {
+            setSaving(true);
+            const res = await api.put('/users/profile', {
+                name: myProfile.name,
+                email: myProfile.email,
+                phone: myProfile.phone
+            });
+            alert('Profil berhasil diperbarui!');
+
+            // Sync with local storage user if needed
+            const updatedUser = { ...currentUser, name: res.data.user.name, email: res.data.user.email, phone: res.data.user.phone };
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+            setCurrentUser(updatedUser);
+
+            setMyProfile({
+                ...res.data.user,
+                unitName: res.data.user.unit?.name || 'GLOBAL'
+            });
+        } catch (error) {
+            alert(error.response?.data?.error || 'Gagal menyimpan profil.');
         } finally {
             setSaving(false);
         }
@@ -187,7 +235,15 @@ const Settings = () => {
                     <h1 className="text-2xl font-bold text-slate-800">Pengaturan</h1>
                     <p className="text-slate-500 text-sm">Kelola identitas instansi dan hak akses pengguna</p>
                 </div>
-                <div className="flex bg-slate-100 p-1 rounded-lg ml-auto">
+                <div className="flex bg-slate-100 p-1 rounded-lg ml-auto overflow-x-auto whitespace-nowrap">
+                    <button
+                        onClick={() => setActiveTab('myProfile')}
+                        className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'myProfile' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <div className="flex items-center gap-2 uppercase tracking-tight">
+                            <UserCheck size={16} /> Profil Saya
+                        </div>
+                    </button>
                     {isSuperAdmin && (
                         <>
                             <button
@@ -195,7 +251,7 @@ const Settings = () => {
                                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'profile' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <div className="flex items-center gap-2 uppercase tracking-tight">
-                                    <Building2 size={16} /> Profil
+                                    <Building2 size={16} /> Instansi
                                 </div>
                             </button>
                             <button
@@ -218,6 +274,102 @@ const Settings = () => {
                     </button>
                 </div>
             </div>
+
+            {activeTab === 'myProfile' && (
+                <form onSubmit={handleSaveMyProfile} className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-2">
+                    <div className="md:col-span-2 space-y-6">
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 space-y-5">
+                            <div className="flex items-center gap-2 pb-2 border-b border-slate-50 text-blue-600">
+                                <UserCheck size={20} />
+                                <h2 className="font-semibold uppercase tracking-wider text-xs">Informasi Pribadi</h2>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Username / NIY</label>
+                                    <input
+                                        type="text"
+                                        disabled
+                                        value={myProfile.username}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm text-slate-500 outline-none font-mono"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Nama Lengkap</label>
+                                    <input
+                                        type="text"
+                                        value={myProfile.name || ''}
+                                        onChange={e => setMyProfile({ ...myProfile, name: e.target.value })}
+                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="Nama Lengkap"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                        <Mail size={14} className="text-slate-400" /> Email
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={myProfile.email || ''}
+                                        onChange={e => setMyProfile({ ...myProfile, email: e.target.value })}
+                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="email@example.com"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                        <Phone size={14} className="text-slate-400" /> No. HP (WhatsApp)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={myProfile.phone || ''}
+                                        onChange={e => setMyProfile({ ...myProfile, phone: e.target.value })}
+                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="0812xxxxxx"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 space-y-5">
+                            <div className="flex items-center gap-2 pb-2 border-b border-slate-50 text-blue-600">
+                                <ShieldCheck size={20} />
+                                <h2 className="font-semibold uppercase tracking-wider text-xs">Penempatan & Jabatan</h2>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Unit Kerja</label>
+                                    <div className="text-sm font-semibold text-slate-700">{myProfile.unitName}</div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Jabatan</label>
+                                    <div className="text-sm font-semibold text-slate-700">{myProfile.position || '-'}</div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Hak Akses</label>
+                                    <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold">{myProfile.role}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-6">
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                            <button
+                                type="submit"
+                                disabled={saving}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                            >
+                                <Save size={18} />
+                                {saving ? 'Menyimpan...' : 'Update Profil'}
+                            </button>
+                            <p className="text-[10px] text-slate-400 mt-4 text-center italic">
+                                *Jabatan dan Unit hanya bisa diubah oleh Super Admin.
+                            </p>
+                        </div>
+                    </div>
+                </form>
+            )}
 
             {activeTab === 'profile' ? (
                 <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-3 gap-6">

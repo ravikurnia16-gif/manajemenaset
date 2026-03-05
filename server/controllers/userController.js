@@ -101,3 +101,61 @@ exports.deleteUser = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.getProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                username: true,
+                name: true,
+                email: true,
+                phone: true,
+                position: true,
+                role: true,
+                unitId: true,
+                unit: { select: { name: true } }
+            }
+        });
+        if (!user) return res.status(404).json({ error: 'User tidak ditemukan' });
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { name, email, phone } = req.body;
+
+        const user = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                name,
+                email: email || null,
+                phone
+            },
+            select: {
+                id: true,
+                username: true,
+                name: true,
+                email: true,
+                phone: true,
+                position: true,
+                role: true,
+                unitId: true,
+                unit: { select: { name: true } }
+            }
+        });
+
+        res.json({ message: 'Profil berhasil diperbarui', user });
+    } catch (error) {
+        if (error.code === 'P2002') {
+            return res.status(400).json({ error: 'Email sudah digunakan pengguna lain' });
+        }
+        res.status(500).json({ error: error.message });
+    }
+};
