@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendMessage } = require('../services/whatsappService');
+const { createNotification } = require('./notificationController');
 
 // 1. Request Booking
 exports.requestBooking = async (req, res) => {
@@ -66,6 +67,14 @@ exports.requestBooking = async (req, res) => {
                 if (pic.phone) {
                     await sendMessage(pic.phone, msg);
                 }
+                // Add System Notification for PICs
+                await createNotification(
+                    pic.id,
+                    'Permintaan Pinjam Kendaraan',
+                    `${booking.user.name} mengajukan peminjaman ${vehicle.name}.`,
+                    'INFO',
+                    '/kendaraan/peminjaman'
+                );
             }
         }
 
@@ -123,6 +132,15 @@ exports.reviewBooking = async (req, res) => {
                 (adminNote ? `Catatan: ${adminNote}` : '');
             await sendMessage(booking.user.phone, msg);
         }
+
+        // Add System Notification for User
+        await createNotification(
+            booking.userId,
+            `Peminjaman ${status === 'APPROVED' ? 'Disetujui' : 'Ditolak'}`,
+            `Permintaan kendaraan ${booking.vehicle.name} Anda telah ${status === 'APPROVED' ? 'disetujui' : 'ditolak'}.`,
+            status === 'APPROVED' ? 'SUCCESS' : 'WARNING',
+            '/kendaraan/peminjaman'
+        );
 
         res.json(updated);
     } catch (error) {
@@ -269,11 +287,83 @@ exports.cancelBooking = async (req, res) => {
 
         const updated = await prisma.vehicleBooking.update({
             where: { id: parseInt(id) },
-            data: { status: 'CANCELLED' }
+            data: { status: 'CANCELLED' },
+            include: { vehicle: true }
         });
+
+        // Notify PICs about cancellation
+        for (const pic of updated.vehicle.pics || []) {
+            await createNotification(
+                pic.id,
+                'Peminjaman Kendaraan Dibatalkan',
+                `User ${req.user.name} membatalkan peminjaman ${updated.vehicle.name}.`,
+                'INFO',
+                '/kendaraan/peminjaman'
+            );
+        }
 
         res.json(updated);
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+// 7. Automated Check for Overdue Trips (Used by Scheduler)
+exports.checkOverdueVehicleBookings = async () => {
+    console.log(`[${new Date().toLocaleString()}] [Job] Checking for overdue vehicle trips...`);
+    try {
+        const now = new Date();
+
+        // Find bookings that are APPROVED/IN_PROGRESS but passed endDate
+        // status APPROVED means it's scheduled but not yet marked COMPLETED
+        // We check if tripEndTime is null and endDate is in the past
+        const overdueBookings = await prisma.vehicleBooking.findMany({
+            where: {
+                status: 'APPROVED',
+                endDate: { lt: now },
+                tripEndTime: null
+            },
+            include: {
+                user: true,
+                vehicle: true
+            }
+        });
+
+        if (overdueBookings.length === 0) {
+            console.log('[Job] No overdue vehicle trips found.');
+            return;
+        }
+
+        console.log(`[Job] Found ${overdueBookings.length} overdue trips. Sending reminders...`);
+
+        for (const booking of overdueBookings) {
+            const diffMs = now - new Date(booking.endDate);
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+            // 1. System Notification (Bell)
+            await createNotification(
+                booking.userId,
+                'Pengingat: Selesaikan Perjalanan',
+                `Perjalanan dengan ${booking.vehicle.name} ke ${booking.destination} seharusnya selesai pada ${new Date(booking.endDate).toLocaleString('id-ID')}.`,
+                'WARNING',
+                '/kendaraan/peminjaman'
+            );
+
+            // 2. WhatsApp Notification
+            if (booking.user.phone) {
+                const waMsg = `⏰ *PENGINGAT PENYELESAIAN PERJALANAN*\n\n` +
+                    `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
+                    `Destinasi: ${booking.destination}\n` +
+                    `Waktu Seharusnya Selesai: ${new Date(booking.endDate).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}\n` +
+                    `Sudah Lewat: *${diffHours} jam*\n\n` +
+                    `Apakah perjalanan Anda sudah selesai?\n\n` +
+                    `⚠️ Mohon segera selesaikan perjalanan melalui aplikasi Sarpras dengan menginputkan Kilometer Akhir agar armada dapat digunakan oleh pengguna lain.\n\n` +
+                    `Terima kasih.`;
+
+                await sendMessage(booking.user.phone, waMsg);
+            }
+        }
+    } catch (error) {
+        console.error('[Job Error] checkOverdueVehicleBookings failed:', error);
     }
 };

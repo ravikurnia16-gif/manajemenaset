@@ -2,6 +2,7 @@ const { sendCalendarReminders, sendWeeklyCalendarSummary } = require('../control
 const { checkMaintenanceNotifications, checkKmServiceNotifications } = require('../controllers/vehicleMaintenanceController');
 const { checkTaxNotifications, checkKirNotifications } = require('../controllers/vehicleController');
 const { checkOverdueLoans } = require('../controllers/loanController');
+const { checkOverdueVehicleBookings } = require('../controllers/vehicleBookingController');
 const { sendWeeklyAssetSummary } = require('./summaryNotification');
 
 let schedulerInterval = null;
@@ -57,6 +58,19 @@ const initScheduler = () => {
                 await checkOverdueLoans();
             } catch (err) {
                 console.error('[Scheduler] Error in Vehicle Checks:', err);
+            }
+        }
+
+        // ----------------------------------------------------
+        // 4. OVERDUE REMINDERS (Multiple times daily)
+        // 5:00, 8:00, 11:00, 14:00, 17:00, 20:00, 23:00
+        // ----------------------------------------------------
+        if ([5, 8, 11, 14, 17, 20, 23].includes(hour) && minute === 0) {
+            console.log(`[Scheduler] Executing Overdue Vehicle Reminders at ${hour}:00...`);
+            try {
+                await checkOverdueVehicleBookings();
+            } catch (err) {
+                console.error('[Scheduler] Error in Overdue Reminders:', err);
             }
         }
 

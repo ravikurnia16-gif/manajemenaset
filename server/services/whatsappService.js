@@ -57,11 +57,11 @@ const processQueue = async () => {
             resolve(null);
         }
 
-        // 3. Stagger: Add an extra random delay if more items exist
+        // 3. Stagger: Add a random delay (15s to 60s) if more items exist
         if (messageQueue.length > 0) {
-            const extraStagger = Math.floor(Math.random() * (30000)) + 5000; // Extra 5-35s
-            console.log(`[WhatsApp Queue] Extra stagger: ${Math.round(extraStagger / 1000)}s...`);
-            await new Promise(r => setTimeout(r, extraStagger));
+            const staggerMs = Math.floor(Math.random() * (60000 - 15000 + 1)) + 15000;
+            console.log(`[WhatsApp Queue] Randomized stagger: ${Math.round(staggerMs / 1000)}s...`);
+            await new Promise(r => setTimeout(r, staggerMs));
         }
     }
 

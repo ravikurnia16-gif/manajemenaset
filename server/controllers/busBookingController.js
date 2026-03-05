@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
+const { createNotification } = require('./notificationController');
 
 // 1. Create Bus Booking (No Approval Flow)
 const createBusBooking = async (req, res) => {
@@ -112,18 +113,37 @@ const createBusBooking = async (req, res) => {
                     }
                 }
 
-                // 2. Notify Admins
+                // 2. Notify Admins & Staff Kendaraan
                 const recipients = await prisma.user.findMany({
                     where: {
                         OR: [
-                            { name: { contains: 'Wegi' } },
-                            { position: 'Kepala Bidang Sarana dan Prasarana' }
+                            { name: { contains: 'Wegi Fatriadi' } },
+                            { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } }
                         ],
                         phone: { not: null, not: '' }
                     }
                 });
 
-                if (recipients.length > 0) {
+                // 3. Notify Vehicle PICs specifically for these buses
+                const vPICs = [];
+                for (const booking of createdBookings) {
+                    if (booking.vehicle?.pics) {
+                        vPICs.push(...booking.vehicle.pics);
+                    }
+                }
+
+                // Combine and Deduplicate Recipients
+                const finalRecipients = [];
+                const seenIds = new Set();
+
+                [...recipients, ...vPICs].forEach(r => {
+                    if (r && r.id && !seenIds.has(r.id) && r.phone) {
+                        finalRecipients.push(r);
+                        seenIds.add(r.id);
+                    }
+                });
+
+                if (finalRecipients.length > 0) {
                     const waLink = `https://wa.me/${requesterPhone.replace(/\D/g, '').startsWith('0') ? '62' + requesterPhone.replace(/\D/g, '').substring(1) : requesterPhone.replace(/\D/g, '')}`;
 
                     const adminMsg = `*BOOKING BUS BARU*\n\n` +
@@ -138,11 +158,19 @@ const createBusBooking = async (req, res) => {
                         `*Hubungi Pemesan:* ${waLink}\n\n` +
                         `_Sistem Manajemen Aset_`;
 
-                    for (const person of recipients) {
+                    for (const person of finalRecipients) {
                         try {
                             await whatsappService.sendMessage(person.phone, adminMsg);
+                            // Add System Notification
+                            await createNotification(
+                                person.id,
+                                'Booking Bus Baru',
+                                `Booking bus baru dari ${requesterLabel} untuk ${vehicleNames}.`,
+                                'INFO',
+                                '/kendaraan/booking-bus'
+                            );
                         } catch (waError) {
-                            console.error(`[Bus Booking] Admin WA Failed for ${person.name}:`, waError.message);
+                            console.error(`[Bus Booking] Staff WA Failed for ${person.name}:`, waError.message);
                         }
                     }
                 }
