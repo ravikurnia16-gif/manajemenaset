@@ -59,6 +59,31 @@ const BusBooking = () => {
         fetchBookings();
     }, []);
 
+    // Auto-fill form for logged in users
+    useEffect(() => {
+        if (showBorrowModal && user.id) {
+            // Pre-fill basic info
+            setFormData(prev => ({
+                ...prev,
+                requesterName: prev.requesterName || user.name || '',
+                requesterPhone: prev.requesterPhone || user.phone || '',
+                unit: prev.unit || user.unit?.name || ''
+            }));
+
+            // If unit is missing, fetch full user profile to get unit name
+            if (!user.unit?.name) {
+                api.get('/user/profile').then(res => {
+                    if (res.data?.unit?.name) {
+                        setFormData(prev => ({
+                            ...prev,
+                            unit: prev.unit || res.data.unit.name
+                        }));
+                    }
+                }).catch(err => console.error('Failed to auto-fill unit:', err));
+            }
+        }
+    }, [showBorrowModal]);
+
     const fetchVehicles = async () => {
         try {
             const res = await api.get('/vehicles');
