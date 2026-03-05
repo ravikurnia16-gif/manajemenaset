@@ -67,7 +67,7 @@ const syncExternalUser = async (niy, externalData, password) => {
 
     // Mapping logic (Flexible based on common API patterns)
     const name = externalData.nama || externalData.name || externalData.fullName;
-    const phone = externalData.hp || externalData.phone || externalData.no_hp;
+    const phone = externalData.hp || externalData.phone || externalData.no_hp || externalData.noHp;
     const email = externalData.email;
     const position = externalData.jabatan || externalData.position;
 
@@ -104,6 +104,7 @@ const syncExternalUser = async (niy, externalData, password) => {
             data: {
                 name: name || user.name,
                 phone: phone || user.phone,
+                email: email || user.email,
                 password: hashedPassword, // Keep local password in sync for fallback
                 // Note: We don't update role or unitId here to satisfy "Option B"
             },
@@ -136,7 +137,7 @@ exports.login = async (req, res) => {
         const externalRes = await axios.post(externalUrl, { nip: username, password }, { timeout: 8000 });
 
         // If external API returns success (Usually check for status 200 or a specific success flag)
-        if (externalRes.status === 200 && externalRes.data) {
+        if ((externalRes.status === 200 || externalRes.status === 201) && externalRes.data) {
             // Flexible extraction of user data
             const externalData = externalRes.data.user || externalRes.data.data || externalRes.data;
             const user = await syncExternalUser(username, externalData, password);
