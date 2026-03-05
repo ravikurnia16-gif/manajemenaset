@@ -73,7 +73,32 @@ const syncExternalUser = async (niy, externalData, password) => {
 
     // Unit mapping (Attempt to find unit by name if provided)
     let unitId = null;
-    const unitName = externalData.unit || externalData.unit_name;
+    let unitName = externalData.unit || externalData.unit_name;
+
+    // Normalize unit name if mapping exists (Based on Screenshots)
+    const unitMap = {
+        'Unit TKIT-1': 'TKIT 1 Dar el-Iman',
+        'Unit TKIT-2': 'TKIT 2 Dar el-Iman',
+        'Unit TKIT-3': 'TKIT 3 Dar el-Iman',
+        'Unit MIT': 'MIT SAQU Dar el-Iman',
+        'Unit SDIT-1': 'SDIT 1 Dar el-Iman',
+        'Unit SDIT-2': 'SDIT 2 Dar el-Iman',
+        'Unit SDIT-3': 'SDIT 3 Dar el-Iman',
+        'Unit SMPIT': 'SMP IT Dar el-Iman Padang',
+        'Unit SMAIT': 'SMA IT Dar el-Iman',
+    };
+
+    if (unitName) {
+        if (unitMap[unitName]) {
+            unitName = unitMap[unitName];
+        } else if (unitMap[`Unit ${unitName}`]) {
+            unitName = unitMap[`Unit ${unitName}`];
+        } else {
+            // Remove "Unit " prefix if it exists but no mapping found
+            unitName = unitName.replace(/^Unit\s+/i, '').replace(/-/g, ' ');
+        }
+    }
+
     if (unitName) {
         const unit = await prisma.unit.findFirst({
             where: { name: { contains: unitName } }
