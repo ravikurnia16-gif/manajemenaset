@@ -818,7 +818,106 @@ const VehicleBooking = () => {
 
                 {activeTab === 'HISTORY' && (
                     <div className="space-y-4 p-6">
-                        {/* History Filters ... stays as is ... */}
+                        {/* History Filters */}
+                        <div className="flex flex-col md:flex-row gap-4 mb-4">
+                            <div className="flex-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pilih Kendaraan</label>
+                                <select
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                    value={filterVehicle}
+                                    onChange={(e) => setFilterVehicle(e.target.value)}
+                                >
+                                    <option value="">Semua Kendaraan</option>
+                                    {vehicles.map(v => (
+                                        <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Mulai Tanggal</label>
+                                <input
+                                    type="date"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                    value={filterStartDate}
+                                    onChange={(e) => setFilterStartDate(e.target.value)}
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Sampai Tanggal</label>
+                                <input
+                                    type="date"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                    value={filterEndDate}
+                                    onChange={(e) => setFilterEndDate(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                    <tr>
+                                        <th className="px-6 py-4">Pemohon</th>
+                                        <th className="px-6 py-4">Armada</th>
+                                        <th className="px-6 py-4">Jadwal & Tujuan</th>
+                                        <th className="px-6 py-4">Info Perjalanan</th>
+                                        <th className="px-6 py-4">Status Akhir</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {loading ? (
+                                        <tr><td colSpan="5" className="p-10 text-center text-slate-400">Memuat riwayat...</td></tr>
+                                    ) : bookings.length === 0 ? (
+                                        <tr><td colSpan="5" className="p-10 text-center text-slate-400">Tidak ada riwayat ditemukan.</td></tr>
+                                    ) : bookings.map(b => (
+                                        <tr key={b.id} className="hover:bg-slate-50/50">
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-slate-700">{b.user.name}</div>
+                                                <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user.unit?.name || 'Unit -'}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-slate-700">{b.vehicle.name}</div>
+                                                <div className="text-[10px] text-slate-400 font-mono">{b.vehicle.plateNumber}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
+                                                    <Clock size={12} className="text-blue-500" />
+                                                    {new Date(b.startDate).toLocaleString('id-ID')}
+                                                </div>
+                                                <div className="flex items-center gap-1.5 text-xs text-blue-600 font-bold mt-1">
+                                                    <MapPin size={12} /> {b.destination}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-[10px] font-bold text-slate-500 mb-1">
+                                                    Trip: {b.startKm || '?'} km - {b.endKm || '?'} km
+                                                </div>
+                                                {b.fuelRefill ? (
+                                                    <div className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 px-2 py-0.5 rounded text-[10px] font-bold border border-orange-100">
+                                                        <Fuel size={10} /> Isi BBM {b.fuelPrice > 0 ? `(Rp ${b.fuelPrice.toLocaleString()})` : ''}
+                                                    </div>
+                                                ) : (
+                                                    <div className="inline-flex items-center gap-1 bg-slate-50 text-slate-500 px-2 py-0.5 rounded text-[10px] font-bold border border-slate-200">
+                                                        <Fuel size={10} /> Tidak Isi BBM
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    {getStatusBadge(b.status)}
+                                                    <button
+                                                        onClick={() => setShowDetailModal(b)}
+                                                        className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                                                    >
+                                                        <Info size={16} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
 
