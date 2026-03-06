@@ -71,6 +71,7 @@ const VehicleBooking = () => {
     useEffect(() => {
         fetchVehicles();
         fetchStaff();
+        fetchDrivers();
     }, []);
 
     useEffect(() => {
@@ -145,6 +146,9 @@ const VehicleBooking = () => {
             setSubmitting(true);
             const startStr = `${formData.startDate}T${formData.startTime}`;
             const endStr = `${formData.endDate}T${formData.endTime}`;
+            const startDateObj = new Date(startStr);
+            const now = new Date();
+
             if (!formData.destination) {
                 showToast('Silakan isi tujuan peminjaman.', 'error');
                 setSubmitting(false);
@@ -542,9 +546,9 @@ const VehicleBooking = () => {
                                                 >
                                                     {formData.driverId ? (
                                                         <span className="font-bold text-slate-800">
-                                                            {staff.find(s => s.id === parseInt(formData.driverId))?.name || 'User Terpilih'}
+                                                            {drivers.find(s => s.id === parseInt(formData.driverId))?.name || 'User Terpilih'}
                                                             <span className="ml-2 text-[10px] text-slate-400 font-normal">
-                                                                ({staff.find(s => s.id === parseInt(formData.driverId))?.unit?.name || 'Tanpa Unit'})
+                                                                ({drivers.find(s => s.id === parseInt(formData.driverId))?.unit?.name || 'Tanpa Unit'})
                                                             </span>
                                                         </span>
                                                     ) : (
@@ -584,7 +588,7 @@ const VehicleBooking = () => {
                                                             </button>
 
                                                             {Object.entries(
-                                                                staff
+                                                                drivers
                                                                     .filter(s => {
                                                                         const searchStr = `${s.name || ''} ${s.unit?.name || ''}`.toLowerCase();
                                                                         return searchStr.includes(driverSearch.toLowerCase());
