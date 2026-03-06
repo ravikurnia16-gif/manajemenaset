@@ -414,6 +414,32 @@ exports.getVehicleDashboard = async (req, res) => {
             return v.odometer >= lastRoutine.nextServiceOdometer;
         }).length;
 
+        // New additions for charts
+        const destinations = await prisma.vehicleBooking.groupBy({
+            by: ['destination'],
+            where: { status: 'COMPLETED' },
+            _count: { _all: true }
+        });
+        const topDestinations = destinations.sort((a, b) => b._count._all - a._count._all).slice(0, 5).map(d => ({
+            name: d.destination || 'Tanpa Tujuan',
+            value: d._count._all
+        }));
+
+        const vehicleUsage = await prisma.vehicleBooking.groupBy({
+            by: ['vehicleId'],
+            where: { status: 'COMPLETED' },
+            _count: { _all: true }
+        });
+        const vehiclesRaw = await prisma.vehicle.findMany({ select: { id: true, name: true } });
+        const vehicleMap = {};
+        vehiclesRaw.forEach(v => vehicleMap[v.id] = v.name);
+        const topVehicles = vehicleUsage.sort((a, b) => b._count._all - a._count._all).slice(0, 5).map(u => ({
+            name: vehicleMap[u.vehicleId] || 'Unknown',
+            value: u._count._all
+        }));
+
+        const allVehicleNames = vehiclesRaw.map(v => v.name);
+
         // 3. Monthly Trends (Bookings & Mileage - Last 6 Months)
         const bookingTrends = [];
         const mileageTrends = [];
@@ -421,7 +447,7 @@ exports.getVehicleDashboard = async (req, res) => {
             const d = new Date();
             d.setMonth(d.getMonth() - i);
             const mStart = new Date(d.getFullYear(), d.getMonth(), 1);
-            const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+            const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
 
             // Booking Count
             const bCount = await prisma.vehicleBooking.count({
@@ -436,14 +462,22 @@ exports.getVehicleDashboard = async (req, res) => {
                     startKm: { not: null },
                     endKm: { not: null }
                 },
-                select: { startKm: true, endKm: true }
+                select: { startKm: true, endKm: true, vehicle: { select: { name: true } } }
             });
 
-            const totalKm = completedBookings.reduce((sum, b) => sum + (b.endKm - b.startKm), 0);
+            const monthName = d.toLocaleString('id-ID', { month: 'short', year: 'numeric' });
 
-            const monthName = d.toLocaleString('id-ID', { month: 'short' });
+            const mileageObj = { name: monthName };
+            allVehicleNames.forEach(name => mileageObj[name] = 0);
+
+            completedBookings.forEach(b => {
+                if (b.vehicle && b.vehicle.name) {
+                    mileageObj[b.vehicle.name] += (b.endKm - b.startKm);
+                }
+            });
+
             bookingTrends.push({ name: monthName, value: bCount });
-            mileageTrends.push({ name: monthName, value: totalKm });
+            mileageTrends.push(mileageObj);
         }
 
         // 4. Vehicle Type Distribution
@@ -504,6 +538,10 @@ exports.getVehicleDashboard = async (req, res) => {
             },
             bookingTrends,
             costTrends,
+            mileageTrends,
+            topDestinations,
+            topVehicles,
+            allVehicleNames,
             typeDistribution: types.map(t => ({ name: t.type, value: t._count._all }))
         });
     } catch (error) {
