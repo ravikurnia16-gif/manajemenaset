@@ -28,6 +28,7 @@ router.delete('/maintenance/:id', verifyToken, maintenanceCtrl.deleteMaintenance
 
 // Weekly Report Routes
 const reportCtrl = require('../controllers/vehicleReportController');
+router.get('/:id/reports/weekly/draft', verifyToken, reportCtrl.getWeeklyDraft);
 router.post('/reports/weekly', verifyToken, reportCtrl.createWeeklyReport);
 router.get('/:id/reports/weekly', verifyToken, reportCtrl.getVehicleReports);
 

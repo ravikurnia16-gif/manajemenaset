@@ -30,19 +30,21 @@ const VehicleWeeklyReport = () => {
     const fetchVehicleAndReports = async () => {
         try {
             setLoading(true);
-            const [vRes, rRes] = await Promise.all([
+            const [vRes, rRes, draftRes] = await Promise.all([
                 api.get(`/vehicles/${id}`),
-                api.get(`/vehicles/${id}/reports/weekly`)
+                api.get(`/vehicles/${id}/reports/weekly`),
+                api.get(`/vehicles/${id}/reports/weekly/draft`)
             ]);
             setVehicle(vRes.data);
             setReports(rRes.data);
 
-            // Pre-fill startOdometer from vehicle
+            // Pre-fill dates and odometer from draft
             setForm(prev => ({
                 ...prev,
-                startOdometer: vRes.data.odometer || 0,
-                weekStartDate: new Date().toISOString().split('T')[0],
-                weekEndDate: new Date().toISOString().split('T')[0]
+                startOdometer: draftRes.data.startOdometer,
+                endOdometer: draftRes.data.endOdometer,
+                weekStartDate: draftRes.data.weekStartDate,
+                weekEndDate: draftRes.data.weekEndDate
             }));
         } catch (error) {
             console.error('Failed to fetch data:', error);
@@ -54,7 +56,7 @@ const VehicleWeeklyReport = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!form.weekStartDate || !form.weekEndDate || !form.endOdometer) {
+        if (!form.weekStartDate || !form.weekEndDate || form.endOdometer === '') {
             return alert('Harap isi semua field utama');
         }
 
@@ -119,17 +121,19 @@ const VehicleWeeklyReport = () => {
 
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-500 uppercase">Periode</label>
+                                <label className="text-xs font-bold text-slate-500 uppercase">Periode (Sabtu - Jumat)</label>
                                 <div className="grid grid-cols-2 gap-2">
                                     <input
                                         type="date"
-                                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                        readOnly
+                                        className="w-full p-2 bg-slate-100 text-slate-500 border border-slate-200 rounded-lg text-sm cursor-not-allowed"
                                         value={form.weekStartDate}
                                         onChange={e => setForm({ ...form, weekStartDate: e.target.value })}
                                     />
                                     <input
                                         type="date"
-                                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                        readOnly
+                                        className="w-full p-2 bg-slate-100 text-slate-500 border border-slate-200 rounded-lg text-sm cursor-not-allowed"
                                         value={form.weekEndDate}
                                         onChange={e => setForm({ ...form, weekEndDate: e.target.value })}
                                     />
@@ -141,8 +145,8 @@ const VehicleWeeklyReport = () => {
                                     <label className="text-xs font-bold text-slate-500 uppercase text-nowrap">KM Awal</label>
                                     <input
                                         type="number"
-                                        placeholder="0"
-                                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                        readOnly
+                                        className="w-full p-2 bg-slate-100 text-slate-500 border border-slate-200 rounded-lg text-sm cursor-not-allowed"
                                         value={form.startOdometer}
                                         onChange={e => setForm({ ...form, startOdometer: e.target.value })}
                                     />
@@ -151,8 +155,8 @@ const VehicleWeeklyReport = () => {
                                     <label className="text-xs font-bold text-slate-500 uppercase text-nowrap">KM Akhir</label>
                                     <input
                                         type="number"
-                                        placeholder="0"
-                                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-600"
+                                        readOnly
+                                        className="w-full p-2 bg-slate-100 text-slate-800 border border-slate-200 rounded-lg text-sm cursor-not-allowed font-bold"
                                         value={form.endOdometer}
                                         onChange={e => setForm({ ...form, endOdometer: e.target.value })}
                                     />

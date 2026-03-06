@@ -3,6 +3,7 @@ const { checkMaintenanceNotifications, checkKmServiceNotifications } = require('
 const { checkTaxNotifications, checkKirNotifications } = require('../controllers/vehicleController');
 const { checkOverdueLoans } = require('../controllers/loanController');
 const { checkOverdueVehicleBookings } = require('../controllers/vehicleBookingController');
+const { checkMissingWeeklyReports } = require('../controllers/vehicleReportController');
 const { sendWeeklyAssetSummary } = require('./summaryNotification');
 
 let schedulerInterval = null;
@@ -75,7 +76,19 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
-        // 4. WEEKLY ASSET SUMMARY (Friday at 15:00 / 3 PM)
+        // 5. MISSING WEEKLY REPORTS REMINDER (Friday at 14:00)
+        // ----------------------------------------------------
+        if (day === 5 && hour === 14 && minute === 0) {
+            console.log('[Scheduler] Executing Missing Weekly Reports Check...');
+            try {
+                await checkMissingWeeklyReports();
+            } catch (err) {
+                console.error('[Scheduler] Error in Missing Reports Check:', err);
+            }
+        }
+
+        // ----------------------------------------------------
+        // 6. WEEKLY ASSET SUMMARY (Friday at 15:00 / 3 PM)
         // ----------------------------------------------------
         if (day === 5 && hour === 15 && minute === 0) {
             console.log('[Scheduler] Executing Weekly Asset Summary...');
