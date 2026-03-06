@@ -28,6 +28,10 @@ const Settings = () => {
     const [saving, setSaving] = useState(false);
     const [currentUser, setCurrentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
 
+    // Filter states for Users Tab
+    const [userSearch, setUserSearch] = useState('');
+    const [userUnitFilter, setUserUnitFilter] = useState('');
+
     // Add User Modal State
     const [showUserModal, setShowUserModal] = useState(false);
     const [newUser, setNewUser] = useState({
@@ -534,22 +538,44 @@ const Settings = () => {
                         </div>
                     </div>
                 </form>
-            ) : (
+            ) : null}
+
+            {activeTab === 'users' && isSuperAdmin && (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                    <div className="p-6 border-b border-slate-50 flex justify-between items-center">
+                    <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
                             <h2 className="font-bold text-slate-800">Daftar Pengguna</h2>
                             <p className="text-slate-500 text-xs">Kelola akses staf dan otorisasi sistem</p>
                         </div>
-                        <button
-                            onClick={() => {
-                                setNewUser({ username: '', password: '', email: '', nip: '', phone: '', position: '', role: 'USER', unitId: '' });
-                                setShowUserModal(true);
-                            }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all"
-                        >
-                            + Tambah Pengguna
-                        </button>
+                        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                            <input
+                                type="text"
+                                placeholder="Cari nama, nip, username..."
+                                className="w-full sm:w-64 border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={userSearch}
+                                onChange={e => setUserSearch(e.target.value)}
+                            />
+                            <select
+                                className="w-full sm:w-48 border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                                value={userUnitFilter}
+                                onChange={e => setUserUnitFilter(e.target.value)}
+                            >
+                                <option value="">Semua Unit</option>
+                                <option value="GLOBAL / SEMUA UNIT">GLOBAL / SEMUA UNIT</option>
+                                {unitList.map(u => (
+                                    <option key={u.id} value={u.name}>{u.name}</option>
+                                ))}
+                            </select>
+                            <button
+                                onClick={() => {
+                                    setNewUser({ username: '', name: '', password: '', email: '', nip: '', phone: '', position: '', role: 'USER', unitId: '' });
+                                    setShowUserModal(true);
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all whitespace-nowrap"
+                            >
+                                + Tambah Pengguna
+                            </button>
+                        </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left border-collapse">
@@ -564,12 +590,25 @@ const Settings = () => {
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                                 {Object.entries(
-                                    users.reduce((acc, user) => {
-                                        const unitName = user.unit?.name || 'GLOBAL / SEMUA UNIT';
-                                        if (!acc[unitName]) acc[unitName] = [];
-                                        acc[unitName].push(user);
-                                        return acc;
-                                    }, {})
+                                    users
+                                        .filter(user => {
+                                            const searchLower = userSearch.toLowerCase();
+                                            const matchesSearch = !userSearch ||
+                                                (user.name?.toLowerCase() || '').includes(searchLower) ||
+                                                (user.username?.toLowerCase() || '').includes(searchLower) ||
+                                                (user.nip?.toLowerCase() || '').includes(searchLower);
+
+                                            const unitName = user.unit?.name || 'GLOBAL / SEMUA UNIT';
+                                            const matchesUnit = !userUnitFilter || unitName === userUnitFilter;
+
+                                            return matchesSearch && matchesUnit;
+                                        })
+                                        .reduce((acc, user) => {
+                                            const unitName = user.unit?.name || 'GLOBAL / SEMUA UNIT';
+                                            if (!acc[unitName]) acc[unitName] = [];
+                                            acc[unitName].push(user);
+                                            return acc;
+                                        }, {})
                                 ).map(([unit, unitUsers]) => (
                                     <Fragment key={unit}>
                                         <tr className="bg-slate-50/80">
@@ -691,221 +730,224 @@ const Settings = () => {
                         </form>
                     </div>
                 </div>
-            )}
+            )
+            }
 
             {/* Modal Tambah/Edit User */}
-            {showUserModal && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-                            <h2 className="font-bold text-slate-800">{newUser.id ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}</h2>
-                            <button onClick={() => setShowUserModal(false)} className="text-slate-400 hover:text-slate-600">&times;</button>
-                        </div>
-                        <form onSubmit={handleSaveUser} className="p-6 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">NIY (Login User)</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={newUser.username}
-                                        onChange={e => setNewUser({ ...newUser, username: e.target.value })}
-                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
-                                        placeholder="Gunakan NIY"
-                                    />
-                                    <p className="text-[10px] text-slate-400 mt-1">*Digunakan untuk Log In & NIP secara otomatis</p>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nama Lengkap</label>
-                                    <input
-                                        type="text"
-                                        value={newUser.name || ''}
-                                        onChange={e => setNewUser({ ...newUser, name: e.target.value })}
-                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none uppercase"
-                                        placeholder="Nama Sesuai KTP"
-                                    />
-                                </div>
+            {
+                showUserModal && (
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                                <h2 className="font-bold text-slate-800">{newUser.id ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}</h2>
+                                <button onClick={() => setShowUserModal(false)} className="text-slate-400 hover:text-slate-600">&times;</button>
                             </div>
+                            <form onSubmit={handleSaveUser} className="p-6 space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">NIY (Login User)</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={newUser.username}
+                                            onChange={e => setNewUser({ ...newUser, username: e.target.value })}
+                                            className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                                            placeholder="Gunakan NIY"
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1">*Digunakan untuk Log In & NIP secara otomatis</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nama Lengkap</label>
+                                        <input
+                                            type="text"
+                                            value={newUser.name || ''}
+                                            onChange={e => setNewUser({ ...newUser, name: e.target.value })}
+                                            className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none uppercase"
+                                            placeholder="Nama Sesuai KTP"
+                                        />
+                                    </div>
+                                </div>
 
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email <span className="font-normal text-slate-400 normal-case">(Opsional)</span></label>
-                                <input
-                                    type="email"
-                                    value={newUser.email || ''}
-                                    onChange={e => setNewUser({ ...newUser, email: e.target.value })}
-                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                    placeholder="user@example.com"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label>
-                                <input
-                                    type="password"
-                                    required={!newUser.id}
-                                    value={newUser.password}
-                                    onChange={e => setNewUser({ ...newUser, password: e.target.value })}
-                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                    placeholder={newUser.id ? "Kosongkan jika tidak ubah password" : "********"}
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">No. HP / Telepon</label>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email <span className="font-normal text-slate-400 normal-case">(Opsional)</span></label>
                                     <input
-                                        type="text"
-                                        value={newUser.phone || ''}
-                                        onChange={e => setNewUser({ ...newUser, phone: e.target.value })}
+                                        type="email"
+                                        value={newUser.email || ''}
+                                        onChange={e => setNewUser({ ...newUser, email: e.target.value })}
                                         className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                        placeholder="0812xxxx (Untuk WA)"
+                                        placeholder="user@example.com"
                                     />
                                 </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Jabatan & Hak Akses</label>
-                                <select
-                                    value={newUser.position || ''}
-                                    onChange={e => {
-                                        const pos = [
-                                            { label: 'Ketua Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
-                                            { label: 'Sekretaris Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
-                                            { label: 'Bendahara Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
-
-                                            // BIDANG SARANA & PRASARANA
-                                            { label: 'Kepala Bidang Sarana dan Prasarana', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
-                                            { label: 'Staff Keuangan dan Administrasi (Sarpras)', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
-                                            { label: 'Staff Manajemen Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
-                                            { label: 'Staff Gudang dan Logistik', role: 'ADMIN_ASET', scope: 'GLOBAL' },
-                                            { label: 'Staff Kendaraan', role: 'ADMIN_ASET', scope: 'GLOBAL' },
-
-                                            // BIDANG IT
-                                            { label: 'Kepala Bidang IT', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
-                                            { label: 'Staff Programming', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
-                                            { label: 'Staff IT', role: 'ADMIN_ASET', scope: 'GLOBAL' },
-
-                                            // BIDANG SDM
-                                            { label: 'Kepala Bidang SDM', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
-                                            { label: 'Staff SDM', role: 'USER', scope: 'UNIT' },
-
-                                            // BIDANG KEUANGAN
-                                            { label: 'Kepala Bidang Keuangan', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
-                                            { label: 'Staff Keuangan', role: 'USER', scope: 'UNIT' },
-
-                                            // BIDANG PEMBANGUNAN
-                                            { label: 'Kepala Bidang Pembangunan', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
-                                            { label: 'Staff Pembangunan', role: 'USER', scope: 'UNIT' },
-
-                                            // BIDANG K3
-                                            { label: 'Kepala Bidang K3', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
-                                            { label: 'Staff K3', role: 'USER', scope: 'UNIT' },
-
-                                            { label: 'Kepala Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
-                                            { label: 'Sarpras Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
-                                            { label: 'Bendahara Unit', role: 'USER', scope: 'UNIT' },
-                                            { label: 'Staff Unit/divisi/bidang', role: 'USER', scope: 'UNIT' }
-                                        ].find(p => p.label === e.target.value);
-
-                                        if (pos) {
-                                            // Auto-assign Kantor Yayasan unit for global roles
-                                            let autoUnitId = newUser.unitId;
-                                            if (pos.scope === 'GLOBAL') {
-                                                const yayasanUnit = unitList.find(u => u.name.toLowerCase().includes('yayasan'));
-                                                autoUnitId = yayasanUnit ? String(yayasanUnit.id) : '';
-                                            }
-                                            setNewUser({
-                                                ...newUser,
-                                                position: pos.label,
-                                                role: pos.role,
-                                                unitId: autoUnitId
-                                            });
-                                        } else {
-                                            setNewUser({ ...newUser, position: e.target.value });
-                                        }
-                                    }}
-                                    className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-medium text-slate-700"
-                                >
-                                    <option value="">-- PILIH JABATAN --</option>
-                                    <optgroup label="Pengurus Yayasan (Global Access)">
-                                        <option value="Ketua Yayasan">Ketua Yayasan</option>
-                                        <option value="Sekretaris Yayasan">Sekretaris Yayasan</option>
-                                        <option value="Bendahara Yayasan">Bendahara Yayasan</option>
-                                    </optgroup>
-                                    <optgroup label="Kantor Yayasan">
-                                        <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG SARPRAS & IT --</option>
-                                        <option value="Kepala Bidang Sarana dan Prasarana">Kepala Bidang Sarana dan Prasarana (Super Admin)</option>
-                                        <option value="Staff Keuangan dan Administrasi (Sarpras)">Staff Keuangan & Adm (Admin Unit)</option>
-                                        <option value="Staff Manajemen Aset">Staff Manajemen Aset (Admin Unit)</option>
-                                        <option value="Staff Gudang dan Logistik">Staff Gudang dan Logistik (Admin Unit)</option>
-                                        <option value="Staff Kendaraan">Staff Kendaraan (Admin Unit)</option>
-                                        <option value="Kepala Bidang IT">Kepala Bidang IT (Super Admin)</option>
-                                        <option value="Staff Programming">Staff Programming (Super Admin)</option>
-                                        <option value="Staff IT">Staff IT (Admin Unit)</option>
-
-                                        <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG SDM & KEUANGAN --</option>
-                                        <option value="Kepala Bidang SDM">Kepala Bidang SDM (Global Terbatas)</option>
-                                        <option value="Staff SDM">Staff SDM (User)</option>
-                                        <option value="Kepala Bidang Keuangan">Kepala Bidang Keuangan (Global Terbatas)</option>
-                                        <option value="Staff Keuangan">Staff Keuangan (User)</option>
-
-                                        <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG PEMBANGUNAN & K3 --</option>
-                                        <option value="Kepala Bidang Pembangunan">Kepala Bidang Pembangunan (Global Terbatas)</option>
-                                        <option value="Staff Pembangunan">Staff Pembangunan (User)</option>
-                                        <option value="Kepala Bidang K3">Kepala Bidang K3 (Global Terbatas)</option>
-                                        <option value="Staff K3">Staff K3 (User)</option>
-                                    </optgroup>
-                                    <optgroup label="Unit / Divisi / Bidang (Unit Access)">
-                                        <option value="Kepala Unit">Kepala Unit</option>
-                                        <option value="Sarpras Unit">Sarpras Unit</option>
-                                        <option value="Bendahara Unit">Bendahara Unit</option>
-                                        <option value="Staff Unit/divisi/bidang">Staff Unit/divisi/bidang</option>
-                                    </optgroup>
-                                </select>
-                                <div className="mt-1 text-[10px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
-                                    Role System: <span className="font-bold text-blue-600">{newUser.role || '-'}</span>
-                                    {newUser.role && (
-                                        <span className="ml-1 text-slate-400">
-                                            ({['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(newUser.role) ? 'Akses Global' : 'Akses Terbatas Unit'})
-                                        </span>
-                                    )}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label>
+                                    <input
+                                        type="password"
+                                        required={!newUser.id}
+                                        value={newUser.password}
+                                        onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder={newUser.id ? "Kosongkan jika tidak ubah password" : "********"}
+                                    />
                                 </div>
-                            </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">No. HP / Telepon</label>
+                                        <input
+                                            type="text"
+                                            value={newUser.phone || ''}
+                                            onChange={e => setNewUser({ ...newUser, phone: e.target.value })}
+                                            className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            placeholder="0812xxxx (Untuk WA)"
+                                        />
+                                    </div>
+                                </div>
 
-                            {['ADMIN_UNIT', 'USER'].includes(newUser.role) && (
-                                <div className="animate-in slide-in-from-top-2 fade-in">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unit Kerja Assignment</label>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Jabatan & Hak Akses</label>
                                     <select
-                                        value={newUser.unitId}
-                                        required={['ADMIN_UNIT', 'USER'].includes(newUser.role)}
-                                        onChange={e => setNewUser({ ...newUser, unitId: e.target.value })}
-                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-blue-50/30"
+                                        value={newUser.position || ''}
+                                        onChange={e => {
+                                            const pos = [
+                                                { label: 'Ketua Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                                { label: 'Sekretaris Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                                { label: 'Bendahara Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+
+                                                // BIDANG SARANA & PRASARANA
+                                                { label: 'Kepala Bidang Sarana dan Prasarana', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                                { label: 'Staff Keuangan dan Administrasi (Sarpras)', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                                { label: 'Staff Manajemen Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+                                                { label: 'Staff Gudang dan Logistik', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+                                                { label: 'Staff Kendaraan', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+
+                                                // BIDANG IT
+                                                { label: 'Kepala Bidang IT', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                                { label: 'Staff Programming', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                                { label: 'Staff IT', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+
+                                                // BIDANG SDM
+                                                { label: 'Kepala Bidang SDM', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
+                                                { label: 'Staff SDM', role: 'USER', scope: 'UNIT' },
+
+                                                // BIDANG KEUANGAN
+                                                { label: 'Kepala Bidang Keuangan', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
+                                                { label: 'Staff Keuangan', role: 'USER', scope: 'UNIT' },
+
+                                                // BIDANG PEMBANGUNAN
+                                                { label: 'Kepala Bidang Pembangunan', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
+                                                { label: 'Staff Pembangunan', role: 'USER', scope: 'UNIT' },
+
+                                                // BIDANG K3
+                                                { label: 'Kepala Bidang K3', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
+                                                { label: 'Staff K3', role: 'USER', scope: 'UNIT' },
+
+                                                { label: 'Kepala Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
+                                                { label: 'Sarpras Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
+                                                { label: 'Bendahara Unit', role: 'USER', scope: 'UNIT' },
+                                                { label: 'Staff Unit/divisi/bidang', role: 'USER', scope: 'UNIT' }
+                                            ].find(p => p.label === e.target.value);
+
+                                            if (pos) {
+                                                // Auto-assign Kantor Yayasan unit for global roles
+                                                let autoUnitId = newUser.unitId;
+                                                if (pos.scope === 'GLOBAL') {
+                                                    const yayasanUnit = unitList.find(u => u.name.toLowerCase().includes('yayasan'));
+                                                    autoUnitId = yayasanUnit ? String(yayasanUnit.id) : '';
+                                                }
+                                                setNewUser({
+                                                    ...newUser,
+                                                    position: pos.label,
+                                                    role: pos.role,
+                                                    unitId: autoUnitId
+                                                });
+                                            } else {
+                                                setNewUser({ ...newUser, position: e.target.value });
+                                            }
+                                        }}
+                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-medium text-slate-700"
                                     >
-                                        <option value="">-- PILIH UNIT KERJA --</option>
-                                        {unitList.map(unit => (
-                                            <option key={unit.id} value={unit.id}>{unit.name} ({unit.code})</option>
-                                        ))}
+                                        <option value="">-- PILIH JABATAN --</option>
+                                        <optgroup label="Pengurus Yayasan (Global Access)">
+                                            <option value="Ketua Yayasan">Ketua Yayasan</option>
+                                            <option value="Sekretaris Yayasan">Sekretaris Yayasan</option>
+                                            <option value="Bendahara Yayasan">Bendahara Yayasan</option>
+                                        </optgroup>
+                                        <optgroup label="Kantor Yayasan">
+                                            <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG SARPRAS & IT --</option>
+                                            <option value="Kepala Bidang Sarana dan Prasarana">Kepala Bidang Sarana dan Prasarana (Super Admin)</option>
+                                            <option value="Staff Keuangan dan Administrasi (Sarpras)">Staff Keuangan & Adm (Admin Unit)</option>
+                                            <option value="Staff Manajemen Aset">Staff Manajemen Aset (Admin Unit)</option>
+                                            <option value="Staff Gudang dan Logistik">Staff Gudang dan Logistik (Admin Unit)</option>
+                                            <option value="Staff Kendaraan">Staff Kendaraan (Admin Unit)</option>
+                                            <option value="Kepala Bidang IT">Kepala Bidang IT (Super Admin)</option>
+                                            <option value="Staff Programming">Staff Programming (Super Admin)</option>
+                                            <option value="Staff IT">Staff IT (Admin Unit)</option>
+
+                                            <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG SDM & KEUANGAN --</option>
+                                            <option value="Kepala Bidang SDM">Kepala Bidang SDM (Global Terbatas)</option>
+                                            <option value="Staff SDM">Staff SDM (User)</option>
+                                            <option value="Kepala Bidang Keuangan">Kepala Bidang Keuangan (Global Terbatas)</option>
+                                            <option value="Staff Keuangan">Staff Keuangan (User)</option>
+
+                                            <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG PEMBANGUNAN & K3 --</option>
+                                            <option value="Kepala Bidang Pembangunan">Kepala Bidang Pembangunan (Global Terbatas)</option>
+                                            <option value="Staff Pembangunan">Staff Pembangunan (User)</option>
+                                            <option value="Kepala Bidang K3">Kepala Bidang K3 (Global Terbatas)</option>
+                                            <option value="Staff K3">Staff K3 (User)</option>
+                                        </optgroup>
+                                        <optgroup label="Unit / Divisi / Bidang (Unit Access)">
+                                            <option value="Kepala Unit">Kepala Unit</option>
+                                            <option value="Sarpras Unit">Sarpras Unit</option>
+                                            <option value="Bendahara Unit">Bendahara Unit</option>
+                                            <option value="Staff Unit/divisi/bidang">Staff Unit/divisi/bidang</option>
+                                        </optgroup>
                                     </select>
-                                    <p className="text-[10px] text-slate-400 mt-1 italic">*Wajib diisi untuk Staff Unit agar data terfilter sesuai unitnya.</p>
+                                    <div className="mt-1 text-[10px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
+                                        Role System: <span className="font-bold text-blue-600">{newUser.role || '-'}</span>
+                                        {newUser.role && (
+                                            <span className="ml-1 text-slate-400">
+                                                ({['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(newUser.role) ? 'Akses Global' : 'Akses Terbatas Unit'})
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                            )}
-                            <div className="pt-4 flex gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowUserModal(false)}
-                                    className="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
-                                >
-                                    Batal
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
-                                >
-                                    {newUser.id ? 'Simpan Perubahan' : 'Tambah User'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div >
-            )}
+
+                                {['ADMIN_UNIT', 'USER'].includes(newUser.role) && (
+                                    <div className="animate-in slide-in-from-top-2 fade-in">
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unit Kerja Assignment</label>
+                                        <select
+                                            value={newUser.unitId}
+                                            required={['ADMIN_UNIT', 'USER'].includes(newUser.role)}
+                                            onChange={e => setNewUser({ ...newUser, unitId: e.target.value })}
+                                            className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-blue-50/30"
+                                        >
+                                            <option value="">-- PILIH UNIT KERJA --</option>
+                                            {unitList.map(unit => (
+                                                <option key={unit.id} value={unit.id}>{unit.name} ({unit.code})</option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[10px] text-slate-400 mt-1 italic">*Wajib diisi untuk Staff Unit agar data terfilter sesuai unitnya.</p>
+                                    </div>
+                                )}
+                                <div className="pt-4 flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowUserModal(false)}
+                                        className="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+                                    >
+                                        {newUser.id ? 'Simpan Perubahan' : 'Tambah User'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div >
+                )
+            }
         </div >
     );
 };

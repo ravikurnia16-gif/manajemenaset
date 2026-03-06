@@ -230,18 +230,14 @@ const Sidebar = ({ isOpen = true }) => {
                     ))}
 
                 {/* System & Settings */}
-                {(isAdmin || user.role === 'AUDITOR') && (
-                    <div className="pt-4 mt-2 border-t border-slate-800">
-                        <div className="px-3 text-[10px] uppercase text-slate-500 mb-2 font-bold tracking-wider">System</div>
-                        <Link to="/laporan" className={navItemClass('/laporan')}><FileText size={18} /> Laporan</Link>
-                        {isAdmin && (
-                            <>
-                                <Link to="/master" className={navItemClass('/master')}><Database size={18} /> Master Data</Link>
-                                <Link to="/settings" className={navItemClass('/settings')}><Settings size={18} /> Pengaturan</Link>
-                            </>
-                        )}
-                    </div>
-                )}
+                <div className="pt-4 mt-2 border-t border-slate-800">
+                    <div className="px-3 text-[10px] uppercase text-slate-500 mb-2 font-bold tracking-wider">System</div>
+                    <Link to="/laporan" className={navItemClass('/laporan')}><FileText size={18} /> Laporan</Link>
+                    {isAdmin && (
+                        <Link to="/master" className={navItemClass('/master')}><Database size={18} /> Master Data</Link>
+                    )}
+                    <Link to="/settings" className={navItemClass('/settings')}><Settings size={18} /> Pengaturan</Link>
+                </div>
             </nav>
 
             <div className={cn(
