@@ -874,7 +874,7 @@ const Settings = () => {
                                         <optgroup label="Kantor Yayasan">
                                             <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG SARPRAS & IT --</option>
                                             <option value="Kepala Bidang Sarana dan Prasarana">Kepala Bidang Sarana dan Prasarana (Super Admin)</option>
-                                            <option value="Staff Keuangan dan Administrasi (Sarpras)">Staff Keuangan & Adm (Admin Unit)</option>
+                                            <option value="Staff Keuangan dan Administrasi (Sarpras)">Staff Keuangan & Adm (Super Admin)</option>
                                             <option value="Staff Manajemen Aset">Staff Manajemen Aset (Admin Unit)</option>
                                             <option value="Staff Gudang dan Logistik">Staff Gudang dan Logistik (Admin Unit)</option>
                                             <option value="Staff Kendaraan">Staff Kendaraan (Admin Unit)</option>

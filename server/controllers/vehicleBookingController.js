@@ -126,10 +126,35 @@ exports.reviewBooking = async (req, res) => {
 
         // Notify User
         if (booking.user.phone) {
-            const statusLabel = status === 'APPROVED' ? 'DISETUJUI ✅' : 'DITOLAK ❌';
-            const msg = `📢 *UPDATE STATUS PEMINJAMAN*\n\n` +
-                `Permintaan Anda untuk kendaraan *${booking.vehicle.name}* telah *${statusLabel}*.\n` +
-                (adminNote ? `Catatan: ${adminNote}` : '');
+            let msg = '';
+            if (status === 'APPROVED') {
+                const formatDateTime = (date) => {
+                    const d = new Date(date);
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const month = months[d.getMonth()];
+                    const year = d.getFullYear();
+                    const hh = String(d.getHours()).padStart(2, '0');
+                    const mm = String(d.getMinutes()).padStart(2, '0');
+                    return `${day} ${month} ${year} ${hh}:${mm}`;
+                };
+
+                const startStr = formatDateTime(booking.startDate);
+                const endStr = formatDateTime(booking.endDate);
+
+                msg = `✅ *REQUEST PEMINJAMAN DISETUJUI*\n\n` +
+                    `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
+                    `Waktu: ${startStr} - ${endStr}\n` +
+                    `Tujuan: ${booking.destination}\n` +
+                    `Disetujui oleh: ${req.user.name || req.user.username}\n\n` +
+                    `Silakan mulai perjalanan melalui aplikasi SARPRAS saat akan memulai Perjalanan`;
+
+                if (adminNote) msg += `\n\nCatatan: ${adminNote}`;
+            } else {
+                msg = `📢 *UPDATE STATUS PEMINJAMAN*\n\n` +
+                    `Permintaan Anda untuk kendaraan *${booking.vehicle.name}* telah *DITOLAK ❌*.\n` +
+                    (adminNote ? `Catatan: ${adminNote}` : '');
+            }
             await sendMessage(booking.user.phone, msg);
         }
 
@@ -231,17 +256,27 @@ exports.getBookings = async (req, res) => {
 
         if (vehicleId) where.vehicleId = parseInt(vehicleId);
 
+        const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role);
+        const isAdminAset = req.user.role === 'ADMIN_ASET';
+        const isNormalOrPIC = !isSuperAdmin && !isAdminAset;
+
         if (tab === 'PENDING' || tab === 'APPROVAL') {
             where.status = 'PENDING';
+            if (isNormalOrPIC && tab === 'APPROVAL') {
+                where.vehicle = { pics: { some: { id: req.user.id } } };
+            }
         } else if (tab === 'APPROVED') {
             where.status = 'APPROVED';
         } else if (tab === 'MY_REQUESTS') {
             where.userId = req.user.id;
-            where.status = { in: ['PENDING', 'APPROVED'] };
+            // No status filter = get all user request history
+        } else if (tab === 'MY_HISTORY') {
+            where.userId = req.user.id;
+            where.status = { in: ['COMPLETED', 'REJECTED', 'CANCELLED'] };
         } else if (tab === 'HISTORY') {
-            // Include ALL statuses in history as requested
-            // where.status = { in: ['COMPLETED', 'REJECTED', 'CANCELLED'] };
-
+            if (isNormalOrPIC) {
+                where.vehicle = { pics: { some: { id: req.user.id } } };
+            }
             // Add Date Range Filters for History
             if (startDate || endDate) {
                 where.startDate = {};
