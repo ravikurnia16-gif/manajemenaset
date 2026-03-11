@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin } from 'lucide-react';
+import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const Sidebar = ({ isOpen = true }) => {
@@ -191,13 +191,19 @@ const Sidebar = ({ isOpen = true }) => {
                                 <Link to="/gudang/transaksi" className={subNavItemClass('/gudang/transaksi')}>
                                     <ArrowLeftRight size={16} /> Transaksi
                                 </Link>
-                                <Link to="/gudang/pesanan" className={subNavItemClass('/gudang/pesanan')}>
-                                    <ShoppingCart size={16} /> Pesanan
-                                </Link>
                             </>
+                        )}
+                        {(isAdmin || user?.role === 'USER') && (
+                            <Link to="/gudang/pesanan" className={subNavItemClass('/gudang/pesanan')}>
+                                <ShoppingCart size={16} /> Pesanan
+                            </Link>
                         )}
                     </>
                 ))}
+
+                <Link to="/rumah-dinas" className={navItemClass('/rumah-dinas')}>
+                    <Home size={18} /> Rumah Dinas
+                </Link>
 
 
                 {/* 4. Manajemen Personalia - Restricted to Global Access or Sarpras Unit */}

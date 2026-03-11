@@ -832,3 +832,79 @@ model BusBooking {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
+
+// --- MANAJEMEN RUMAH DINAS (OFFICIAL RESIDENCE) ---
+
+model OfficialResidenceUnit {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique // RD-001
+  blok          String?  // A, B, etc.
+  name          String?  // Unit A-1
+  luas          Float?   // in m2
+  lantai        Int?     @default(1)
+  status        String   @default("KOSONG") // DITEMPATI, KOSONG, MAINTENANCE
+  facilities    String?  @db.Text // JSON string or comma separated list
+
+  residents     OfficialResidenceResident[]
+  maintenances  OfficialResidenceMaintenance[]
+  mous          OfficialResidenceMOU[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model OfficialResidenceResident {
+  id            Int      @id @default(autoincrement())
+  nik           String?  @unique
+  name          String
+  position      String?  // Jabatan
+  unitId        Int
+  unit          OfficialResidenceUnit @relation(fields: [unitId], references: [id])
+  startDate     DateTime? // Tanggal Masuk
+  phone         String?
+  status        String   @default("AKTIF") // AKTIF, NON_AKTIF
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model OfficialResidenceMaintenance {
+  id            Int      @id @default(autoincrement())
+  unitId        Int
+  unit          OfficialResidenceUnit @relation(fields: [unitId], references: [id])
+  title         String
+  description   String   @db.Text
+  priority      String   @default("SEDANG") // TINGGI, SEDANG, RENDAH
+  status        String   @default("MENUNGGU") // MENUNGGU, DALAM_PENGERJAAN, SELESAI
+  reportedDate  DateTime @default(now())
+  resolvedDate  DateTime?
+  technician    String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model OfficialResidenceMOU {
+  id              Int      @id @default(autoincrement())
+  mouNumber       String   @unique // MOU/DEI/001/2026
+  unitId          Int
+  unit            OfficialResidenceUnit @relation(fields: [unitId], references: [id])
+  residentName    String
+  residentPosition String
+  startDate       DateTime
+  endDate         DateTime
+  durationYears   Int
+  status          String   @default("AKTIF") // AKTIF, DIPERPANJANG, KADALUARSA
+  rights          String?  @db.Text
+  obligations     String?  @db.Text
+  notes           String?  @db.Text
+  signedDate      DateTime?
+  
+  // Signatures stored as Base64 strings
+  signatureParty1 String?  @db.LongText // Pihak Pertama (Yayasan)
+  signatureParty2 String?  @db.LongText // Pihak Kedua (Penghuni)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+

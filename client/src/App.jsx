@@ -45,6 +45,7 @@ import SarprasCalendar from './pages/SarprasCalendar';
 import VendorManagement from './pages/VendorManagement';
 import ReportPage from './pages/ReportPage';
 import ModulePlaceholder from './components/ModulePlaceholder';
+import OfficialResidence from './pages/OfficialResidence';
 
 // Komponen untuk melindungi route yang butuh login
 const ProtectedRoute = ({ children }) => {
@@ -92,6 +93,7 @@ function App() {
           <Route path="penghapusan" element={<DisposalList />} />
           <Route path="peminjaman" element={<LoanList />} />
           <Route path="sarpras/rules" element={<SarprasRules />} />
+          <Route path="rumah-dinas" element={<OfficialResidence />} />
 
           {/* Module: Manajemen Kendaraan */}
           <Route path="kendaraan/dashboard" element={<VehicleDashboard />} />

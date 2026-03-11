@@ -1,0 +1,346 @@
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+// --- DASHBOARD ---
+exports.getDashboardStats = async (req, res) => {
+    try {
+        const totalUnits = await prisma.officialResidenceUnit.count();
+        const occupiedUnits = await prisma.officialResidenceUnit.count({ where: { status: 'DITEMPATI' } });
+        const vacantUnits = await prisma.officialResidenceUnit.count({ where: { status: 'KOSONG' } });
+        const maintenanceUnits = await prisma.officialResidenceUnit.count({ where: { status: 'MAINTENANCE' } });
+        const totalResidents = await prisma.officialResidenceResident.count({ where: { status: 'AKTIF' } });
+        
+        const now = new Date();
+        const plus90Days = new Date(now.getTime() + (90 * 24 * 60 * 60 * 1000));
+        
+        const activeMOUs = await prisma.officialResidenceMOU.count({ 
+            where: { status: { in: ['AKTIF', 'DIPERPANJANG'] } } 
+        });
+        const expiringMOUs = await prisma.officialResidenceMOU.count({
+            where: {
+                endDate: { lte: plus90Days, gte: now },
+                status: { not: 'KADALUARSA' }
+            }
+        });
+        const expiredMOUs = await prisma.officialResidenceMOU.count({
+            where: { status: 'KADALUARSA' }
+        });
+
+        const activeMaintenance = await prisma.officialResidenceMaintenance.findMany({
+            where: { status: { not: 'SELESAI' } },
+            include: { unit: { select: { code: true } } },
+            orderBy: { reportedDate: 'desc' }
+        });
+
+        res.json({
+            totalUnits,
+            occupiedUnits,
+            vacantUnits,
+            maintenanceUnits,
+            totalResidents,
+            activeMOUs,
+            expiringMOUs,
+            expiredMOUs,
+            activeMaintenance
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// --- UNITS ---
+exports.getAllUnits = async (req, res) => {
+    try {
+        const units = await prisma.officialResidenceUnit.findMany({
+            include: {
+                residents: { where: { status: 'AKTIF' }, take: 1 }
+            },
+            orderBy: { code: 'asc' }
+        });
+        res.json(units);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createUnit = async (req, res) => {
+    try {
+        const { code, blok, name, luas, lantai, status, facilities } = req.body;
+        const unit = await prisma.officialResidenceUnit.create({
+            data: {
+                code,
+                blok,
+                name,
+                luas: parseFloat(luas),
+                lantai: parseInt(lantai) || 1,
+                status: status || 'KOSONG',
+                facilities: Array.isArray(facilities) ? facilities.join(',') : facilities
+            }
+        });
+        res.json(unit);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateUnit = async (req, res) => {
+    try {
+        const { code, blok, name, luas, lantai, status, facilities } = req.body;
+        const unit = await prisma.officialResidenceUnit.update({
+            where: { id: parseInt(req.params.id) },
+            data: {
+                code,
+                blok,
+                name,
+                luas: parseFloat(luas),
+                lantai: parseInt(lantai) || 1,
+                status: status || 'KOSONG',
+                facilities: Array.isArray(facilities) ? facilities.join(',') : facilities
+            }
+        });
+        res.json(unit);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteUnit = async (req, res) => {
+    try {
+        await prisma.officialResidenceUnit.delete({
+            where: { id: parseInt(req.params.id) }
+        });
+        res.json({ message: 'Unit berhasil dihapus' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// --- RESIDENTS ---
+exports.getAllResidents = async (req, res) => {
+    try {
+        const residents = await prisma.officialResidenceResident.findMany({
+            include: { unit: { select: { code: true } } },
+            orderBy: { name: 'asc' }
+        });
+        res.json(residents);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createResident = async (req, res) => {
+    try {
+        const { nik, name, position, unitId, startDate, phone, status } = req.body;
+        const resident = await prisma.officialResidenceResident.create({
+            data: {
+                nik,
+                name,
+                position,
+                unitId: parseInt(unitId),
+                startDate: startDate ? new Date(startDate) : null,
+                phone,
+                status: status || 'AKTIF'
+            }
+        });
+        
+        // Update unit status if needed
+        if (status === 'AKTIF') {
+            await prisma.officialResidenceUnit.update({
+                where: { id: parseInt(unitId) },
+                data: { status: 'DITEMPATI' }
+            });
+        }
+
+        res.json(resident);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateResident = async (req, res) => {
+    try {
+        const { nik, name, position, unitId, startDate, phone, status } = req.body;
+        const resident = await prisma.officialResidenceResident.update({
+            where: { id: parseInt(req.params.id) },
+            data: {
+                nik,
+                name,
+                position,
+                unitId: parseInt(unitId),
+                startDate: startDate ? new Date(startDate) : null,
+                phone,
+                status: status || 'AKTIF'
+            }
+        });
+        res.json(resident);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteResident = async (req, res) => {
+    try {
+        await prisma.officialResidenceResident.delete({
+            where: { id: parseInt(req.params.id) }
+        });
+        res.json({ message: 'Penghuni berhasil dihapus' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// --- MAINTENANCE ---
+exports.getAllMaintenance = async (req, res) => {
+    try {
+        const maintenance = await prisma.officialResidenceMaintenance.findMany({
+            include: { unit: { select: { code: true } } },
+            orderBy: { reportedDate: 'desc' }
+        });
+        res.json(maintenance);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.reportMaintenance = async (req, res) => {
+    try {
+        const { unitId, title, description, priority, status, technician, resolvedDate } = req.body;
+        const maintenance = await prisma.officialResidenceMaintenance.create({
+            data: {
+                unitId: parseInt(unitId),
+                title,
+                description,
+                priority: priority || 'SEDANG',
+                status: status || 'MENUNGGU',
+                technician,
+                resolvedDate: resolvedDate ? new Date(resolvedDate) : null
+            }
+        });
+        res.json(maintenance);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateMaintenance = async (req, res) => {
+    try {
+        const { unitId, title, description, priority, status, technician, resolvedDate } = req.body;
+        const maintenance = await prisma.officialResidenceMaintenance.update({
+            where: { id: parseInt(req.params.id) },
+            data: {
+                unitId: parseInt(unitId),
+                title,
+                description,
+                priority,
+                status,
+                technician,
+                resolvedDate: resolvedDate ? new Date(resolvedDate) : null
+            }
+        });
+        res.json(maintenance);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteMaintenance = async (req, res) => {
+    try {
+        await prisma.officialResidenceMaintenance.delete({
+            where: { id: parseInt(req.params.id) }
+        });
+        res.json({ message: 'Laporan perbaikan berhasil dihapus' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// --- MOU ---
+exports.getAllMOUs = async (req, res) => {
+    try {
+        const mous = await prisma.officialResidenceMOU.findMany({
+            include: { unit: { select: { code: true } } },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(mous);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createMOU = async (req, res) => {
+    try {
+        const { 
+            mouNumber, unitId, residentName, residentPosition, 
+            startDate, endDate, durationYears, status, 
+            rights, obligations, notes, signedDate,
+            signatureParty1, signatureParty2
+        } = req.body;
+        
+        const mou = await prisma.officialResidenceMOU.create({
+            data: {
+                mouNumber,
+                unitId: parseInt(unitId),
+                residentName,
+                residentPosition,
+                startDate: new Date(startDate),
+                endDate: new Date(endDate),
+                durationYears: parseInt(durationYears),
+                status: status || 'AKTIF',
+                rights,
+                obligations,
+                notes,
+                signedDate: signedDate ? new Date(signedDate) : null,
+                signatureParty1,
+                signatureParty2
+            }
+        });
+        res.json(mou);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateMOU = async (req, res) => {
+    try {
+        const { 
+            mouNumber, unitId, residentName, residentPosition, 
+            startDate, endDate, durationYears, status, 
+            rights, obligations, notes, signedDate,
+            signatureParty1, signatureParty2
+        } = req.body;
+        
+        const mou = await prisma.officialResidenceMOU.update({
+            where: { id: parseInt(req.params.id) },
+            data: {
+                mouNumber,
+                unitId: parseInt(unitId),
+                residentName,
+                residentPosition,
+                startDate: new Date(startDate),
+                endDate: new Date(endDate),
+                durationYears: parseInt(durationYears),
+                status: status || 'AKTIF',
+                rights,
+                obligations,
+                notes,
+                signedDate: signedDate ? new Date(signedDate) : null,
+                signatureParty1,
+                signatureParty2
+            }
+        });
+        res.json(mou);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteMOU = async (req, res) => {
+    try {
+        await prisma.officialResidenceMOU.delete({
+            where: { id: parseInt(req.params.id) }
+        });
+        res.json({ message: 'MOU berhasil dihapus' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
