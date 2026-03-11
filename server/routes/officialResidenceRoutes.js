@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const officialResidenceController = require('../controllers/officialResidenceController');
-const { protect } = require('../middlewares/authMiddleware');
+const { verifyToken } = require('../middleware/authMiddleware');
 
 // Middleware to protect all routes
-router.use(protect);
+router.use(verifyToken);
 
 // Dashboard
 router.get('/dashboard', officialResidenceController.getDashboardStats);
