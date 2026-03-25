@@ -8,6 +8,7 @@ import {
 import api from '../lib/axios';
 
 const VehicleRental = () => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
     const [activeTab, setActiveTab] = useState('CURRENT_FLEET');
     const [vehicles, setVehicles] = useState([]);
     const [bookings, setBookings] = useState([]);
@@ -39,9 +40,9 @@ const VehicleRental = () => {
         purpose: '',
         passengerCount: 1,
         driverId: '',
-        renterName: '',
-        renterInstansi: '',
-        renterPhone: '',
+        renterName: user.name || '',
+        renterInstansi: user.unit?.name || 'Unit Internal',
+        renterPhone: user.phone || '',
         rentalPrice: '',
         isRented: true
     });
@@ -58,7 +59,6 @@ const VehicleRental = () => {
     const [filterStartDate, setFilterStartDate] = useState('');
     const [filterEndDate, setFilterEndDate] = useState('');
 
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role);
     const isAdminAset = ['ADMIN_ASET'].includes(user.role);
     const [isPIC, setIsPIC] = useState(false);
@@ -182,7 +182,8 @@ const VehicleRental = () => {
             setActiveTab('MY_REQUESTS');
             setFormData({
                 vehicleId: '', startDate: '', startTime: '08:00', endDate: '', endTime: '17:00',
-                destination: '', purpose: '', passengerCount: 1, driverId: '', renterName: '', renterInstansi: '', renterPhone: '', rentalPrice: '', isRented: true
+                destination: '', purpose: '', passengerCount: 1, driverId: '', 
+                renterName: user.name || '', renterInstansi: user.unit?.name || 'Unit Internal', renterPhone: user.phone || '', rentalPrice: '', isRented: true
             });
         } catch (err) {
             showToast('Gagal mengirim permohonan: ' + (err.response?.data?.error || err.message), 'error');
@@ -341,10 +342,15 @@ const VehicleRental = () => {
                                             </div>
                                         </div>
                                         {/* Type Tag Overlay */}
-                                        <div className="absolute bottom-3 left-3">
+                                        <div className="absolute bottom-3 left-3 flex flex-col gap-1">
                                             <div className="px-2 py-1 bg-black/40 backdrop-blur-md text-white/90 rounded text-[9px] font-bold uppercase tracking-wider">
                                                 {v.type}
                                             </div>
+                                            {v.defaultRentalPrice && (
+                                                <div className="px-2 py-1 bg-blue-600/90 backdrop-blur-md text-white rounded text-[10px] font-bold tracking-wider">
+                                                    Rp {v.defaultRentalPrice.toLocaleString('id-ID')} / Hari
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
@@ -420,7 +426,7 @@ const VehicleRental = () => {
                                                 ) : (
                                                     <>
                                                         <Plus size={16} className="group-hover/btn:rotate-90 transition-transform" />
-                                                        Pinjam Sekarang
+                                                        Sewa Kendaraan
                                                     </>
                                                 )}
                                             </button>
@@ -508,19 +514,17 @@ const VehicleRental = () => {
                                                 <div>
                                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Nama Penyewa</label>
                                                     <input
-                                                        type="text" required
-                                                        placeholder="Nama Lengkap Eksternal"
-                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        type="text" required readOnly
+                                                        className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none cursor-not-allowed text-slate-500"
                                                         value={formData.renterName}
                                                         onChange={e => setFormData({ ...formData, renterName: e.target.value })}
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Instansi / Perusahaan</label>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Unit Internal (Penyewa)</label>
                                                     <input
-                                                        type="text" required
-                                                        placeholder="Contoh: PT. ABC / Pribadi"
-                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        type="text" required readOnly
+                                                        className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none cursor-not-allowed text-slate-500"
                                                         value={formData.renterInstansi}
                                                         onChange={e => setFormData({ ...formData, renterInstansi: e.target.value })}
                                                     />
@@ -843,7 +847,10 @@ const VehicleRental = () => {
                                                 {b.status === 'APPROVED' && b.startKm && (
                                                     <button
                                                         disabled={submitting}
-                                                        onClick={() => setShowActionModal({ type: 'END', data: b })}
+                                                        onClick={() => {
+                                                            setActionData({ ...actionData, km: b.vehicle.odometer || b.startKm || '' });
+                                                            setShowActionModal({ type: 'END', data: b });
+                                                        }}
                                                         className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1 disabled:opacity-50"
                                                     >
                                                         <LogOut size={14} /> End Trip

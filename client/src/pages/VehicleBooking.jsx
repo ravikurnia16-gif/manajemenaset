@@ -794,7 +794,10 @@ const VehicleBooking = () => {
                                                 {b.status === 'APPROVED' && b.startKm && (
                                                     <button
                                                         disabled={submitting}
-                                                        onClick={() => setShowActionModal({ type: 'END', data: b })}
+                                                        onClick={() => {
+                                                            setActionData({ ...actionData, km: b.vehicle.odometer || b.startKm || '' });
+                                                            setShowActionModal({ type: 'END', data: b });
+                                                        }}
                                                         className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1 disabled:opacity-50"
                                                     >
                                                         <LogOut size={14} /> End Trip
