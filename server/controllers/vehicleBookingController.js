@@ -60,13 +60,18 @@ exports.requestBooking = async (req, res) => {
             },
             include: {
                 user: { select: { name: true, phone: true } },
-                vehicle: { select: { name: true, plateNumber: true, pics: true } }
+                vehicle: { select: { id: true, name: true, plateNumber: true, pics: true } }
             }
         });
 
+        const isRental = booking.isRented;
+        const termHeader = isRental ? 'SEWA' : 'PINJAM';
+        const termAction = isRental ? 'penyewaan' : 'peminjaman';
+        const termTitle = isRental ? 'Sewa' : 'Pinjam';
+
         // Notify ALL PICs via WhatsApp
         if (vehicle.pics && vehicle.pics.length > 0) {
-            const msg = `🚗 *PERMINTAAN PINJAM KENDARAAN*\n\n` +
+            const msg = `🚗 *PERMINTAAN ${termHeader} KENDARAAN*\n\n` +
                 `Pemohon: ${booking.user.name}\n` +
                 `Armada: ${vehicle.name} (${vehicle.plateNumber})\n` +
                 `Jadwal: ${new Date(startDate).toLocaleString('id-ID')} s/d ${new Date(endDate).toLocaleString('id-ID')}\n` +
@@ -81,17 +86,17 @@ exports.requestBooking = async (req, res) => {
                 // Add System Notification for PICs
                 await createNotification(
                     pic.id,
-                    'Permintaan Pinjam Kendaraan',
-                    `${booking.user.name} mengajukan peminjaman ${vehicle.name}.`,
+                    `Permintaan ${termTitle} Kendaraan`,
+                    `${booking.user.name} mengajukan ${termAction} ${vehicle.name}.`,
                     'INFO',
-                    '/kendaraan/peminjaman'
+                    isRental ? '/kendaraan/sewa' : '/kendaraan/peminjaman'
                 );
             }
         }
 
         // If Auto-Approved, notify the requester too
         if (isPIC && booking.user.phone) {
-            const msg = `📢 *KONFIRMASI PEMINJAMAN*\n\n` +
+            const msg = `📢 *KONFIRMASI ${isRental ? 'PENYEWAAN' : 'PEMINJAMAN'}*\n\n` +
                 `Permintaan Anda untuk kendaraan *${vehicle.name}* telah *DISETUJUI OTOMATIS* (Sistem mendeteksi Anda sebagai PIC).\n\n` +
                 `Selamat bertugas!`;
             await sendMessage(booking.user.phone, msg);
@@ -136,6 +141,11 @@ exports.reviewBooking = async (req, res) => {
         });
 
         // Notify User
+        const isRental = booking.isRented;
+        const termHeader = isRental ? 'PENYEWAAN' : 'PEMINJAMAN';
+        const termAction = isRental ? 'Penyewaan' : 'Peminjaman';
+        const termSmall = isRental ? 'sewa' : 'peminjaman';
+
         if (booking.user.phone) {
             let msg = '';
             if (status === 'APPROVED') {
@@ -153,7 +163,7 @@ exports.reviewBooking = async (req, res) => {
                 const startStr = formatDateTime(booking.startDate);
                 const endStr = formatDateTime(booking.endDate);
 
-                msg = `✅ *REQUEST PEMINJAMAN DISETUJUI*\n\n` +
+                msg = `✅ *REQUEST ${termHeader} DISETUJUI*\n\n` +
                     `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
                     `Waktu: ${startStr} - ${endStr}\n` +
                     `Tujuan: ${booking.destination}\n` +
@@ -162,7 +172,7 @@ exports.reviewBooking = async (req, res) => {
 
                 if (adminNote) msg += `\n\nCatatan: ${adminNote}`;
             } else {
-                msg = `📢 *UPDATE STATUS PEMINJAMAN*\n\n` +
+                msg = `📢 *UPDATE STATUS ${termHeader}*\n\n` +
                     `Permintaan Anda untuk kendaraan *${booking.vehicle.name}* telah *DITOLAK ❌*.\n` +
                     (adminNote ? `Catatan: ${adminNote}` : '');
             }
@@ -172,10 +182,10 @@ exports.reviewBooking = async (req, res) => {
         // Add System Notification for User
         await createNotification(
             booking.userId,
-            `Peminjaman ${status === 'APPROVED' ? 'Disetujui' : 'Ditolak'}`,
-            `Permintaan kendaraan ${booking.vehicle.name} Anda telah ${status === 'APPROVED' ? 'disetujui' : 'ditolak'}.`,
+            `${termAction} ${status === 'APPROVED' ? 'Disetujui' : 'Ditolak'}`,
+            `Permintaan ${termSmall} kendaraan ${booking.vehicle.name} Anda telah ${status === 'APPROVED' ? 'disetujui' : 'ditolak'}.`,
             status === 'APPROVED' ? 'SUCCESS' : 'WARNING',
-            '/kendaraan/peminjaman'
+            isRental ? '/kendaraan/sewa' : '/kendaraan/peminjaman'
         );
 
         res.json(updated);

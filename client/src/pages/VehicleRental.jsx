@@ -330,9 +330,9 @@ const VehicleRental = () => {
             {/* Header */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                 <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    <Navigation2 className="text-blue-600" /> Peminjaman Kendaraan
+                    <Navigation2 className="text-blue-600" /> Sewa Kendaraan
                 </h1>
-                <p className="text-slate-500">Alur peminjaman armada operasional.</p>
+                <p className="text-slate-500">Alur penyewaan armada operasional.</p>
             </div>
 
             {/* Navigation Tabs */}
@@ -589,6 +589,7 @@ const VehicleRental = () => {
                 )}
 
                 {/* Modal Form Peminjaman */}
+                {/* Modal Form Sewa */}
                 {showBorrowModal && selectedVehicle && (
                     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
                         <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300">
@@ -596,7 +597,7 @@ const VehicleRental = () => {
                             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white flex justify-between items-center">
                                 <div>
                                     <h2 className="text-xl font-bold flex items-center gap-3">
-                                        <Car size={24} /> Pinjam Kendaraan
+                                        <Car size={24} /> Sewa Kendaraan
                                     </h2>
                                     <p className="text-blue-100 text-sm mt-1">Armada: {selectedVehicle.name} ({selectedVehicle.plateNumber})</p>
                                 </div>
@@ -613,7 +614,7 @@ const VehicleRental = () => {
                                 <form onSubmit={handleSubmitRequest} className="space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div>
-                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Mulai Pinjam</label>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Mulai Sewa</label>
                                             <div className="flex gap-2">
                                                 <div className="relative flex-1">
                                                     <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
@@ -636,7 +637,7 @@ const VehicleRental = () => {
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Selesai Pinjam</label>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Selesai Sewa</label>
                                             <div className="flex gap-2">
                                                 <div className="relative flex-1">
                                                     <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
@@ -689,17 +690,7 @@ const VehicleRental = () => {
                                                         onChange={e => setFormData({ ...formData, renterPhone: e.target.value })}
                                                     />
                                                 </div>
-                                                <div>
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Biaya Sewa (Rp)</label>
-                                                    <input
-                                                        type="number" required
-                                                        placeholder={selectedVehicle?.defaultRentalPrice?.toString() || '0'}
-                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                                        value={formData.rentalPrice}
-                                                        onChange={e => setFormData({ ...formData, rentalPrice: e.target.value })}
-                                                    />
-                                                    <p className="text-[10px] text-slate-400 mt-1 ml-1 font-medium">Default: Rp {selectedVehicle?.defaultRentalPrice?.toLocaleString('id-ID') || 0}</p>
-                                                </div>
+
                                             </div>
                                         )}
 
