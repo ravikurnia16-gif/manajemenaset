@@ -147,6 +147,9 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/peminjaman" className={subNavItemClass('/peminjaman')}>
                             <ArrowLeftRight size={16} /> Peminjaman Aset
                         </Link>
+                        <Link to="/rumah-dinas" className={subNavItemClass('/rumah-dinas')}>
+                            <Home size={16} /> Rumah Dinas
+                        </Link>
                     </>
                 ))}
 
@@ -201,9 +204,7 @@ const Sidebar = ({ isOpen = true }) => {
                     </>
                 ))}
 
-                <Link to="/rumah-dinas" className={navItemClass('/rumah-dinas')}>
-                    <Home size={18} /> Rumah Dinas
-                </Link>
+
 
 
                 {/* 4. Manajemen Personalia - Restricted to Global Access or Sarpras Unit */}

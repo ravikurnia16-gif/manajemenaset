@@ -23,7 +23,8 @@ const VehicleForm = () => {
         taxDueDate: '',
         stnkDueDate: '',
         kirDueDate: '',
-        picIds: []
+        picIds: [],
+        isRentable: false
     });
     const [users, setUsers] = useState([]);
     const [picSearch, setPicSearch] = useState('');
@@ -51,7 +52,8 @@ const VehicleForm = () => {
                 taxDueDate: formatDate(data.taxDueDate),
                 stnkDueDate: formatDate(data.stnkDueDate),
                 kirDueDate: formatDate(data.kirDueDate),
-                picIds: data.pics?.map(p => p.id) || []
+                picIds: data.pics?.map(p => p.id) || [],
+                isRentable: !!data.isRentable
             });
         } catch (error) {
             console.error('Failed to fetch vehicle:', error);
@@ -341,6 +343,25 @@ const VehicleForm = () => {
                                     className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${form.status === 'INACTIVE' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-400'}`}
                                 >
                                     Non-Aktif
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Bisa Disewa Pihak Luar?</label>
+                            <div className="flex bg-slate-100 p-1 rounded-xl">
+                                <button
+                                    type="button"
+                                    onClick={() => setForm({ ...form, isRentable: true })}
+                                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${form.isRentable === true ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
+                                >
+                                    Ya, Bisa Disewa
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setForm({ ...form, isRentable: false })}
+                                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${form.isRentable === false ? 'bg-white text-slate-600 shadow-sm' : 'text-slate-400'}`}
+                                >
+                                    Tidak Bisa
                                 </button>
                             </div>
                         </div>

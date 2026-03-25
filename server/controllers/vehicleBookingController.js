@@ -6,7 +6,7 @@ const { createNotification } = require('./notificationController');
 // 1. Request Booking
 exports.requestBooking = async (req, res) => {
     try {
-        const { vehicleId, startDate, endDate, destination, purpose, passengerCount, driverId } = req.body;
+        const { vehicleId, startDate, endDate, destination, purpose, passengerCount, driverId, isRented, rentalPrice } = req.body;
         const userId = req.user.id;
 
         const vehicle = await prisma.vehicle.findUnique({
@@ -45,7 +45,9 @@ exports.requestBooking = async (req, res) => {
                 endDate: new Date(endDate),
                 passengerCount: parseInt(passengerCount) || 0,
                 driverId: driverId ? parseInt(driverId) : null,
-                status: initialStatus
+                status: initialStatus,
+                isRented: isRented === true || isRented === 'true',
+                rentalPrice: rentalPrice ? parseFloat(rentalPrice) : null
             },
             include: {
                 user: { select: { name: true, phone: true } },

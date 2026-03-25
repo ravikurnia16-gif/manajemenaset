@@ -448,7 +448,8 @@ model Vehicle {
   odometer      Int       @default(0) // Kilometer saat ini
   photo         String?   @db.LongText // Foto Kendaraan (Base64 support)
   status        String    @default("ACTIVE") // ACTIVE / INACTIVE
-  
+  isRentable    Boolean   @default(false) // Bisa disewa atau tidak
+
   // Additional fields (kept from previous version)
   year          Int?
   chassisNumber String?   // No Rangka
@@ -510,6 +511,9 @@ model VehicleBooking {
   endDate     DateTime
   status      String   @default("PENDING") // PENDING, APPROVED, REJECTED, COMPLETED, CANCELLED
   adminNote   String?
+
+  isRented    Boolean  @default(false) // Whether this booking is a rental
+  rentalPrice Float?   // Price for rental if applicable
 
   passengerCount Int @default(0)
   driverId    Int?

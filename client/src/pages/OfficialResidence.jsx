@@ -452,17 +452,210 @@ export default function OfficialResidence() {
             </div>
           )}
 
-          {/* ... Implement other tabs similarly connecting to state and modals ... */}
-          {/* Note: In a real implementation, I'd expand this to handle all tabs and detailed modals */}
-          {activeTab !== "Dashboard" && activeTab !== "Data Unit" && (
-            <div className="bg-white rounded-2xl p-12 shadow-sm border border-slate-100 text-center">
-              <div className="bg-blue-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-600">
-                {TAB_ICONS[activeTab]}
+          {/* ── DATA PENGHUNI ── */}
+          {activeTab === "Data Penghuni" && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <div className="relative w-72">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input placeholder="Cari penghuni..." className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <button onClick={() => openModal("resident")} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-blue-500/20">
+                  <Plus size={18} /> Tambah Penghuni
+                </button>
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Modul {activeTab} Berjalan</h3>
-              <p className="text-slate-500 max-w-sm mx-auto mt-2 italic text-sm">
-                Fitur ini siap divalidasi dengan database. Silakan gunakan tombol navigasi lainnya atau pilih 'Data Unit' sebagai referensi utama.
-              </p>
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-6 py-4 font-bold">Nama & NIK</th>
+                      <th className="px-6 py-4 font-bold">Jabatan</th>
+                      <th className="px-6 py-4 font-bold">Unit</th>
+                      <th className="px-6 py-4 font-bold">Kontak</th>
+                      <th className="px-6 py-4 font-bold">Status</th>
+                      <th className="px-6 py-4 font-bold text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {residents.map(r => (
+                      <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-800">{r.name}</div>
+                          <div className="text-xs text-slate-400">{r.nik || "-"}</div>
+                        </td>
+                        <td className="px-6 py-4 text-slate-600">{r.position || "-"}</td>
+                        <td className="px-6 py-4 font-medium text-slate-700">{r.unit?.code}</td>
+                        <td className="px-6 py-4 text-slate-600">{r.phone || "-"}</td>
+                        <td className="px-6 py-4">
+                          <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${statusColor(r.status)}`}>{r.status}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => openModal("resident", r)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Edit2 size={16} /></button>
+                            <button onClick={() => handleDelete("resident", r.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={16} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── MOU ── */}
+          {activeTab === "MOU" && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <div className="relative w-72">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input placeholder="Cari MOU..." className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <button onClick={() => openModal("mou")} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-blue-500/20">
+                  <Plus size={18} /> Buat MOU Baru
+                </button>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {mous.map(m => (
+                  <div key={m.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <div className="text-sm font-bold text-slate-800">{m.mouNumber}</div>
+                        <div className="text-xs text-slate-400 mt-1">Unit {m.unit?.code} • {m.residentName}</div>
+                      </div>
+                      <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${statusColor(m.status)}`}>{m.status}</span>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3 mb-4 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-slate-400 block mb-1">Mulai</span>
+                        <span className="font-semibold text-slate-700">{new Date(m.startDate).toLocaleDateString("id-ID")}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block mb-1">Berakhir</span>
+                        <span className="font-semibold text-slate-700">{new Date(m.endDate).toLocaleDateString("id-ID")}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleDownloadPDF(m)} disabled={pdfLoading === m.id} className="flex-1 flex items-center justify-center gap-2 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors disabled:opacity-50">
+                        {pdfLoading === m.id ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600"></div> : <Download size={14} />} PDF
+                      </button>
+                      <button onClick={() => openModal("mou", m)} className="flex items-center justify-center p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors">
+                        <Edit2 size={16} />
+                      </button>
+                      <button onClick={() => handleDelete("mou", m.id)} className="flex items-center justify-center p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── PEMELIHARAAN ── */}
+          {activeTab === "Pemeliharaan" && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <div className="relative w-72">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input placeholder="Cari laporan..." className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <button onClick={() => openModal("maintenance")} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-blue-500/20">
+                  <Plus size={18} /> Lapor Pemeliharaan
+                </button>
+              </div>
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-6 py-4 font-bold">Judul Laporan</th>
+                      <th className="px-6 py-4 font-bold">Unit</th>
+                      <th className="px-6 py-4 font-bold">Tanggal Lapor</th>
+                      <th className="px-6 py-4 font-bold">Prioritas</th>
+                      <th className="px-6 py-4 font-bold">Status</th>
+                      <th className="px-6 py-4 font-bold text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {maintenance.map(m => (
+                      <tr key={m.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-800">{m.title}</div>
+                          <div className="text-xs text-slate-500 line-clamp-1 max-w-xs">{m.description}</div>
+                        </td>
+                        <td className="px-6 py-4 font-medium text-slate-700">{m.unit?.code}</td>
+                        <td className="px-6 py-4 text-slate-600">{new Date(m.reportedDate).toLocaleDateString("id-ID")}</td>
+                        <td className="px-6 py-4">
+                          <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${statusColor(m.priority)}`}>{m.priority}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase ${statusColor(m.status)}`}>{m.status.replace('_', ' ')}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => openModal("maintenance", m)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Edit2 size={16} /></button>
+                            <button onClick={() => handleDelete("maintenance", m.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={16} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── LAPORAN ── */}
+          {activeTab === "Laporan" && (
+            <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-blue-100 text-blue-600 rounded-xl"><BarChart3 size={24} /></div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">Laporan Manajemen Rumah Dinas</h3>
+                  <p className="text-sm text-slate-500">Ringkasan operasional dan utilisasi aset rumah dinas.</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div className="p-6 border border-slate-200 rounded-2xl">
+                  <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Building size={18} className="text-blue-500"/> Okupansi Unit</h4>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-slate-600 text-sm">Ditempati ({stats.occupiedUnits})</span>
+                    <span className="font-bold text-slate-800 text-sm">{Math.round((stats.occupiedUnits / stats.totalUnits) * 100 || 0)}%</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-2.5 mb-4">
+                    <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${(stats.occupiedUnits / stats.totalUnits) * 100 || 0}%` }}></div>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-slate-600 text-sm">Kosong ({stats.vacantUnits})</span>
+                    <span className="font-bold text-slate-800 text-sm">{Math.round((stats.vacantUnits / stats.totalUnits) * 100 || 0)}%</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-2.5 mb-4">
+                    <div className="bg-amber-400 h-2.5 rounded-full" style={{ width: `${(stats.vacantUnits / stats.totalUnits) * 100 || 0}%` }}></div>
+                  </div>
+                </div>
+                <div className="p-6 border border-slate-200 rounded-2xl">
+                  <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Settings size={18} className="text-emerald-500"/> Status Pemeliharaan</h4>
+                  <ul className="space-y-3">
+                    <li className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                      <span className="text-sm text-slate-600">Menunggu Penanganan</span>
+                      <span className="font-bold text-amber-600">{maintenance.filter(m => m.status === 'MENUNGGU').length}</span>
+                    </li>
+                    <li className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                      <span className="text-sm text-slate-600">Dalam Pengerjaan</span>
+                      <span className="font-bold text-blue-600">{maintenance.filter(m => m.status === 'DALAM_PENGERJAAN').length}</span>
+                    </li>
+                    <li className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                      <span className="text-sm text-slate-600">Selesai (Keseluruhan)</span>
+                      <span className="font-bold text-emerald-600">{maintenance.filter(m => m.status === 'SELESAI').length}</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button className="bg-slate-800 text-white px-6 py-3 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors">
+                  <Download size={18} /> Unduh Laporan Lengkap (PDF)
+                </button>
+              </div>
             </div>
           )}
         </>
@@ -513,6 +706,170 @@ export default function OfficialResidence() {
                       <option value="MAINTENANCE">Maintenance</option>
                     </select>
                   </div>
+                </>
+              )}
+
+              {showModal === "resident" && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Nama Lengkap</label>
+                      <input value={form.name || ""} onChange={e => setForm({...form, name: e.target.value})} className={ic} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">NIK / ID</label>
+                      <input value={form.nik || ""} onChange={e => setForm({...form, nik: e.target.value})} className={ic} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Jabatan</label>
+                    <input value={form.position || ""} onChange={e => setForm({...form, position: e.target.value})} className={ic} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Unit Rumah</label>
+                      <select value={form.unitId || ""} onChange={e => setForm({...form, unitId: e.target.value})} className={ic}>
+                        <option value="">Pilih Unit...</option>
+                        {units.map(u => <option key={u.id} value={u.id}>{u.code} - {u.name || "Unit"}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">No. HP / WA</label>
+                      <input value={form.phone || ""} onChange={e => setForm({...form, phone: e.target.value})} className={ic} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Tanggal Masuk</label>
+                      <input type="date" value={form.startDate ? form.startDate.split('T')[0] : ""} onChange={e => setForm({...form, startDate: e.target.value})} className={ic} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Status</label>
+                      <select value={form.status || "AKTIF"} onChange={e => setForm({...form, status: e.target.value})} className={ic}>
+                        <option value="AKTIF">Aktif</option>
+                        <option value="NON_AKTIF">Non-Aktif</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {showModal === "mou" && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Nomor MOU</label>
+                      <input value={form.mouNumber || ""} onChange={e => setForm({...form, mouNumber: e.target.value})} placeholder="MOU/YDEI/001/2026" className={ic} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Unit Rumah</label>
+                      <select value={form.unitId || ""} onChange={e => setForm({...form, unitId: e.target.value})} className={ic}>
+                        <option value="">Pilih Unit...</option>
+                        {units.map(u => <option key={u.id} value={u.id}>{u.code}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Nama Penghuni</label>
+                      <input value={form.residentName || ""} onChange={e => setForm({...form, residentName: e.target.value})} className={ic} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Jabatan Penghuni</label>
+                      <input value={form.residentPosition || ""} onChange={e => setForm({...form, residentPosition: e.target.value})} className={ic} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Tgl Mulai</label>
+                      <input type="date" value={form.startDate ? form.startDate.split('T')[0] : ""} onChange={e => setForm({...form, startDate: e.target.value})} className={ic} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Tgl Selesai</label>
+                      <input type="date" value={form.endDate ? form.endDate.split('T')[0] : ""} onChange={e => setForm({...form, endDate: e.target.value})} className={ic} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Durasi (Thn)</label>
+                      <input type="number" value={form.durationYears || 1} onChange={e => setForm({...form, durationYears: e.target.value})} className={ic} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Hak & Fasilitas</label>
+                    <textarea rows={2} value={form.rights || ""} onChange={e => setForm({...form, rights: e.target.value})} className={ic}></textarea>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Kewajiban</label>
+                    <textarea rows={2} value={form.obligations || ""} onChange={e => setForm({...form, obligations: e.target.value})} className={ic}></textarea>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Status MOU</label>
+                      <select value={form.status || "AKTIF"} onChange={e => setForm({...form, status: e.target.value})} className={ic}>
+                        <option value="AKTIF">Aktif</option>
+                        <option value="DIPERPANJANG">Diperpanjang</option>
+                        <option value="KADALUARSA">Kadaluarsa</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Tanggal TTD</label>
+                      <input type="date" value={form.signedDate ? form.signedDate.split('T')[0] : ""} onChange={e => setForm({...form, signedDate: e.target.value})} className={ic} />
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-6">
+                    <SignaturePad label="Tanda Tangan Pihak Pertama (Yayasan)" value={form.signatureParty1} onChange={val => setForm({...form, signatureParty1: val})} />
+                    <SignaturePad label="Tanda Tangan Pihak Kedua (Penghuni)" value={form.signatureParty2} onChange={val => setForm({...form, signatureParty2: val})} />
+                  </div>
+                </>
+              )}
+
+              {showModal === "maintenance" && (
+                <>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Judul Laporan</label>
+                    <input value={form.title || ""} onChange={e => setForm({...form, title: e.target.value})} placeholder="Contoh: Atap Bocor di Kamar Utama" className={ic} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Unit Rumah</label>
+                      <select value={form.unitId || ""} onChange={e => setForm({...form, unitId: e.target.value})} className={ic}>
+                        <option value="">Pilih Unit...</option>
+                        {units.map(u => <option key={u.id} value={u.id}>{u.code}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Tingkat Prioritas</label>
+                      <select value={form.priority || "SEDANG"} onChange={e => setForm({...form, priority: e.target.value})} className={ic}>
+                        <option value="RENDAH">Rendah</option>
+                        <option value="SEDANG">Sedang</option>
+                        <option value="TINGGI">Tinggi</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Deskripsi Kerusakan</label>
+                    <textarea rows={3} value={form.description || ""} onChange={e => setForm({...form, description: e.target.value})} className={ic}></textarea>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Status Pengerjaan</label>
+                      <select value={form.status || "MENUNGGU"} onChange={e => setForm({...form, status: e.target.value})} className={ic}>
+                        <option value="MENUNGGU">Menunggu</option>
+                        <option value="DALAM_PENGERJAAN">Dalam Pengerjaan</option>
+                        <option value="SELESAI">Selesai</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Teknisi / Vendor</label>
+                      <input value={form.technician || ""} onChange={e => setForm({...form, technician: e.target.value})} placeholder="Opsional" className={ic} />
+                    </div>
+                  </div>
+                  {form.status === "SELESAI" && (
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Tanggal Selesai</label>
+                      <input type="date" value={form.resolvedDate ? form.resolvedDate.split('T')[0] : ""} onChange={e => setForm({...form, resolvedDate: e.target.value})} className={ic} />
+                    </div>
+                  )}
                 </>
               )}
             </div>

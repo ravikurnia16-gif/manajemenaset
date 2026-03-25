@@ -72,10 +72,10 @@ exports.createVehicle = async (req, res) => {
         const {
             name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
-            taxDueDate, stnkDueDate, kirDueDate, picIds
+            taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable
         } = req.body;
 
-        console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds });
+        console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable });
 
         const vehicle = await prisma.vehicle.create({
             data: {
@@ -90,6 +90,7 @@ exports.createVehicle = async (req, res) => {
                 odometer: parseInt(odometer) || 0,
                 photo,
                 status: status || 'ACTIVE',
+                isRentable: isRentable === true || isRentable === 'true',
                 taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
                 stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
                 kirDueDate: kirDueDate ? new Date(kirDueDate) : null,
@@ -113,10 +114,10 @@ exports.updateVehicle = async (req, res) => {
         const {
             name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
-            taxDueDate, stnkDueDate, kirDueDate, picIds
+            taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable
         } = req.body;
 
-        console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds });
+        console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable });
 
         const vehicle = await prisma.vehicle.update({
             where: { id: parseInt(req.params.id) },
@@ -132,6 +133,7 @@ exports.updateVehicle = async (req, res) => {
                 odometer: parseInt(odometer) || 0,
                 photo,
                 status,
+                isRentable: isRentable === true || isRentable === 'true',
                 taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
                 stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
                 kirDueDate: kirDueDate ? new Date(kirDueDate) : null,

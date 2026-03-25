@@ -109,8 +109,8 @@ const createBusBooking = async (req, res) => {
 
                 // 1. Notify Requester
                 if (requesterPhone) {
-                    const requesterMsg = `*HALO ${requesterLabel.toUpperCase()}*\n\n` +
-                        `Booking bus Anda telah dicatat.\n` +
+                    const requesterMsg = `*Bismillah Ustadz/Ustadzah ${requesterLabel.toUpperCase()}*\n\n` +
+                        `Booking bus  telah dicatat.\n` +
                         `Armada: ${vehicleNames}\n` +
                         `Token Batal: *${token}*\n\n` +
                         `Simpan token ini jika Anda ingin membatalkan pesanan secara mandiri di halaman publik.\n\n` +

@@ -38,7 +38,9 @@ const VehicleBooking = () => {
         destination: '',
         purpose: '',
         passengerCount: 1,
-        driverId: ''
+        driverId: '',
+        isRented: false,
+        rentalPrice: ''
     });
 
     // Modal States
@@ -177,7 +179,7 @@ const VehicleBooking = () => {
             setActiveTab('MY_REQUESTS');
             setFormData({
                 vehicleId: '', startDate: '', startTime: '08:00', endDate: '', endTime: '17:00',
-                destination: '', purpose: '', passengerCount: 1, driverId: ''
+                destination: '', purpose: '', passengerCount: 1, driverId: '', isRented: false, rentalPrice: ''
             });
         } catch (err) {
             showToast('Gagal mengirim permohonan: ' + (err.response?.data?.error || err.message), 'error');
@@ -497,6 +499,36 @@ const VehicleBooking = () => {
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {selectedVehicle?.isRentable && (
+                                            <div className="md:col-span-2 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                                <label className="flex items-center gap-3 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="w-5 h-5 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                                                        checked={formData.isRented}
+                                                        onChange={e => setFormData({ ...formData, isRented: e.target.checked })}
+                                                    />
+                                                    <div>
+                                                        <span className="text-sm font-bold text-blue-900 block">Sewa Kendaraan</span>
+                                                        <span className="text-xs text-blue-600">Centang jika ini adalah penyewaan komersial</span>
+                                                    </div>
+                                                </label>
+                                                
+                                                {formData.isRented && (
+                                                    <div className="mt-4 pt-4 border-t border-blue-100/50">
+                                                        <label className="block text-xs font-bold text-blue-800 uppercase mb-2 ml-1">Harga Sewa (Rp)</label>
+                                                        <input
+                                                            type="number" required={formData.isRented}
+                                                            placeholder="Contoh: 500000"
+                                                            className="w-full bg-white border border-blue-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                            value={formData.rentalPrice}
+                                                            onChange={e => setFormData({ ...formData, rentalPrice: e.target.value })}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
 
                                         <div className="md:col-span-2">
                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Tujuan (Lokasi)</label>
