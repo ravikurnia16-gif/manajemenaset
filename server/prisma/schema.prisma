@@ -449,6 +449,7 @@ model Vehicle {
   photo         String?   @db.LongText // Foto Kendaraan (Base64 support)
   status        String    @default("ACTIVE") // ACTIVE / INACTIVE
   isRentable    Boolean   @default(false) // Bisa disewa atau tidak
+  defaultRentalPrice Float? // Biaya Sewa Default per hari
 
   // Additional fields (kept from previous version)
   year          Int?

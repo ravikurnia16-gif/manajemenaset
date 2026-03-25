@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../lib/axios';
 
-const VehicleBooking = () => {
+const VehicleRental = () => {
     const [activeTab, setActiveTab] = useState('CURRENT_FLEET');
     const [vehicles, setVehicles] = useState([]);
     const [bookings, setBookings] = useState([]);
@@ -38,7 +38,12 @@ const VehicleBooking = () => {
         destination: '',
         purpose: '',
         passengerCount: 1,
-        driverId: ''
+        driverId: '',
+        renterName: '',
+        renterInstansi: '',
+        renterPhone: '',
+        rentalPrice: '',
+        isRented: true
     });
 
     // Modal States
@@ -93,7 +98,7 @@ const VehicleBooking = () => {
     const fetchVehicles = async () => {
         try {
             const res = await api.get('/vehicles');
-            setVehicles(res.data);
+            setVehicles(res.data.filter(v => v.isRentable));
         } catch (err) { console.error(err); }
     };
 
@@ -177,7 +182,7 @@ const VehicleBooking = () => {
             setActiveTab('MY_REQUESTS');
             setFormData({
                 vehicleId: '', startDate: '', startTime: '08:00', endDate: '', endTime: '17:00',
-                destination: '', purpose: '', passengerCount: 1, driverId: ''
+                destination: '', purpose: '', passengerCount: 1, driverId: '', renterName: '', renterInstansi: '', renterPhone: '', rentalPrice: '', isRented: true
             });
         } catch (err) {
             showToast('Gagal mengirim permohonan: ' + (err.response?.data?.error || err.message), 'error');
@@ -498,7 +503,51 @@ const VehicleBooking = () => {
                                             </div>
                                         </div>
 
-
+                                        {selectedVehicle?.isRentable && (
+                                            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Nama Penyewa</label>
+                                                    <input
+                                                        type="text" required
+                                                        placeholder="Nama Lengkap Eksternal"
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        value={formData.renterName}
+                                                        onChange={e => setFormData({ ...formData, renterName: e.target.value })}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Instansi / Perusahaan</label>
+                                                    <input
+                                                        type="text" required
+                                                        placeholder="Contoh: PT. ABC / Pribadi"
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        value={formData.renterInstansi}
+                                                        onChange={e => setFormData({ ...formData, renterInstansi: e.target.value })}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Nomor HP</label>
+                                                    <input
+                                                        type="tel" required
+                                                        placeholder="08xxxxxxxxxx"
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        value={formData.renterPhone}
+                                                        onChange={e => setFormData({ ...formData, renterPhone: e.target.value })}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Biaya Sewa (Rp)</label>
+                                                    <input
+                                                        type="number" required
+                                                        placeholder={selectedVehicle?.defaultRentalPrice?.toString() || '0'}
+                                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                        value={formData.rentalPrice}
+                                                        onChange={e => setFormData({ ...formData, rentalPrice: e.target.value })}
+                                                    />
+                                                    <p className="text-[10px] text-slate-400 mt-1 ml-1 font-medium">Default: Rp {selectedVehicle?.defaultRentalPrice?.toLocaleString('id-ID') || 0}</p>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div className="md:col-span-2">
                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Tujuan (Lokasi)</label>
@@ -1320,4 +1369,4 @@ const VehicleBooking = () => {
     );
 };
 
-export default VehicleBooking;
+export default VehicleRental;

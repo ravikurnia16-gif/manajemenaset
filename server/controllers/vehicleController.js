@@ -72,10 +72,10 @@ exports.createVehicle = async (req, res) => {
         const {
             name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
-            taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable
+            taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice
         } = req.body;
 
-        console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable });
+        console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice });
 
         const vehicle = await prisma.vehicle.create({
             data: {
@@ -91,6 +91,7 @@ exports.createVehicle = async (req, res) => {
                 photo,
                 status: status || 'ACTIVE',
                 isRentable: isRentable === true || isRentable === 'true',
+                defaultRentalPrice: defaultRentalPrice ? parseFloat(defaultRentalPrice) : null,
                 taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
                 stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
                 kirDueDate: kirDueDate ? new Date(kirDueDate) : null,
@@ -114,10 +115,10 @@ exports.updateVehicle = async (req, res) => {
         const {
             name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
-            taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable
+            taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice
         } = req.body;
 
-        console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable });
+        console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice });
 
         const vehicle = await prisma.vehicle.update({
             where: { id: parseInt(req.params.id) },
@@ -134,6 +135,7 @@ exports.updateVehicle = async (req, res) => {
                 photo,
                 status,
                 isRentable: isRentable === true || isRentable === 'true',
+                defaultRentalPrice: defaultRentalPrice ? parseFloat(defaultRentalPrice) : null,
                 taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
                 stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
                 kirDueDate: kirDueDate ? new Date(kirDueDate) : null,

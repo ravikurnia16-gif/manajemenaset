@@ -24,7 +24,8 @@ const VehicleForm = () => {
         stnkDueDate: '',
         kirDueDate: '',
         picIds: [],
-        isRentable: false
+        isRentable: false,
+        defaultRentalPrice: ''
     });
     const [users, setUsers] = useState([]);
     const [picSearch, setPicSearch] = useState('');
@@ -53,7 +54,8 @@ const VehicleForm = () => {
                 stnkDueDate: formatDate(data.stnkDueDate),
                 kirDueDate: formatDate(data.kirDueDate),
                 picIds: data.pics?.map(p => p.id) || [],
-                isRentable: !!data.isRentable
+                isRentable: !!data.isRentable,
+                defaultRentalPrice: data.defaultRentalPrice || ''
             });
         } catch (error) {
             console.error('Failed to fetch vehicle:', error);
@@ -365,6 +367,18 @@ const VehicleForm = () => {
                                 </button>
                             </div>
                         </div>
+                        {form.isRentable && (
+                            <div className="md:col-span-1">
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Biaya Sewa / Hari (Default)</label>
+                                <input
+                                    type="number"
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"
+                                    placeholder="Contoh: 500000"
+                                    value={form.defaultRentalPrice}
+                                    onChange={e => setForm({ ...form, defaultRentalPrice: e.target.value })}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     <div className="mt-12 flex justify-end gap-3">
