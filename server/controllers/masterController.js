@@ -62,7 +62,9 @@ exports.createUnit = async (req, res) => {
 exports.updateUnit = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, code, description, phone, email, address, headName, headNip, logo } = req.body;
+        // Cek apakah ada perubahan kode Unit
+        const oldUnit = await prisma.unit.findUnique({ where: { id: parseInt(id) } });
+
         const unit = await prisma.unit.update({
             where: { id: parseInt(id) },
             data: {
@@ -77,6 +79,34 @@ exports.updateUnit = async (req, res) => {
                 logo
             }
         });
+
+        // Sinkronisasi Kode Aset jika Kode Unit Berubah
+        if (oldUnit && oldUnit.code !== code) {
+            const assets = await prisma.asset.findMany({
+                where: { unitId: parseInt(id) }
+            });
+
+            for (const asset of assets) {
+                const parts = asset.code.split('.');
+                // Format: PREFIX.UNITCODE.CATEGORYCODE.YEAR.SEQUENCE
+                if (parts.length >= 5 && parts[1] === oldUnit.code) {
+                    parts[1] = code;
+                    const newAssetCode = parts.join('.');
+                    await prisma.asset.update({
+                        where: { id: asset.id },
+                        data: { code: newAssetCode }
+                    });
+                } else if (asset.code.includes(`.${oldUnit.code}.`)) {
+                    // Fallback
+                    const newAssetCode = asset.code.replace(`.${oldUnit.code}.`, `.${code}.`);
+                    await prisma.asset.update({
+                        where: { id: asset.id },
+                        data: { code: newAssetCode }
+                    });
+                }
+            }
+        }
+
         res.json(unit);
     } catch (error) {
         res.status(500).json({ error: error.message });

@@ -496,7 +496,7 @@ exports.updateStatus = async (req, res) => {
 // Update Item Detail (Vendor, Brand, Specs)
 exports.updateItemDetail = async (req, res) => {
     const { itemId } = req.params;
-    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison, assignedTo, assignedToId, assignmentNote } = req.body;
+    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison, assignedTo, assignedToId, assignmentNote, spec } = req.body;
 
     try {
         let finalVendorId = vendorId;
@@ -525,7 +525,8 @@ exports.updateItemDetail = async (req, res) => {
             finalPrice: finalPrice ? parseFloat(finalPrice) : undefined,
             assignedTo,
             assignedToId: assignedToId ? parseInt(assignedToId) : null,
-            assignmentNote: assignmentNote || undefined
+            assignmentNote: assignmentNote || undefined,
+            spec: spec !== undefined ? spec : undefined
         };
 
         // Explicitly handle comparisonVendors
@@ -682,7 +683,7 @@ exports.addVendorOffer = async (req, res) => {
 // Process BAST & Auto-Asset Creation
 exports.processBAST = async (req, res) => {
     const { id } = req.params;
-    const { bastDate, bastFile, roomAllocation } = req.body;
+    const { bastDate, bastFile, roomAllocation, picId } = req.body;
 
     try {
         const procurement = await prisma.procurement.findUnique({
@@ -767,7 +768,8 @@ exports.processBAST = async (req, res) => {
                                 categoryId: defaultCategory.id,
                                 usefulLife: item.usefulLife || 4,
                                 vendorName: item.vendor ? item.vendor.name : null,
-                                quantity: 1
+                                quantity: 1,
+                                picId: picId || null
                             }
                         });
                     }

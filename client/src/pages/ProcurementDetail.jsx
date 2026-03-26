@@ -312,6 +312,7 @@ const ProcurementDetail = () => {
     const [notifying, setNotifying] = useState(false);
     const [selectedUnits, setSelectedUnits] = useState({});
     const [activeTab, setActiveTab] = useState(1);
+    const [picId, setPicId] = useState('');
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user?.role);
@@ -382,7 +383,8 @@ const ProcurementDetail = () => {
                 comparisonVendors: item.comparisonVendors,
                 needComparison: item.needComparison,
                 assignedTo: item.assignedTo, assignedToId: item.assignedToId,
-                assignmentNote: item.assignmentNote
+                assignmentNote: item.assignmentNote,
+                spec: item.spec
             });
             if (!silent) { alert('Data berhasil disimpan!'); fetchDetail(); }
         } catch (e) { if (!silent) alert('Gagal menyimpan'); }
@@ -411,7 +413,8 @@ const ProcurementDetail = () => {
         try {
             await api.post(`/procurements/${id}/bast`, {
                 bastDate, bastFile: handoverPhoto,
-                roomAllocation: req.type === 'ASSET' ? roomAllocation : null
+                roomAllocation: req.type === 'ASSET' ? roomAllocation : null,
+                picId: picId ? parseInt(picId) : null
             });
             alert('BAST Berhasil. Aset telah dibuat.');
             window.location.reload();
@@ -970,6 +973,18 @@ const ProcurementDetail = () => {
                                             />
                                         </div>
 
+                                        {/* Specification */}
+                                        <div style={{ gridColumn: 'span 2' }}>
+                                            <Label>Spesifikasi Realisasi (Opsional)</Label>
+                                            <Textarea disabled={disabled}
+                                                rows={2}
+                                                placeholder="Detail spesifikasi barang yang akan direalisasikan / dipesan..."
+                                                value={item.spec || ''}
+                                                onChange={e => handleItemChange(index, 'spec', e.target.value)}
+                                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: `1px solid ${T.border}`, outline: 'none', backgroundColor: disabled ? T.creamDk : '#fff', color: disabled ? T.slate : T.navy, fontSize: 13 }}
+                                            />
+                                        </div>
+
                                         {/* Useful Life */}
                                         {req.type === 'ASSET' && (
                                             <div>
@@ -1128,6 +1143,24 @@ const ProcurementDetail = () => {
                                                 ))}
                                             </div>
                                         )}
+                                    </div>
+                                )}
+
+                                {/* PIC Allocation */}
+                                {req.type === 'ASSET' && (
+                                    <div style={{
+                                        background: T.cream, borderRadius: 14,
+                                        border: `1px solid ${T.border}`, padding: 20
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                                            <UserCheck size={15} color={T.gold} />
+                                            <span style={{ fontWeight: 700, fontSize: 13, color: T.navy }}>Penanggung Jawab Aset (PIC)</span>
+                                        </div>
+                                        <Label>Pilih PIC Utama untuk semua aset ini (Opsional)</Label>
+                                        <Select value={picId} onChange={e => setPicId(e.target.value)}>
+                                            <option value="">— Tidak ada / Atur Nanti —</option>
+                                            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                        </Select>
                                     </div>
                                 )}
 
