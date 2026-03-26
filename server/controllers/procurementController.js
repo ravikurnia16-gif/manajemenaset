@@ -687,7 +687,10 @@ exports.processBAST = async (req, res) => {
     try {
         const procurement = await prisma.procurement.findUnique({
             where: { id: parseInt(id) },
-            include: { items: true, unit: true }
+            include: { 
+                items: { include: { vendor: true } }, 
+                unit: true 
+            }
         });
 
         if (!procurement) return res.status(404).json({ error: 'Request not found' });
@@ -763,7 +766,7 @@ exports.processBAST = async (req, res) => {
                                 roomId: roomId,
                                 categoryId: defaultCategory.id,
                                 usefulLife: item.usefulLife || 4,
-                                vendorId: item.vendorId,
+                                vendorName: item.vendor ? item.vendor.name : null,
                                 quantity: 1
                             }
                         });
