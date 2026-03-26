@@ -811,3 +811,44 @@ exports.getAssetPublic = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+exports.getMediaAssets = async (req, res) => {
+    try {
+        const assets = await prisma.asset.findMany({
+            where: {
+                unitId: 17
+            },
+            include: {
+                category: { select: { name: true } },
+                room: { select: { name: true, building: true } },
+                unit: { select: { name: true } }
+            },
+            orderBy: { purchaseDate: 'desc' }
+        });
+
+        // Format hasil pencarian (Sederhana dan aman untuk public API)
+        const formattedAssets = assets.map(asset => ({
+            id: asset.id,
+            code: asset.code,
+            name: asset.name,
+            brand: asset.brand || '-',
+            specification: asset.specification || '-',
+            condition: asset.condition,
+            purchaseDate: asset.purchaseDate,
+            price: asset.price,
+            category: asset.category?.name || '-',
+            room: asset.room?.name || '-',
+            building: asset.room?.building || '-',
+            unit: asset.unit?.name || '-'
+        }));
+
+        res.json({
+            success: true,
+            count: formattedAssets.length,
+            data: formattedAssets
+        });
+    } catch (error) {
+        console.error('Media Assets API Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
