@@ -32,7 +32,7 @@ const generateLoginResponse = async (user, res) => {
     const token = jwt.sign(
         { id: user.id, role: user.role, unitId: user.unitId },
         process.env.JWT_SECRET || 'secret_fallback',
-        { expiresIn: '1d' }
+        { expiresIn: '365d' }
     );
 
     // Update log login

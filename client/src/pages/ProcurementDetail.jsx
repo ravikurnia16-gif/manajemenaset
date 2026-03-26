@@ -313,6 +313,7 @@ const ProcurementDetail = () => {
     const [selectedUnits, setSelectedUnits] = useState({});
     const [activeTab, setActiveTab] = useState(1);
     const [picId, setPicId] = useState('');
+    const [savingItems, setSavingItems] = useState({}); // { itemId: boolean }
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user?.role);
@@ -371,11 +372,14 @@ const ProcurementDetail = () => {
 
     const handleSaveItem = async (item, silent = false) => {
         try {
+            if (!silent) setSavingItems(prev => ({ ...prev, [item.id]: true }));
+            
             let vendorId = item.vendorId, newVendorName = null;
             if (item.vendorId === 'OTHER') { vendorId = null; newVendorName = item.newVendorName; }
             else if (typeof item.vendorId === 'string' && item.vendorId.startsWith('CV-')) {
                 vendorId = null; newVendorName = item.vendorId.replace('CV-', '');
             }
+            
             await api.put(`/procurements/items/${item.id}`, {
                 fundingSource: item.fundingSource, brand: item.brand,
                 usefulLife: item.usefulLife, finalPrice: item.finalPrice,
@@ -386,8 +390,24 @@ const ProcurementDetail = () => {
                 assignmentNote: item.assignmentNote,
                 spec: item.spec
             });
-            if (!silent) { alert('Data berhasil disimpan!'); fetchDetail(); }
-        } catch (e) { if (!silent) alert('Gagal menyimpan'); }
+
+            if (!silent) {
+                setSavingItems(prev => ({ ...prev, [item.id]: 'done' }));
+                setTimeout(() => {
+                    setSavingItems(prev => {
+                        const next = { ...prev };
+                        delete next[item.id];
+                        return next;
+                    });
+                }, 2000);
+                // fetchDetail(); // Optional if we trust optimistic state
+            }
+        } catch (e) { 
+            if (!silent) {
+                setSavingItems(prev => ({ ...prev, [item.id]: false }));
+                alert('Gagal menyimpan'); 
+            }
+        }
     };
 
     const handleStatus = async (newStatus, note = '', reason = '') => {
@@ -1012,9 +1032,19 @@ const ProcurementDetail = () => {
                                     {/* Save button per item */}
                                     {!disabled && (
                                         <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
-                                            <Btn variant="ghost" style={{ fontSize: 12, padding: '7px 14px' }}
-                                                onClick={() => handleSaveItem(item)}>
-                                                Simpan Item Ini
+                                            <Btn 
+                                                variant={savingItems[item.id] === 'done' ? 'success' : 'ghost'} 
+                                                style={{ fontSize: 12, padding: '7px 14px', minWidth: 100 }}
+                                                onClick={() => handleSaveItem(item)}
+                                                disabled={savingItems[item.id] === true}
+                                            >
+                                                {savingItems[item.id] === true ? (
+                                                    <><div style={{ width: 12, height: 12, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} /> Memproses...</>
+                                                ) : savingItems[item.id] === 'done' ? (
+                                                    <><Check size={14} /> Tersimpan</>
+                                                ) : (
+                                                    'Simpan Item Ini'
+                                                )}
                                             </Btn>
                                         </div>
                                     )}

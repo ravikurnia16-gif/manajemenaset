@@ -46,11 +46,15 @@ const UnitOrderForm = () => {
     }, []);
 
     const filteredItems = useMemo(() => {
-        if (!itemSearch) return [];
-        return warehouseItems.filter(i =>
-            i.name?.toLowerCase().includes(itemSearch.toLowerCase()) ||
-            i.code?.toLowerCase().includes(itemSearch.toLowerCase())
-        ).slice(0, 5);
+        let items = warehouseItems;
+        if (itemSearch) {
+            items = items.filter(i =>
+                i.name?.toLowerCase().includes(itemSearch.toLowerCase()) ||
+                i.code?.toLowerCase().includes(itemSearch.toLowerCase())
+            );
+        }
+        // Jika pencarian kosong, tampilkan semua item (limit 48 supaya tidak berat dirender sekaligus)
+        return items.slice(0, 48);
     }, [itemSearch, warehouseItems]);
 
     const handleAddSeragam = () => {
@@ -212,88 +216,88 @@ const UnitOrderForm = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className="space-y-4">
+                            <div className="space-y-5">
                                 <div className="space-y-1.5 relative">
-                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Search size={14} /> Nama Barang</label>
-
-                                    {!other.itemId ? (
-                                        <input
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                            placeholder="Cari item dari stok gudang atau ketik manual..."
-                                            value={itemSearch}
-                                            onChange={e => {
-                                                setItemSearch(e.target.value);
-                                                setOther({ ...other, itemName: e.target.value, itemId: '' });
-                                            }}
-                                        />
-                                    ) : (
-                                        <div className="flex items-center gap-4 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
-                                            {other.image ? (
-                                                <div className="w-16 h-16 rounded-lg overflow-hidden border border-white shadow-sm flex-shrink-0">
-                                                    <img src={other.image} alt="" className="w-full h-full object-cover" />
-                                                </div>
-                                            ) : (
-                                                <div className="w-16 h-16 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-300 flex-shrink-0">
-                                                    <Package size={24} />
-                                                </div>
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="font-bold text-slate-800 truncate">{other.itemName}</div>
-                                                <div className="text-[10px] text-slate-500">Item Terpilih</div>
-                                            </div>
-                                            <button
-                                                onClick={() => {
-                                                    setOther({ ...other, itemId: '', itemName: '', image: '' });
-                                                    setItemSearch('');
-                                                }}
-                                                className="p-1.5 hover:bg-white rounded-lg text-slate-400 hover:text-red-500 transition"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {filteredItems.length > 0 && !other.itemId && (
-                                        <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden border-t-0 animate-in slide-in-from-top-1">
-                                            {filteredItems.map(item => (
-                                                <button
-                                                    key={item.id}
-                                                    onClick={() => {
-                                                        setOther({ ...other, itemName: item.name, itemId: item.id, image: item.image || '' });
-                                                        setItemSearch('');
-                                                    }}
-                                                    className="w-full text-left p-3 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0 transition flex items-center gap-3"
-                                                >
-                                                    {item.image && (
-                                                        <div className="w-8 h-8 rounded border border-slate-100 overflow-hidden flex-shrink-0">
-                                                            <img src={item.image} alt="" className="w-full h-full object-cover" />
-                                                        </div>
-                                                    )}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="font-bold text-slate-700 truncate">{item.name}</div>
-                                                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                                            {item.code} {item.size ? `• Ukuran ${item.size}` : ''} • Stok: {item.stock}
-                                                        </div>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-slate-500 uppercase">Jumlah</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Search size={14} /> Cari Barang</label>
                                     <input
-                                        type="number"
-                                        min="1"
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
-                                        value={other.quantity}
-                                        onChange={e => setOther({ ...other, quantity: parseInt(e.target.value) || 1 })}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        placeholder="Ketik nama atau kode barang..."
+                                        value={itemSearch}
+                                        onChange={e => setItemSearch(e.target.value)}
                                     />
                                 </div>
-                                <div className="pt-2">
-                                    <button onClick={handleAddOther} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg flex items-center justify-center gap-2">
-                                        <Plus size={20} /> Tambah ke Keranjang
-                                    </button>
+
+                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 max-h-[500px] overflow-y-auto pr-1 pb-4 custom-scrollbar">
+                                    {filteredItems.map(item => {
+                                        const inCart = cart.find(c => c.itemId === item.id);
+                                        return (
+                                            <div key={item.id} className={`bg-white border rounded-xl p-3 flex flex-col gap-2 transition-all ${inCart ? 'border-indigo-400 ring-1 ring-indigo-400 shadow-md' : 'border-slate-200 hover:border-indigo-300 hover:shadow-sm'}`}>
+                                                <div className="aspect-square bg-slate-50 rounded-lg flex items-center justify-center border border-slate-100 overflow-hidden relative">
+                                                    {item.image ? (
+                                                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <Package size={32} className="text-slate-300" />
+                                                    )}
+                                                    {item.stock <= item.minStock && (
+                                                        <div className="absolute top-1 right-1 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                                                            Sisa {item.stock}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                
+                                                <div className="flex-1 min-w-0 flex flex-col">
+                                                    <div className="text-[10px] font-mono text-indigo-600 mb-0.5">{item.code}</div>
+                                                    <div className="font-bold text-xs text-slate-800 leading-tight mb-1 line-clamp-2" title={item.name}>{item.name}</div>
+                                                    <div className="text-[10px] text-slate-500 mt-auto flex items-center justify-between">
+                                                        <span>Stok: <strong className="text-slate-700">{item.stock}</strong></span>
+                                                        {item.size && <span>Ukr: <strong>{item.size}</strong></span>}
+                                                    </div>
+                                                </div>
+
+                                                <div className="pt-2 border-t border-slate-100 mt-1">
+                                                    {inCart ? (
+                                                        <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-lg p-1">
+                                                            <button 
+                                                                onClick={() => {
+                                                                    if (inCart.quantity === 1) handleRemove(inCart.id);
+                                                                    else setCart(cart.map(c => c.id === inCart.id ? { ...c, quantity: c.quantity - 1 } : c));
+                                                                }}
+                                                                className="w-7 h-7 flex items-center justify-center bg-white text-indigo-600 rounded shadow-sm font-bold text-lg hover:bg-slate-50 leading-none"
+                                                            >−</button>
+                                                            <span className="text-sm font-bold text-indigo-700 w-8 text-center">{inCart.quantity}</span>
+                                                            <button 
+                                                                onClick={() => setCart(cart.map(c => c.id === inCart.id ? { ...c, quantity: c.quantity + 1 } : c))}
+                                                                className="w-7 h-7 flex items-center justify-center bg-indigo-600 text-white rounded shadow-sm font-bold text-lg hover:bg-indigo-700 leading-none"
+                                                            >+</button>
+                                                        </div>
+                                                    ) : (
+                                                        <button 
+                                                            onClick={() => {
+                                                                const newItem = {
+                                                                    id: Date.now() + Math.random(),
+                                                                    name: item.name,
+                                                                    size: item.size || '-',
+                                                                    quantity: 1,
+                                                                    type: 'LAINNYA',
+                                                                    itemId: item.id
+                                                                };
+                                                                setCart([...cart, newItem]);
+                                                            }}
+                                                            className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition"
+                                                        >
+                                                            <Plus size={14} /> Keranjang
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {filteredItems.length === 0 && (
+                                        <div className="col-span-2 lg:col-span-3 py-10 text-center text-slate-400">
+                                            <Package size={32} className="mx-auto mb-2 opacity-50" />
+                                            <p className="text-sm">Tidak ada barang yang cocok.</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}

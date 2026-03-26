@@ -543,6 +543,41 @@ exports.updateItemDetail = async (req, res) => {
             where: { id: parseInt(itemId) },
             data: updateData
         });
+
+        // --- Auto-Register to Vendor Catalog (VendorProduct) ---
+        if (item.vendorId && item.finalPrice) {
+            try {
+                const existingProduct = await prisma.vendorProduct.findFirst({
+                    where: {
+                        vendorId: item.vendorId,
+                        name: item.name
+                    }
+                });
+
+                if (existingProduct) {
+                    await prisma.vendorProduct.update({
+                        where: { id: existingProduct.id },
+                        data: {
+                            price: item.finalPrice,
+                            specification: item.spec || existingProduct.specification
+                        }
+                    });
+                } else {
+                    await prisma.vendorProduct.create({
+                        data: {
+                            vendorId: item.vendorId,
+                            name: item.name,
+                            price: item.finalPrice,
+                            specification: item.spec || ''
+                        }
+                    });
+                }
+            } catch (catalogErr) {
+                console.error('Failed to auto-register vendor product:', catalogErr);
+                // We don't fail the whole request because of this
+            }
+        }
+
         res.json(item);
 
         // --- WhatsApp Notification: Penugasan (Async & Debounced) ---
