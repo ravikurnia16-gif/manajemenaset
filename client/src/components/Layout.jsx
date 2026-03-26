@@ -78,9 +78,9 @@ const Layout = () => {
     }, []);
 
     const navItems = [
-        { label: 'Kendaraan', icon: Truck, path: '/kendaraan/peminjaman' },
-        { label: 'Peminjaman', icon: Box, path: '/peminjaman' },
-        { label: 'Pesanan', icon: ShoppingCart, path: '/gudang/pesanan' },
+        { label: 'Peminjaman Kendaraan', icon: Truck, path: '/kendaraan/peminjaman' },
+        { label: 'Peminjaman Barang', icon: Box, path: '/peminjaman' },
+        { label: 'Pesanan Barang', icon: ShoppingCart, path: '/gudang/pesanan' },
     ];
 
     return (
@@ -187,7 +187,7 @@ const Layout = () => {
                                                             </div>
                                                         </div>
                                                     ))}
-                                                  </div>
+                                                </div>
                                             )}
                                         </div>
                                         <div className="p-3 bg-slate-50 border-t border-slate-100 text-center">

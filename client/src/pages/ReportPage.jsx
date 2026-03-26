@@ -54,6 +54,7 @@ const ReportPage = () => {
     const [dateRange, setDateRange] = useState({ start: '', end: '' });
     const [filterUnit, setFilterUnit] = useState('all');
     const [assetList, setAssetList] = useState([]);
+    const [searchQueryDepr, setSearchQueryDepr] = useState('');
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role);
@@ -315,20 +316,109 @@ const ReportPage = () => {
 
                     {/* Tab Content: Depresiasi */}
                     {activeTab === 'depresiasi' && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
-                            <TrendingDown size={48} className="mx-auto text-slate-300 mb-4" />
-                            <h3 className="text-lg font-bold text-slate-800">Laporan Penyusutan (Linear)</h3>
-                            <p className="text-slate-500 max-w-md mx-auto text-sm">Bagian ini akan menyajikan rekapitulasi nilai buku per kategori dan proyeksi penyusutan asset untuk tahun berjalan.</p>
-                            <div className="mt-6 flex justify-center gap-4">
-                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 w-48">
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Total Nilai Buku</div>
-                                    <div className="text-xl font-black text-blue-600">Rp {(data?.stats?.totalValue || 0).toLocaleString()}</div>
-                                </div>
-                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 w-48">
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Akumulasi Susut</div>
-                                    <div className="text-xl font-black text-rose-600">Rp {(assetList.reduce((s, a) => s + a.price, 0) - (data?.stats?.totalValue || 0)).toLocaleString()}</div>
-                                </div>
-                            </div>
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {/* Calculation Logic for Summary */}
+                            {(() => {
+                                const now = new Date();
+                                const calculatedAssets = assetList.map(a => {
+                                    const purchaseDate = new Date(a.purchaseDate);
+                                    const monthsElapsed = (now.getFullYear() - purchaseDate.getFullYear()) * 12 + (now.getMonth() - purchaseDate.getMonth());
+                                    const totalMonths = (a.usefulLife || 5) * 12;
+                                    const monthlyDepr = a.price / totalMonths;
+                                    const accumulated = Math.min(a.price, monthlyDepr * Math.max(0, monthsElapsed));
+                                    const bookValue = Math.max(0, a.price - accumulated);
+                                    return { ...a, accumulated, bookValue };
+                                });
+
+                                const totalAcquisition = calculatedAssets.reduce((s, a) => s + a.price, 0);
+                                const totalAccumulated = calculatedAssets.reduce((s, a) => s + a.accumulated, 0);
+                                const totalCurrentBookValue = calculatedAssets.reduce((s, a) => s + a.bookValue, 0);
+
+                                const filteredDeprAssets = calculatedAssets.filter(a =>
+                                    a.name.toLowerCase().includes(searchQueryDepr.toLowerCase()) ||
+                                    a.code.toLowerCase().includes(searchQueryDepr.toLowerCase())
+                                );
+
+                                return (
+                                    <>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <StatCard title="Total Harga Perolehan" value={`Rp ${totalAcquisition.toLocaleString()}`} icon={Box} color="bg-blue-500" />
+                                            <StatCard title="Total Akumulasi Susut" value={`Rp ${totalAccumulated.toLocaleString()}`} icon={TrendingDown} color="bg-rose-500" />
+                                            <StatCard title="Total Nilai Buku" value={`Rp ${totalCurrentBookValue.toLocaleString()}`} icon={TableIcon} color="bg-emerald-500" />
+                                        </div>
+
+                                        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                                            <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                <div>
+                                                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Detil Penyusutan Aset</h3>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Metode: Garis Lurus (Straight Line)</p>
+                                                </div>
+                                                <div className="relative w-full md:w-64">
+                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Cari aset..."
+                                                        value={searchQueryDepr}
+                                                        onChange={e => setSearchQueryDepr(e.target.value)}
+                                                        className="w-full pl-9 pr-4 py-2 bg-slate-50 border-none rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-slate-50/50">
+                                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Aset</th>
+                                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Perolehan</th>
+                                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Masa (Thn)</th>
+                                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Akumulasi Susut</th>
+                                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Nilai Buku</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-50 text-sm">
+                                                        {filteredDeprAssets.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan="5" className="px-6 py-12 text-center text-slate-300 italic font-medium">Data tidak ditemukan</td>
+                                                            </tr>
+                                                        ) : (
+                                                            filteredDeprAssets.map((asset, i) => (
+                                                                <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                                                    <td className="px-6 py-4">
+                                                                        <div className="font-bold text-slate-800">{asset.name}</div>
+                                                                        <div className="text-[10px] text-slate-400 font-bold uppercase">{asset.code}</div>
+                                                                    </td>
+                                                                    <td className="px-6 py-4">
+                                                                        <div className="font-bold text-slate-700 text-xs">Rp {asset.price.toLocaleString()}</div>
+                                                                        <div className="text-[10px] text-slate-400 font-bold uppercase">{new Date(asset.purchaseDate).toLocaleDateString()}</div>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-center">
+                                                                        <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg font-black text-[10px] border border-blue-100">
+                                                                            {asset.usefulLife || 5} TH
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 font-bold text-rose-500 text-xs">
+                                                                        Rp {Math.round(asset.accumulated).toLocaleString()}
+                                                                    </td>
+                                                                    <td className="px-6 py-4">
+                                                                        <div className="font-black text-emerald-600 text-xs text-nowrap">Rp {Math.round(asset.bookValue).toLocaleString()}</div>
+                                                                        <div className="w-20 h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
+                                                                            <div
+                                                                                className="h-full bg-emerald-500"
+                                                                                style={{ width: `${(asset.bookValue / asset.price) * 100}%` }}
+                                                                            ></div>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ))
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </div>
                     )}
 
