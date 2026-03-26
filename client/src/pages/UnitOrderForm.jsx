@@ -46,7 +46,9 @@ const UnitOrderForm = () => {
     }, []);
 
     const filteredItems = useMemo(() => {
-        let items = warehouseItems;
+        let items = warehouseItems.filter(i => 
+            !i.category?.name?.toLowerCase().includes('seragam')
+        );
         if (itemSearch) {
             items = items.filter(i =>
                 i.name?.toLowerCase().includes(itemSearch.toLowerCase()) ||

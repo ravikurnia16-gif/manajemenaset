@@ -539,6 +539,10 @@ exports.updateItemDetail = async (req, res) => {
             updateData.needComparison = needComparison;
         }
 
+        const currentItem = await prisma.procurementItem.findUnique({
+            where: { id: parseInt(itemId) }
+        });
+
         const item = await prisma.procurementItem.update({
             where: { id: parseInt(itemId) },
             data: updateData
@@ -581,7 +585,10 @@ exports.updateItemDetail = async (req, res) => {
         res.json(item);
 
         // --- WhatsApp Notification: Penugasan (Async & Debounced) ---
-        if (assignedToId) {
+        // Only notify if assignment is NEW or CHANGED
+        const isAssignmentChanged = assignedToId && (parseInt(assignedToId) !== currentItem.assignedToId);
+        
+        if (isAssignmentChanged) {
             const key = `${assignedToId}-${item.procurementId}`;
 
             // Clear existing timer if any
@@ -635,7 +642,10 @@ exports.updateItemDetail = async (req, res) => {
         }
 
         // --- WhatsApp Notification: Vendor Terpilih (Async) ---
-        if (finalVendorId) {
+        // Only notify if vendor is NEW or CHANGED (compared to what was in DB)
+        const isVendorChanged = finalVendorId && (parseInt(finalVendorId) !== currentItem.vendorId);
+
+        if (isVendorChanged) {
             (async () => {
                 try {
                     // Fetch procurement info via the item
