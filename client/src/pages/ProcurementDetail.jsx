@@ -415,7 +415,10 @@ const ProcurementDetail = () => {
             });
             alert('BAST Berhasil. Aset telah dibuat.');
             window.location.reload();
-        } catch (e) { alert(e.response?.data?.error); }
+        } catch (e) { 
+            console.error("BAST Error:", e);
+            alert(e.response?.data?.error || e.response?.data?.message || e.message || "Gagal menyimpan BAST. Cek console (F12) untuk detail."); 
+        }
     };
 
     /* ── Loading / Error ── */
