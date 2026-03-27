@@ -174,17 +174,19 @@ const VehicleForm = () => {
                                         <span className="text-[10px] mt-2 font-medium">Klik untuk upload</span>
                                     </div>
                                 )}
+                                
+                                {photoPreview && (
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                        <p className="text-white text-xs font-bold">Ganti Foto</p>
+                                    </div>
+                                )}
+
                                 <input
                                     type="file"
                                     accept="image/*"
                                     onChange={handlePhotoChange}
-                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                    className="absolute inset-0 opacity-0 cursor-pointer z-10"
                                 />
-                                {photoPreview && (
-                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <p className="text-white text-xs font-bold">Ganti Foto</p>
-                                    </div>
-                                )}
                             </div>
                             <p className="text-[10px] text-slate-400 text-center">Format: JPG, PNG. Rekomendasi 16:9.</p>
                         </div>

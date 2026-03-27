@@ -130,10 +130,14 @@ exports.updateVehicle = async (req, res) => {
         }
 
         const oldVehicle = await prisma.vehicle.findUnique({ where: { id: parseInt(req.params.id) } });
+        if (!oldVehicle) return res.status(404).json({ error: 'Vehicle not found' });
 
-        console.log('[DEBUG] Update Vehicle req.file:', req.file ? 'YES' : 'NO');
-        if (req.file) console.log('[DEBUG] File info:', { fieldname: req.file.fieldname, originalname: req.file.originalname });
-        console.log('[DEBUG] req.fileUrl:', req.fileUrl);
+        console.log('[DEBUG] Update Vehicle:', { 
+            id: req.params.id, 
+            hasFile: !!req.file, 
+            fileUrl: req.fileUrl,
+            existingPhoto: oldVehicle.photo 
+        });
 
         const parseDate = (d) => {
             if (!d) return null;
@@ -152,8 +156,8 @@ exports.updateVehicle = async (req, res) => {
                 fuelType,
                 capacity: capacity ? capacity.toString() : undefined,
                 color,
-                odometer: parseInt(odometer) || 0,
-                photo: (req.fileUrl && req.fileUrl !== 'undefined') ? req.fileUrl : undefined,
+                odometer: odometer !== undefined ? parseInt(odometer) : undefined,
+                photo: (req.fileUrl && req.fileUrl !== 'undefined' && req.fileUrl !== 'null') ? req.fileUrl : oldVehicle.photo,
                 status,
                 isRentable: isRentable === true || isRentable === 'true',
                 defaultRentalPrice: defaultRentalPrice ? parseFloat(defaultRentalPrice) : null,
@@ -170,7 +174,8 @@ exports.updateVehicle = async (req, res) => {
         });
 
         // Cleanup old photo if updated
-        if (req.fileUrl && oldVehicle?.photo) {
+        if (req.fileUrl && req.fileUrl !== 'undefined' && oldVehicle?.photo && oldVehicle.photo !== req.fileUrl) {
+            console.log('[DEBUG] Cleaning up old photo:', oldVehicle.photo);
             await deleteFile(oldVehicle.photo);
         }
 
