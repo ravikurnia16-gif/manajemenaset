@@ -58,6 +58,7 @@ model User {
   vehicleBookings VehicleBooking[]
   busBookings     BusBooking[]
   maintenances    Maintenance[]
+  inspections     VehicleInspection[]
   warehouseTransactions WarehouseTransaction[]
   requestedMovements Movement[]    @relation("RequestedMovements")
   approvedMovements  Movement[]    @relation("ApprovedMovements")
