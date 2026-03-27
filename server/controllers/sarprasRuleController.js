@@ -1,7 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const fs = require('fs');
-const path = require('path');
+const { deleteFile } = require('../services/minioService');
 
 // Get all rules
 exports.getAllRules = async (req, res) => {
@@ -45,14 +44,14 @@ exports.createRule = async (req, res) => {
                 title: title || file.originalname,
                 category: categoryName,
                 folderId: folderId ? parseInt(folderId) : null,
-                description,
-                fileName: file.originalname,
-                fileUrl: `/uploads/rules/${file.filename}`,
-                fileType: file.mimetype,
-                fileSize: file.size,
-                uploadedById: req.user.id
-            }
-        });
+                 description,
+                 fileName: file.originalname,
+                 fileUrl: req.fileUrl,
+                 fileType: file.mimetype,
+                 fileSize: file.size,
+                 uploadedById: req.user.id
+             }
+         });
 
         res.status(201).json(rule);
     } catch (error) {
@@ -80,10 +79,9 @@ exports.deleteRule = async (req, res) => {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 
-        // Delete file from disk
-        const filePath = path.join(__dirname, '..', rule.fileUrl);
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+        // Delete file from MinIO
+        if (rule.fileUrl) {
+            await deleteFile(rule.fileUrl);
         }
 
         // Delete from DB

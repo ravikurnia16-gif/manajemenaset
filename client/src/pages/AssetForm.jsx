@@ -123,13 +123,14 @@ const AssetForm = () => {
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64String = reader.result;
-                setImagePreview(base64String);
-                setValue('image', base64String); // Set to form data
-            };
-            reader.readAsDataURL(file);
+            // Cleanup old preview URL to avoid memory leaks
+            if (imagePreview && imagePreview.startsWith('blob:')) {
+                URL.revokeObjectURL(imagePreview);
+            }
+
+            const previewUrl = URL.createObjectURL(file);
+            setImagePreview(previewUrl);
+            setValue('imageFile', file); // Store the actual File object
         }
     };
 
@@ -137,17 +138,31 @@ const AssetForm = () => {
         try {
             setLoading(true);
 
+            const formData = new FormData();
+            
+            // Append all data fields to FormData
+            Object.keys(data).forEach(key => {
+                if (key === 'imageFile') {
+                    if (data[key]) formData.append('image', data[key]);
+                } else if (key !== 'image') { // Don't append the old base64 if it exists
+                    formData.append(key, data[key]);
+                }
+            });
+
             // If auto code is enabled, don't send the "code" field so backend generates it
-            const payload = { ...data };
             if (isAutoCode && !isEdit) {
-                delete payload.code;
+                formData.delete('code');
             }
 
             if (isEdit) {
-                await api.put(`/assets/${id}`, payload);
+                await api.put(`/assets/${id}`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
                 alert('Aset berhasil diperbarui!');
             } else {
-                await api.post('/assets', payload);
+                await api.post('/assets', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
                 alert('Aset berhasil disimpan!');
             }
             navigate('/aset');
@@ -416,8 +431,11 @@ const AssetForm = () => {
                                     type="button"
                                     onClick={(e) => {
                                         e.stopPropagation();
+                                        if (imagePreview.startsWith('blob:')) {
+                                            URL.revokeObjectURL(imagePreview);
+                                        }
                                         setImagePreview(null);
-                                        setValue('image', null);
+                                        setValue('imageFile', null);
                                         if (fileInputRef.current) fileInputRef.current.value = '';
                                     }}
                                     className="text-xs text-red-500 mt-2 hover:underline"

@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { deleteFile } = require('../services/minioService');
 
 // --- VENDOR CRUD ---
 
@@ -52,9 +53,13 @@ exports.getVendorById = async (req, res) => {
 
 exports.createVendor = async (req, res) => {
     try {
-        const { name, address, phone, email, website, description, category, photo, isVerified } = req.body;
+        const { name, address, phone, email, website, description, category, isVerified } = req.body;
         const vendor = await prisma.vendor.create({
-            data: { name, address, phone, email, website, description, category, photo, isVerified: isVerified || false }
+            data: { 
+                name, address, phone, email, website, description, category, 
+                photo: req.fileUrl || null, 
+                isVerified: isVerified === 'true' || isVerified === true 
+            }
         });
         res.json(vendor);
     } catch (error) {
@@ -68,11 +73,24 @@ exports.createVendor = async (req, res) => {
 exports.updateVendor = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, address, phone, email, website, description, category, photo, isVerified } = req.body;
+        const { name, address, phone, email, website, description, category, isVerified } = req.body;
+        
+        const oldVendor = await prisma.vendor.findUnique({ where: { id: parseInt(id) } });
+
         const vendor = await prisma.vendor.update({
             where: { id: parseInt(id) },
-            data: { name, address, phone, email, website, description, category, photo, isVerified: isVerified || false }
+            data: { 
+                name, address, phone, email, website, description, category, 
+                photo: req.fileUrl || undefined, 
+                isVerified: isVerified === 'true' || isVerified === true 
+            }
         });
+
+        // Cleanup old photo if updated
+        if (req.fileUrl && oldVendor?.photo) {
+            await deleteFile(oldVendor.photo);
+        }
+
         res.json(vendor);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -82,6 +100,12 @@ exports.updateVendor = async (req, res) => {
 exports.deleteVendor = async (req, res) => {
     try {
         const { id } = req.params;
+        const vendor = await prisma.vendor.findUnique({ where: { id: parseInt(id) } });
+        
+        if (vendor?.photo) {
+            await deleteFile(vendor.photo);
+        }
+
         await prisma.vendor.delete({ where: { id: parseInt(id) } });
         res.json({ message: 'Vendor deleted' });
     } catch (error) {
@@ -141,14 +165,14 @@ exports.getAllProducts = async (req, res) => {
 exports.addProduct = async (req, res) => {
     try {
         const { vendorId } = req.params;
-        const { name, price, specification, image } = req.body;
+        const { name, price, specification } = req.body;
         const product = await prisma.vendorProduct.create({
             data: {
                 vendorId: parseInt(vendorId),
                 name,
                 price: price !== "" && price !== null && price !== undefined ? parseFloat(price) : null,
                 specification,
-                image
+                image: req.fileUrl || null
             }
         });
         res.json(product);
@@ -161,17 +185,25 @@ exports.addProduct = async (req, res) => {
 exports.updateProduct = async (req, res) => {
     try {
         const { productId } = req.params;
-        const data = { ...req.body };
+        const { name, price, specification } = req.body;
 
-        // Sanitize price
-        if (data.hasOwnProperty('price')) {
-            data.price = data.price !== "" && data.price !== null && data.price !== undefined ? parseFloat(data.price) : null;
-        }
+        const oldProduct = await prisma.vendorProduct.findUnique({ where: { id: parseInt(productId) } });
 
         const product = await prisma.vendorProduct.update({
             where: { id: parseInt(productId) },
-            data
+            data: {
+                name,
+                price: price !== "" && price !== null && price !== undefined ? parseFloat(price) : null,
+                specification,
+                image: req.fileUrl || undefined
+            }
         });
+
+        // Cleanup old image if updated
+        if (req.fileUrl && oldProduct?.image) {
+            await deleteFile(oldProduct.image);
+        }
+
         res.json(product);
     } catch (error) {
         console.error('Error updating product:', error);
@@ -182,6 +214,12 @@ exports.updateProduct = async (req, res) => {
 exports.deleteProduct = async (req, res) => {
     try {
         const { productId } = req.params;
+        const product = await prisma.vendorProduct.findUnique({ where: { id: parseInt(productId) } });
+
+        if (product?.image) {
+            await deleteFile(product.image);
+        }
+
         await prisma.vendorProduct.delete({ where: { id: parseInt(productId) } });
         res.json({ message: 'Product deleted' });
     } catch (error) {

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const vendorController = require('../controllers/vendorController');
 const { verifyToken } = require('../middleware/authMiddleware');
+const { handleUpload } = require('../middleware/uploadMiddleware');
 
 // All vendor routes require authentication
 router.use(verifyToken);
@@ -9,15 +10,15 @@ router.use(verifyToken);
 // Vendor CRUD
 router.get('/', vendorController.getAllVendors);
 router.get('/:id', vendorController.getVendorById);
-router.post('/', vendorController.createVendor);
-router.put('/:id', vendorController.updateVendor);
+router.post('/', handleUpload('photo'), vendorController.createVendor);
+router.put('/:id', handleUpload('photo'), vendorController.updateVendor);
 router.delete('/:id', vendorController.deleteVendor);
 
 // Vendor Product CRUD
 router.get('/all/products', vendorController.getAllProducts);
 router.get('/:vendorId/products', vendorController.getVendorProducts);
-router.post('/:vendorId/products', vendorController.addProduct);
-router.put('/:vendorId/products/:productId', vendorController.updateProduct);
+router.post('/:vendorId/products', handleUpload('image'), vendorController.addProduct);
+router.put('/:vendorId/products/:productId', handleUpload('image'), vendorController.updateProduct);
 router.delete('/:vendorId/products/:productId', vendorController.deleteProduct);
 
 module.exports = router;

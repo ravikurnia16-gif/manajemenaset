@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
+const { deleteFile } = require('../services/minioService');
 
 exports.getFundingSources = async (req, res) => {
     try {
@@ -131,7 +132,8 @@ exports.createAsset = async (req, res) => {
                         isLendable: isLendable === true || isLendable === 'true',
                         quantity: 1,
                         picId: picId ? parseInt(picId) : null,
-                        picName: picName || null
+                        picName: picName || null,
+                        image: req.fileUrl || null
                     }
                 }));
             }
@@ -371,6 +373,8 @@ exports.updateAsset = async (req, res) => {
             isLendable
         } = req.body;
 
+        const oldAsset = await prisma.asset.findUnique({ where: { id: parseInt(id) } });
+
         const asset = await prisma.asset.update({
             where: { id: parseInt(id) },
             data: {
@@ -390,9 +394,16 @@ exports.updateAsset = async (req, res) => {
                 acquisitionStatus,
                 picId: picId ? parseInt(picId) : null,
                 picName: picName || null,
-                isLendable: isLendable === true || isLendable === 'true'
+                isLendable: isLendable === true || isLendable === 'true',
+                image: req.fileUrl || undefined
             }
         });
+
+        // Cleanup old image from MinIO if updated
+        if (req.fileUrl && oldAsset?.image) {
+            await deleteFile(oldAsset.image);
+        }
+
         res.json(asset);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -402,6 +413,12 @@ exports.updateAsset = async (req, res) => {
 exports.deleteAsset = async (req, res) => {
     try {
         const { id } = req.params;
+        const asset = await prisma.asset.findUnique({ where: { id: parseInt(id) } });
+        
+        if (asset?.image) {
+            await deleteFile(asset.image);
+        }
+
         await prisma.asset.delete({ where: { id: parseInt(id) } });
         res.json({ message: 'Asset deleted' });
     } catch (error) {

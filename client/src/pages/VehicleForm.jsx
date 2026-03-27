@@ -30,6 +30,8 @@ const VehicleForm = () => {
     const [users, setUsers] = useState([]);
     const [picSearch, setPicSearch] = useState('');
     const [loading, setLoading] = useState(false);
+    const [photoFile, setPhotoFile] = useState(null); // Actual File object
+    const [photoPreview, setPhotoPreview] = useState(null);
 
     useEffect(() => {
         if (isEdit) {
@@ -63,6 +65,13 @@ const VehicleForm = () => {
         }
     };
 
+    useEffect(() => {
+        // Update photoPreview when form.photo (from DB) changes
+        if (form.photo && !photoFile) {
+            setPhotoPreview(form.photo);
+        }
+    }, [form.photo, photoFile]);
+
     const fetchUsers = async () => {
         try {
             const res = await api.get('/users');
@@ -73,11 +82,12 @@ const VehicleForm = () => {
     const handlePhotoChange = (e) => {
         const file = e.target.files[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setForm({ ...form, photo: reader.result });
-            };
-            reader.readAsDataURL(file);
+            if (photoPreview && photoPreview.startsWith('blob:')) {
+                URL.revokeObjectURL(photoPreview);
+            }
+            const previewUrl = URL.createObjectURL(file);
+            setPhotoPreview(previewUrl);
+            setPhotoFile(file);
         }
     };
 
@@ -85,10 +95,28 @@ const VehicleForm = () => {
         e.preventDefault();
         setLoading(true);
         try {
+            const formData = new FormData();
+            Object.keys(form).forEach(key => {
+                if (key === 'picIds') {
+                    // Send as multiple fields or stringified
+                    form[key].forEach(id => formData.append('picIds[]', id));
+                } else if (key !== 'photo') {
+                    formData.append(key, form[key]);
+                }
+            });
+
+            if (photoFile) {
+                formData.append('photo', photoFile);
+            }
+
             if (isEdit) {
-                await api.put(`/vehicles/${id}`, form);
+                await api.put(`/vehicles/${id}`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
             } else {
-                await api.post('/vehicles', form);
+                await api.post('/vehicles', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
             }
             alert(`Kendaraan berhasil ${isEdit ? 'diperbarui' : 'ditambahkan'}!`);
             navigate('/kendaraan/data');
@@ -122,8 +150,8 @@ const VehicleForm = () => {
                         <div className="md:col-span-1 space-y-4">
                             <label className="block text-sm font-bold text-slate-700">Foto Kendaraan</label>
                             <div className="aspect-video rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 overflow-hidden relative group">
-                                {form.photo ? (
-                                    <img src={form.photo} alt="Preview" className="w-full h-full object-cover" />
+                                {photoPreview ? (
+                                    <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
                                 ) : (
                                     <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
                                         <Camera size={32} strokeWidth={1.5} />
@@ -136,7 +164,7 @@ const VehicleForm = () => {
                                     onChange={handlePhotoChange}
                                     className="absolute inset-0 opacity-0 cursor-pointer"
                                 />
-                                {form.photo && (
+                                {photoPreview && (
                                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                         <p className="text-white text-xs font-bold">Ganti Foto</p>
                                     </div>

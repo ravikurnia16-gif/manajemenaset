@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { deleteFile } = require('../services/minioService');
 
 // Get all vehicles (with latest service KM info)
 exports.getAllVehicles = async (req, res) => {
@@ -88,7 +89,7 @@ exports.createVehicle = async (req, res) => {
                 capacity,
                 color,
                 odometer: parseInt(odometer) || 0,
-                photo,
+                photo: req.fileUrl || null,
                 status: status || 'ACTIVE',
                 isRentable: isRentable === true || isRentable === 'true',
                 defaultRentalPrice: defaultRentalPrice ? parseFloat(defaultRentalPrice) : null,
@@ -120,6 +121,8 @@ exports.updateVehicle = async (req, res) => {
 
         console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice });
 
+        const oldVehicle = await prisma.vehicle.findUnique({ where: { id: parseInt(req.params.id) } });
+
         const vehicle = await prisma.vehicle.update({
             where: { id: parseInt(req.params.id) },
             data: {
@@ -129,10 +132,10 @@ exports.updateVehicle = async (req, res) => {
                 type,
                 plateNumber,
                 fuelType,
-                capacity,
+                capacity: parseInt(capacity) || undefined,
                 color,
                 odometer: parseInt(odometer) || 0,
-                photo,
+                photo: req.fileUrl || undefined,
                 status,
                 isRentable: isRentable === true || isRentable === 'true',
                 defaultRentalPrice: defaultRentalPrice ? parseFloat(defaultRentalPrice) : null,
@@ -144,6 +147,12 @@ exports.updateVehicle = async (req, res) => {
                 }
             }
         });
+
+        // Cleanup old photo if updated
+        if (req.fileUrl && oldVehicle?.photo) {
+            await deleteFile(oldVehicle.photo);
+        }
+
         res.json(vehicle);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -362,8 +371,15 @@ exports.sendPureTestWA = async (req, res) => {
 // Delete vehicle
 exports.deleteVehicle = async (req, res) => {
     try {
+        const { id } = req.params;
+        const vehicle = await prisma.vehicle.findUnique({ where: { id: parseInt(id) } });
+
+        if (vehicle?.photo) {
+            await deleteFile(vehicle.photo);
+        }
+
         await prisma.vehicle.delete({
-            where: { id: parseInt(req.params.id) }
+            where: { id: parseInt(id) }
         });
         res.json({ message: 'Kendaraan berhasil dihapus' });
     } catch (error) {

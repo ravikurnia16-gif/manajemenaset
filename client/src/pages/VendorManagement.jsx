@@ -33,6 +33,24 @@ const VendorManagement = () => {
     });
     const [isAddingProduct, setIsAddingProduct] = useState(false);
 
+    // File/Preview States
+    const [vendorPhotoFile, setVendorPhotoFile] = useState(null);
+    const [vendorPhotoPreview, setVendorPhotoPreview] = useState(null);
+    const [productPhotoFile, setProductPhotoFile] = useState(null);
+    const [productPhotoPreview, setProductPhotoPreview] = useState(null);
+
+    useEffect(() => {
+        if (vendorForm.photo && !vendorPhotoFile) {
+            setVendorPhotoPreview(vendorForm.photo);
+        }
+    }, [vendorForm.photo, vendorPhotoFile]);
+
+    useEffect(() => {
+        if (productForm.image && !productPhotoFile) {
+            setProductPhotoPreview(productForm.image);
+        }
+    }, [productForm.image, productPhotoFile]);
+
     useEffect(() => {
         if (viewMode === 'VENDORS') {
             fetchVendors();
@@ -73,24 +91,34 @@ const VendorManagement = () => {
     const handleSaveVendor = async (e) => {
         e.preventDefault();
         try {
-            // Only send fields the backend expects
-            const payload = {
-                name: vendorForm.name,
-                address: vendorForm.address || null,
-                phone: vendorForm.phone || null,
-                email: vendorForm.email || null,
-                website: vendorForm.website || null,
-                description: vendorForm.description || null,
-                category: vendorForm.category || null,
-                photo: vendorForm.photo || null,
-                isVerified: vendorForm.isVerified || false
-            };
+            const formData = new FormData();
+            
+            // Append all fields to FormData
+            formData.append('name', vendorForm.name);
+            if (vendorForm.address) formData.append('address', vendorForm.address);
+            if (vendorForm.phone) formData.append('phone', vendorForm.phone);
+            if (vendorForm.email) formData.append('email', vendorForm.email);
+            if (vendorForm.website) formData.append('website', vendorForm.website);
+            if (vendorForm.description) formData.append('description', vendorForm.description);
+            if (vendorForm.category) formData.append('category', vendorForm.category);
+            formData.append('isVerified', vendorForm.isVerified);
+            
+            if (vendorPhotoFile) {
+                formData.append('photo', vendorPhotoFile);
+            }
+
             if (currentVendor) {
-                await axios.put(`/vendors/${currentVendor.id}`, payload);
+                await axios.put(`/vendors/${currentVendor.id}`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
             } else {
-                await axios.post('/vendors', payload);
+                await axios.post('/vendors', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
             }
             setIsVendorModalOpen(false);
+            setVendorPhotoFile(null);
+            setVendorPhotoPreview(null);
             fetchVendors();
         } catch (error) {
             alert(error.response?.data?.error || 'Gagal menyimpan vendor');
@@ -125,8 +153,22 @@ const VendorManagement = () => {
     const handleAddProduct = async (e) => {
         e.preventDefault();
         try {
-            await axios.post(`/vendors/${selectedVendorForProducts.id}/products`, productForm);
+            const formData = new FormData();
+            formData.append('name', productForm.name);
+            formData.append('price', productForm.price);
+            formData.append('specification', productForm.specification);
+            
+            if (productPhotoFile) {
+                formData.append('image', productPhotoFile);
+            }
+
+            await axios.post(`/vendors/${selectedVendorForProducts.id}/products`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            
             setProductForm({ name: '', price: '', specification: '', image: null });
+            setProductPhotoFile(null);
+            setProductPhotoPreview(null);
             setIsAddingProduct(false);
             fetchProducts(selectedVendorForProducts.id);
         } catch (error) {
@@ -147,15 +189,20 @@ const VendorManagement = () => {
     const handleImageUpload = (e, target) => {
         const file = e.target.files[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                if (target === 'vendor') {
-                    setVendorForm({ ...vendorForm, photo: reader.result });
-                } else {
-                    setProductForm({ ...productForm, image: reader.result });
+            const previewUrl = URL.createObjectURL(file);
+            if (target === 'vendor') {
+                if (vendorPhotoPreview && vendorPhotoPreview.startsWith('blob:')) {
+                    URL.revokeObjectURL(vendorPhotoPreview);
                 }
-            };
-            reader.readAsDataURL(file);
+                setVendorPhotoPreview(previewUrl);
+                setVendorPhotoFile(file);
+            } else {
+                if (productPhotoPreview && productPhotoPreview.startsWith('blob:')) {
+                    URL.revokeObjectURL(productPhotoPreview);
+                }
+                setProductPhotoPreview(previewUrl);
+                setProductPhotoFile(file);
+            }
         }
     };
 
@@ -409,8 +456,8 @@ const VendorManagement = () => {
                                     <label className="block text-sm font-bold text-slate-700">Logo/Foto Profile</label>
                                     <div className="relative group cursor-pointer" onClick={() => document.getElementById('vendor-photo-input').click()}>
                                         <div className="w-full aspect-square bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden transition-all group-hover:border-blue-400 group-hover:bg-blue-50">
-                                            {vendorForm.photo ? (
-                                                <img src={vendorForm.photo} className="w-full h-full object-cover" />
+                                            {vendorPhotoPreview ? (
+                                                <img src={vendorPhotoPreview} className="w-full h-full object-cover" />
                                             ) : (
                                                 <Camera className="text-slate-300 group-hover:text-blue-400 transition-colors" size={32} />
                                             )}
@@ -648,8 +695,8 @@ const VendorManagement = () => {
                                         <div className="space-y-2 flex flex-col items-center">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest self-start ml-1">Foto Produk</label>
                                             <div className="flex-1 w-full bg-slate-100 rounded-3xl flex items-center justify-center overflow-hidden relative cursor-pointer group" onClick={() => document.getElementById('product-img').click()}>
-                                                {productForm.image ? (
-                                                    <img src={productForm.image} className="w-full h-full object-cover" />
+                                                {productPhotoPreview ? (
+                                                    <img src={productPhotoPreview} className="w-full h-full object-cover" />
                                                 ) : (
                                                     <Camera className="text-slate-300" size={40} />
                                                 )}

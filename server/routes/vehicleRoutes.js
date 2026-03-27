@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const vehicleController = require('../controllers/vehicleController');
 const { verifyToken } = require('../middleware/authMiddleware');
+const { handleUpload } = require('../middleware/uploadMiddleware');
 
 // Public Routes
 router.get('/public', vehicleController.getAllVehicles);
@@ -10,8 +11,8 @@ router.get('/public', vehicleController.getAllVehicles);
 router.get('/', verifyToken, vehicleController.getAllVehicles);
 router.get('/dashboard', verifyToken, vehicleController.getVehicleDashboard);
 router.get('/:id', verifyToken, vehicleController.getVehicleById);
-router.post('/', verifyToken, vehicleController.createVehicle);
-router.put('/:id', verifyToken, vehicleController.updateVehicle);
+router.post('/', verifyToken, handleUpload('photo'), vehicleController.createVehicle);
+router.put('/:id', verifyToken, handleUpload('photo'), vehicleController.updateVehicle);
 router.delete('/:id', verifyToken, vehicleController.deleteVehicle);
 
 // Test Routes (Tanpa Token untuk kemudahan testing di browser)
