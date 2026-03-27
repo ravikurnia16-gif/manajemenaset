@@ -89,6 +89,7 @@ const VehicleForm = () => {
             const previewUrl = URL.createObjectURL(file);
             setPhotoPreview(previewUrl);
             setPhotoFile(file);
+            console.log('[DEBUG] Photo Selected:', { name: file.name, size: file.size, type: file.mimetype });
         }
     };
 
@@ -107,7 +108,10 @@ const VehicleForm = () => {
             });
 
             if (photoFile) {
+                console.log('[DEBUG] Appending photo to FormData:', photoFile.name);
                 formData.append('photo', photoFile);
+            } else {
+                console.log('[DEBUG] No new photo to upload');
             }
 
             if (isEdit) {

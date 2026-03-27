@@ -119,11 +119,21 @@ exports.updateVehicle = async (req, res) => {
             taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice
         } = req.body;
 
-        console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber });
-        console.log('[DEBUG] Update Vehicle File:', req.file ? req.file.originalname : 'No file');
-        console.log('[DEBUG] Update Vehicle FileURL:', req.fileUrl);
+        // Handle picIds from FormData (it often arrives as picIds[] or multiple picIds fields)
+        let resolvedPicIds = picIds;
+        if (!resolvedPicIds && req.body['picIds[]']) {
+            resolvedPicIds = req.body['picIds[]'];
+        }
+        // Ensure it's an array
+        if (resolvedPicIds && !Array.isArray(resolvedPicIds)) {
+            resolvedPicIds = [resolvedPicIds];
+        }
 
         const oldVehicle = await prisma.vehicle.findUnique({ where: { id: parseInt(req.params.id) } });
+
+        console.log('[DEBUG] Update Vehicle req.file:', req.file ? 'YES' : 'NO');
+        if (req.file) console.log('[DEBUG] File info:', { fieldname: req.file.fieldname, originalname: req.file.originalname });
+        console.log('[DEBUG] req.fileUrl:', req.fileUrl);
 
         const vehicle = await prisma.vehicle.update({
             where: { id: parseInt(req.params.id) },
@@ -145,7 +155,7 @@ exports.updateVehicle = async (req, res) => {
                 stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
                 kirDueDate: kirDueDate ? new Date(kirDueDate) : null,
                 pics: {
-                    set: (picIds || []).map(id => ({ id: parseInt(id) }))
+                    set: (resolvedPicIds || []).map(id => ({ id: parseInt(id) }))
                 }
             }
         });
