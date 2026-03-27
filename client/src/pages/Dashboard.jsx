@@ -111,7 +111,7 @@ const Dashboard = () => {
                         </div>
                     </div>
                     <div className="h-72">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <BarChart data={chartMode === 'count' ? data?.chartData : data?.spendingData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} dy={10} />
@@ -136,7 +136,7 @@ const Dashboard = () => {
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                     <h3 className="text-lg font-bold text-slate-800 mb-6">Komposisi Kategori</h3>
                     <div className="h-72 flex justify-center items-center">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <PieChart>
                                 <Pie
                                     data={data?.pieData || []}
@@ -178,7 +178,7 @@ const Dashboard = () => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
                         <div className="md:col-span-1 h-64">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                 <PieChart>
                                     <Pie
                                         data={data?.maintenanceData || []}

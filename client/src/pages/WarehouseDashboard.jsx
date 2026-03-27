@@ -57,7 +57,7 @@ const WarehouseDashboard = () => {
                 <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
                     <h3 className="text-lg font-bold text-slate-800 mb-6 font-display">Stok per Kategori</h3>
                     <div className="h-72">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <BarChart data={data.stockByCategory}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} dy={10} />
