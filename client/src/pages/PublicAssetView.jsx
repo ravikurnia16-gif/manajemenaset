@@ -1,10 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import {
-    Package, Calendar, Tag, DollarSign,
-    Home, Building2, MapPin, Info,
-    TrendingDown, Hourglass, CheckCircle2
-} from 'lucide-react';
 import axios from 'axios';
 import { Package, Calendar, Tag, DollarSign, Home, Building2, MapPin, Info, TrendingDown, Hourglass, CheckCircle2, Box, X } from 'lucide-react';
 
