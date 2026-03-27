@@ -255,6 +255,7 @@ const VehicleBooking = () => {
         const badges = {
             PENDING: 'bg-amber-100 text-amber-700',
             APPROVED: 'bg-blue-100 text-blue-700',
+            BERLANGSUNG: 'bg-indigo-600 text-white shadow-sm',
             REJECTED: 'bg-red-100 text-red-700',
             COMPLETED: 'bg-green-100 text-green-700',
             CANCELLED: 'bg-slate-100 text-slate-500'
@@ -262,12 +263,14 @@ const VehicleBooking = () => {
         const labels = {
             PENDING: 'MENUNGGU',
             APPROVED: 'DISETUJUI',
+            BERLANGSUNG: 'BERLANGSUNG',
             REJECTED: 'DITOLAK',
             COMPLETED: 'SELESAI',
             CANCELLED: 'DIBATALKAN'
         };
         return <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${badges[status]}`}>{labels[status]}</span>;
     };
+
 
     const canApprove = isSuperAdmin || isAdminAset || isPIC;
 
@@ -290,26 +293,27 @@ const VehicleBooking = () => {
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
+            <div className="grid grid-cols-2 md:flex bg-white p-1 rounded-xl shadow-sm border border-slate-100 overflow-hidden md:overflow-x-auto">
                 {tabs.map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${activeTab === tab.id
+                        className={`flex items-center gap-2 px-3 md:px-4 py-2.5 rounded-lg text-[11px] md:text-sm font-bold transition-all whitespace-nowrap justify-center md:justify-start ${activeTab === tab.id
                             ? 'bg-blue-600 text-white shadow-md'
                             : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
-                            }`}
+                            } ${tab.id === 'DRIVERS' && tabs.length % 2 !== 0 ? 'col-span-2 md:col-span-1' : ''}`}
                     >
                         {tab.icon}
-                        {tab.label}
+                        <span className="truncate">{tab.label}</span>
                         {tab.count > 0 && tab.id === 'APPROVAL' && (
-                            <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px]">
+                            <span className={`${activeTab === tab.id ? 'bg-white text-blue-600' : 'bg-red-500 text-white'} text-[10px] px-1.5 py-0.5 rounded-full min-w-[18px]`}>
                                 {tab.count}
                             </span>
                         )}
                     </button>
                 ))}
             </div>
+
 
             {/* Tab Contents */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 min-h-[400px]">
@@ -671,122 +675,169 @@ const VehicleBooking = () => {
                 )}
 
                 {activeTab === 'APPROVAL' && (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <tr>
-                                    <th className="px-6 py-4">Pemohon</th>
-                                    <th className="px-6 py-4">Armada</th>
-                                    <th className="px-6 py-4">Jadwal & Tujuan</th>
-                                    <th className="px-6 py-4 text-center">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {loading ? (
-                                    <tr><td colSpan="4" className="p-10 text-center text-slate-400">Memuat data...</td></tr>
-                                ) : bookings.length === 0 ? (
-                                    <tr><td colSpan="4" className="p-10 text-center text-slate-400">Tidak ada permohonan tertunda.</td></tr>
-                                ) : bookings.map(b => (
-                                    <tr key={b.id} className="hover:bg-slate-50/50">
-                                        <td className="px-6 py-4">
-                                            <div className="font-bold text-slate-700">{b.user.name}</div>
-                                            <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user.unit?.name || 'Unit -'}</div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="font-bold text-slate-700">{b.vehicle.name}</div>
-                                            <div className="text-[10px] text-slate-400 font-mono">{b.vehicle.plateNumber}</div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
-                                                <Calendar size={12} className="text-blue-500" />
-                                                {new Date(b.startDate).toLocaleString('id-ID')}
+                    <div className="p-4 md:p-6">
+                        {loading ? (
+                            <div className="p-10 text-center text-slate-400">Memuat data...</div>
+                        ) : bookings.length === 0 ? (
+                            <div className="p-10 text-center text-slate-400 font-bold bg-slate-50 rounded-2xl border border-dashed border-slate-200">Tidak ada permohonan tertunda.</div>
+                        ) : (
+                            <>
+                                {/* Mobile List */}
+                                <div className="grid grid-cols-1 gap-4 md:hidden">
+                                    {bookings.map(b => (
+                                        <div key={b.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-4">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="font-bold text-slate-800">{b.user.name}</div>
+                                                    <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user.unit?.name || 'Unit -'}</div>
+                                                </div>
+                                                {getStatusBadge(b.status)}
                                             </div>
-                                            <div className="flex items-center gap-1.5 text-xs text-blue-600 font-bold mt-1">
-                                                <MapPin size={12} /> {b.destination}
+                                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
+                                                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                                                    <Car size={14} className="text-blue-500" /> {b.vehicle.name}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                                                    <Calendar size={14} className="text-slate-400" /> {new Date(b.startDate).toLocaleString('id-ID')}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[11px] text-blue-600 font-bold">
+                                                    <MapPin size={14} /> {b.destination}
+                                                </div>
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex justify-center gap-2">
+                                            <div className="flex gap-2">
                                                 {b.status === 'PENDING' ? (
                                                     <>
                                                         <button
                                                             disabled={submitting}
                                                             onClick={() => handleAction(b.id, 'APPROVED')}
-                                                            className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-bold hover:bg-green-600 hover:text-white transition-all disabled:opacity-50"
+                                                            className="flex-1 py-2.5 bg-green-50 text-green-600 rounded-xl text-xs font-bold hover:bg-green-600 hover:text-white transition-all disabled:opacity-50"
                                                         >
                                                             Setujui
                                                         </button>
                                                         <button
                                                             disabled={submitting}
                                                             onClick={() => setShowActionModal({ type: 'REJECT', data: b })}
-                                                            className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-all disabled:opacity-50"
+                                                            className="flex-1 py-2.5 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all disabled:opacity-50"
                                                         >
                                                             Tolak
                                                         </button>
                                                     </>
-                                                ) : (
-                                                    getStatusBadge(b.status)
-                                                )}
+                                                ) : null}
                                                 <button
                                                     onClick={() => setShowDetailModal(b)}
-                                                    className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                                                    className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-all border border-slate-100"
                                                 >
                                                     <Info size={18} />
                                                 </button>
                                             </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Desktop Table */}
+                                <div className="hidden md:block overflow-x-auto">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                            <tr>
+                                                <th className="px-6 py-4">Pemohon</th>
+                                                <th className="px-6 py-4">Armada</th>
+                                                <th className="px-6 py-4">Jadwal & Tujuan</th>
+                                                <th className="px-6 py-4 text-center">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {bookings.map(b => (
+                                                <tr key={b.id} className="hover:bg-slate-50/50">
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-bold text-slate-700">{b.user.name}</div>
+                                                        <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user.unit?.name || 'Unit -'}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-bold text-slate-700">{b.vehicle.name}</div>
+                                                        <div className="text-[10px] text-slate-400 font-mono">{b.vehicle.plateNumber}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
+                                                            <Calendar size={12} className="text-blue-500" />
+                                                            {new Date(b.startDate).toLocaleString('id-ID')}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 text-xs text-blue-600 font-bold mt-1">
+                                                            <MapPin size={12} /> {b.destination}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex justify-center gap-2">
+                                                            {b.status === 'PENDING' ? (
+                                                                <>
+                                                                    <button
+                                                                        disabled={submitting}
+                                                                        onClick={() => handleAction(b.id, 'APPROVED')}
+                                                                        className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-bold hover:bg-green-600 hover:text-white transition-all disabled:opacity-50"
+                                                                    >
+                                                                        Setujui
+                                                                    </button>
+                                                                    <button
+                                                                        disabled={submitting}
+                                                                        onClick={() => setShowActionModal({ type: 'REJECT', data: b })}
+                                                                        className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-all disabled:opacity-50"
+                                                                    >
+                                                                        Tolak
+                                                                    </button>
+                                                                </>
+                                                            ) : (
+                                                                getStatusBadge(b.status)
+                                                            )}
+                                                            <button
+                                                                onClick={() => setShowDetailModal(b)}
+                                                                className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                                                            >
+                                                                <Info size={18} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
+
                 {activeTab === 'MY_REQUESTS' && (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <tr>
-                                    <th className="px-6 py-4">Armada</th>
-                                    <th className="px-6 py-4">Jadwal & Tujuan</th>
-                                    <th className="px-6 py-4">Status</th>
-                                    <th className="px-6 py-4">Kilometer</th>
-                                    <th className="px-6 py-4 text-center">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {loading ? (
-                                    <tr><td colSpan="5" className="p-10 text-center text-slate-400">Memuat data...</td></tr>
-                                ) : bookings.length === 0 ? (
-                                    <tr><td colSpan="5" className="p-10 text-center text-slate-400">Belum ada permohonan.</td></tr>
-                                ) : bookings.map(b => (
-                                    <tr key={b.id} className="hover:bg-slate-50/50">
-                                        <td className="px-6 py-4">
-                                            <div className="font-bold text-slate-700">{b.vehicle.name}</div>
-                                            <div className="text-[10px] text-slate-400 font-mono">{b.vehicle.plateNumber}</div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
-                                                <Clock size={12} className="text-blue-500" />
-                                                {new Date(b.startDate).toLocaleString('id-ID')}
+                    <div className="p-4 md:p-6">
+                        {loading ? (
+                            <div className="p-10 text-center text-slate-400">Memuat data...</div>
+                        ) : bookings.length === 0 ? (
+                            <div className="p-10 text-center text-slate-400 font-bold bg-slate-50 rounded-2xl border border-dashed border-slate-200">Belum ada permohonan.</div>
+                        ) : (
+                            <>
+                                {/* Mobile List */}
+                                <div className="grid grid-cols-1 gap-4 md:hidden">
+                                    {bookings.map(b => (
+                                        <div key={b.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-4">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="font-bold text-slate-800">{b.vehicle.name}</div>
+                                                    <div className="text-[10px] text-slate-400 font-mono">{b.vehicle.plateNumber}</div>
+                                                </div>
+                                                {getStatusBadge(b.status)}
                                             </div>
-                                            <div className="flex items-center gap-1.5 text-xs text-blue-600 font-bold mt-1">
-                                                <MapPin size={12} /> {b.destination}
+                                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
+                                                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                                                    <Clock size={14} className="text-blue-500" /> {new Date(b.startDate).toLocaleString('id-ID')}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[11px] text-blue-600 font-bold">
+                                                    <MapPin size={14} /> {b.destination}
+                                                </div>
+                                                <div className="pt-2 border-t border-slate-200 flex justify-between">
+                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">KM Start: {b.startKm || '-'}</div>
+                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">KM End: {b.endKm || '-'}</div>
+                                                </div>
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            {getStatusBadge(b.status)}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="text-[10px] font-bold text-slate-500">
-                                                START: {b.startKm ? `${b.startKm} km` : '-'}
-                                            </div>
-                                            <div className="text-[10px] font-bold text-slate-500 mt-1">
-                                                END: {b.endKm ? `${b.endKm} km` : '-'}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex justify-center gap-2">
+                                            <div className="flex gap-2">
                                                 {b.status === 'APPROVED' && !b.startKm && (
                                                     <button
                                                         disabled={submitting}
@@ -794,49 +845,144 @@ const VehicleBooking = () => {
                                                             setActionData({ ...actionData, km: b.vehicle.odometer || '' });
                                                             setShowActionModal({ type: 'START', data: b });
                                                         }}
-                                                        className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1 disabled:opacity-50"
+                                                        className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                                     >
-                                                        <LogIn size={14} /> Start Trip
+                                                        <LogIn size={16} /> Start Trip
                                                     </button>
                                                 )}
-                                                {b.status === 'APPROVED' && b.startKm && (
+                                                {b.status === 'BERLANGSUNG' && (
                                                     <button
                                                         disabled={submitting}
                                                         onClick={() => {
                                                             setActionData({ ...actionData, km: b.vehicle.odometer || b.startKm || '' });
                                                             setShowActionModal({ type: 'END', data: b });
                                                         }}
-                                                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1 disabled:opacity-50"
+                                                        className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                                     >
-                                                        <LogOut size={14} /> End Trip
+                                                        <LogOut size={16} /> End Trip
                                                     </button>
                                                 )}
                                                 {b.status === 'PENDING' && (
                                                     <button
                                                         disabled={submitting}
                                                         onClick={() => handleCancel(b.id)}
-                                                        className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                                                        className="flex-1 py-2.5 bg-white border border-red-100 text-red-500 rounded-xl text-xs font-bold hover:bg-red-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                                     >
-                                                        <Trash2 size={18} />
+                                                        <Trash2 size={16} /> Batalkan
                                                     </button>
                                                 )}
+                                                <button
+                                                    onClick={() => setShowDetailModal(b)}
+                                                    className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-all border border-slate-100"
+                                                >
+                                                    <Info size={18} />
+                                                </button>
                                             </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Desktop Table */}
+                                <div className="hidden md:block overflow-x-auto">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                            <tr>
+                                                <th className="px-6 py-4">Armada</th>
+                                                <th className="px-6 py-4">Jadwal & Tujuan</th>
+                                                <th className="px-6 py-4">Status</th>
+                                                <th className="px-6 py-4">Kilometer</th>
+                                                <th className="px-6 py-4 text-center">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {bookings.map(b => (
+                                                <tr key={b.id} className="hover:bg-slate-50/50">
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-bold text-slate-700">{b.vehicle.name}</div>
+                                                        <div className="text-[10px] text-slate-400 font-mono">{b.vehicle.plateNumber}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
+                                                            <Clock size={12} className="text-blue-500" />
+                                                            {new Date(b.startDate).toLocaleString('id-ID')}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 text-xs text-blue-600 font-bold mt-1">
+                                                            <MapPin size={12} /> {b.destination}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        {getStatusBadge(b.status)}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="text-[10px] font-bold text-slate-500">
+                                                            START: {b.startKm ? `${b.startKm} km` : '-'}
+                                                        </div>
+                                                        <div className="text-[10px] font-bold text-slate-500 mt-1">
+                                                            END: {b.endKm ? `${b.endKm} km` : '-'}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex justify-center gap-2">
+                                                            {b.status === 'APPROVED' && !b.startKm && (
+                                                                <button
+                                                                    disabled={submitting}
+                                                                    onClick={() => {
+                                                                        setActionData({ ...actionData, km: b.vehicle.odometer || '' });
+                                                                        setShowActionModal({ type: 'START', data: b });
+                                                                    }}
+                                                                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1 disabled:opacity-50"
+                                                                >
+                                                                    <LogIn size={14} /> Start Trip
+                                                                </button>
+                                                            )}
+                                                            {b.status === 'BERLANGSUNG' && (
+                                                                <button
+                                                                    disabled={submitting}
+                                                                    onClick={() => {
+                                                                        setActionData({ ...actionData, km: b.vehicle.odometer || b.startKm || '' });
+                                                                        setShowActionModal({ type: 'END', data: b });
+                                                                    }}
+                                                                    className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1 disabled:opacity-50"
+                                                                >
+                                                                    <LogOut size={14} /> End Trip
+                                                                </button>
+                                                            )}
+                                                            {b.status === 'PENDING' && (
+                                                                <button
+                                                                    disabled={submitting}
+                                                                    onClick={() => handleCancel(b.id)}
+                                                                    className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                                                                >
+                                                                    <Trash2 size={18} />
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => setShowDetailModal(b)}
+                                                                className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                                                            >
+                                                                <Info size={18} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
+
                 {activeTab === 'HISTORY' && (
-                    <div className="space-y-4 p-6">
+                    <div className="space-y-4 p-4 md:p-6">
                         {/* History Filters */}
                         <div className="flex flex-col md:flex-row gap-4 mb-4">
                             <div className="flex-1">
                                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pilih Kendaraan</label>
                                 <select
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                                     value={filterVehicle}
                                     onChange={(e) => setFilterVehicle(e.target.value)}
                                 >
@@ -850,7 +996,7 @@ const VehicleBooking = () => {
                                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Mulai Tanggal</label>
                                 <input
                                     type="date"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                                     value={filterStartDate}
                                     onChange={(e) => setFilterStartDate(e.target.value)}
                                 />
@@ -859,80 +1005,124 @@ const VehicleBooking = () => {
                                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Sampai Tanggal</label>
                                 <input
                                     type="date"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
                                     value={filterEndDate}
                                     onChange={(e) => setFilterEndDate(e.target.value)}
                                 />
                             </div>
                         </div>
 
-                        <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                    <tr>
-                                        <th className="px-6 py-4">Pemohon</th>
-                                        <th className="px-6 py-4">Armada</th>
-                                        <th className="px-6 py-4">Jadwal & Tujuan</th>
-                                        <th className="px-6 py-4">Info Perjalanan</th>
-                                        <th className="px-6 py-4">Status Akhir</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {loading ? (
-                                        <tr><td colSpan="5" className="p-10 text-center text-slate-400">Memuat riwayat...</td></tr>
-                                    ) : bookings.length === 0 ? (
-                                        <tr><td colSpan="5" className="p-10 text-center text-slate-400">Tidak ada riwayat ditemukan.</td></tr>
-                                    ) : bookings.map(b => (
-                                        <tr key={b.id} className="hover:bg-slate-50/50">
-                                            <td className="px-6 py-4">
-                                                <div className="font-bold text-slate-700">{b.user.name}</div>
-                                                <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user.unit?.name || 'Unit -'}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="font-bold text-slate-700">{b.vehicle.name}</div>
-                                                <div className="text-[10px] text-slate-400 font-mono">{b.vehicle.plateNumber}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
-                                                    <Clock size={12} className="text-blue-500" />
-                                                    {new Date(b.startDate).toLocaleString('id-ID')}
+                        {loading ? (
+                            <div className="p-10 text-center text-slate-400">Memuat riwayat...</div>
+                        ) : bookings.length === 0 ? (
+                            <div className="p-10 text-center text-slate-400 font-bold bg-slate-50 rounded-2xl border border-dashed border-slate-200">Tidak ada riwayat ditemukan.</div>
+                        ) : (
+                            <>
+                                {/* Mobile History List */}
+                                <div className="grid grid-cols-1 gap-4 md:hidden">
+                                    {bookings.map(b => (
+                                        <div key={b.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-4">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="font-bold text-slate-800">{b.user.name}</div>
+                                                    <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user.unit?.name || 'Unit -'}</div>
                                                 </div>
-                                                <div className="flex items-center gap-1.5 text-xs text-blue-600 font-bold mt-1">
-                                                    <MapPin size={12} /> {b.destination}
+                                                {getStatusBadge(b.status)}
+                                            </div>
+                                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
+                                                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                                                    <Car size={14} className="text-blue-500" /> {b.vehicle.name}
                                                 </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-[10px] font-bold text-slate-500 mb-1">
-                                                    Trip: {b.startKm || '?'} km - {b.endKm || '?'} km
+                                                <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                                                    <Clock size={14} className="text-slate-400" /> {new Date(b.startDate).toLocaleString('id-ID')}
                                                 </div>
-                                                {b.fuelRefill ? (
-                                                    <div className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 px-2 py-0.5 rounded text-[10px] font-bold border border-orange-100">
-                                                        <Fuel size={10} /> Isi BBM {b.fuelPrice > 0 ? `(Rp ${b.fuelPrice.toLocaleString()})` : ''}
-                                                    </div>
-                                                ) : (
-                                                    <div className="inline-flex items-center gap-1 bg-slate-50 text-slate-500 px-2 py-0.5 rounded text-[10px] font-bold border border-slate-200">
-                                                        <Fuel size={10} /> Tidak Isi BBM
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2">
-                                                    {getStatusBadge(b.status)}
-                                                    <button
-                                                        onClick={() => setShowDetailModal(b)}
-                                                        className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
-                                                    >
-                                                        <Info size={16} />
-                                                    </button>
+                                                <div className="flex items-center gap-2 text-[11px] text-blue-600 font-bold">
+                                                    <MapPin size={14} /> {b.destination}
                                                 </div>
-                                            </td>
-                                        </tr>
+                                                <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-2">
+                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">Trip: {b.startKm || '?'} - {b.endKm || '?'} km</div>
+                                                    {b.fuelRefill && (
+                                                        <span className="bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded text-[9px] font-bold border border-orange-100">BBM: Rp {b.fuelPrice.toLocaleString()}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => setShowDetailModal(b)}
+                                                className="w-full py-2 bg-slate-50 text-slate-400 rounded-xl text-xs font-bold hover:bg-blue-50 hover:text-blue-600 transition-all border border-slate-100"
+                                            >
+                                                Tampilkan Detail
+                                            </button>
+                                        </div>
                                     ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                </div>
+
+                                {/* Desktop History Table */}
+                                <div className="hidden md:block overflow-x-auto border border-slate-100 rounded-xl">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                            <tr>
+                                                <th className="px-6 py-4">Pemohon</th>
+                                                <th className="px-6 py-4">Armada</th>
+                                                <th className="px-6 py-4">Jadwal & Tujuan</th>
+                                                <th className="px-6 py-4">Info Perjalanan</th>
+                                                <th className="px-6 py-4">Status Akhir</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {bookings.map(b => (
+                                                <tr key={b.id} className="hover:bg-slate-50/50">
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-bold text-slate-700">{b.user.name}</div>
+                                                        <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user.unit?.name || 'Unit -'}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-bold text-slate-700">{b.vehicle.name}</div>
+                                                        <div className="text-[10px] text-slate-400 font-mono">{b.vehicle.plateNumber}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
+                                                            <Clock size={12} className="text-blue-500" />
+                                                            {new Date(b.startDate).toLocaleString('id-ID')}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 text-xs text-blue-600 font-bold mt-1">
+                                                            <MapPin size={12} /> {b.destination}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="text-[10px] font-bold text-slate-500 mb-1">
+                                                            Trip: {b.startKm || '?'} km - {b.endKm || '?'} km
+                                                        </div>
+                                                        {b.fuelRefill ? (
+                                                            <div className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 px-2 py-0.5 rounded text-[10px] font-bold border border-orange-100">
+                                                                <Fuel size={10} /> Isi BBM {b.fuelPrice > 0 ? `(Rp ${b.fuelPrice.toLocaleString()})` : ''}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="inline-flex items-center gap-1 bg-slate-50 text-slate-500 px-2 py-0.5 rounded text-[10px] font-bold border border-slate-200">
+                                                                <Fuel size={10} /> Tidak Isi BBM
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-2">
+                                                            {getStatusBadge(b.status)}
+                                                            <button
+                                                                onClick={() => setShowDetailModal(b)}
+                                                                className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                                                            >
+                                                                <Info size={16} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
+
 
                 {activeTab === 'DRIVERS' && (
                     <div className="p-6 space-y-6">

@@ -308,6 +308,7 @@ const VehicleRental = () => {
         const badges = {
             PENDING: 'bg-amber-100 text-amber-700',
             APPROVED: 'bg-blue-100 text-blue-700',
+            BERLANGSUNG: 'bg-indigo-100 text-indigo-700',
             REJECTED: 'bg-red-100 text-red-700',
             COMPLETED: 'bg-green-100 text-green-700',
             CANCELLED: 'bg-slate-100 text-slate-500'
@@ -315,6 +316,7 @@ const VehicleRental = () => {
         const labels = {
             PENDING: 'MENUNGGU',
             APPROVED: 'DISETUJUI',
+            BERLANGSUNG: 'BERLANGSUNG',
             REJECTED: 'DITOLAK',
             COMPLETED: 'SELESAI',
             CANCELLED: 'DIBATALKAN'
@@ -344,7 +346,7 @@ const VehicleRental = () => {
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
+            <div className="grid grid-cols-2 md:flex bg-white p-1 rounded-xl shadow-sm border border-slate-100 gap-1">
                 {tabs.map(tab => (
                     <button
                         key={tab.id}
@@ -866,7 +868,73 @@ const VehicleRental = () => {
 
                 {activeTab === 'APPROVAL' && (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
+                        {/* Mobile Card View */}
+                        <div className="md:hidden space-y-4 p-4">
+                            {loading ? (
+                                <div className="p-10 text-center text-slate-400">Memuat data...</div>
+                            ) : bookings.length === 0 ? (
+                                <div className="p-10 text-center text-slate-400">Tidak ada permohonan tertunda.</div>
+                            ) : bookings.map(b => (
+                                <div key={b.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-3">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="font-bold text-slate-700">{b.user.name}</div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user.unit?.name || 'Unit -'}</div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setShowDetailModal(b)}
+                                                className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                                            >
+                                                <Info size={18} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-50 p-3 rounded-xl space-y-2">
+                                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                                            <Car size={14} className="text-blue-500" />
+                                            <span className="font-bold">{b.vehicle.name}</span>
+                                            <span className="text-[10px] font-mono text-slate-400">({b.vehicle.plateNumber})</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                                            <Calendar size={14} className="text-blue-500" />
+                                            <span>{new Date(b.startDate).toLocaleString('id-ID')}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-blue-600 font-bold">
+                                            <MapPin size={14} />
+                                            <span>{b.destination}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 pt-2 border-t border-slate-50">
+                                        {b.status === 'PENDING' ? (
+                                            <>
+                                                <button
+                                                    disabled={submitting}
+                                                    onClick={() => handleAction(b.id, 'APPROVED')}
+                                                    className="flex-1 py-2 bg-green-50 text-green-600 rounded-lg text-xs font-bold hover:bg-green-600 hover:text-white transition-all disabled:opacity-50"
+                                                >
+                                                    Setujui
+                                                </button>
+                                                <button
+                                                    disabled={submitting}
+                                                    onClick={() => setShowActionModal({ type: 'REJECT', data: b })}
+                                                    className="flex-1 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-all disabled:opacity-50"
+                                                >
+                                                    Tolak
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <div className="w-full text-center">
+                                                {getStatusBadge(b.status)}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Desktop Table View */}
+                        <table className="hidden md:table w-full text-sm text-left">
                             <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider">
                                 <tr>
                                     <th className="px-6 py-4">Pemohon</th>
@@ -938,7 +1006,76 @@ const VehicleRental = () => {
 
                 {activeTab === 'MY_REQUESTS' && (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
+                        {/* Mobile Card View */}
+                        <div className="md:hidden space-y-4 p-4">
+                            {loading ? (
+                                <div className="p-10 text-center text-slate-400">Memuat data...</div>
+                            ) : bookings.length === 0 ? (
+                                <div className="p-10 text-center text-slate-400">Belum ada permohonan.</div>
+                            ) : bookings.map(b => (
+                                <div key={b.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-3">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="font-bold text-slate-700">{b.vehicle.name}</div>
+                                            <div className="text-[10px] text-slate-400 font-mono">{b.vehicle.plateNumber}</div>
+                                        </div>
+                                        {getStatusBadge(b.status)}
+                                    </div>
+                                    <div className="bg-slate-50 p-3 rounded-xl space-y-2">
+                                        <div className="flex items-center gap-2 text-xs text-slate-600 font-bold">
+                                            <Clock size={14} className="text-blue-500" />
+                                            <span>{new Date(b.startDate).toLocaleString('id-ID')}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-blue-600 font-bold">
+                                            <MapPin size={14} />
+                                            <span>{b.destination}</span>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-500 bg-slate-50/50 p-2 rounded-lg">
+                                        <div>START: {b.startKm ? `${b.startKm} km` : '-'}</div>
+                                        <div>END: {b.endKm ? `${b.endKm} km` : '-'}</div>
+                                    </div>
+                                    <div className="flex gap-2 pt-2 border-t border-slate-50">
+                                        {b.status === 'APPROVED' && !b.startKm && (
+                                            <button
+                                                disabled={submitting}
+                                                onClick={() => {
+                                                    setActionData({ ...actionData, km: b.vehicle.odometer || '' });
+                                                    setShowActionModal({ type: 'START', data: b });
+                                                }}
+                                                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-1 disabled:opacity-50"
+                                            >
+                                                <LogIn size={14} /> Start Trip
+                                            </button>
+                                        )}
+                                        {b.status === 'APPROVED' && b.startKm && (
+                                            <button
+                                                disabled={submitting}
+                                                onClick={() => {
+                                                    setActionData({ ...actionData, km: b.vehicle.odometer || b.startKm || '' });
+                                                    setShowActionModal({ type: 'END', data: b });
+                                                }}
+                                                className="flex-1 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-1 disabled:opacity-50"
+                                            >
+                                                <LogOut size={14} /> End Trip
+                                            </button>
+                                        )}
+                                        {b.status === 'PENDING' && (
+                                            <button
+                                                disabled={submitting}
+                                                onClick={() => handleCancel(b.id)}
+                                                className="flex-1 py-2 text-red-500 bg-red-50 rounded-lg text-xs font-bold hover:bg-red-500 hover:text-white transition-all disabled:opacity-50 flex items-center justify-center gap-1"
+                                            >
+                                                <Trash2 size={14} /> Batalkan
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Desktop Table View */}
+                        <table className="hidden md:table w-full text-sm text-left">
                             <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider">
                                 <tr>
                                     <th className="px-6 py-4">Armada</th>
@@ -1060,7 +1197,62 @@ const VehicleRental = () => {
                             </div>
                         </div>
 
-                        <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                        <div className="md:hidden space-y-4">
+                            {loading ? (
+                                <div className="p-10 text-center text-slate-400">Memuat riwayat...</div>
+                            ) : bookings.length === 0 ? (
+                                <div className="p-10 text-center text-slate-400">Tidak ada riwayat ditemukan.</div>
+                            ) : bookings.map(b => (
+                                <div key={b.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-3">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="font-bold text-slate-700">{b.user.name}</div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user.unit?.name || 'Unit -'}</div>
+                                        </div>
+                                        {getStatusBadge(b.status)}
+                                    </div>
+                                    <div className="bg-slate-50 p-3 rounded-xl space-y-2">
+                                        <div className="flex items-center gap-2 text-xs text-slate-600 font-bold">
+                                            <Car size={14} className="text-blue-500" />
+                                            <span>{b.vehicle.name}</span>
+                                            <span className="text-[10px] font-mono text-slate-400">({b.vehicle.plateNumber})</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-slate-600 font-bold">
+                                            <Clock size={14} className="text-blue-500" />
+                                            <span>{new Date(b.startDate).toLocaleString('id-ID')}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-blue-600 font-bold">
+                                            <MapPin size={14} />
+                                            <span>{b.destination}</span>
+                                        </div>
+                                    </div>
+                                    <div className="p-2 bg-slate-50/50 rounded-lg space-y-2">
+                                        <div className="text-[10px] font-bold text-slate-500">
+                                            Trip: {b.startKm || '?'} km - {b.endKm || '?'} km
+                                        </div>
+                                        {b.fuelRefill ? (
+                                            <div className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 px-2 py-0.5 rounded text-[10px] font-bold border border-orange-100">
+                                                <Fuel size={10} /> Isi BBM {b.fuelPrice > 0 ? `(Rp ${b.fuelPrice.toLocaleString()})` : ''}
+                                            </div>
+                                        ) : (
+                                            <div className="inline-flex items-center gap-1 bg-slate-50 text-slate-500 px-2 py-0.5 rounded text-[10px] font-bold border border-slate-200">
+                                                <Fuel size={10} /> Tidak Isi BBM
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex justify-end pt-2 border-t border-slate-50">
+                                        <button
+                                            onClick={() => setShowDetailModal(b)}
+                                            className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                                        >
+                                            <Info size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="hidden md:block overflow-x-auto border border-slate-100 rounded-xl">
                             <table className="w-full text-sm text-left">
                                 <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider">
                                     <tr>

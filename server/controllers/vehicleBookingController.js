@@ -274,9 +274,11 @@ exports.startTrip = async (req, res) => {
             where: { id: parseInt(id) },
             data: {
                 startKm: inputKm,
-                tripStartTime: new Date()
+                tripStartTime: new Date(),
+                status: 'BERLANGSUNG'
             }
         });
+
 
         res.json(updated);
     } catch (error) {
