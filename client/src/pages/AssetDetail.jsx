@@ -14,6 +14,7 @@ const AssetDetail = () => {
     const navigate = useNavigate();
     const [asset, setAsset] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     useEffect(() => {
         const fetchAsset = async () => {
@@ -68,23 +69,6 @@ const AssetDetail = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Information Sidebar */}
                 <div className="lg:col-span-1 space-y-6">
-                    {/* Asset Image Card */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden group">
-                        <div className="aspect-square bg-slate-50 relative flex items-center justify-center overflow-hidden">
-                            {asset.image ? (
-                                <img
-                                    src={getMediaUrl(asset.image)}
-                                    alt={asset.name}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                />
-                            ) : (
-                                <div className="flex flex-col items-center justify-center text-slate-300">
-                                    <Box size={64} strokeWidth={1} />
-                                    <span className="text-xs font-medium mt-2 italic text-slate-400">Tidak ada foto</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
 
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                         <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-6">Informasi Dasar</h3>
@@ -143,6 +127,29 @@ const AssetDetail = () => {
                         <div className="bg-slate-50 p-4 rounded-xl text-sm text-slate-600 leading-relaxed font-medium">
                             {asset.specification || 'Tidak ada keterangan spesifikasi tambahan.'}
                         </div>
+                    </div>
+
+                    {/* Asset Image Card - Moved Below Specs */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden group cursor-pointer" onClick={() => asset.image && setIsModalOpen(true)}>
+                        <div className="min-h-[200px] max-h-[300px] bg-slate-50 relative flex items-center justify-center overflow-hidden p-2">
+                            {asset.image ? (
+                                <img
+                                    src={getMediaUrl(asset.image)}
+                                    alt={asset.name}
+                                    className="max-w-full max-h-full object-contain transition-transform duration-500 group-hover:scale-105"
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center text-slate-300 py-10">
+                                    <Box size={64} strokeWidth={1} />
+                                    <span className="text-xs font-medium mt-2 italic text-slate-400">Tidak ada foto</span>
+                                </div>
+                            )}
+                        </div>
+                        {asset.image && (
+                            <div className="p-3 bg-slate-50 border-t border-slate-100 text-center">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Klik untuk memperbesar</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -205,6 +212,26 @@ const AssetDetail = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Image Modal */}
+            {isModalOpen && asset.image && (
+                <div 
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-sm p-4 animate-in fade-in duration-300"
+                    onClick={() => setIsModalOpen(false)}
+                >
+                    <button 
+                        className="absolute top-6 right-6 text-white hover:text-blue-400 transition-colors"
+                        onClick={() => setIsModalOpen(false)}
+                    >
+                        <Plus className="rotate-45" size={32} />
+                    </button>
+                    <img
+                        src={getMediaUrl(asset.image)}
+                        alt={asset.name}
+                        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
+                    />
+                </div>
+            )}
         </div>
     );
 };

@@ -6,12 +6,28 @@ import {
     TrendingDown, Hourglass, CheckCircle2
 } from 'lucide-react';
 import axios from 'axios';
+import { Package, Calendar, Tag, DollarSign, Home, Building2, MapPin, Info, TrendingDown, Hourglass, CheckCircle2, Box, X } from 'lucide-react';
+
+// Help helper for media URLs (manually since we don't import the lib here to keep it standalone if needed, 
+// but it's better to use the same logic as elsewhere)
+const getMediaUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    
+    // Base detection for public view
+    let base = '';
+    if (window.location.port === '5173') {
+        base = `${window.location.protocol}//${window.location.hostname}:3000`;
+    }
+    return `${base}/api/media/${path}`;
+};
 
 const PublicAssetView = () => {
     const { id } = useParams();
     const [asset, setAsset] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     useEffect(() => {
         const fetchAsset = async () => {
@@ -176,6 +192,31 @@ const PublicAssetView = () => {
                     </div>
                 </div>
 
+                {/* Asset Image Section */}
+                {asset.image && (
+                    <div className="bg-white p-4 rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
+                        <h3 className="text-sm font-black text-slate-800 mb-4 flex items-center gap-2">
+                            <Info size={18} className="text-blue-500" />
+                            Foto Lapangan
+                        </h3>
+                        <div 
+                            className="bg-slate-50 rounded-2xl overflow-hidden cursor-pointer group relative flex items-center justify-center min-h-[200px]"
+                            onClick={() => setIsModalOpen(true)}
+                        >
+                            <img 
+                                src={getMediaUrl(asset.image)} 
+                                alt={asset.name}
+                                className="max-w-full max-h-[300px] object-contain transition-transform duration-500 group-hover:scale-105"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center">
+                                <span className="p-2 bg-white/90 backdrop-blur shadow-lg rounded-lg text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 text-slate-800">
+                                    Ketuk untuk perbesar
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Footer Footer */}
                 <div className="pt-8 text-center px-6">
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mb-4">Aset Terdaftar Padang, Sumatera Barat</p>
@@ -186,6 +227,26 @@ const PublicAssetView = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Modal Perbesar Gambar */}
+            {isModalOpen && asset.image && (
+                <div 
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-4 animate-in fade-in duration-300"
+                    onClick={() => setIsModalOpen(false)}
+                >
+                    <button 
+                        className="absolute top-6 right-6 w-12 h-12 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-all backdrop-blur-sm"
+                        onClick={() => setIsModalOpen(false)}
+                    >
+                        <X size={24} />
+                    </button>
+                    <img
+                        src={getMediaUrl(asset.image)}
+                        alt={asset.name}
+                        className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300"
+                    />
+                </div>
+            )}
         </div>
     );
 };

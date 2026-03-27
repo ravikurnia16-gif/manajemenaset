@@ -817,6 +817,7 @@ exports.getAssetPublic = async (req, res) => {
             building: asset.room?.building || '-',
             unit: asset.unit?.name || '-',
             bookValue: currentBookValue,
+            image: asset.image,
             remainingLife: {
                 years: remainingYears,
                 months: remainingMonths,
@@ -856,7 +857,8 @@ exports.getMediaAssets = async (req, res) => {
             category: asset.category?.name || '-',
             room: asset.room?.name || '-',
             building: asset.room?.building || '-',
-            unit: asset.unit?.name || '-'
+            unit: asset.unit?.name || '-',
+            image: asset.image
         }));
 
         res.json({
