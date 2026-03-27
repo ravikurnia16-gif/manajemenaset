@@ -78,9 +78,9 @@ const Layout = () => {
     }, []);
 
     const navItems = [
-        { label: 'Peminjaman Kendaraan', icon: Truck, path: '/kendaraan/peminjaman' },
-        { label: 'Peminjaman Barang', icon: Box, path: '/peminjaman' },
-        { label: 'Pesanan Barang', icon: ShoppingCart, path: '/gudang/pesanan' },
+        { label: 'Kendaraan', icon: Truck, path: '/kendaraan/peminjaman' },
+        { label: 'Aset', icon: Box, path: '/peminjaman' },
+        { label: 'Pesanan', icon: ShoppingCart, path: '/gudang/pesanan' },
     ];
 
     return (
@@ -210,12 +210,12 @@ const Layout = () => {
                         </div>
                     </div>
                 </header>
-                <main className="flex-1 overflow-auto p-4 lg:p-8 relative custom-scrollbar pb-20 lg:pb-8">
+                <main className="flex-1 overflow-auto p-4 lg:p-8 relative custom-scrollbar pb-16 lg:pb-8">
                     <Outlet />
                 </main>
 
                 {/* Mobile Bottom Navigation */}
-                <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-slate-200 px-6 py-3 z-40 flex items-center justify-between shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)]">
+                <nav className="sm:hidden fixed bottom-1 left-2 right-2 bg-white/95 backdrop-blur-sm border border-slate-200 px-4 py-2 z-40 flex items-center justify-around rounded-2xl shadow-xl">
                     {navItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = location.pathname.startsWith(item.path);
@@ -224,17 +224,17 @@ const Layout = () => {
                                 key={item.path}
                                 to={item.path}
                                 className={cn(
-                                    "flex flex-col items-center gap-1 transition-all duration-300",
-                                    isActive ? "text-blue-600 scale-110" : "text-slate-400 hover:text-slate-600"
+                                    "flex flex-col items-center gap-0.5 transition-all duration-300 flex-1",
+                                    isActive ? "text-blue-600" : "text-slate-400 hover:text-slate-600"
                                 )}
                             >
                                 <div className={cn(
-                                    "p-2 rounded-xl transition-all",
+                                    "p-1.5 rounded-lg transition-all",
                                     isActive ? "bg-blue-50" : ""
                                 )}>
-                                    <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                                    <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
                                 </div>
-                                <span className="text-[10px] font-bold uppercase tracking-tighter">{item.label}</span>
+                                <span className="text-[9px] font-bold uppercase tracking-tight">{item.label}</span>
                             </Link>
                         );
                     })}
