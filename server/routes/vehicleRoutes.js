@@ -23,6 +23,7 @@ router.get('/test/wa-pure', vehicleController.sendPureTestWA);
 // Maintenance Routes
 const maintenanceCtrl = require('../controllers/vehicleMaintenanceController');
 router.get('/maintenance/all', verifyToken, maintenanceCtrl.getAllMaintenanceLogs);
+router.get('/maintenance/:id', verifyToken, maintenanceCtrl.getMaintenanceLogById);
 router.post('/maintenance', verifyToken, maintenanceCtrl.createMaintenanceLog);
 router.put('/maintenance/:id', verifyToken, maintenanceCtrl.updateMaintenanceLog);
 router.delete('/maintenance/:id', verifyToken, maintenanceCtrl.deleteMaintenanceLog);

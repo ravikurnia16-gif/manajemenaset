@@ -32,6 +32,7 @@ import BusBooking from './pages/BusBooking';
 import BusBookingPublic from './pages/BusBookingPublic';
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
 import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
+import VehicleMaintenanceDetail from './pages/VehicleMaintenanceDetail';
 import VehicleWeeklyReport from './pages/VehicleWeeklyReport';
 import LoginPage from './pages/LoginPage';
 import PublicAssetView from './pages/PublicAssetView';
@@ -107,6 +108,7 @@ function App() {
           <Route path="kendaraan/pemeliharaan" element={<VehicleMaintenanceList />} />
           <Route path="kendaraan/pemeliharaan/new" element={<VehicleMaintenanceForm />} />
           <Route path="kendaraan/pemeliharaan/edit/:id" element={<VehicleMaintenanceForm />} />
+          <Route path="kendaraan/pemeliharaan/view/:id" element={<VehicleMaintenanceDetail />} />
           <Route path="kendaraan/laporan-mingguan/:id" element={<VehicleWeeklyReport />} />
 
           {/* Module: Manajemen Gudang */}

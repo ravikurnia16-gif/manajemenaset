@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Plus, Search, Calendar, Car, Wrench, AlertCircle, FileText } from 'lucide-react';
+import { Settings, Plus, Search, Calendar, Car, Wrench, Trash2, Pencil, Eye } from 'lucide-react';
 import api from '../lib/axios';
 
 const VehicleMaintenanceList = () => {
@@ -127,11 +127,14 @@ const VehicleMaintenanceList = () => {
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => navigate(`/kendaraan/pemeliharaan/edit/${log.id}`)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg">
-                                                    <FileText size={16} />
+                                                <button onClick={() => navigate(`/kendaraan/pemeliharaan/view/${log.id}`)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Lihat Rincian">
+                                                    <Eye size={16} />
                                                 </button>
-                                                <button onClick={() => handleDelete(log.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg">
-                                                    <AlertCircle size={16} />
+                                                <button onClick={() => navigate(`/kendaraan/pemeliharaan/edit/${log.id}`)} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg" title="Edit Data">
+                                                    <Pencil size={16} />
+                                                </button>
+                                                <button onClick={() => handleDelete(log.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Hapus">
+                                                    <Trash2 size={16} />
                                                 </button>
                                             </div>
                                         </td>
@@ -185,16 +188,22 @@ const VehicleMaintenanceList = () => {
                                     </div>
                                     <div className="flex gap-2">
                                         <button
-                                            onClick={() => navigate(`/kendaraan/pemeliharaan/edit/${log.id}`)}
-                                            className="p-2.5 bg-slate-50 text-slate-600 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-all border border-slate-100"
+                                            onClick={() => navigate(`/kendaraan/pemeliharaan/view/${log.id}`)}
+                                            className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-all border border-blue-100"
                                         >
-                                            <FileText size={18} />
+                                            <Eye size={18} />
+                                        </button>
+                                        <button
+                                            onClick={() => navigate(`/kendaraan/pemeliharaan/edit/${log.id}`)}
+                                            className="p-2.5 bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-100 transition-all border border-orange-100"
+                                        >
+                                            <Pencil size={18} />
                                         </button>
                                         <button
                                             onClick={() => handleDelete(log.id)}
-                                            className="p-2.5 bg-slate-50 text-slate-600 rounded-xl hover:bg-red-50 hover:text-red-600 transition-all border border-slate-100"
+                                            className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all border border-red-100"
                                         >
-                                            <AlertCircle size={18} />
+                                            <Trash2 size={18} />
                                         </button>
                                     </div>
                                 </div>

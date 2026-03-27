@@ -131,7 +131,7 @@ const AssetDetail = () => {
 
                     {/* Asset Image Card - Moved Below Specs */}
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden group cursor-pointer" onClick={() => asset.image && setIsModalOpen(true)}>
-                        <div className="min-h-[200px] max-h-[300px] bg-slate-50 relative flex items-center justify-center overflow-hidden p-2">
+                        <div className="min-h-[300px] max-h-[600px] bg-slate-50 relative flex items-center justify-center overflow-hidden p-2">
                             {asset.image ? (
                                 <img
                                     src={getMediaUrl(asset.image)}

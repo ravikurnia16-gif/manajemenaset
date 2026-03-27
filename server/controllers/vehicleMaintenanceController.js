@@ -15,6 +15,20 @@ exports.getAllMaintenanceLogs = async (req, res) => {
     }
 };
 
+// Get single maintenance log
+exports.getMaintenanceLogById = async (req, res) => {
+    try {
+        const log = await prisma.vehicleService.findUnique({
+            where: { id: parseInt(req.params.id) },
+            include: { vehicle: true }
+        });
+        if (!log) return res.status(404).json({ error: 'Log tidak ditemukan' });
+        res.json(log);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // Create maintenance log
 exports.createMaintenanceLog = async (req, res) => {
     try {

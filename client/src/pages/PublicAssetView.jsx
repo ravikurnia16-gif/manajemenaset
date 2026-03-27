@@ -195,13 +195,13 @@ const PublicAssetView = () => {
                             Foto Lapangan
                         </h3>
                         <div 
-                            className="bg-slate-50 rounded-2xl overflow-hidden cursor-pointer group relative flex items-center justify-center min-h-[200px]"
+                            className="bg-slate-50 rounded-2xl overflow-hidden cursor-pointer group relative flex items-center justify-center min-h-[300px]"
                             onClick={() => setIsModalOpen(true)}
                         >
                             <img 
                                 src={getMediaUrl(asset.image)} 
                                 alt={asset.name}
-                                className="max-w-full max-h-[300px] object-contain transition-transform duration-500 group-hover:scale-105"
+                                className="max-w-full max-h-[600px] object-contain transition-transform duration-500 group-hover:scale-105"
                             />
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center">
                                 <span className="p-2 bg-white/90 backdrop-blur shadow-lg rounded-lg text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 text-slate-800">
