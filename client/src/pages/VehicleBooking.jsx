@@ -384,7 +384,7 @@ const VehicleBooking = () => {
                                                 <User size={10} className="text-purple-500" />
                                                 PIC Unit
                                             </div>
-                                            <div className="text-xs font-bold text-slate-700 truncate">
+                                            <div className="text-xs font-bold text-slate-700 leading-relaxed">
                                                 {v.pics?.length > 0 ? v.pics.map(p => p.name).join(', ') : 'Belum ditunjuk'}
                                             </div>
                                         </div>

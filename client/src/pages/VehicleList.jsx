@@ -117,7 +117,7 @@ const VehicleList = () => {
 
                                 <div className="grid grid-cols-2 gap-y-3 mb-6">
                                     {v.pics?.length > 0 && (
-                                        <div className="col-span-2 flex items-center gap-2 text-[10px] text-slate-500 italic">
+                                        <div className="col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-slate-500 italic">
                                             <span className="font-bold uppercase not-italic">PIC:</span> {v.pics.map(p => p.name).join(', ')}
                                         </div>
                                     )}

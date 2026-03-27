@@ -150,13 +150,6 @@ exports.updateVehicle = async (req, res) => {
         const oldVehicle = await prisma.vehicle.findUnique({ where: { id: parseInt(req.params.id) } });
         if (!oldVehicle) return res.status(404).json({ error: 'Vehicle not found' });
 
-        console.log('[DEBUG] Update Vehicle:', { 
-            id: req.params.id, 
-            hasFile: !!req.file, 
-            fileUrl: req.fileUrl,
-            existingPhoto: oldVehicle.photo 
-        });
-
         const parseDate = (d) => {
             if (!d) return null;
             const date = new Date(d);
