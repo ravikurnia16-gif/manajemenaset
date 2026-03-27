@@ -213,16 +213,67 @@ exports.startTrip = async (req, res) => {
 
         const booking = await prisma.vehicleBooking.findUnique({
             where: { id: parseInt(id) },
-            include: { vehicle: true }
+            include: { vehicle: true, user: true }
         });
 
         if (!booking) return res.status(404).json({ error: 'Booking tidak ditemukan' });
         if (booking.userId !== req.user.id) return res.status(403).json({ error: 'Akses ditolak' });
 
+        const currentOdometer = booking.vehicle.odometer || 0;
+        const inputKm = parseInt(startKm);
+
+        if (isNaN(inputKm)) {
+            return res.status(400).json({ error: 'Kilometer awal harus berupa angka' });
+        }
+
+        // 1. Strict Validation: Cannot be lower than current odometer
+        if (inputKm < currentOdometer) {
+            return res.status(400).json({
+                error: `KM Awal (${inputKm}) tidak boleh lebih kecil dari odometer kendaraan saat ini (${currentOdometer}).`
+            });
+        }
+
+        // 2. Discrepancy Notification (> 1 km)
+        if (inputKm - currentOdometer > 1) {
+            const leads = await prisma.user.findMany({
+                where: {
+                    position: 'Kepala Bidang Sarana dan Prasarana',
+                    phone: { not: null, not: '' }
+                }
+            });
+
+            if (leads.length > 0) {
+                const diff = inputKm - currentOdometer;
+                const msg = `⚠️ *PERINGATAN DISKREPANSI ODOMETER*\n\n` +
+                    `Terdapat selisih kilometer saat mulai perjalanan:\n` +
+                    `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
+                    `Pengguna: ${booking.user.name}\n` +
+                    `KM Terakhir Sistem: ${currentOdometer}\n` +
+                    `KM Awal Input: ${inputKm}\n` +
+                    `Selisih: *${diff} KM*\n\n` +
+                    `_Mohon tindak lanjuti jika terdapat indikasi penggunaan armada di luar sistem._`;
+
+                for (const lead of leads) {
+                    try {
+                        await sendMessage(lead.phone, msg);
+                        await createNotification(
+                            lead.id,
+                            'Peringatan Diskrepansi Odometer',
+                            `Selisih ${diff} KM pada kendaraan ${booking.vehicle.plateNumber} oleh ${booking.user.name}.`,
+                            'WARNING',
+                            '/kendaraan/laporan'
+                        );
+                    } catch (err) {
+                        console.error('Failed to notify lead:', err.message);
+                    }
+                }
+            }
+        }
+
         const updated = await prisma.vehicleBooking.update({
             where: { id: parseInt(id) },
             data: {
-                startKm: parseInt(startKm),
+                startKm: inputKm,
                 tripStartTime: new Date()
             }
         });

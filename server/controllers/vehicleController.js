@@ -135,6 +135,12 @@ exports.updateVehicle = async (req, res) => {
         if (req.file) console.log('[DEBUG] File info:', { fieldname: req.file.fieldname, originalname: req.file.originalname });
         console.log('[DEBUG] req.fileUrl:', req.fileUrl);
 
+        const parseDate = (d) => {
+            if (!d) return null;
+            const date = new Date(d);
+            return isNaN(date.getTime()) ? null : date;
+        };
+
         const vehicle = await prisma.vehicle.update({
             where: { id: parseInt(req.params.id) },
             data: {
@@ -144,18 +150,21 @@ exports.updateVehicle = async (req, res) => {
                 type,
                 plateNumber,
                 fuelType,
-                capacity: parseInt(capacity) || undefined,
+                capacity: capacity ? capacity.toString() : undefined,
                 color,
                 odometer: parseInt(odometer) || 0,
                 photo: (req.fileUrl && req.fileUrl !== 'undefined') ? req.fileUrl : undefined,
                 status,
                 isRentable: isRentable === true || isRentable === 'true',
                 defaultRentalPrice: defaultRentalPrice ? parseFloat(defaultRentalPrice) : null,
-                taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
-                stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
-                kirDueDate: kirDueDate ? new Date(kirDueDate) : null,
+                taxDueDate: parseDate(taxDueDate),
+                stnkDueDate: parseDate(stnkDueDate),
+                kirDueDate: parseDate(kirDueDate),
                 pics: {
-                    set: (resolvedPicIds || []).map(id => ({ id: parseInt(id) }))
+                    set: (resolvedPicIds || [])
+                        .map(id => parseInt(id))
+                        .filter(id => !isNaN(id))
+                        .map(id => ({ id }))
                 }
             }
         });

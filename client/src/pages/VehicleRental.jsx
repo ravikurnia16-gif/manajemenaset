@@ -216,6 +216,14 @@ const VehicleRental = () => {
 
     const handleStartTrip = async () => {
         try {
+            const currentOdometer = showActionModal.data.vehicle.odometer || 0;
+            const inputKm = parseInt(actionData.km);
+
+            if (inputKm < currentOdometer) {
+                showToast(`KM Awal (${inputKm}) tidak boleh lebih kecil dari odometer kendaraan saat ini (${currentOdometer}).`, 'error');
+                return;
+            }
+
             setSubmitting(true);
             await api.post(`/vehicles/booking/${showActionModal.data.id}/start`, {
                 startKm: actionData.km
