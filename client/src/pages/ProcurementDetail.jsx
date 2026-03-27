@@ -6,6 +6,7 @@ import {
     Image, MapPin, ChevronRight, AlertCircle, Package
 } from 'lucide-react';
 import api from '../lib/axios';
+import { getMediaUrl } from '../lib/media';
 import SearchableSelect from '../components/SearchableSelect';
 
 /* ─────────────────────────────────────────────
@@ -1084,7 +1085,7 @@ const ProcurementDetail = () => {
                                     }}>
                                         {handoverPhoto ? (
                                             <div style={{ position: 'relative', display: 'inline-block' }}>
-                                                <img src={handoverPhoto} alt="Bukti"
+                                                <img src={getMediaUrl(handoverPhoto)} alt="Bukti"
                                                     style={{ maxHeight: 240, borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }} />
                                                 <button onClick={e => { e.stopPropagation(); setHandoverPhoto(null); }}
                                                     style={{
@@ -1262,7 +1263,7 @@ const ProcurementDetail = () => {
                                             Bukti Foto
                                         </div>
                                         {req.bastFile
-                                            ? <img src={req.bastFile} alt="Bukti BAST" style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 8 }} />
+                                            ? <img src={getMediaUrl(req.bastFile)} alt="Bukti BAST" style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 8 }} />
                                             : <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.creamDk, borderRadius: 8, color: T.slate, fontSize: 12, fontStyle: 'italic' }}>
                                                 Tidak ada foto bukti.
                                             </div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Car, Camera, Save, MapPin, Fuel, Gauge, Palette, Calendar, User, Search } from 'lucide-react';
 import api from '../lib/axios';
+import { getMediaUrl } from '../lib/media';
 
 const VehicleForm = () => {
     const { id } = useParams();
@@ -68,7 +69,7 @@ const VehicleForm = () => {
     useEffect(() => {
         // Update photoPreview when form.photo (from DB) changes
         if (form.photo && !photoFile) {
-            setPhotoPreview(form.photo);
+            setPhotoPreview(getMediaUrl(form.photo));
         }
     }, [form.photo, photoFile]);
 

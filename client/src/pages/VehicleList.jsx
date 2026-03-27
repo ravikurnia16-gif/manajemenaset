@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Car, Plus, Search, MapPin, Fuel, Gauge, Trash2, Edit, Calendar, FileText, Wrench } from 'lucide-react';
 import api from '../lib/axios';
+import { getMediaUrl } from '../lib/media';
 
 const VehicleList = () => {
     const navigate = useNavigate();
@@ -80,7 +81,7 @@ const VehicleList = () => {
                         <div key={v.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition-shadow group">
                             <div className="aspect-video bg-slate-100 relative overflow-hidden">
                                 {v.photo ? (
-                                    <img src={v.photo} alt={v.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                    <img src={getMediaUrl(v.photo)} alt={v.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                 ) : (
                                     <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
                                         <Car size={48} />

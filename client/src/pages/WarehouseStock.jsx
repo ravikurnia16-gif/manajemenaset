@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Package, Plus, Search, Download, Upload, Trash2, Eye, Edit } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../lib/axios';
+import { getMediaUrl } from '../lib/media';
 
 const WarehouseStock = () => {
     const [items, setItems] = useState([]);
@@ -245,7 +246,7 @@ const WarehouseStock = () => {
                                                 <div className="flex items-center gap-3">
                                                     {item.image && (
                                                         <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
-                                                            <img src={item.image} alt="" className="w-full h-full object-cover" />
+                                                            <img src={getMediaUrl(item.image)} alt="" className="w-full h-full object-cover" />
                                                         </div>
                                                     )}
                                                     <div className="font-medium">{parts.join(' ')}</div>

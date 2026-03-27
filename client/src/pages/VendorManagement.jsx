@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from '../lib/axios';
+import { getMediaUrl } from '../lib/media';
 import {
     Users, Plus, Search, MapPin, Phone, Mail, Globe,
     MoreVertical, Edit2, Trash2, Package, CheckCircle,
@@ -41,13 +42,13 @@ const VendorManagement = () => {
 
     useEffect(() => {
         if (vendorForm.photo && !vendorPhotoFile) {
-            setVendorPhotoPreview(vendorForm.photo);
+            setVendorPhotoPreview(getMediaUrl(vendorForm.photo));
         }
     }, [vendorForm.photo, vendorPhotoFile]);
 
     useEffect(() => {
         if (productForm.image && !productPhotoFile) {
-            setProductPhotoPreview(productForm.image);
+            setProductPhotoPreview(getMediaUrl(productForm.image));
         }
     }, [productForm.image, productPhotoFile]);
 
@@ -301,7 +302,7 @@ const VendorManagement = () => {
                             <div key={vendor.id} className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-blue-500/5 transition-all overflow-hidden">
                                 <div className="relative h-32 bg-gradient-to-br from-slate-100 to-slate-200 overflow-hidden">
                                     {vendor.photo ? (
-                                        <img src={vendor.photo} alt={vendor.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                        <img src={getMediaUrl(vendor.photo)} alt={vendor.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                     ) : (
                                         <div className="flex items-center justify-center h-full opacity-30">
                                             <Users size={48} className="text-slate-400" />
@@ -405,7 +406,7 @@ const VendorManagement = () => {
                             <div key={prod.id} className="bg-white p-5 rounded-[2rem] shadow-sm hover:shadow-2xl hover:shadow-blue-500/5 transition-all border border-slate-100 group relative flex gap-5">
                                 <div className="w-24 h-24 rounded-2xl bg-slate-50 overflow-hidden shrink-0 border border-slate-100">
                                     {prod.image ? (
-                                        <img src={prod.image} className="w-full h-full object-cover" />
+                                        <img src={getMediaUrl(prod.image)} className="w-full h-full object-cover" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={24} /></div>
                                     )}
@@ -609,7 +610,7 @@ const VendorManagement = () => {
                         <div className="w-full md:w-80 bg-white border-r border-slate-100 p-8 shrink-0 overflow-y-auto">
                             <div className="w-24 h-24 rounded-3xl overflow-hidden bg-slate-50 border border-slate-100 mb-6 mx-auto shadow-inner shadow-black/5">
                                 {selectedVendorForProducts?.photo ? (
-                                    <img src={selectedVendorForProducts.photo} className="w-full h-full object-cover" />
+                                    <img src={getMediaUrl(selectedVendorForProducts.photo)} className="w-full h-full object-cover" />
                                 ) : (
                                     <div className="flex items-center justify-center h-full opacity-30 text-slate-400 font-bold text-3xl">
                                         {selectedVendorForProducts?.name?.charAt(0)}
@@ -723,7 +724,7 @@ const VendorManagement = () => {
                                             <div className="flex gap-5">
                                                 <div className="w-20 h-20 rounded-2xl bg-slate-50 overflow-hidden shrink-0 border border-slate-100">
                                                     {prod.image ? (
-                                                        <img src={prod.image} className="w-full h-full object-cover" />
+                                                        <img src={getMediaUrl(prod.image)} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={24} /></div>
                                                     )}

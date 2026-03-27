@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, Package } from 'lucide-react';
 import api from '../lib/axios';
+import { getMediaUrl } from '../lib/media';
 
 const WarehouseStockForm = () => {
     const navigate = useNavigate();
@@ -191,7 +192,7 @@ const WarehouseStockForm = () => {
                         <div className="flex items-center gap-4">
                             <div className="w-24 h-24 bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden">
                                 {form.image ? (
-                                    <img src={form.image} alt="Preview" className="w-full h-full object-cover" />
+                                    <img src={getMediaUrl(form.image)} alt="Preview" className="w-full h-full object-cover" />
                                 ) : (
                                     <Package className="text-slate-300" size={32} />
                                 )}

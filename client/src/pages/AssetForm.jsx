@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Save, X, ArrowRightLeft } from 'lucide-react';
 import api from '../lib/axios';
 import SearchableSelect from '../components/SearchableSelect';
+import { getMediaUrl } from '../lib/media';
 
 const AssetForm = () => {
     const navigate = useNavigate();
@@ -72,7 +73,7 @@ const AssetForm = () => {
                     });
 
                     if (asset.image) {
-                        setImagePreview(asset.image);
+                        setImagePreview(getMediaUrl(asset.image));
                     }
                 }
             } catch (err) {

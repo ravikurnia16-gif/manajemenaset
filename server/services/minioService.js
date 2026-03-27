@@ -11,6 +11,10 @@ const minioClient = new Minio.Client({
 
 const bucketName = process.env.MINIO_BUCKET || 'sarpras-media';
 
+// Export for other services/controllers
+exports.minioClient = minioClient;
+exports.bucketName = bucketName;
+
 /**
  * Upload file to MinIO
  * @param {Buffer} fileBuffer 
@@ -30,16 +34,9 @@ exports.uploadFile = async (fileBuffer, fileName, mimeType) => {
             { 'Content-Type': mimeType }
         );
 
-        // Construct the public URL
-        const protocol = process.env.MINIO_USE_SSL === 'true' ? 'https' : 'http';
-        const host = process.env.MINIO_ENDPOINT;
-        // In Easypanel, usually the API port is mapped to 80/443 externally.
-        // If MINIO_PORT is 443/80, we don't need to specify it.
-        const portPart = (process.env.MINIO_PORT && !['80', '443'].includes(process.env.MINIO_PORT)) 
-            ? `:${process.env.MINIO_PORT}` 
-            : '';
-            
-        return `${protocol}://${host}${portPart}/${bucketName}/${uniqueFileName}`;
+        // Construct the proxy URL instead of a direct public URL
+        // This ensures private buckets work through the backend proxy
+        return `/api/media/${uniqueFileName}`;
     } catch (error) {
         console.error('MinIO Upload Error:', error);
         throw new Error('Gagal mengunggah file ke Object Storage');
@@ -54,7 +51,7 @@ exports.deleteFile = async (fileUrl) => {
     try {
         if (!fileUrl) return;
         
-        // Extract fileName from URL: http://host/bucket/filename
+        // Extract fileName from URL: http://host/bucket/filename OR /api/media/filename
         const parts = fileUrl.split('/');
         const fileName = parts[parts.length - 1];
         

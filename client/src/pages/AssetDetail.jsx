@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
+import { getMediaUrl } from '../lib/media';
 
 const AssetDetail = () => {
     const { id } = useParams();
@@ -72,7 +73,7 @@ const AssetDetail = () => {
                         <div className="aspect-square bg-slate-50 relative flex items-center justify-center overflow-hidden">
                             {asset.image ? (
                                 <img
-                                    src={asset.image}
+                                    src={getMediaUrl(asset.image)}
                                     alt={asset.name}
                                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                 />

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench } from 'lucide-react';
 import api from '../lib/axios';
+import { getMediaUrl } from '../lib/media';
 
 const statusSteps = [
     { key: 'SUBMITTED', label: 'Diajukan', icon: '📋', color: 'blue' },
@@ -183,7 +184,7 @@ const MaintenanceDetail = () => {
                 <p className="text-sm text-slate-700 whitespace-pre-wrap">{report.description}</p>
                 {report.photo && (
                     <div className="mt-3">
-                        <img src={report.photo} alt="Bukti" className="max-w-xs rounded-lg border" />
+                        <img src={getMediaUrl(report.photo)} alt="Bukti" className="max-w-xs rounded-lg border" />
                     </div>
                 )}
             </div>
