@@ -131,19 +131,50 @@ const syncExternalUser = async (niy, externalData, password) => {
             password: hashedPassword, // Keep local password in sync for fallback
         };
 
-        // NEW: Auto-sync unit ONLY for 'USER' role
+        // NEW: Auto-sync unit ONLY for 'USER' role & Semesterly (26 Jan & 26 Jun)
         if (user.role === 'USER' && unitId && user.unitId !== unitId) {
-            console.log(`[SIMAK Sync] User ${user.username} unit changed from ${user.unitId} to ${unitId}`);
-            updateData.unitId = unitId;
+            const now = new Date();
+            const year = now.getFullYear();
 
-            // Log the change
-            await prisma.log.create({
-                data: {
+            // Define Rotation Candidates
+            const jan26 = new Date(year, 0, 26); // January 26
+            const jun26 = new Date(year, 5, 26); // June 26
+            const lastYearJun26 = new Date(year - 1, 5, 26);
+
+            // Find Most Recent Rotation Start Date (MRSD)
+            let mrsd;
+            if (now >= jun26) {
+                mrsd = jun26;
+            } else if (now >= jan26) {
+                mrsd = jan26;
+            } else {
+                mrsd = lastYearJun26;
+            }
+
+            // Check if already synced in this semester rotation
+            const lastSync = await prisma.log.findFirst({
+                where: {
                     userId: user.id,
                     action: 'SYNC',
-                    details: `Unit otomatis diperbarui dari SIMAK (Unit ID: ${user.unitId} -> ${unitId})`
+                    timestamp: { gte: mrsd }
                 }
             });
+
+            if (!lastSync) {
+                console.log(`[SIMAK Sync] User ${user.username} unit changed from ${user.unitId} to ${unitId} (MRSD: ${mrsd.toLocaleDateString()})`);
+                updateData.unitId = unitId;
+
+                // Log the change
+                await prisma.log.create({
+                    data: {
+                        userId: user.id,
+                        action: 'SYNC',
+                        details: `Unit otomatis diperbarui dari SIMAK (Jan/Jun Rotation - Unit ID: ${user.unitId} -> ${unitId})`
+                    }
+                });
+            } else {
+                console.log(`[SIMAK Sync] Skip update for ${user.username}. Already synced in this semester rotation.`);
+            }
         }
 
         user = await prisma.user.update({
