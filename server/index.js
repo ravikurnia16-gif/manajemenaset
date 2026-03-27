@@ -42,6 +42,7 @@ app.use('/api/loans', require('./routes/loanRoutes'));
 app.use('/api/vendors', require('./routes/vendorRoutes'));
 app.use('/api/official-residence', require('./routes/officialResidenceRoutes'));
 app.use('/api/media', require('./routes/mediaRoutes'));
+app.use('/api/vehicle-inspections', require('./routes/vehicleInspectionRoutes'));
 
 // Serve Static Files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

@@ -185,9 +185,22 @@ const VehicleList = () => {
                                 <div className="flex gap-2 pt-4 border-t border-slate-50">
                                     <button
                                         onClick={() => navigate(`/kendaraan/laporan-mingguan/${v.id}`)}
-                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all text-xs font-bold"
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all text-[10px] font-bold"
                                     >
-                                        <FileText size={14} /> Laporan
+                                        <FileText size={12} /> Laporan
+                                    </button>
+                                    <button
+                                        onClick={() => navigate(`/kendaraan/inspeksi/${v.id}`)}
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all text-[10px] font-bold"
+                                    >
+                                        <Car size={12} /> Inspeksi
+                                    </button>
+                                    <button
+                                        onClick={() => navigate(`/kendaraan/inspeksi/riwayat/${v.id}`)}
+                                        className="p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-slate-200 hover:text-slate-700 transition-colors"
+                                        title="Riwayat Inspeksi"
+                                    >
+                                        <Search size={14} />
                                     </button>
                                     {!isUser && (
                                         <>

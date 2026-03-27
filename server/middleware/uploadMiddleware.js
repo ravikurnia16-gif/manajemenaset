@@ -43,3 +43,34 @@ exports.handleUpload = (fieldName, folder = '') => {
         }
     ];
 };
+
+/**
+ * Middleware to handle multiple file uploads and send them to MinIO
+ */
+exports.handleMultipleUploads = (fields, folder = '') => {
+    return [
+        upload.fields(fields.map(f => ({ name: f, maxCount: 1 }))),
+        async (req, res, next) => {
+            try {
+                if (!req.files) return next();
+
+                req.fileUrls = {};
+                for (const field of fields) {
+                    if (req.files[field] && req.files[field][0]) {
+                        const file = req.files[field][0];
+                        const url = await uploadFile(
+                            file.buffer,
+                            file.originalname,
+                            file.mimetype,
+                            folder
+                        );
+                        req.fileUrls[field] = url;
+                    }
+                }
+                next();
+            } catch (error) {
+                res.status(500).json({ error: error.message });
+            }
+        }
+    ];
+};
