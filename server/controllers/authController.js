@@ -123,16 +123,32 @@ const syncExternalUser = async (niy, externalData, password) => {
             include: { unit: true }
         });
     } else {
-        // Scenario: Subsequent login (Option B: Sync profile but keep local Role/Unit)
+        // Scenario: Subsequent login (Option B: Sync profile)
+        const updateData = {
+            name: name || user.name,
+            phone: phone || user.phone,
+            email: email || user.email,
+            password: hashedPassword, // Keep local password in sync for fallback
+        };
+
+        // NEW: Auto-sync unit ONLY for 'USER' role
+        if (user.role === 'USER' && unitId && user.unitId !== unitId) {
+            console.log(`[SIMAK Sync] User ${user.username} unit changed from ${user.unitId} to ${unitId}`);
+            updateData.unitId = unitId;
+
+            // Log the change
+            await prisma.log.create({
+                data: {
+                    userId: user.id,
+                    action: 'SYNC',
+                    details: `Unit otomatis diperbarui dari SIMAK (Unit ID: ${user.unitId} -> ${unitId})`
+                }
+            });
+        }
+
         user = await prisma.user.update({
             where: { id: user.id },
-            data: {
-                name: name || user.name,
-                phone: phone || user.phone,
-                email: email || user.email,
-                password: hashedPassword, // Keep local password in sync for fallback
-                // Note: We don't update role or unitId here to satisfy "Option B"
-            },
+            data: updateData,
             include: { unit: true }
         });
     }
