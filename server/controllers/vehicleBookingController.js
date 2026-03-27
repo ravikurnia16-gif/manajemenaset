@@ -3,6 +3,19 @@ const prisma = new PrismaClient();
 const { sendMessage } = require('../services/whatsappService');
 const { createNotification } = require('./notificationController');
 
+// Helper for WA date formatting
+const formatWAWaktu = (date) => {
+    if (!date) return '-';
+    const d = new Date(date);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const day = d.getDate();
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${day} ${month} ${year} ${hh}.${mm}`;
+};
+
 // 1. Request Booking
 exports.requestBooking = async (req, res) => {
     try {
@@ -60,7 +73,8 @@ exports.requestBooking = async (req, res) => {
             },
             include: {
                 user: { select: { name: true, phone: true } },
-                vehicle: { select: { id: true, name: true, plateNumber: true, pics: true } }
+                vehicle: { select: { id: true, name: true, plateNumber: true, pics: true } },
+                driver: { select: { name: true } }
             }
         });
 
@@ -71,10 +85,15 @@ exports.requestBooking = async (req, res) => {
 
         // Notify ALL PICs via WhatsApp
         if (vehicle.pics && vehicle.pics.length > 0) {
+            const startStr = formatWAWaktu(startDate);
+            const endStr = formatWAWaktu(endDate);
+            const driverName = booking.driver?.name || (booking.driverId ? 'Driver Terpilih' : 'Tanpa Driver / Lepas Kunci');
+
             const msg = `🚗 *PERMINTAAN ${termHeader} KENDARAAN*\n\n` +
                 `Pemohon: ${booking.user.name}\n` +
                 `Armada: ${vehicle.name} (${vehicle.plateNumber})\n` +
-                `Jadwal: ${new Date(startDate).toLocaleString('id-ID')} s/d ${new Date(endDate).toLocaleString('id-ID')}\n` +
+                `Driver: ${driverName}\n` +
+                `Jadwal: ${startStr} - ${endStr}\n` +
                 `Tujuan: ${destination}\n` +
                 `Keperluan: ${purpose}\n\n` +
                 (isPIC ? `*Status*: Otomatis Disetujui (PIC)` : `Mohon tinjau di sistem untuk persetujuan.`);
@@ -132,6 +151,9 @@ exports.reviewBooking = async (req, res) => {
             return res.status(403).json({ error: 'Akses ditolak. Anda bukan PIC resmi kendaraan ini.' });
         }
 
+        const admin = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const adminName = admin?.name || req.user.username || 'Admin';
+
         const updated = await prisma.vehicleBooking.update({
             where: { id: parseInt(id) },
             data: {
@@ -149,25 +171,14 @@ exports.reviewBooking = async (req, res) => {
         if (booking.user.phone) {
             let msg = '';
             if (status === 'APPROVED') {
-                const formatDateTime = (date) => {
-                    const d = new Date(date);
-                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-                    const day = String(d.getDate()).padStart(2, '0');
-                    const month = months[d.getMonth()];
-                    const year = d.getFullYear();
-                    const hh = String(d.getHours()).padStart(2, '0');
-                    const mm = String(d.getMinutes()).padStart(2, '0');
-                    return `${day} ${month} ${year} ${hh}:${mm}`;
-                };
-
-                const startStr = formatDateTime(booking.startDate);
-                const endStr = formatDateTime(booking.endDate);
+                const startStr = formatWAWaktu(booking.startDate);
+                const endStr = formatWAWaktu(booking.endDate);
 
                 msg = `✅ *REQUEST ${termHeader} DISETUJUI*\n\n` +
                     `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
                     `Waktu: ${startStr} - ${endStr}\n` +
                     `Tujuan: ${booking.destination}\n` +
-                    `Disetujui oleh: ${req.user.name || req.user.username}\n\n` +
+                    `Disetujui oleh: ${adminName}\n\n` +
                     `Silakan mulai perjalanan melalui aplikasi SARPRAS saat akan memulai Perjalanan`;
 
                 if (adminNote) msg += `\n\nCatatan: ${adminNote}`;
