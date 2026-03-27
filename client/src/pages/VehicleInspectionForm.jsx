@@ -152,6 +152,18 @@ const VehicleInspectionForm = () => {
                 </div>
             </div>
 
+            <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl flex items-start gap-3 animate-in slide-in-from-top-2 duration-700">
+                <Info className="text-blue-500 shrink-0 mt-0.5" size={20} />
+                <div className="text-sm text-blue-700 leading-relaxed">
+                    <span className="font-bold block mb-1 uppercase tracking-tight text-[10px]">Tips Unggahan Foto:</span>
+                    <ul className="list-disc list-inside space-y-1 text-xs font-medium">
+                        <li>Gunakan resolusi **720p atau 1080p** (Maksimal 1920x1080).</li>
+                        <li>Ukuran file dianjurkan **di bawah 2MB** per foto agar pengunggahan cepat.</li>
+                        <li>Pastikan pencahayaan cukup agar goresan bodi terlihat jelas pada layar editor.</li>
+                    </ul>
+                </div>
+            </div>
+
             <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Photo Selectors */}
                 <div className="lg:col-span-1 space-y-4">
