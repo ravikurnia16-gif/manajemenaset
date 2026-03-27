@@ -101,7 +101,7 @@ const VehicleForm = () => {
                 if (key === 'picIds') {
                     // Send as multiple fields or stringified
                     form[key].forEach(id => formData.append('picIds[]', id));
-                } else if (key !== 'photo') {
+                } else if (key !== 'photo' && form[key] !== undefined && form[key] !== null) {
                     formData.append(key, form[key]);
                 }
             });
@@ -111,13 +111,9 @@ const VehicleForm = () => {
             }
 
             if (isEdit) {
-                await api.put(`/vehicles/${id}`, formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
+                await api.put(`/vehicles/${id}`, formData);
             } else {
-                await api.post('/vehicles', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
+                await api.post('/vehicles', formData);
             }
             alert(`Kendaraan berhasil ${isEdit ? 'diperbarui' : 'ditambahkan'}!`);
             navigate('/kendaraan/data');

@@ -119,7 +119,9 @@ exports.updateVehicle = async (req, res) => {
             taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice
         } = req.body;
 
-        console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice });
+        console.log('[DEBUG] Update Vehicle Payload:', { id: req.params.id, name, plateNumber });
+        console.log('[DEBUG] Update Vehicle File:', req.file ? req.file.originalname : 'No file');
+        console.log('[DEBUG] Update Vehicle FileURL:', req.fileUrl);
 
         const oldVehicle = await prisma.vehicle.findUnique({ where: { id: parseInt(req.params.id) } });
 
@@ -135,7 +137,7 @@ exports.updateVehicle = async (req, res) => {
                 capacity: parseInt(capacity) || undefined,
                 color,
                 odometer: parseInt(odometer) || 0,
-                photo: req.fileUrl || undefined,
+                photo: (req.fileUrl && req.fileUrl !== 'undefined') ? req.fileUrl : undefined,
                 status,
                 isRentable: isRentable === true || isRentable === 'true',
                 defaultRentalPrice: defaultRentalPrice ? parseFloat(defaultRentalPrice) : null,

@@ -4,7 +4,7 @@
  * @returns {string} The resolved URL for use in img src
  */
 export const getMediaUrl = (url) => {
-    if (!url) return null;
+    if (!url || url === 'undefined' || url === 'null') return null;
 
     // 1. Handle Base64 (legacy data)
     if (url.startsWith('data:image')) {
@@ -16,24 +16,20 @@ export const getMediaUrl = (url) => {
         return url;
     }
 
-    // 3. If it's already a proxy URL
+    // 3. Handle external URLs
+    if (url.startsWith('http')) {
+        return url;
+    }
+
+    // 4. Handle paths (e.g., /api/media/filename or vehicles/filename)
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    
+    // If it already has the proxy prefix
     if (url.startsWith('/api/media/')) {
-        const baseUrl = import.meta.env.VITE_API_URL || '';
         return `${baseUrl}${url}`;
     }
 
-    // 4. Handle legacy full MinIO URLs by converting them to proxy URLs
-    // Example: https://minio-host/bucket/filename -> /api/media/filename
-    if (url.includes('/') && (url.startsWith('http') || url.includes('.host'))) {
-        try {
-            const parts = url.split('/');
-            const filename = parts[parts.length - 1];
-            const baseUrl = import.meta.env.VITE_API_URL || '';
-            return `${baseUrl}/api/media/${filename}`;
-        } catch (e) {
-            return url;
-        }
-    }
-
-    return url;
+    // If it's a relative path (MinIO path like 'vehicles/abc.jpg')
+    const cleanPath = url.startsWith('/') ? url : `/api/media/${url}`;
+    return `${baseUrl}${cleanPath}`;
 };

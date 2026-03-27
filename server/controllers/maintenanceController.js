@@ -225,7 +225,7 @@ exports.updateStatus = async (req, res) => {
         // --- In-App Notification (Phase 3) ---
         const statusLabels = {
             'APPROVED': 'Disetujui',
-            'ASSIGNED': `Ditugaskan ke Teknisi: ${technician || '-'}`,
+            'ASSIGNED': `Ditugaskan kepada: ${technician || '-'}`,
             'COMPLETED': 'Selesai Dikerjakan',
             'REJECTED': 'Ditolak'
         };
@@ -251,7 +251,7 @@ exports.updateStatus = async (req, res) => {
 
                 const statusLabels = {
                     'APPROVED': 'Disetujui \u2705',
-                    'ASSIGNED': `Ditugaskan ke Teknisi: ${technician || '-'} \u{1F6E0}`,
+                    'ASSIGNED': `Ditugaskan kepada: ${technician || '-'} \u{1F6E0}`,
                     'COMPLETED': 'Selesai \u2705\u2705\u2705',
                     'REJECTED': 'Ditolak \u274C'
                 };

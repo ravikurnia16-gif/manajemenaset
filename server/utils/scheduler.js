@@ -2,7 +2,7 @@ const { sendCalendarReminders, sendWeeklyCalendarSummary } = require('../control
 const { checkMaintenanceNotifications, checkKmServiceNotifications } = require('../controllers/vehicleMaintenanceController');
 const { checkTaxNotifications, checkKirNotifications } = require('../controllers/vehicleController');
 const { checkOverdueLoans } = require('../controllers/loanController');
-const { checkOverdueVehicleBookings } = require('../controllers/vehicleBookingController');
+const { checkOverdueVehicleBookings, checkUpcomingVehicleBookings } = require('../controllers/vehicleBookingController');
 const { checkMissingWeeklyReports } = require('../controllers/vehicleReportController');
 const { sendWeeklyAssetSummary } = require('./summaryNotification');
 
@@ -70,6 +70,7 @@ const initScheduler = () => {
             console.log(`[Scheduler] Executing Overdue Vehicle Reminders at ${hour}:00...`);
             try {
                 await checkOverdueVehicleBookings();
+                await checkUpcomingVehicleBookings();
             } catch (err) {
                 console.error('[Scheduler] Error in Overdue Reminders:', err);
             }

@@ -434,3 +434,63 @@ exports.checkOverdueVehicleBookings = async () => {
         console.error('[Job Error] checkOverdueVehicleBookings failed:', error);
     }
 };
+
+// 8. Automated Check for Start Reminders (Used by Scheduler)
+exports.checkUpcomingVehicleBookings = async () => {
+    console.log(`[${new Date().toLocaleString()}] [Job] Checking for not-yet-started vehicle trips...`);
+    try {
+        const now = new Date();
+
+        // Find bookings that are APPROVED but passed startDate and tripStartTime is null
+        const upcomingBookings = await prisma.vehicleBooking.findMany({
+            where: {
+                status: 'APPROVED',
+                startDate: { lt: now }, // Should have started
+                tripStartTime: null,   // Not started yet
+                bookingType: { not: 'RECURRING' } // Optional: focus on manual for now
+            },
+            include: {
+                user: true,
+                vehicle: true
+            }
+        });
+
+        if (upcomingBookings.length === 0) {
+            console.log('[Job] No non-started vehicle trips found.');
+            return;
+        }
+
+        console.log(`[Job] Found ${upcomingBookings.length} non-started trips. Sending reminders...`);
+
+        for (const booking of upcomingBookings) {
+            const diffMs = now - new Date(booking.startDate);
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+            // 1. System Notification (Bell)
+            await createNotification(
+                booking.userId,
+                'Pengingat: Mulai Perjalanan',
+                `Jadwal peminjaman ${booking.vehicle.name} Anda sudah mulai pada ${formatWAWaktu(booking.startDate)}. Mohon segera mulai perjalanan.`,
+                'WARNING',
+                '/kendaraan/peminjaman'
+            );
+
+            // 2. WhatsApp Notification
+            if (booking.user.phone) {
+                const waMsg = `🚗 *PENGINGAT MEMULAI PERJALANAN*\n\n` +
+                    `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
+                    `Tujuan: ${booking.destination}\n` +
+                    `Jadwal Keberangkatan: ${formatWAWaktu(booking.startDate)}\n` +
+                    `Sudah Lewat: *${diffHours} jam*\n\n` +
+                    `Request peminjaman Anda sudah disetujui, namun perjalanan belum dimulai.\n\n` +
+                    `⚠️ Jika Anda akan menggunakan armada, mohon segera mulai perjalanan melalui aplikasi SARPRAS dengan menginputkan Kilometer Awal.\n\n` +
+                    `Jika tidak jadi digunakan, mohon batalkan request agar armada dapat digunakan oleh pengguna lain.\n\n` +
+                    `Terima kasih.`;
+
+                await sendMessage(booking.user.phone, waMsg);
+            }
+        }
+    } catch (error) {
+        console.error('[Job Error] checkUpcomingVehicleBookings failed:', error);
+    }
+};
