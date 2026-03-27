@@ -2,8 +2,8 @@ const { minioClient, bucketName } = require('../services/minioService');
 
 exports.getMedia = async (req, res) => {
     try {
-        // Use req.params[0] to get the full path after /api/media/
-        const filename = req.params[0];
+        // Use req.params.path to get the full path after /api/media/
+        const filename = req.params.path + (req.params[0] || '');
         
         if (!filename) {
             return res.status(400).json({ error: 'Filename is required' });
