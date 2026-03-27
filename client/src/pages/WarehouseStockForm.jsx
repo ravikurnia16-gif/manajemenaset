@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, Package } from 'lucide-react';
 import api from '../lib/axios';
-import { getMediaUrl } from '../lib/media';
+import { getMediaUrl, compressImage } from '../lib/media';
 
 const WarehouseStockForm = () => {
     const navigate = useNavigate();
@@ -20,6 +20,34 @@ const WarehouseStockForm = () => {
         image: null
     });
     const [file, setFile] = useState(null);
+
+    const handleFileChange = async (e) => {
+        const f = e.target.files[0];
+        if (!f) return;
+
+        try {
+            const compressedFile = await compressImage(f, { maxWidth: 1024, quality: 0.8 });
+            
+            // If current form.image is a blob URL, revoke it
+            if (form.image && form.image.startsWith('blob:')) {
+                URL.revokeObjectURL(form.image);
+            }
+
+            const previewUrl = URL.createObjectURL(compressedFile);
+            setFile(compressedFile);
+            setForm(prev => ({ ...prev, image: previewUrl }));
+
+            console.log('[DEBUG] Warehouse Photo Compressed:', {
+                originalSize: (f.size / 1024).toFixed(1) + 'KB',
+                compressedSize: (compressedFile.size / 1024).toFixed(1) + 'KB'
+            });
+        } catch (err) {
+            console.error('Compression failed:', err);
+            const previewUrl = URL.createObjectURL(f);
+            setFile(f);
+            setForm(prev => ({ ...prev, image: previewUrl }));
+        }
+    };
 
     useEffect(() => {
         api.get('/warehouse/categories').then(r => setCategories(r.data));
@@ -223,15 +251,7 @@ const WarehouseStockForm = () => {
                                 <input
                                     type="file"
                                     accept="image/*"
-                                    onChange={(e) => {
-                                        const f = e.target.files[0];
-                                        if (f) {
-                                            setFile(f);
-                                            const reader = new FileReader();
-                                            reader.onloadend = () => setForm(prev => ({ ...prev, image: reader.result }));
-                                            reader.readAsDataURL(f);
-                                        }
-                                    }}
+                                    onChange={handleFileChange}
                                     className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                                 />
                                 <p className="text-[10px] text-slate-400 mt-1">Format: JPG, PNG. Rekomendasi 1:1</p>

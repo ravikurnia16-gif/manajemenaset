@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Save, X, ArrowRightLeft } from 'lucide-react';
 import api from '../lib/axios';
 import SearchableSelect from '../components/SearchableSelect';
-import { getMediaUrl } from '../lib/media';
+import { getMediaUrl, compressImage } from '../lib/media';
 
 const AssetForm = () => {
     const navigate = useNavigate();
@@ -116,22 +116,44 @@ const AssetForm = () => {
         return `${settings.assetCodePrefix || 'DEI'}.${unit?.code || '???'}.${catCode}.${year}.xxxx`;
     };
 
-    const handleFileChange = (e) => {
+    const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (file) {
-            if (file.size > 5 * 1024 * 1024) {
-                alert('Ukuran file maksimal 5MB');
+            // PDF check - don't compress PDFs
+            if (file.type === 'application/pdf') {
+                if (file.size > 10 * 1024 * 1024) {
+                    alert('Ukuran PDF maksimal 10MB');
+                    return;
+                }
+                const previewUrl = URL.createObjectURL(file);
+                setImagePreview(previewUrl);
+                setValue('imageFile', file);
                 return;
             }
 
-            // Cleanup old preview URL to avoid memory leaks
-            if (imagePreview && imagePreview.startsWith('blob:')) {
-                URL.revokeObjectURL(imagePreview);
-            }
+            try {
+                // Compress image before preview and upload
+                const compressedFile = await compressImage(file, { maxWidth: 1024, quality: 0.8 });
+                
+                // Cleanup old preview URL to avoid memory leaks
+                if (imagePreview && imagePreview.startsWith('blob:')) {
+                    URL.revokeObjectURL(imagePreview);
+                }
 
-            const previewUrl = URL.createObjectURL(file);
-            setImagePreview(previewUrl);
-            setValue('imageFile', file); // Store the actual File object
+                const previewUrl = URL.createObjectURL(compressedFile);
+                setImagePreview(previewUrl);
+                setValue('imageFile', compressedFile);
+                
+                console.log('[DEBUG] Asset Image Compressed:', {
+                    originalSize: (file.size / 1024).toFixed(1) + 'KB',
+                    compressedSize: (compressedFile.size / 1024).toFixed(1) + 'KB'
+                });
+            } catch (err) {
+                console.error('Compression failed:', err);
+                const previewUrl = URL.createObjectURL(file);
+                setImagePreview(previewUrl);
+                setValue('imageFile', file);
+            }
         }
     };
 

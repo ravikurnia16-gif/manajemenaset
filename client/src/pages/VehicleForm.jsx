@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Car, Camera, Save, MapPin, Fuel, Gauge, Palette, Calendar, User, Search } from 'lucide-react';
 import api from '../lib/axios';
-import { getMediaUrl } from '../lib/media';
+import { getMediaUrl, compressImage } from '../lib/media';
 
 const VehicleForm = () => {
     const { id } = useParams();
@@ -80,16 +80,31 @@ const VehicleForm = () => {
         } catch (error) { console.error(error); }
     };
 
-    const handlePhotoChange = (e) => {
+    const handlePhotoChange = async (e) => {
         const file = e.target.files[0];
         if (file) {
-            if (photoPreview && photoPreview.startsWith('blob:')) {
-                URL.revokeObjectURL(photoPreview);
+            try {
+                // Compress image before preview and upload
+                const compressedFile = await compressImage(file, { maxWidth: 1024, quality: 0.8 });
+                
+                if (photoPreview && photoPreview.startsWith('blob:')) {
+                    URL.revokeObjectURL(photoPreview);
+                }
+                const previewUrl = URL.createObjectURL(compressedFile);
+                setPhotoPreview(previewUrl);
+                setPhotoFile(compressedFile);
+                console.log('[DEBUG] Photo Selected & Compressed:', { 
+                    originalName: file.name, 
+                    originalSize: (file.size / 1024).toFixed(1) + 'KB',
+                    compressedSize: (compressedFile.size / 1024).toFixed(1) + 'KB'
+                });
+            } catch (err) {
+                console.error('Compression failed:', err);
+                // Fallback to original file if compression fails
+                const previewUrl = URL.createObjectURL(file);
+                setPhotoPreview(previewUrl);
+                setPhotoFile(file);
             }
-            const previewUrl = URL.createObjectURL(file);
-            setPhotoPreview(previewUrl);
-            setPhotoFile(file);
-            console.log('[DEBUG] Photo Selected:', { name: file.name, size: file.size, type: file.mimetype });
         }
     };
 

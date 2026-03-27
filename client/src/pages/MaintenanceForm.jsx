@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wrench, Save, ArrowLeft, Search } from 'lucide-react';
 import api from '../lib/axios';
+import { compressImage } from '../lib/media';
 
 const MaintenanceForm = () => {
     const navigate = useNavigate();
@@ -37,19 +38,34 @@ const MaintenanceForm = () => {
         }
     };
 
-    const handlePhotoChange = (e) => {
+    const handlePhotoChange = async (e) => {
         const f = e.target.files[0];
         if (!f) return;
-        if (f.size > 5 * 1024 * 1024) {
-            alert('Ukuran foto maksimal 5MB');
-            return;
+        
+        try {
+            // Compress image
+            const compressedFile = await compressImage(f, { maxWidth: 1024, quality: 0.8 });
+            
+            // Cleanup old preview URL if any (if we were using one)
+            if (form.photo && form.photo.startsWith('blob:')) {
+                URL.revokeObjectURL(form.photo);
+            }
+
+            const previewUrl = URL.createObjectURL(compressedFile);
+            setFile(compressedFile);
+            setForm(prev => ({ ...prev, photo: previewUrl }));
+            
+            console.log('[DEBUG] Maintenance Photo Compressed:', {
+                originalSize: (f.size / 1024).toFixed(1) + 'KB',
+                compressedSize: (compressedFile.size / 1024).toFixed(1) + 'KB'
+            });
+        } catch (err) {
+            console.error('Compression failed:', err);
+            // Fallback
+            const previewUrl = URL.createObjectURL(f);
+            setFile(f);
+            setForm(prev => ({ ...prev, photo: previewUrl }));
         }
-        setFile(f);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setForm(prev => ({ ...prev, photo: reader.result }));
-        };
-        reader.readAsDataURL(f);
     };
 
     const toggleAssetSelection = (asset) => {
