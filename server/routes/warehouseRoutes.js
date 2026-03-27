@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const wh = require('../controllers/warehouseController');
+const { verifyToken } = require('../middleware/authMiddleware');
 const { handleUpload } = require('../middleware/uploadMiddleware');
 
 router.use(verifyToken);
