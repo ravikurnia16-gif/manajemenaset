@@ -2,6 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const fs = require('fs');
 const path = require('path');
+const { deleteFile } = require('../services/minioService');
 const whatsappService = require('../services/whatsappService');
 const { createNotification } = require('./notificationController');
 
@@ -46,10 +47,14 @@ exports.getAllProcurements = async (req, res) => {
     }
 };
 
-// Delete single procurement
 exports.deleteProcurement = async (req, res) => {
     const { id } = req.params;
     try {
+        const procurement = await prisma.procurement.findUnique({ where: { id: parseInt(id) } });
+        if (procurement && procurement.bastFile) {
+            await deleteFile(procurement.bastFile);
+        }
+
         await prisma.procurementItem.deleteMany({ where: { procurementId: parseInt(id) } });
         await prisma.vendorOffer.deleteMany({ where: { procurementId: parseInt(id) } });
 
@@ -728,7 +733,11 @@ exports.addVendorOffer = async (req, res) => {
 // Process BAST & Auto-Asset Creation
 exports.processBAST = async (req, res) => {
     const { id } = req.params;
-    const { bastDate, bastFile, roomAllocation, picId } = req.body;
+    let { bastDate, bastFile, roomAllocation, picId } = req.body;
+
+    if (typeof roomAllocation === 'string') {
+        try { roomAllocation = JSON.parse(roomAllocation); } catch (e) { }
+    }
 
     try {
         const procurement = await prisma.procurement.findUnique({
@@ -749,7 +758,7 @@ exports.processBAST = async (req, res) => {
                 data: {
                     status: 'COMPLETED',
                     bastDate: new Date(bastDate),
-                    bastFile: bastFile || null
+                    bastFile: req.fileUrl || bastFile || null
                 }
             });
 

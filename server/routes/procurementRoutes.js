@@ -3,6 +3,8 @@ const router = express.Router();
 const procurementController = require('../controllers/procurementController');
 const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 
+const { handleUpload } = require('../middleware/uploadMiddleware');
+
 router.get('/', verifyToken, procurementController.getAllProcurements);
 router.get('/:id', verifyToken, procurementController.getProcurementById);
 router.post('/', verifyToken, procurementController.createProcurement);
@@ -20,7 +22,7 @@ router.put('/items/:itemId', verifyToken, procurementController.updateItemDetail
 router.post('/:id/offers', verifyToken, procurementController.addVendorOffer);
 
 // BAST & Completion (Admin + Assigned users can finalize)
-router.post('/:id/bast', verifyToken, procurementController.processBAST);
+router.post('/:id/bast', verifyToken, handleUpload('bastFile', 'procurement'), procurementController.processBAST);
 
 // Notify Assignees
 router.post('/:id/notify-assignees', verifyToken, procurementController.notifyAssignees);

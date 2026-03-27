@@ -308,6 +308,7 @@ const ProcurementDetail = () => {
     const [users, setUsers] = useState([]);
     const [units, setUnits] = useState([]);
     const [handoverPhoto, setHandoverPhoto] = useState(null);
+    const [handoverFile, setHandoverFile] = useState(null);
     const [rooms, setRooms] = useState([]);
     const [roomAllocation, setRoomAllocation] = useState({ type: 'SAME', roomId: '', itemRooms: {} });
     const [notifying, setNotifying] = useState(false);
@@ -431,17 +432,29 @@ const ProcurementDetail = () => {
             if (roomAllocation.type === 'SAME' && !roomAllocation.roomId) return alert('Pilih Ruangan Aset');
             if (roomAllocation.type === 'INDIVIDUAL' && !req.items.every(it => roomAllocation.itemRooms[it.id])) return alert('Pilih Ruangan untuk setiap item');
         }
+
         try {
-            await api.post(`/procurements/${id}/bast`, {
-                bastDate, bastFile: handoverPhoto,
-                roomAllocation: req.type === 'ASSET' ? roomAllocation : null,
-                picId: picId ? parseInt(picId) : null
+            setLoading(true);
+            const formData = new FormData();
+            formData.append('bastDate', bastDate);
+            formData.append('roomAllocation', JSON.stringify(req.type === 'ASSET' ? roomAllocation : null));
+            formData.append('picId', picId ? picId : '');
+
+            if (handoverFile) {
+                formData.append('bastFile', handoverFile);
+            }
+
+            await api.post(`/procurements/${id}/bast`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
+
             alert('BAST Berhasil. Aset telah dibuat.');
             window.location.reload();
-        } catch (e) { 
+        } catch (e) {
             console.error("BAST Error:", e);
-            alert(e.response?.data?.error || e.response?.data?.message || e.message || "Gagal menyimpan BAST. Cek console (F12) untuk detail."); 
+            alert(e.response?.data?.error || e.response?.data?.message || e.message || "Gagal menyimpan BAST.");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -1109,6 +1122,7 @@ const ProcurementDetail = () => {
                                             onChange={e => {
                                                 const f = e.target.files[0];
                                                 if (f) {
+                                                    setHandoverFile(f);
                                                     const r = new FileReader();
                                                     r.onloadend = () => setHandoverPhoto(r.result);
                                                     r.readAsDataURL(f);

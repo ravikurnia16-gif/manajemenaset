@@ -20,6 +20,7 @@ const MaintenanceForm = () => {
         location: '',
         photo: ''
     });
+    const [file, setFile] = useState(null);
 
     useEffect(() => {
         if (form.type === 'ASSET') {
@@ -37,17 +38,18 @@ const MaintenanceForm = () => {
     };
 
     const handlePhotoChange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        if (file.size > 2 * 1024 * 1024) {
-            alert('Ukuran foto maksimal 2MB');
+        const f = e.target.files[0];
+        if (!f) return;
+        if (f.size > 5 * 1024 * 1024) {
+            alert('Ukuran foto maksimal 5MB');
             return;
         }
+        setFile(f);
         const reader = new FileReader();
         reader.onloadend = () => {
             setForm(prev => ({ ...prev, photo: reader.result }));
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(f);
     };
 
     const toggleAssetSelection = (asset) => {
@@ -85,15 +87,26 @@ const MaintenanceForm = () => {
 
         try {
             setSaving(true);
-            await api.post('/maintenance', {
-                title: form.title,
-                type: form.type,
-                category: form.category,
-                assetIds: form.type === 'ASSET' ? form.selectedAssets.map(a => a.id) : [],
-                description: form.description,
-                location: form.location || null,
-                photo: form.photo || null
+            const formData = new FormData();
+            formData.append('title', form.title);
+            formData.append('type', form.type);
+            formData.append('category', form.category);
+            formData.append('description', form.description);
+            formData.append('location', form.location || '');
+            
+            if (form.type === 'ASSET') {
+                const assetIds = form.selectedAssets.map(a => a.id);
+                assetIds.forEach(id => formData.append('assetIds[]', id));
+            }
+
+            if (file) {
+                formData.append('photo', file);
+            }
+
+            await api.post('/maintenance', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
+
             alert('Laporan berhasil dibuat!');
             navigate(form.category === 'ROUTINE' ? '/pemeliharaan?category=ROUTINE' : '/pemeliharaan?category=INCIDENTAL');
         } catch (err) {

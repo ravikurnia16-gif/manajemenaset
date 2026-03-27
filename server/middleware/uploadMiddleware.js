@@ -20,7 +20,7 @@ const upload = multer({
 /**
  * Middleware to handle file upload and send it to MinIO
  */
-exports.handleUpload = (fieldName) => {
+exports.handleUpload = (fieldName, folder = '') => {
     return [
         upload.single(fieldName),
         async (req, res, next) => {
@@ -30,7 +30,8 @@ exports.handleUpload = (fieldName) => {
                 const fileUrl = await uploadFile(
                     req.file.buffer,
                     req.file.originalname,
-                    req.file.mimetype
+                    req.file.mimetype,
+                    folder
                 );
 
                 // Add the URL to the request object so the controller can save it to DB

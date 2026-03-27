@@ -15,7 +15,7 @@ const router = express.Router();
 router.get('/public/media', getMediaAssets);
 router.get('/public/:id', getAssetPublic);
 router.get('/funding-sources', verifyToken, getFundingSources);
-router.post('/', verifyToken, handleUpload('image'), createAsset);
+router.post('/', verifyToken, handleUpload('image', 'assets'), createAsset);
 router.get('/', verifyToken, getAllAssets);
 
 // Mutation Routes
@@ -31,7 +31,7 @@ router.post('/movements/:id/reject', verifyToken, authorizeRole(['SUPER_ADMIN', 
 router.get('/:id', verifyToken, getAssetById);
 router.post('/:id/validate', verifyToken, validateAsset);
 router.post('/validate/bulk', verifyToken, validateMultipleAssets);
-router.put('/:id', verifyToken, handleUpload('image'), updateAsset);
+router.put('/:id', verifyToken, handleUpload('image', 'assets'), updateAsset);
 router.delete('/bulk', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), deleteMultipleAssets);
 router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), deleteAsset);
 router.post('/import', verifyToken, batchImportAssets);

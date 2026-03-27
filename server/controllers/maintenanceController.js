@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { deleteFile } = require('../services/minioService');
 const whatsappService = require('../services/whatsappService');
 const { createNotification } = require('./notificationController');
 
@@ -83,7 +84,7 @@ exports.createReport = async (req, res) => {
                 title,
                 description,
                 location: location || null,
-                photo: photo || null,
+                photo: req.fileUrl || photo || null,
                 status: 'SUBMITTED'
             },
             include: {
@@ -290,6 +291,10 @@ exports.updateStatus = async (req, res) => {
 exports.deleteReport = async (req, res) => {
     const { id } = req.params;
     try {
+        const report = await prisma.maintenance.findUnique({ where: { id: parseInt(id) } });
+        if (report && report.photo) {
+            await deleteFile(report.photo);
+        }
         await prisma.maintenance.delete({ where: { id: parseInt(id) } });
         res.json({ message: 'Laporan berhasil dihapus' });
     } catch (error) {

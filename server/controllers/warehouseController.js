@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { deleteFile } = require('../services/minioService');
 
 // ======================== CATEGORY ========================
 exports.getCategories = async (req, res) => {
@@ -129,7 +130,7 @@ exports.createItem = async (req, res) => {
                 purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
                 supplier: supplier || null,
                 location: location || null,
-                image: image || null
+                image: req.fileUrl || image || null
             }
         });
         res.json(item);
@@ -150,7 +151,7 @@ exports.updateItem = async (req, res) => {
                 minStock: minStock !== undefined ? parseInt(minStock) : undefined,
                 purchasePrice: purchasePrice !== undefined ? parseFloat(purchasePrice) : undefined,
                 supplier, location,
-                image: image !== undefined ? image : undefined
+                image: req.fileUrl !== undefined ? req.fileUrl : (image !== undefined ? image : undefined)
             }
         });
         res.json(item);
@@ -159,6 +160,10 @@ exports.updateItem = async (req, res) => {
 
 exports.deleteItem = async (req, res) => {
     try {
+        const item = await prisma.warehouseItem.findUnique({ where: { id: parseInt(req.params.id) } });
+        if (item && item.image) {
+            await deleteFile(item.image);
+        }
         await prisma.warehouseItem.delete({ where: { id: parseInt(req.params.id) } });
         res.json({ message: 'Item dihapus' });
     } catch (e) { res.status(500).json({ error: e.message }); }

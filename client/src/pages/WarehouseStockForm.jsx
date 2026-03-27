@@ -19,6 +19,7 @@ const WarehouseStockForm = () => {
         purchaseYear: '', itemUnit: '', stock: '0', minStock: '5', purchasePrice: '', supplier: '', location: '',
         image: null
     });
+    const [file, setFile] = useState(null);
 
     useEffect(() => {
         api.get('/warehouse/categories').then(r => setCategories(r.data));
@@ -65,14 +66,35 @@ const WarehouseStockForm = () => {
 
         try {
             setSaving(true);
-            const payload = { ...form, categoryId: parseInt(form.categoryId) };
+            const formData = new FormData();
+            
+            // Append all form fields except image
+            Object.keys(form).forEach(key => {
+                if (key !== 'image' && form[key] !== null && form[key] !== '') {
+                    formData.append(key, form[key]);
+                }
+            });
+
+            // Append the actual file if selected
+            if (file) {
+                formData.append('image', file);
+            }
+
             if (isEdit) {
-                await api.put(`/warehouse/items/${id}`, payload);
+                await api.put(`/warehouse/items/${id}`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
             } else {
-                await api.post('/warehouse/items', payload);
+                await api.post('/warehouse/items', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
             }
             navigate('/gudang/stok');
-        } catch (e) { alert(e.response?.data?.error || 'Gagal menyimpan'); } finally { setSaving(false); }
+        } catch (e) {
+            alert(e.response?.data?.error || 'Gagal menyimpan');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
@@ -202,11 +224,12 @@ const WarehouseStockForm = () => {
                                     type="file"
                                     accept="image/*"
                                     onChange={(e) => {
-                                        const file = e.target.files[0];
-                                        if (file) {
+                                        const f = e.target.files[0];
+                                        if (f) {
+                                            setFile(f);
                                             const reader = new FileReader();
                                             reader.onloadend = () => setForm(prev => ({ ...prev, image: reader.result }));
-                                            reader.readAsDataURL(file);
+                                            reader.readAsDataURL(f);
                                         }
                                     }}
                                     className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
