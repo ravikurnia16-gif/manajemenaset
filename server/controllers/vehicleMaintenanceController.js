@@ -5,7 +5,22 @@ const { sendMessage } = require('../services/whatsappService');
 // Get all maintenance logs
 exports.getAllMaintenanceLogs = async (req, res) => {
     try {
+        const { id: userId, role } = req.user;
+        let where = {};
+
+        // Filter by PIC if not a global admin
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+            where = {
+                vehicle: {
+                    pics: {
+                        some: { id: userId }
+                    }
+                }
+            };
+        }
+
         const logs = await prisma.vehicleService.findMany({
+            where,
             include: { vehicle: true },
             orderBy: { date: 'desc' }
         });
@@ -18,11 +33,24 @@ exports.getAllMaintenanceLogs = async (req, res) => {
 // Get single maintenance log
 exports.getMaintenanceLogById = async (req, res) => {
     try {
+        const { id: userId, role } = req.user;
         const log = await prisma.vehicleService.findUnique({
             where: { id: parseInt(req.params.id) },
-            include: { vehicle: true }
+            include: { 
+                vehicle: {
+                    include: { pics: { select: { id: true } } }
+                } 
+            }
         });
+
         if (!log) return res.status(404).json({ error: 'Log tidak ditemukan' });
+
+        // Access Check
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+            const isPic = log.vehicle.pics.some(p => p.id === userId);
+            if (!isPic) return res.status(403).json({ error: 'Anda tidak memiliki akses ke log kendaraan ini.' });
+        }
+
         res.json(log);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -32,6 +60,7 @@ exports.getMaintenanceLogById = async (req, res) => {
 // Create maintenance log
 exports.createMaintenanceLog = async (req, res) => {
     try {
+        const { id: userId, role } = req.user;
         const {
             vehicleId, date, category, type, description, cost, odometer, nextServiceOdometer, workshop, proofFile
         } = req.body;
@@ -41,7 +70,17 @@ exports.createMaintenanceLog = async (req, res) => {
             return res.status(400).json({ error: 'Data wajib diisi: Tanggal, Kendaraan, Jenis (Rutin/Tidak), Tipe Perbaikan, dan Biaya.' });
         }
 
-        // 2. Conditional Validation for Routine
+        // 2. PIC Validation
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+            const vehicle = await prisma.vehicle.findUnique({
+                where: { id: parseInt(vehicleId) },
+                include: { pics: { select: { id: true } } }
+            });
+            const isPic = vehicle?.pics.some(p => p.id === userId);
+            if (!isPic) return res.status(403).json({ error: 'Anda bukan PIC kendaraan ini.' });
+        }
+
+        // 3. Conditional Validation for Routine
         if (category === 'ROUTINE') {
             if (!odometer || !nextServiceOdometer) {
                 return res.status(400).json({ error: 'Untuk Pemeliharaan Rutin, KM saat ini dan KM servis berikutnya wajib diisi.' });
@@ -80,9 +119,23 @@ exports.createMaintenanceLog = async (req, res) => {
 // Update maintenance log
 exports.updateMaintenanceLog = async (req, res) => {
     try {
+        const { id: userId, role } = req.user;
         const {
             date, category, type, description, cost, odometer, nextServiceOdometer, workshop, proofFile
         } = req.body;
+
+        // Access Check
+        const existingLog = await prisma.vehicleService.findUnique({
+            where: { id: parseInt(req.params.id) },
+            include: { vehicle: { include: { pics: { select: { id: true } } } } }
+        });
+
+        if (!existingLog) return res.status(404).json({ error: 'Log tidak ditemukan' });
+
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+            const isPic = existingLog.vehicle.pics.some(p => p.id === userId);
+            if (!isPic) return res.status(403).json({ error: 'Anda tidak memiliki izin mengedit log kendaraan ini.' });
+        }
 
         const log = await prisma.vehicleService.update({
             where: { id: parseInt(req.params.id) },
@@ -107,6 +160,21 @@ exports.updateMaintenanceLog = async (req, res) => {
 // Delete maintenance log
 exports.deleteMaintenanceLog = async (req, res) => {
     try {
+        const { id: userId, role } = req.user;
+
+        // Access Check
+        const existingLog = await prisma.vehicleService.findUnique({
+            where: { id: parseInt(req.params.id) },
+            include: { vehicle: { include: { pics: { select: { id: true } } } } }
+        });
+
+        if (!existingLog) return res.status(404).json({ error: 'Log tidak ditemukan' });
+
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+            const isPic = existingLog.vehicle.pics.some(p => p.id === userId);
+            if (!isPic) return res.status(403).json({ error: 'Anda tidak memiliki izin menghapus log kendaraan ini.' });
+        }
+
         await prisma.vehicleService.delete({
             where: { id: parseInt(req.params.id) }
         });

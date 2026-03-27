@@ -24,7 +24,7 @@ const VehicleMaintenanceForm = () => {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        api.get('/vehicles').then(res => setVehicles(res.data));
+        api.get('/vehicles?forMaintenance=true').then(res => setVehicles(res.data));
         if (isEdit) {
             api.get(`/vehicles/maintenance/${id}`).then(res => {
                 const data = res.data;

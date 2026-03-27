@@ -5,7 +5,21 @@ const { deleteFile } = require('../services/minioService');
 // Get all vehicles (with latest service KM info)
 exports.getAllVehicles = async (req, res) => {
     try {
+        const { id: userId, role } = req.user || {};
+        const { forMaintenance } = req.query;
+        let where = {};
+
+        // Filter by PIC if requested for maintenance and not a global admin
+        if (forMaintenance === 'true' && userId && !['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+            where = {
+                pics: {
+                    some: { id: userId }
+                }
+            };
+        }
+
         const vehicles = await prisma.vehicle.findMany({
+            where,
             include: {
                 pics: { select: { id: true, name: true } },
                 bookings: {
