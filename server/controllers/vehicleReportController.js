@@ -15,22 +15,33 @@ exports.createWeeklyReport = async (req, res) => {
         notes
     } = req.body;
 
-    const userId = req.user.id;
+    const { id: userId, role } = req.user;
 
     try {
+        const { vehicleId } = req.body;
+        // PIC Validation
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+            const vehicle = await prisma.vehicle.findUnique({
+                where: { id: parseInt(vehicleId) },
+                include: { pics: { select: { id: true } } }
+            });
+            const isPic = vehicle?.pics.some(p => p.id === userId);
+            if (!isPic) return res.status(403).json({ error: 'Anda bukan PIC kendaraan ini.' });
+        }
+
         const report = await prisma.vehicleWeeklyReport.create({
             data: {
                 vehicleId: parseInt(vehicleId),
                 userId,
-                weekStartDate: new Date(weekStartDate),
-                weekEndDate: new Date(weekEndDate),
-                startOdometer: parseInt(startOdometer),
-                endOdometer: parseInt(endOdometer),
-                conditionEngine,
-                conditionBody,
-                conditionInterior,
-                isClean,
-                notes
+                weekStartDate: new Date(req.body.weekStartDate),
+                weekEndDate: new Date(req.body.weekEndDate),
+                startOdometer: parseInt(req.body.startOdometer),
+                endOdometer: parseInt(req.body.endOdometer),
+                conditionEngine: req.body.conditionEngine,
+                conditionBody: req.body.conditionBody,
+                conditionInterior: req.body.conditionInterior,
+                isClean: req.body.isClean,
+                notes: req.body.notes
             }
         });
 
@@ -67,12 +78,21 @@ exports.getVehicleReports = async (req, res) => {
 exports.getWeeklyDraft = async (req, res) => {
     const { id } = req.params;
 
+    const { id: userId, role } = req.user;
+
     try {
         const vehicle = await prisma.vehicle.findUnique({
-            where: { id: parseInt(id) }
+            where: { id: parseInt(id) },
+            include: { pics: { select: { id: true } } }
         });
 
         if (!vehicle) return res.status(404).json({ error: 'Kendaraan tidak ditemukan' });
+
+        // PIC Validation
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+            const isPic = vehicle.pics.some(p => p.id === userId);
+            if (!isPic) return res.status(403).json({ error: 'Anda tidak memiliki akses ke laporan kendaraan ini.' });
+        }
 
         const today = new Date();
         const day = today.getDay(); // 0(Sun) to 6(Sat)

@@ -69,15 +69,23 @@ const processQueue = async () => {
 
 /**
  * Public sendMessage function (now queues messages)
+ * Resolved immediately after queuing to avoid blocking API responses
  */
 exports.sendMessage = (phoneNumber, message) => {
     if (!phoneNumber) return Promise.resolve(null);
 
-    return new Promise((resolve, reject) => {
-        // Add to queue
-        messageQueue.push({ phoneNumber, message, resolve, reject });
-
-        // Start processing if not already
-        processQueue();
+    // Create a background promise for the queue item
+    // but the function itself returns a resolved promise to the caller
+    messageQueue.push({ 
+        phoneNumber, 
+        message, 
+        resolve: (data) => { /* Background resolve */ }, 
+        reject: (err) => { /* Background reject */ } 
     });
+
+    // Fire and forget processing
+    processQueue();
+    
+    // Resolve immediately for the caller so they don't wait for MIN_INTERVAL
+    return Promise.resolve({ status: 'queued' });
 };

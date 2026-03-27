@@ -161,7 +161,7 @@ const Sidebar = ({ isOpen = true }) => {
                                 <LayoutDashboard size={16} /> Dashboard
                             </Link>
                         )}
-                        {isVehicleAdmin && (
+                        {(isVehicleAdmin || user?.role === 'USER') && (
                             <Link to="/kendaraan/data" className={subNavItemClass('/kendaraan/data')}>
                                 <Truck size={16} /> Data Kendaraan
                             </Link>

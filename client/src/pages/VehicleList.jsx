@@ -10,13 +10,18 @@ const VehicleList = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const isUser = user.role === 'USER';
+
     useEffect(() => {
         fetchVehicles();
     }, []);
 
     const fetchVehicles = async () => {
         try {
-            const res = await api.get('/vehicles');
+            // If it's a regular PIC (USER role), we only want their assigned vehicles
+            const url = isUser ? '/vehicles?forMaintenance=true' : '/vehicles';
+            const res = await api.get(url);
             setVehicles(res.data);
         } catch (error) {
             console.error('Failed to fetch vehicles:', error);
@@ -50,12 +55,14 @@ const VehicleList = () => {
                     </h1>
                     <p className="text-slate-500">Daftar armada dan kendaraan operasional.</p>
                 </div>
-                <button
-                    onClick={() => navigate('/kendaraan/data/new')}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all transform hover:-translate-y-0.5"
-                >
-                    <Plus size={20} /> Tambah Kendaraan
-                </button>
+                {!isUser && (
+                    <button
+                        onClick={() => navigate('/kendaraan/data/new')}
+                        className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all transform hover:-translate-y-0.5"
+                    >
+                        <Plus size={20} /> Tambah Kendaraan
+                    </button>
+                )}
             </div>
 
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
@@ -182,18 +189,22 @@ const VehicleList = () => {
                                     >
                                         <FileText size={14} /> Laporan
                                     </button>
-                                    <button
-                                        onClick={() => navigate(`/kendaraan/data/edit/${v.id}`)}
-                                        className="flex tems-center justify-center gap-1.5 p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                                    >
-                                        <Edit size={14} />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(v.id)}
-                                        className="flex tems-center justify-center gap-1.5 p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
+                                    {!isUser && (
+                                        <>
+                                            <button
+                                                onClick={() => navigate(`/kendaraan/data/edit/${v.id}`)}
+                                                className="flex tems-center justify-center gap-1.5 p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                            >
+                                                <Edit size={14} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(v.id)}
+                                                className="flex tems-center justify-center gap-1.5 p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>

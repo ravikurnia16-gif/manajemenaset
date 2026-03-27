@@ -127,6 +127,10 @@ exports.createVehicle = async (req, res) => {
 // Update vehicle
 exports.updateVehicle = async (req, res) => {
     try {
+        const { role } = req.user;
+        if (role === 'USER') {
+            return res.status(403).json({ error: 'Anda tidak memiliki hak akses untuk mengedit data kendaraan.' });
+        }
         const {
             name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
@@ -411,6 +415,10 @@ exports.sendPureTestWA = async (req, res) => {
 // Delete vehicle
 exports.deleteVehicle = async (req, res) => {
     try {
+        const { role } = req.user;
+        if (role === 'USER') {
+            return res.status(403).json({ error: 'Anda tidak memiliki hak akses untuk menghapus data kendaraan.' });
+        }
         const { id } = req.params;
         const vehicle = await prisma.vehicle.findUnique({ where: { id: parseInt(id) } });
 
