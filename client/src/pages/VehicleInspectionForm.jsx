@@ -251,13 +251,13 @@ const VehicleInspectionForm = () => {
                             </div>
                         </div>
 
-                        <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 rounded-2xl border-2 border-slate-100 relative group overflow-hidden">
+                        <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 rounded-2xl border-2 border-slate-100 relative group overflow-hidden p-4">
                             {previews[activeSide] ? (
-                                <div className="relative w-full h-full flex items-center justify-center cursor-crosshair">
+                                <div className="relative inline-block cursor-crosshair shadow-xl rounded-lg overflow-hidden">
                                     <img 
                                         src={previews[activeSide]} 
                                         alt="Editor" 
-                                        className="max-w-full max-h-[600px] object-contain select-none shadow-xl rounded-lg"
+                                        className="max-w-full max-h-[600px] object-contain select-none"
                                         onClick={handlePhotoClick}
                                     />
                                     
