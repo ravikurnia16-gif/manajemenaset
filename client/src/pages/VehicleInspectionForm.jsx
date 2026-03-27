@@ -158,6 +158,7 @@ const VehicleInspectionForm = () => {
                     <span className="font-bold block mb-1 uppercase tracking-tight text-[10px]">Tips Unggahan Foto:</span>
                     <ul className="list-disc list-inside space-y-1 text-xs font-medium">
                         <li>Gunakan resolusi **720p atau 1080p** (Maksimal 1920x1080).</li>
+                        <li>Rasio foto dianjurkan **4:3 atau 16:9** (Potret atau Lanskap).</li>
                         <li>Ukuran file dianjurkan **di bawah 2MB** per foto agar pengunggahan cepat.</li>
                         <li>Pastikan pencahayaan cukup agar goresan bodi terlihat jelas pada layar editor.</li>
                     </ul>
