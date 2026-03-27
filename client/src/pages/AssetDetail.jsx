@@ -67,6 +67,24 @@ const AssetDetail = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Information Sidebar */}
                 <div className="lg:col-span-1 space-y-6">
+                    {/* Asset Image Card */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden group">
+                        <div className="aspect-square bg-slate-50 relative flex items-center justify-center overflow-hidden">
+                            {asset.image ? (
+                                <img
+                                    src={asset.image}
+                                    alt={asset.name}
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center text-slate-300">
+                                    <Box size={64} strokeWidth={1} />
+                                    <span className="text-xs font-medium mt-2 italic text-slate-400">Tidak ada foto</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                         <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-6">Informasi Dasar</h3>
                         <div className="space-y-4">
