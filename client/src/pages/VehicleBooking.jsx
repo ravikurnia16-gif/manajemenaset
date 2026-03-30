@@ -38,7 +38,9 @@ const VehicleBooking = () => {
         destination: '',
         purpose: '',
         passengerCount: 1,
-        driverId: JSON.parse(localStorage.getItem('user') || '{}').id || ''
+        driverId: JSON.parse(localStorage.getItem('user') || '{}').id || '',
+        isRented: false,
+        rentalDays: 1
     });
 
     // Modal States
@@ -174,14 +176,17 @@ const VehicleBooking = () => {
             await api.post('/vehicles/booking/request', {
                 ...formData,
                 startDate: startDateObj,
-                endDate: new Date(endStr)
+                endDate: formData.isRented 
+                    ? new Date(startDateObj.getTime() + (parseInt(formData.rentalDays) * 24 * 60 * 60 * 1000))
+                    : new Date(endStr)
             });
             showToast('Permohonan berhasil dikirim!', 'success');
             setShowBorrowModal(false);
             setActiveTab('MY_REQUESTS');
             setFormData({
                 vehicleId: '', startDate: '', startTime: '08:00', endDate: '', endTime: '17:00',
-                destination: '', purpose: '', passengerCount: 1, driverId: ''
+                destination: '', purpose: '', passengerCount: 1, driverId: user.id || '',
+                isRented: false, rentalDays: 1
             });
         } catch (err) {
             showToast('Gagal mengirim permohonan: ' + (err.response?.data?.error || err.message), 'error');
@@ -484,8 +489,32 @@ const VehicleBooking = () => {
                             <div className="p-6 max-h-[80vh] overflow-y-auto">
                                 <form onSubmit={handleSubmitRequest} className="space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* Jenis Peminjaman */}
+                                        <div className="md:col-span-2 space-y-1.5">
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Jenis Peminjaman</label>
+                                            <div className="flex p-1 bg-slate-100 rounded-2xl w-full md:w-80">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, isRented: false })}
+                                                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${!formData.isRented ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                                                >
+                                                    <Users size={14} /> Operasional
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, isRented: true })}
+                                                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${formData.isRented ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                                                >
+                                                    <Receipt size={14} /> Sewa
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Mulai */}
                                         <div>
-                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Mulai Pinjam</label>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">
+                                                {formData.isRented ? 'Mulai Sewa' : 'Mulai Pinjam'}
+                                            </label>
                                             <div className="flex gap-2">
                                                 <div className="relative flex-1">
                                                     <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
@@ -507,32 +536,48 @@ const VehicleBooking = () => {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Selesai Pinjam</label>
-                                            <div className="flex gap-2">
-                                                <div className="relative flex-1">
-                                                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+
+                                        {/* Selesai / Lama Sewa */}
+                                        {formData.isRented ? (
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Lama Sewa (Hari)</label>
+                                                <div className="relative">
+                                                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500" size={16} />
                                                     <input
-                                                        type="date" required
-                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                                        value={formData.endDate}
-                                                        onChange={e => setFormData({ ...formData, endDate: e.target.value })}
-                                                    />
-                                                </div>
-                                                <div className="relative w-32">
-                                                    <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
-                                                    <input
-                                                        type="time" required
-                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                                        value={formData.endTime}
-                                                        onChange={e => setFormData({ ...formData, endTime: e.target.value })}
+                                                        type="number" min="1" required
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                                                        value={formData.rentalDays}
+                                                        onChange={e => setFormData({ ...formData, rentalDays: parseInt(e.target.value) || 1 })}
                                                     />
                                                 </div>
                                             </div>
-                                        </div>
+                                        ) : (
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Selesai Pinjam</label>
+                                                <div className="flex gap-2">
+                                                    <div className="relative flex-1">
+                                                        <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                                                        <input
+                                                            type="date" required
+                                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                            value={formData.endDate}
+                                                            onChange={e => setFormData({ ...formData, endDate: e.target.value })}
+                                                        />
+                                                    </div>
+                                                    <div className="relative w-32">
+                                                        <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                                                        <input
+                                                            type="time" required
+                                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                            value={formData.endTime}
+                                                            onChange={e => setFormData({ ...formData, endTime: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
 
-
-
+                                        {/* Tujuan & Keperluan */}
                                         <div className="md:col-span-2">
                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Tujuan (Lokasi)</label>
                                             <div className="relative">
@@ -559,6 +604,7 @@ const VehicleBooking = () => {
                                             />
                                         </div>
 
+                                        {/* Penumpang & Driver */}
                                         <div>
                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Jumlah Penumpang</label>
                                             <div className="relative">
@@ -571,6 +617,7 @@ const VehicleBooking = () => {
                                                 />
                                             </div>
                                         </div>
+
                                         <div>
                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Pilih Driver</label>
                                             <div className="relative">
@@ -675,6 +722,7 @@ const VehicleBooking = () => {
                                         </div>
                                     </div>
 
+                                    {/* Footer Buttons */}
                                     <div className="flex gap-3 mt-8">
                                         <button
                                             type="button"
