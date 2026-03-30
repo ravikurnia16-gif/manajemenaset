@@ -28,7 +28,7 @@ const WarehouseTransactionForm = () => {
     };
 
     const selectItem = (idx, item) => {
-        setRows(prev => prev.map((r, i) => i === idx ? { ...r, itemId: item.id.toString(), search: `${item.code} - ${item.name}${item.itemUnit ? ` (${item.itemUnit})` : ''}${item.size ? ` (${item.size})` : ''}${item.purchaseYear ? ` [${item.purchaseYear}]` : ''}` } : r));
+        setRows(prev => prev.map((r, i) => i === idx ? { ...r, itemId: item.id.toString(), search: `${item.code} - ${item.name}${item.type ? ` [${item.type}]` : ''}${item.itemUnit ? ` (${item.itemUnit})` : ''}${item.size ? ` (${item.size})` : ''}${item.purchaseYear ? ` [${item.purchaseYear}]` : ''}` } : r));
     };
 
     const getFilteredItems = (searchTerm) => {
@@ -134,7 +134,8 @@ const WarehouseTransactionForm = () => {
                                                     <button key={item.id} type="button" onClick={() => selectItem(idx, item)}
                                                         className="w-full text-left p-2.5 hover:bg-slate-50 border-b border-slate-100 text-xs">
                                                         <span className="font-mono text-indigo-600">{item.code}</span>
-                                                        <span className="ml-1">{item.name}</span>
+                                                        <span className="ml-1 font-bold">{item.name}</span>
+                                                        {item.type && <span className="text-indigo-500 font-bold ml-1">[{item.type}]</span>}
                                                         {item.itemUnit && <span className="text-slate-500 font-bold ml-1">({item.itemUnit})</span>}
                                                         {item.size && <span className="text-slate-400 ml-1">({item.size})</span>}
                                                         {item.gender && <span className="text-slate-400 ml-1 ml-1">{item.gender === 'L' ? 'Ikhwan' : 'Akhwat'}</span>}

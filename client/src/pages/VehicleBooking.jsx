@@ -31,9 +31,9 @@ const VehicleBooking = () => {
     // Form State for Request
     const [formData, setFormData] = useState({
         vehicleId: '',
-        startDate: '',
-        startTime: '08:00',
-        endDate: '',
+        startDate: new Date().toISOString().split('T')[0],
+        startTime: new Date().toTimeString().split(' ')[0].slice(0, 5),
+        endDate: new Date().toISOString().split('T')[0],
         endTime: '17:00',
         destination: '',
         purpose: '',
@@ -185,7 +185,11 @@ const VehicleBooking = () => {
             setShowBorrowModal(false);
             setActiveTab('MY_REQUESTS');
             setFormData({
-                vehicleId: '', startDate: '', startTime: '08:00', endDate: '', endTime: '17:00',
+                vehicleId: '', 
+                startDate: new Date().toISOString().split('T')[0], 
+                startTime: new Date().toTimeString().split(' ')[0].slice(0, 5), 
+                endDate: new Date().toISOString().split('T')[0], 
+                endTime: '17:00',
                 destination: '', purpose: '', passengerCount: 1, driverId: user.id || '',
                 isRented: false, rentalDays: 1
             });
@@ -438,7 +442,13 @@ const VehicleBooking = () => {
                                                 disabled={submitting || v.isBorrowed}
                                                 onClick={() => {
                                                     setSelectedVehicle(v);
-                                                    setFormData({ ...formData, vehicleId: v.id });
+                                                    const now = new Date();
+                                                    setFormData({ 
+                                                        ...formData, 
+                                                        vehicleId: v.id,
+                                                        startDate: now.toISOString().split('T')[0],
+                                                        startTime: now.toTimeString().split(' ')[0].slice(0, 5)
+                                                    });
                                                     setShowBorrowModal(true);
                                                 }}
                                                 className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all group/btn active:scale-[0.98] disabled:opacity-70 ${v.isBorrowed
