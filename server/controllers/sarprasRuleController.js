@@ -14,7 +14,10 @@ exports.getAllRules = async (req, res) => {
                     select: { id: true, name: true }
                 }
             },
-            orderBy: { createdAt: 'desc' }
+            orderBy: [
+                { status: 'asc' }, // Berlaku first, then Arsip
+                { createdAt: 'desc' }
+            ]
         });
         res.json(rules);
     } catch (error) {
@@ -26,7 +29,7 @@ exports.getAllRules = async (req, res) => {
 // Create new rule (Upload)
 exports.createRule = async (req, res) => {
     try {
-        const { title, description, category, folderId } = req.body;
+        const { title, description, category, folderId, documentNumber, status, expiryDate } = req.body;
         const file = req.file;
 
         if (!file) {
@@ -44,18 +47,61 @@ exports.createRule = async (req, res) => {
                 title: title || file.originalname,
                 category: categoryName,
                 folderId: folderId ? parseInt(folderId) : null,
-                 description,
-                 fileName: file.originalname,
-                 fileUrl: req.fileUrl,
-                 fileType: file.mimetype,
-                 fileSize: file.size,
-                 uploadedById: req.user.id
-             }
-         });
+                description,
+                documentNumber,
+                status: status || "Berlaku",
+                expiryDate: expiryDate ? new Date(expiryDate) : null,
+                fileName: file.originalname,
+                fileUrl: req.fileUrl,
+                fileType: file.mimetype,
+                fileSize: file.size,
+                uploadedById: req.user.id
+            }
+        });
 
         res.status(201).json(rule);
     } catch (error) {
         console.error('Create Sarpras Rule Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Update rule
+exports.updateRule = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, description, folderId, documentNumber, status, expiryDate } = req.body;
+
+        const existing = await prisma.sarprasRule.findUnique({ where: { id: parseInt(id) } });
+        if (!existing) return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
+
+        // Check permission
+        if (!['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role) && existing.uploadedById !== req.user.id) {
+            return res.status(403).json({ error: 'Akses ditolak' });
+        }
+
+        const data = {
+            title,
+            description,
+            documentNumber,
+            status,
+            expiryDate: expiryDate ? new Date(expiryDate) : null
+        };
+
+        if (folderId) {
+            data.folderId = parseInt(folderId);
+            const folder = await prisma.sarprasFolder.findUnique({ where: { id: data.folderId } });
+            if (folder) data.category = folder.name;
+        }
+
+        const updated = await prisma.sarprasRule.update({
+            where: { id: parseInt(id) },
+            data
+        });
+
+        res.json(updated);
+    } catch (error) {
+        console.error('Update Sarpras Rule Error:', error);
         res.status(500).json({ error: error.message });
     }
 };

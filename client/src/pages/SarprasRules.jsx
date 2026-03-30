@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Download, Trash2, Plus, X, Upload, Calendar, User, Folder, FolderOpen, ChevronRight, Search, FolderPlus, Eye } from 'lucide-react';
+import { FileText, Download, Trash2, Plus, X, Upload, Calendar, User, Folder, FolderOpen, ChevronRight, Search, FolderPlus, Eye, Edit2, Clock, Info, ShieldCheck } from 'lucide-react';
 import api from '../lib/axios';
 
 const SarprasRules = () => {
@@ -10,7 +10,17 @@ const SarprasRules = () => {
     const [showFolderModal, setShowFolderModal] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [creatingFolder, setCreatingFolder] = useState(false);
-    const [form, setForm] = useState({ title: '', description: '', folderId: '', file: null });
+    const [isEditing, setIsEditing] = useState(false);
+    const [editId, setEditId] = useState(null);
+    const [form, setForm] = useState({ 
+        title: '', 
+        description: '', 
+        folderId: '', 
+        documentNumber: '', 
+        status: 'Berlaku', 
+        expiryDate: '',
+        file: null 
+    });
     const [newFolderName, setNewFolderName] = useState('');
     const [selectedFolder, setSelectedFolder] = useState('Semua');
     const [searchQuery, setSearchQuery] = useState('');
@@ -56,30 +66,74 @@ const SarprasRules = () => {
 
     const handleUpload = async (e) => {
         e.preventDefault();
-        if (!form.file) return alert('Pilih file terlebih dahulu');
+        if (!isEditing && !form.file) return alert('Pilih file terlebih dahulu');
         if (!form.folderId) return alert('Pilih folder terlebih dahulu');
 
         try {
             setUploading(true);
-            const formData = new FormData();
-            formData.append('title', form.title || form.file.name);
-            formData.append('description', form.description);
-            formData.append('folderId', form.folderId);
-            formData.append('file', form.file);
+            
+            if (isEditing) {
+                await api.put(`/sarpras-rules/${editId}`, {
+                    title: form.title,
+                    description: form.description,
+                    folderId: form.folderId,
+                    documentNumber: form.documentNumber,
+                    status: form.status,
+                    expiryDate: form.expiryDate
+                });
+            } else {
+                const formData = new FormData();
+                formData.append('title', form.title || form.file.name);
+                formData.append('description', form.description);
+                formData.append('folderId', form.folderId);
+                formData.append('documentNumber', form.documentNumber);
+                formData.append('status', form.status);
+                formData.append('expiryDate', form.expiryDate);
+                formData.append('file', form.file);
 
-            await api.post('/sarpras-rules', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+                await api.post('/sarpras-rules', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+            }
 
             setShowUploadModal(false);
-            setForm({ title: '', description: '', folderId: '', file: null });
+            resetForm();
             fetchRules();
         } catch (error) {
-            console.error('Upload error:', error);
-            alert(error.response?.data?.error || 'Gagal mengupload Dokumen');
+            console.error('Save error:', error);
+            alert(error.response?.data?.error || `Gagal ${isEditing ? 'memperbarui' : 'mengupload'} Dokumen`);
         } finally {
             setUploading(false);
         }
+    };
+
+    const resetForm = () => {
+        setForm({ 
+            title: '', 
+            description: '', 
+            folderId: '', 
+            documentNumber: '', 
+            status: 'Berlaku', 
+            expiryDate: '',
+            file: null 
+        });
+        setIsEditing(false);
+        setEditId(null);
+    };
+
+    const handleEdit = (rule) => {
+        setForm({
+            title: rule.title,
+            description: rule.description || '',
+            folderId: rule.folderId?.toString() || '',
+            documentNumber: rule.documentNumber || '',
+            status: rule.status || 'Berlaku',
+            expiryDate: rule.expiryDate ? rule.expiryDate.split('T')[0] : '',
+            file: null
+        });
+        setEditId(rule.id);
+        setIsEditing(true);
+        setShowUploadModal(true);
     };
 
     const handleCreateFolder = async (e) => {
@@ -210,7 +264,7 @@ const SarprasRules = () => {
                         </div>
                         {isAdmin && (
                             <button
-                                onClick={() => setShowUploadModal(true)}
+                                onClick={() => { resetForm(); setShowUploadModal(true); }}
                                 className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all hover:bg-blue-700 whitespace-nowrap"
                             >
                                 <Plus size={18} /> <span className="hidden sm:inline">Upload</span>
@@ -240,34 +294,60 @@ const SarprasRules = () => {
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-12">
                             {filteredRules.map((rule) => (
-                                <div key={rule.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group border-l-4 border-l-blue-500">
-                                    <div className="p-5 flex-1">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-[10px] font-bold uppercase tracking-wider">
-                                                {rule.folder?.name || 'Tidak Dikategorikan'}
+                                <div key={rule.id} className={`bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group border-l-4 ${rule.status === 'Arsip' ? 'border-l-slate-400 opacity-80' : 'border-l-blue-500'}`}>
+                                    <div className="p-5 flex-1 text-left">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="flex flex-wrap gap-2">
+                                                <div className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[9px] font-bold uppercase tracking-wider">
+                                                    {rule.folder?.name || 'Umum'}
+                                                </div>
+                                                <div className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider ${rule.status === 'Berlaku' ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-600'
+                                                    }`}>
+                                                    {rule.status || 'Berlaku'}
+                                                </div>
                                             </div>
                                             {isAdmin && (
-                                                <button
-                                                    onClick={() => handleDeleteRule(rule.id)}
-                                                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                <div className="flex gap-1">
+                                                    <button
+                                                        onClick={() => handleEdit(rule)}
+                                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                        title="Edit Metadata"
+                                                    >
+                                                        <Edit2 size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteRule(rule.id)}
+                                                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                        title="Hapus"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
-                                        <h3 className="font-bold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors uppercase line-clamp-2 leading-tight">
+                                        <h3 className="font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors uppercase line-clamp-2 leading-tight text-sm">
                                             {rule.title}
                                         </h3>
-                                        <p className="text-xs text-slate-500 line-clamp-2 mb-4">
+                                        {rule.documentNumber && (
+                                            <div className="text-[10px] font-mono text-slate-500 mb-2 flex items-center gap-1">
+                                                <Info size={10} /> {rule.documentNumber}
+                                            </div>
+                                        )}
+                                        <p className="text-xs text-slate-500 line-clamp-2 mb-4 italic">
                                             {rule.description || 'Tidak ada deskripsi.'}
                                         </p>
-                                        <div className="flex items-center gap-4 text-[10px] text-slate-400 font-medium">
+                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] text-slate-400 font-medium mt-auto">
                                             <div className="flex items-center gap-1">
-                                                <User size={12} /> {rule.uploadedBy?.name || rule.uploadedBy?.username}
+                                                <User size={12} className="text-slate-300" /> {rule.uploadedBy?.name || 'Admin'}
                                             </div>
                                             <div className="flex items-center gap-1">
-                                                <Calendar size={12} /> {new Date(rule.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                <Calendar size={12} className="text-slate-300" /> {new Date(rule.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                                             </div>
+                                            {rule.expiryDate && (
+                                                <div className={`flex items-center gap-1 ${new Date(rule.expiryDate) < new Date() ? 'text-red-500' : 'text-orange-500'}`}>
+                                                    <Clock size={12} /> Exp: {new Date(rule.expiryDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
@@ -305,7 +385,8 @@ const SarprasRules = () => {
                     <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-200">
                         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-blue-600">
                             <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                <Upload size={20} /> Upload Dokumen Baru
+                                {isEditing ? <Edit2 size={20} /> : <Upload size={20} />} 
+                                {isEditing ? 'Edit Metadata Dokumen' : 'Upload Dokumen Baru'}
                             </h3>
                             <button onClick={() => setShowUploadModal(false)} className="p-2 hover:bg-white/20 rounded-full text-white/80 hover:text-white transition-colors">
                                 <X size={20} />
@@ -314,23 +395,39 @@ const SarprasRules = () => {
 
                         <form onSubmit={handleUpload} className="p-6 space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="col-span-2 sm:col-span-1">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Judul Dokumen</label>
+                                <div className="col-span-2">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <FileText size={12} className="text-blue-500" /> Judul Dokumen
+                                    </label>
                                     <input
                                         type="text"
                                         value={form.title}
                                         onChange={e => setForm({ ...form, title: e.target.value })}
-                                        placeholder="Nama dokumen..."
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                        placeholder="Nama dokumen resmi..."
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all font-semibold"
                                         required
                                     />
                                 </div>
                                 <div className="col-span-2 sm:col-span-1">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Folder Tujuan</label>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <ShieldCheck size={12} className="text-blue-500" /> Nomor Dokumen
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={form.documentNumber}
+                                        onChange={e => setForm({ ...form, documentNumber: e.target.value })}
+                                        placeholder="e.g. 123/SK/SARPRAS/2024"
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    />
+                                </div>
+                                <div className="col-span-2 sm:col-span-1">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <Folder size={12} className="text-blue-500" /> Folder Tujuan
+                                    </label>
                                     <select
                                         value={form.folderId}
                                         onChange={e => setForm({ ...form, folderId: e.target.value })}
-                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all cursor-pointer"
                                         required
                                     >
                                         <option value="">-- Pilih Folder --</option>
@@ -338,6 +435,31 @@ const SarprasRules = () => {
                                             <option key={f.id} value={f.id}>{f.name}</option>
                                         ))}
                                     </select>
+                                </div>
+                                <div className="col-span-2 sm:col-span-1">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <Info size={12} className="text-blue-500" /> Status Dokumen
+                                    </label>
+                                    <select
+                                        value={form.status}
+                                        onChange={e => setForm({ ...form, status: e.target.value })}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all cursor-pointer"
+                                    >
+                                        <option value="Berlaku">Berlaku (Aktif)</option>
+                                        <option value="Arsip">Arsip (Lama)</option>
+                                        <option value="Draft">Draft</option>
+                                    </select>
+                                </div>
+                                <div className="col-span-2 sm:col-span-1">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                        <Clock size={12} className="text-blue-500" /> Tanggal Kadaluarsa
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={form.expiryDate}
+                                        onChange={e => setForm({ ...form, expiryDate: e.target.value })}
+                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all cursor-pointer"
+                                    />
                                 </div>
                             </div>
                             <div>
@@ -350,26 +472,28 @@ const SarprasRules = () => {
                                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-all"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Berkas (PDF/DOCX/Gambar)</label>
-                                <div className="border-2 border-dashed border-slate-200 bg-slate-50 rounded-2xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all relative group cursor-pointer">
-                                    <input
-                                        type="file"
-                                        onChange={e => setForm({ ...form, file: e.target.files[0] })}
-                                        className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                                    />
-                                    <div className="flex flex-col items-center">
-                                        <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-400 group-hover:text-blue-500 group-hover:scale-110 transition-all mb-3">
-                                            <Upload size={24} />
+                            
+                            {!isEditing && (
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Berkas (PDF/DOCX/Gambar)</label>
+                                    <div className="border-2 border-dashed border-slate-200 bg-slate-50 rounded-2xl p-6 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all relative group cursor-pointer">
+                                        <input
+                                            type="file"
+                                            onChange={e => setForm({ ...form, file: e.target.files[0] })}
+                                            className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                        />
+                                        <div className="flex flex-col items-center">
+                                            <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-slate-400 group-hover:text-blue-500 group-hover:scale-110 transition-all mb-2">
+                                                <Upload size={20} />
+                                            </div>
+                                            <p className="text-xs font-bold text-slate-600 group-hover:text-blue-700 transition-colors">
+                                                {form.file ? form.file.name : 'Pilih file atau tarik ke sini'}
+                                            </p>
                                         </div>
-                                        <p className="text-sm font-bold text-slate-600 group-hover:text-blue-700 transition-colors">
-                                            {form.file ? form.file.name : 'Pilih file atau tarik ke sini'}
-                                        </p>
-                                        <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-bold">Maks 10MB • PDF, DOC, IMG</p>
                                     </div>
                                 </div>
-                            </div>
+                            )}
 
                             <button
                                 type="submit"
@@ -379,10 +503,10 @@ const SarprasRules = () => {
                                 {uploading ? (
                                     <>
                                         <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-                                        Sedang Mengupload...
+                                        {isEditing ? 'Memperbarui...' : 'Mengupload...'}
                                     </>
                                 ) : (
-                                    <>Simpan Dokumen</>
+                                    <>{isEditing ? 'Simpan Perubahan' : 'Upload & Simpan Dokumen'}</>
                                 )}
                             </button>
                         </form>

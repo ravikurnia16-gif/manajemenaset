@@ -38,7 +38,7 @@ const VehicleBooking = () => {
         destination: '',
         purpose: '',
         passengerCount: 1,
-        driverId: ''
+        driverId: JSON.parse(localStorage.getItem('user') || '{}').id || ''
     });
 
     // Modal States
@@ -560,13 +560,19 @@ const VehicleBooking = () => {
                                                 >
                                                     {formData.driverId ? (
                                                         <span className="font-bold text-slate-800">
-                                                            {drivers.find(s => s.id === parseInt(formData.driverId))?.name || 'User Terpilih'}
-                                                            <span className="ml-2 text-[10px] text-slate-400 font-normal">
-                                                                ({drivers.find(s => s.id === parseInt(formData.driverId))?.unit?.name || 'Tanpa Unit'})
-                                                            </span>
+                                                            {parseInt(formData.driverId) === user.id ? (
+                                                                <span className="text-blue-600">SAYA SENDIRI (BAWA SENDIRI)</span>
+                                                            ) : (
+                                                                <>
+                                                                    {drivers.find(s => s.id === parseInt(formData.driverId))?.name || 'User Terpilih'}
+                                                                    <span className="ml-2 text-[10px] text-slate-400 font-normal">
+                                                                        ({drivers.find(s => s.id === parseInt(formData.driverId))?.unit?.name || 'Tanpa Unit'})
+                                                                    </span>
+                                                                </>
+                                                            )}
                                                         </span>
                                                     ) : (
-                                                        <span className="text-slate-400 font-medium italic">Bawa Sendiri / Pilih Driver...</span>
+                                                        <span className="text-slate-400 font-medium italic">Pilih Driver...</span>
                                                     )}
                                                     <ChevronRight className={`absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition-transform ${showDriverDropdown ? 'rotate-90' : ''}`} size={16} />
                                                 </div>
@@ -590,10 +596,10 @@ const VehicleBooking = () => {
                                                         <div className="overflow-y-auto p-2 custom-scrollbar">
                                                             <button
                                                                 type="button"
-                                                                className={`w-full text-left p-3 rounded-xl text-xs font-bold transition-all mb-1 ${!formData.driverId ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                                className={`w-full text-left p-3 rounded-xl text-xs font-bold transition-all mb-1 ${parseInt(formData.driverId) === user.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    setFormData({ ...formData, driverId: '' });
+                                                                    setFormData({ ...formData, driverId: user.id });
                                                                     setShowDriverDropdown(false);
                                                                     setDriverSearch('');
                                                                 }}

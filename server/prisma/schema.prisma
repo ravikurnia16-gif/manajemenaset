@@ -762,6 +762,13 @@ model SarprasRule {
   folderId      Int?
   folder        SarprasFolder? @relation(fields: [folderId], references: [id])
   description   String?       @db.Text
+  
+  // New Metadata Fields
+  documentNumber String?       // Nomor Surat/Dokumen
+  status        String        @default("Berlaku") // Berlaku, Arsip, Draft
+  expiryDate    DateTime?     // Tanggal Kadaluarsa
+  isPublic      Boolean       @default(true)
+  
   fileUrl       String        @db.LongText
   fileName      String
   fileType      String?
