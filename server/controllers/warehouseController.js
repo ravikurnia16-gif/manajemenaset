@@ -232,7 +232,7 @@ exports.getAllTransactions = async (req, res) => {
             where,
             include: {
                 createdBy: { select: { username: true, name: true } },
-                items: { include: { item: { select: { code: true, name: true, size: true, gender: true } } } }
+                items: { include: { item: { select: { code: true, name: true, size: true, gender: true, itemUnit: true } } } }
             },
             orderBy: { date: 'desc' }
         });

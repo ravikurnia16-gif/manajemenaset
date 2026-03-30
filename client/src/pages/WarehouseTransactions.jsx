@@ -76,6 +76,7 @@ const WarehouseTransactions = () => {
                                                 {(tx.items || []).map((ti, i) => (
                                                     <div key={i} className="text-xs">
                                                         <span className="font-medium">{ti.item?.name}</span>
+                                                        {ti.item?.itemUnit && <span className="text-slate-500 font-bold ml-1">({ti.item.itemUnit})</span>}
                                                         {ti.item?.size && <span className="text-slate-400 ml-1">({ti.item.size})</span>}
                                                         <span className="ml-1 font-bold text-indigo-600">×{ti.quantity}</span>
                                                         {ti.recipientName && <span className="text-slate-400 ml-1">→ {ti.recipientName}</span>}

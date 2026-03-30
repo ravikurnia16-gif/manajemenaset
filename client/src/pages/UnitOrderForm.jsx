@@ -249,7 +249,9 @@ const UnitOrderForm = () => {
                                                 
                                                 <div className="flex-1 min-w-0 flex flex-col">
                                                     <div className="text-[10px] font-mono text-indigo-600 mb-0.5">{item.code}</div>
-                                                    <div className="font-bold text-xs text-slate-800 leading-tight mb-1 line-clamp-2" title={item.name}>{item.name}</div>
+                                                    <div className="font-bold text-xs text-slate-800 leading-tight mb-1 line-clamp-2" title={item.name}>
+                                                        {item.name} {item.itemUnit && <span className="text-slate-500 font-bold">({item.itemUnit})</span>}
+                                                    </div>
                                                     <div className="text-[10px] text-slate-500 mt-auto flex items-center justify-between">
                                                         <span>Stok: <strong className="text-slate-700">{item.stock}</strong></span>
                                                         {item.size && <span>Ukr: <strong>{item.size}</strong></span>}

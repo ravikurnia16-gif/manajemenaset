@@ -348,8 +348,11 @@ exports.endTrip = async (req, res) => {
 // 5. Get Bookings (Dynamic based on tabs)
 exports.getBookings = async (req, res) => {
     try {
-        const { tab, vehicleId, startDate, endDate } = req.query;
+        const { tab, vehicleId, startDate, endDate, isRented } = req.query;
         const where = {};
+
+        if (isRented === 'true') where.isRented = true;
+        if (isRented === 'false') where.isRented = false;
 
         if (vehicleId) where.vehicleId = parseInt(vehicleId);
 

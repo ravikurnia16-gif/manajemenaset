@@ -234,9 +234,23 @@ const WarehouseStock = () => {
                                     let parts;
                                     if (isSeragam) {
                                         // Tipe_Nama_Gender_Unit_Ukuran_Tahun
-                                        parts = [item.type, item.name, displayGender, item.itemUnit, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear].filter(Boolean);
+                                        parts = [
+                                            item.type, 
+                                            item.name, 
+                                            displayGender, 
+                                            item.itemUnit ? <span key="unit" className="text-slate-500 font-bold">({item.itemUnit})</span> : null, 
+                                            item.size ? `Ukuran ${item.size}` : null, 
+                                            item.purchaseYear ? `[${item.purchaseYear}]` : null
+                                        ].filter(Boolean);
                                     } else {
-                                        parts = [item.name, item.type, displayGender, item.itemUnit, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear].filter(Boolean);
+                                        parts = [
+                                            item.name, 
+                                            item.type, 
+                                            displayGender, 
+                                            item.itemUnit ? <span key="unit" className="text-slate-500 font-bold">({item.itemUnit})</span> : null, 
+                                            item.size ? `Ukuran ${item.size}` : null, 
+                                            item.purchaseYear ? `[${item.purchaseYear}]` : null
+                                        ].filter(Boolean);
                                     }
 
                                     return (
@@ -249,7 +263,11 @@ const WarehouseStock = () => {
                                                             <img src={getMediaUrl(item.image)} alt="" className="w-full h-full object-cover" />
                                                         </div>
                                                     )}
-                                                    <div className="font-medium">{parts.join(' ')}</div>
+                                                    <div className="font-medium flex flex-wrap gap-1">
+                                                        {parts.map((p, i) => (
+                                                            <span key={i}>{p}</span>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="p-3"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">{item.category?.name}</span></td>
