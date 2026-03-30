@@ -206,13 +206,13 @@ const VehicleList = () => {
                                         <>
                                             <button
                                                 onClick={() => navigate(`/kendaraan/data/edit/${v.id}`)}
-                                                className="flex tems-center justify-center gap-1.5 p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                                className="flex items-center justify-center gap-1.5 p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"
                                             >
                                                 <Edit size={14} />
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(v.id)}
-                                                className="flex tems-center justify-center gap-1.5 p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors"
+                                                className="flex items-center justify-center gap-1.5 p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors"
                                             >
                                                 <Trash2 size={14} />
                                             </button>
@@ -223,7 +223,7 @@ const VehicleList = () => {
                         </div>
                     ))
                     }
-                </div >
+                </div>
             ) : (
                 <div className="bg-white p-20 rounded-2xl border border-dashed border-slate-200 text-center">
                     <Car size={64} className="mx-auto text-slate-200 mb-4" />
@@ -231,7 +231,7 @@ const VehicleList = () => {
                     <p className="text-slate-400 text-sm mb-6">Klik tombol Tambah Kendaraan untuk memulai.</p>
                 </div>
             )}
-        </div >
+        </div>
     );
 };
 

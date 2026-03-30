@@ -84,10 +84,10 @@ const Layout = () => {
     ];
 
     return (
-        <div className="flex bg-slate-50 min-h-screen font-sans text-slate-900 overflow-hidden">
+        <div className="flex bg-slate-50 h-screen font-sans text-slate-900 overflow-hidden">
             <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
-            <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+            <div className="flex-1 flex flex-col h-full overflow-hidden relative">
                 <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 lg:px-8 shrink-0 z-30">
                     <div className="flex items-center gap-4">
                         <button
