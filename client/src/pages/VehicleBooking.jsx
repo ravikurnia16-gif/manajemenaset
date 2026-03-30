@@ -511,13 +511,15 @@ const VehicleBooking = () => {
                                                 >
                                                     <Users size={14} /> Operasional
                                                 </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, isRented: true })}
-                                                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${formData.isRented ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
-                                                >
-                                                    <Receipt size={14} /> Sewa
-                                                </button>
+                                                {selectedVehicle.isRentable && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData({ ...formData, isRented: true })}
+                                                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${formData.isRented ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                                                    >
+                                                        <Receipt size={14} /> Sewa
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
 
