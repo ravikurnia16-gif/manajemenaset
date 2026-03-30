@@ -23,7 +23,11 @@ exports.getAllVehicles = async (req, res) => {
             include: {
                 pics: { select: { id: true, name: true } },
                 bookings: {
-                    where: { status: 'APPROVED', tripStartTime: { not: null }, tripEndTime: null },
+                    where: { 
+                        status: { in: ['APPROVED', 'BERLANGSUNG'] }, 
+                        tripStartTime: { not: null }, 
+                        tripEndTime: null 
+                    },
                     take: 1,
                     include: { user: { select: { name: true } } }
                 },

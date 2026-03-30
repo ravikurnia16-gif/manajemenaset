@@ -42,6 +42,18 @@ exports.requestBooking = async (req, res) => {
         const end = new Date(endDate);
         const now = new Date();
 
+        // Check if vehicle is currently in use
+        const activeTrip = await prisma.vehicleBooking.findFirst({
+            where: {
+                vehicleId: parseInt(vehicleId),
+                status: 'BERLANGSUNG'
+            }
+        });
+
+        if (activeTrip) {
+            return res.status(400).json({ error: 'Kendaraan sedang digunakan dalam perjalanan. Silakan pilih armada lain atau tunggu hingga selesai.' });
+        }
+
         if (!destination) {
             return res.status(400).json({ error: 'Tujuan wajib diisi.' });
         }
