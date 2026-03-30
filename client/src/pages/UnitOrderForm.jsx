@@ -49,6 +49,9 @@ const UnitOrderForm = () => {
 
     const uniformTypes = useMemo(() => {
         const types = new Set();
+        // Always include 'Nama Dada' as requested
+        types.add('Nama Dada');
+        
         warehouseItems.forEach(item => {
             // Only take from category ID 1 (Seragam) and use the item name
             if (item.categoryId === 1 && item.name) {
@@ -232,10 +235,25 @@ const UnitOrderForm = () => {
                                     </select>
                                 </div>
                                 <div className="space-y-3 md:col-span-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Shirt size={14} /> 5. Tipe Seragam (Ceklis yang dipesan)</label>
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Shirt size={14} /> 5. Tipe Seragam (Ceklis yang dipesan)</label>
+                                        {uniformTypes.length > 0 && (
+                                            <button 
+                                                type="button"
+                                                onClick={() => {
+                                                    const allSelected = seragam.types.length === uniformTypes.length;
+                                                    setSeragam({ ...seragam, types: allSelected ? [] : [...uniformTypes] });
+                                                }}
+                                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md transition border border-indigo-100"
+                                            >
+                                                {seragam.types.length === uniformTypes.length ? 'Hapus Semua' : 'Pilih Semua'}
+                                            </button>
+                                        )}
+                                    </div>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                         {uniformTypes.length > 0 ? uniformTypes.map(type => (
                                             <button
+                                                type="button"
                                                 key={type}
                                                 onClick={() => {
                                                     const newTypes = seragam.types.includes(type)
