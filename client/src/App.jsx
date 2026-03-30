@@ -27,7 +27,6 @@ import PersonnelDashboard from './pages/PersonnelDashboard';
 import VehicleList from './pages/VehicleList';
 import VehicleForm from './pages/VehicleForm';
 import VehicleBooking from './pages/VehicleBooking';
-import VehicleRental from './pages/VehicleRental';
 import BusBooking from './pages/BusBooking';
 import BusBookingPublic from './pages/BusBookingPublic';
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
