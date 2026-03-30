@@ -50,8 +50,12 @@ const UnitOrderForm = () => {
     const uniformTypes = useMemo(() => {
         const types = new Set();
         warehouseItems.forEach(item => {
-            if (item.uniformGroup) types.add(item.uniformGroup);
+            // Only take from category ID 1 (Seragam) and ensure uniformGroup exists
+            if (item.categoryId === 1 && item.uniformGroup) {
+                types.add(item.uniformGroup);
+            }
         });
+
         const sorted = Array.from(types).sort();
         return sorted;
     }, [warehouseItems]);
