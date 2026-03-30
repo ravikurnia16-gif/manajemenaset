@@ -169,10 +169,10 @@ const WarehouseStock = () => {
                 <div className="flex gap-2 flex-wrap">
                     <button onClick={handleTemplate} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50"><Download size={14} /> Template</button>
                     <label className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer">
-                        <Upload size={14} /> Import
+                        <Download size={14} /> Import
                         <input type="file" accept=".csv,.xlsx,.xls" onChange={handleImport} className="hidden" />
                     </label>
-                    <button onClick={handleExport} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50"><Download size={14} /> Export</button>
+                    <button onClick={handleExport} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50"><Upload size={14} /> Export</button>
 
                     <button onClick={() => navigate('/gudang/stok/input')} className="flex items-center gap-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl"><Plus size={16} /> Tambah</button>
                 </div>
