@@ -178,7 +178,8 @@ const VehicleBooking = () => {
                 startDate: startDateObj,
                 endDate: formData.isRented 
                     ? new Date(startDateObj.getTime() + (parseInt(formData.rentalDays) * 24 * 60 * 60 * 1000))
-                    : new Date(endStr)
+                    : new Date(endStr),
+                rentalPrice: formData.isRented ? selectedVehicle?.defaultRentalPrice : null
             });
             showToast('Permohonan berhasil dikirim!', 'success');
             setShowBorrowModal(false);
@@ -539,18 +540,31 @@ const VehicleBooking = () => {
 
                                         {/* Selesai / Lama Sewa */}
                                         {formData.isRented ? (
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Lama Sewa (Hari)</label>
-                                                <div className="relative">
-                                                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500" size={16} />
-                                                    <input
-                                                        type="number" min="1" required
-                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
-                                                        value={formData.rentalDays}
-                                                        onChange={e => setFormData({ ...formData, rentalDays: parseInt(e.target.value) || 1 })}
-                                                    />
+                                            <>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Lama Sewa (Hari)</label>
+                                                    <div className="relative">
+                                                        <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500" size={16} />
+                                                        <input
+                                                            type="number" min="1" required
+                                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                                                            value={formData.rentalDays}
+                                                            onChange={e => setFormData({ ...formData, rentalDays: parseInt(e.target.value) || 1 })}
+                                                        />
+                                                    </div>
                                                 </div>
-                                            </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Biaya Sewa per Hari</label>
+                                                    <div className="relative">
+                                                        <Receipt className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500" size={16} />
+                                                        <input
+                                                            type="text" readOnly
+                                                            className="w-full bg-slate-100 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm font-bold text-indigo-600 cursor-not-allowed"
+                                                            value={selectedVehicle?.defaultRentalPrice ? `Rp ${selectedVehicle.defaultRentalPrice.toLocaleString('id-ID')}` : 'Rp 0'}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </>
                                         ) : (
                                             <div>
                                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Selesai Pinjam</label>

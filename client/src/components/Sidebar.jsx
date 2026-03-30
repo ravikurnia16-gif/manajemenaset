@@ -169,9 +169,6 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/kendaraan/peminjaman" className={subNavItemClass('/kendaraan/peminjaman')}>
                             <Calendar size={16} /> Peminjaman
                         </Link>
-                        <Link to="/kendaraan/sewa" className={subNavItemClass('/kendaraan/sewa')}>
-                            <ShoppingCart size={16} /> Sewa Kendaraan
-                        </Link>
                         <Link to="/kendaraan/booking-bus" className={subNavItemClass('/kendaraan/booking-bus')}>
                             <Calendar size={16} /> Booking Jadwal Bus
                         </Link>

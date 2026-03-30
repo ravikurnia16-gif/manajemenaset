@@ -105,7 +105,6 @@ function App() {
           <Route path="kendaraan/data/new" element={<VehicleForm />} />
           <Route path="kendaraan/data/edit/:id" element={<VehicleForm />} />
           <Route path="kendaraan/peminjaman" element={<VehicleBooking />} />
-          <Route path="kendaraan/sewa" element={<VehicleRental />} />
           <Route path="kendaraan/booking-bus" element={<BusBooking />} />
           <Route path="kendaraan/pemeliharaan" element={<VehicleMaintenanceList />} />
           <Route path="kendaraan/pemeliharaan/new" element={<VehicleMaintenanceForm />} />
