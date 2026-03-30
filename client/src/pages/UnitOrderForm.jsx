@@ -8,6 +8,8 @@ const GENDERS = ['Ikhwan', 'Akhwat'];
 const SIZES_STD = ['SS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '4XL', 'Ukuran Khusus'];
 const SIZES_JUBAH = ['38', '40', '42', '44', '46', '48', '50/20', '50/22', '50/24', '52/20', '52/22', '52/24', '54/20', '54/22', '54/24', 'Ukuran khusus'];
 
+const UNIFORM_TYPES = ['Nasional', 'Batik', 'Olahraga', 'Muslim', 'Pramuka', 'Rompi', 'Jaket'];
+
 const UnitOrderForm = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
@@ -22,7 +24,9 @@ const UnitOrderForm = () => {
         unit: '',
         gender: '',
         size: '',
-        quantity: 1
+        quantity: 1,
+        studentName: '',
+        types: []
     });
 
     // Lainnya Input
@@ -60,19 +64,24 @@ const UnitOrderForm = () => {
     }, [itemSearch, warehouseItems]);
 
     const handleAddSeragam = () => {
-        if (!seragam.unit || !seragam.gender || !seragam.size) return alert('Lengkapi data seragam!');
-        const newItem = {
-            id: Date.now(),
-            name: `Seragam ${seragam.unit} (${seragam.gender})`,
+        if (!seragam.unit || !seragam.gender || !seragam.size) return alert('Lengkapi data unit, gender, dan ukuran!');
+        if (seragam.types.length === 0) return alert('Pilih minimal satu tipe seragam!');
+        if (!seragam.studentName) return alert('Isi nama siswa!');
+
+        const newItems = seragam.types.map(type => ({
+            id: Date.now() + Math.random(),
+            name: `${type} ${seragam.unit} (${seragam.gender}) - ${seragam.studentName}`,
             size: seragam.size,
             quantity: seragam.quantity,
             type: 'SERAGAM',
             unit: seragam.unit,
-            gender: seragam.gender
-        };
-        setCart([...cart, newItem]);
-        // Reset size logic but keep unit and gender for convenience
-        setSeragam({ ...seragam, size: '', quantity: 1 });
+            gender: seragam.gender,
+            studentName: seragam.studentName
+        }));
+
+        setCart([...cart, ...newItems]);
+        // Reset specific fields but keep unit/gender/name for mass entry convenience
+        setSeragam({ ...seragam, size: '', types: [] });
     };
 
     const handleAddOther = () => {
@@ -164,7 +173,17 @@ const UnitOrderForm = () => {
                         {activeCategory === 'seragam' ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1.5 md:col-span-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Check size={14} /> 1. Pilih Unit</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><User size={14} /> 1. Nama Siswa</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ketik nama lengkap siswa..."
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        value={seragam.studentName}
+                                        onChange={e => setSeragam({ ...seragam, studentName: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-1.5 md:col-span-2">
+                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Check size={14} /> 2. Pilih Unit</label>
                                     <select
                                         className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
                                         value={seragam.unit}
@@ -175,8 +194,8 @@ const UnitOrderForm = () => {
                                     </select>
                                     {isSpecialUnit && <p className="text-[10px] text-orange-600 font-medium">Note: Data ukuran untuk unit ini masih dalam pengembangan.</p>}
                                 </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><User size={14} /> 2. Jenis Kelamin</label>
+                                <div className="space-y-1.5 ">
+                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><User size={14} /> 3. Jenis Kelamin</label>
                                     <div className="grid grid-cols-2 gap-2">
                                         {GENDERS.map(g => (
                                             <button
@@ -190,7 +209,7 @@ const UnitOrderForm = () => {
                                     </div>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Check size={14} /> 3. Ukuran</label>
+                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Check size={14} /> 4. Ukuran</label>
                                     <select
                                         className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
                                         value={seragam.size}
@@ -201,8 +220,30 @@ const UnitOrderForm = () => {
                                         {sizes.map(s => <option key={s} value={s}>{s}</option>)}
                                     </select>
                                 </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-slate-500 uppercase">4. Jumlah</label>
+                                <div className="space-y-3 md:col-span-2">
+                                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Shirt size={14} /> 5. Tipe Seragam (Ceklis yang dipesan)</label>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                        {UNIFORM_TYPES.map(type => (
+                                            <button
+                                                key={type}
+                                                onClick={() => {
+                                                    const newTypes = seragam.types.includes(type)
+                                                        ? seragam.types.filter(t => t !== type)
+                                                        : [...seragam.types, type];
+                                                    setSeragam({ ...seragam, types: newTypes });
+                                                }}
+                                                className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all ${seragam.types.includes(type) ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm' : 'bg-white border-slate-100 text-slate-600 hover:border-slate-300'}`}
+                                            >
+                                                <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-colors ${seragam.types.includes(type) ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-slate-50'}`}>
+                                                    {seragam.types.includes(type) && <Check size={10} strokeWidth={4} />}
+                                                </div>
+                                                {type}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5 md:col-span-2">
+                                    <label className="text-xs font-bold text-slate-500 uppercase">6. Jumlah per Tipe</label>
                                     <input
                                         type="number"
                                         min="1"

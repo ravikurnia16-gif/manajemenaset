@@ -128,7 +128,8 @@ const createBusBooking = async (req, res) => {
                     where: {
                         OR: [
                             { name: { contains: 'Wegi Fatriadi' } },
-                            { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } }
+                            { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } },
+                            { name: { contains: 'Eldo Darjumeianto Putra' } }
                         ],
                         phone: { not: null, not: '' }
                     }
