@@ -8,8 +8,6 @@ const GENDERS = ['Ikhwan', 'Akhwat'];
 const SIZES_STD = ['SS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '4XL', 'Ukuran Khusus'];
 const SIZES_JUBAH = ['38', '40', '42', '44', '46', '48', '50/20', '50/22', '50/24', '52/20', '52/22', '52/24', '54/20', '54/22', '54/24', 'Ukuran khusus'];
 
-const UNIFORM_TYPES = ['Nasional', 'Batik', 'Olahraga', 'Muslim', 'Pramuka', 'Rompi', 'Jaket'];
-
 const UnitOrderForm = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
@@ -48,6 +46,15 @@ const UnitOrderForm = () => {
         };
         fetchItems();
     }, []);
+
+    const uniformTypes = useMemo(() => {
+        const types = new Set();
+        warehouseItems.forEach(item => {
+            if (item.uniformGroup) types.add(item.uniformGroup);
+        });
+        const sorted = Array.from(types).sort();
+        return sorted;
+    }, [warehouseItems]);
 
     const filteredItems = useMemo(() => {
         let items = warehouseItems.filter(i => 
@@ -223,7 +230,7 @@ const UnitOrderForm = () => {
                                 <div className="space-y-3 md:col-span-2">
                                     <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5"><Shirt size={14} /> 5. Tipe Seragam (Ceklis yang dipesan)</label>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                        {UNIFORM_TYPES.map(type => (
+                                        {uniformTypes.length > 0 ? uniformTypes.map(type => (
                                             <button
                                                 key={type}
                                                 onClick={() => {
@@ -239,7 +246,11 @@ const UnitOrderForm = () => {
                                                 </div>
                                                 {type}
                                             </button>
-                                        ))}
+                                        )) : (
+                                            <div className="col-span-2 py-3 px-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center text-[10px] text-slate-400">
+                                                Belum ada data tipe seragam di gudang.
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="space-y-1.5 md:col-span-2">
