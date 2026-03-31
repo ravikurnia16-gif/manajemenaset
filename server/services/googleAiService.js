@@ -11,9 +11,7 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
  * @returns {Promise<string>} - The AI generated summary.
  */
 exports.generatePersonnelSummary = async (reports, range) => {
-    if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_AI_KEY) {
-        throw new Error("GEMINI_API_KEY is not configured in Server Environment Variables.");
-    }
+    // Verification moved to initialization level
 
     if (!reports || reports.length === 0) {
         return "Tidak ada laporan ditemukan untuk periode ini.";

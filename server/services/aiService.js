@@ -16,10 +16,7 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
  */
 exports.analyzeDamage = async (base64Image, title, description) => {
     try {
-        if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_AI_KEY) {
-            console.error("AI Service: GEMINI_API_KEY is missing in .env");
-            return null;
-        }
+        // API Key is pre-configured with fallback at line 7
 
         let cleanBase64 = null;
 
