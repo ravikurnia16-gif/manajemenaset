@@ -349,27 +349,41 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                             <span className="text-slate-400 uppercase">Progres Penugasan</span>
                             <div className="flex items-center gap-2">
                                 {editProgress && totalCount === 0 ? (
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-1 animate-in fade-in zoom-in duration-200">
                                         <input 
                                             type="number" 
                                             min="0" max="100" 
                                             value={manualProgress} 
                                             onChange={(e) => setManualProgress(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    handleUpdateAssignment(a.id, { progressPercentage: manualProgress });
+                                                    setEditProgress(false);
+                                                }
+                                                if (e.key === 'Escape') setEditProgress(false);
+                                            }}
                                             onBlur={() => {
                                                 handleUpdateAssignment(a.id, { progressPercentage: manualProgress });
                                                 setEditProgress(false);
                                             }}
-                                            className="w-12 px-1 py-0.5 bg-white border border-indigo-300 rounded text-center text-indigo-600 outline-none"
+                                            className="w-14 px-2 py-1 bg-white border-2 border-indigo-500 rounded-lg text-center text-indigo-700 font-bold outline-none shadow-lg shadow-indigo-100"
                                             autoFocus
                                         />
-                                        <span className="text-slate-400">%</span>
+                                        <span className="text-indigo-400 font-bold">%</span>
                                     </div>
                                 ) : (
                                     <div 
-                                        className={`flex items-center gap-2 cursor-pointer ${totalCount === 0 && (canAssign || isAssignee) ? 'hover:text-indigo-600' : ''}`}
+                                        className={`flex items-center gap-2 cursor-pointer group/val ${totalCount === 0 && (canAssign || isAssignee) ? 'hover:text-indigo-600' : ''}`}
                                         onClick={() => totalCount === 0 && (canAssign || isAssignee) && setEditProgress(true)}
                                     >
-                                        <span className="text-indigo-600 px-1.5 py-0.5 bg-indigo-50 rounded-md border border-indigo-100">{progress}%</span>
+                                        <span className="text-indigo-600 px-1.5 py-0.5 bg-indigo-50 rounded-md border border-indigo-100 font-black relative">
+                                            {progress}%
+                                            {totalCount === 0 && (canAssign || isAssignee) && (
+                                                <div className="absolute -right-1 -top-1 opacity-0 group-hover/val:opacity-100 transition-opacity bg-indigo-600 text-white rounded-full p-0.5 shadow-sm">
+                                                    <Tag size={6} />
+                                                </div>
+                                            )}
+                                        </span>
                                         {totalCount > 0 && <span className="text-slate-300 font-medium">({completedCount}/{totalCount})</span>}
                                     </div>
                                 )}
