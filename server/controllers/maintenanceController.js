@@ -76,16 +76,11 @@ exports.createReport = async (req, res) => {
 
         // --- AI Analysis (Async) ---
         let aiResult = null;
-        if (type === 'ASSET' && (req.fileUrl || photo)) {
+        if (title || description) {
             try {
-                // We use the photo (Base64 if uploaded via browser or URL if from S3/Minio)
-                // For simplicity, we assume req.fileUrl is accessible or photo is Base64
-                // Note: analyzeDamage expects plain base64 or a reachable URL could be added later
-                if (req.fileUrl || photo) {
-                    aiResult = await aiService.analyzeDamage(req.fileUrl || photo, description);
-                }
+                aiResult = await aiService.analyzeDamage(req.fileUrl || photo || null, title, description);
             } catch (aiErr) {
-                console.error("AI Analysis skipped or failed:", aiErr.message);
+                console.error("AI Analysis failed:", aiErr.message);
             }
         }
 

@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const axios = require("axios");
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -7,45 +8,69 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || process.env.G
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 /**
- * Analyze damage from photo and description using Gemini Vision
- * @param {string} base64Image - Base64 string of the image
+ * Analyze damage from photo, title, and description using Gemini
+ * @param {string|null} base64Image - Base64 string of the image OR a URL OR null
+ * @param {string} title - User's report title
  * @param {string} description - User's description of the damage
  * @returns {Promise<Object>} - Analysis result
  */
-exports.analyzeDamage = async (base64Image, description) => {
+exports.analyzeDamage = async (base64Image, title, description) => {
     try {
         if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_AI_KEY) {
             console.error("AI Service: GEMINI_API_KEY is missing in .env");
             return null;
         }
 
-        // Clean base64 if it has prefix
-        const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, "");
+        let cleanBase64 = null;
+
+        if (base64Image) {
+            let finalBase64 = base64Image;
+
+            // If it's a URL (starts with http), fetch the image and convert to Base64
+            if (base64Image.startsWith('http')) {
+                try {
+                    const response = await axios.get(base64Image, { responseType: 'arraybuffer' });
+                    finalBase64 = Buffer.from(response.data, 'binary').toString('base64');
+                } catch (fetchErr) {
+                    console.error("AI Service: Failed to fetch image from URL:", fetchErr.message);
+                    // Continue with text-only if image fetch fails
+                }
+            }
+
+            if (finalBase64 && finalBase64.length > 50) {
+                cleanBase64 = finalBase64.replace(/^data:image\/\w+;base64,/, "");
+            }
+        }
 
         const prompt = `
             Anda adalah pakar pemeliharaan aset dan teknisi profesional berpengalaman.
-            Tugas Anda adalah menganalisis foto kerusakan aset dan membandingkannya dengan keluhan pengguna: "${description}".
+            Tugas Anda adalah menganalisis laporan kerusakan aset berikut:
+            - Judul: "${title}"
+            - Keluhan Pengguna/Deskripsi: "${description}"
+            ${cleanBase64 ? "- [Foto Kerusakan Tersedia]" : "- [Tidak ada foto, analisis berdasarkan teks saja]"}
             
-            Berikan analisis mendalam dalam format JSON murni (tanpa markdown):
+            Berikan analisis mendalam dalam format JSON murni:
             {
-                "analysis": "Analisis teknis singkat mengenai apa yang kemungkinan besar rusak serta penyebabnya.",
+                "analysis": "Analisis teknis singkat mengenai apa yang kemungkinan besar rusak serta penyebabnya berdasarkan konteks judul dan deskripsi${cleanBase64 ? " dan penampakan visual pada foto" : ""}.",
                 "severity": 1-10 (1 aman/estetika saja, 10 sangat kritis/berbahaya/rusak total),
-                "suggestedAction": "Langkah perbaikan konkret (misal: Ganti sparepart X, kalibrasi ulang, atau servis total).",
-                "estimatedCost": "Estimasi rentang biaya perbaikan dalam Rupiah (misal: Rp 200rb - 500rb).",
-                "isSafetyHazard": true/false (Apakah kerusakan ini membahayakan pengguna jika tetap digunakan?),
+                "suggestedAction": "Langkah perbaikan konkret.",
+                "estimatedCost": "Estimasi rentang biaya perbaikan dalam Rupiah.",
+                "isSafetyHazard": true/false (Apakah ini membahayakan?),
                 "technicianType": "Internal" // atau "Eksternal/Vendor"
             }
         `;
 
-        const result = await model.generateContent([
-            prompt,
-            {
+        const contentParts = [prompt];
+        if (cleanBase64) {
+            contentParts.push({
                 inlineData: {
                     data: cleanBase64,
                     mimeType: "image/jpeg"
                 }
-            }
-        ]);
+            });
+        }
+
+        const result = await model.generateContent(contentParts);
 
         const responseText = result.response.text();
         
