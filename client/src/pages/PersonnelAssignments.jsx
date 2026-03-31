@@ -8,6 +8,7 @@ const PersonnelAssignments = () => {
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [updating, setUpdating] = useState(null); // id of assignment being updated
     const [limit, setLimit] = useState(25);
     const [filterStatus, setFilterStatus] = useState('ALL');
 
@@ -106,10 +107,13 @@ const PersonnelAssignments = () => {
 
     const handleUpdateAssignment = async (id, payload) => {
         try {
+            setUpdating(id);
             await api.put(`/personnel/assignments/${id}/status`, payload);
             fetchAssignments();
         } catch (err) {
-            alert('Gagal memperbarui tugas');
+            alert(err.response?.data?.error || 'Gagal memperbarui tugas');
+        } finally {
+            setUpdating(null);
         }
     };
 
@@ -287,6 +291,12 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
     const isAssignee = a.assigneeId === userId;
     const [expanded, setExpanded] = useState(false);
     const [updating, setUpdating] = useState(false);
+    const [editProgress, setEditProgress] = useState(false);
+    const [manualProgress, setManualProgress] = useState(a.progressPercentage || 0);
+
+    useEffect(() => {
+        setManualProgress(a.progressPercentage || 0);
+    }, [a.progressPercentage]);
     
     // Parse items if it's a string (MySQL might return stringified JSON depending on config)
     const items = Array.isArray(a.items) ? a.items : (typeof a.items === 'string' ? JSON.parse(a.items) : []);
@@ -334,15 +344,38 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
 
                 {/* Progress Column */}
                 <div className="col-span-1 md:col-span-3 px-4 md:px-0">
-                   <div className="flex flex-col gap-1.5">
+                   <div className="flex flex-col gap-1.5 group/prog">
                         <div className="flex justify-between items-end text-[10px] font-black tracking-tighter">
                             <span className="text-slate-400 uppercase">Progres Penugasan</span>
                             <div className="flex items-center gap-2">
-                                <span className="text-indigo-600 px-1.5 py-0.5 bg-indigo-50 rounded-md border border-indigo-100">{progress}%</span>
-                                {totalCount > 0 && <span className="text-slate-300 font-medium">({completedCount}/{totalCount})</span>}
+                                {editProgress && totalCount === 0 ? (
+                                    <div className="flex items-center gap-1">
+                                        <input 
+                                            type="number" 
+                                            min="0" max="100" 
+                                            value={manualProgress} 
+                                            onChange={(e) => setManualProgress(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                                            onBlur={() => {
+                                                handleUpdateAssignment(a.id, { progressPercentage: manualProgress });
+                                                setEditProgress(false);
+                                            }}
+                                            className="w-12 px-1 py-0.5 bg-white border border-indigo-300 rounded text-center text-indigo-600 outline-none"
+                                            autoFocus
+                                        />
+                                        <span className="text-slate-400">%</span>
+                                    </div>
+                                ) : (
+                                    <div 
+                                        className={`flex items-center gap-2 cursor-pointer ${totalCount === 0 && (canAssign || isAssignee) ? 'hover:text-indigo-600' : ''}`}
+                                        onClick={() => totalCount === 0 && (canAssign || isAssignee) && setEditProgress(true)}
+                                    >
+                                        <span className="text-indigo-600 px-1.5 py-0.5 bg-indigo-50 rounded-md border border-indigo-100">{progress}%</span>
+                                        {totalCount > 0 && <span className="text-slate-300 font-medium">({completedCount}/{totalCount})</span>}
+                                    </div>
+                                )}
                             </div>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden relative">
                             <div className={`h-full transition-all duration-1000 ${progress === 100 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-indigo-600'}`} style={{ width: `${progress}%` }} />
                         </div>
                    </div>
@@ -368,19 +401,35 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                 </div>
 
                 {/* Status Column */}
-                <div className="col-span-1 md:col-span-2 flex flex-col items-end gap-2">
-                    <div className={`px-3 py-1 rounded-lg border text-[9px] font-black tracking-widest flex items-center gap-1.5 ${statusConfig[a.status].color} w-full md:w-auto justify-center`}>
+                <div className="col-span-1 md:col-span-2 flex flex-col items-end gap-2 px-4 md:px-0">
+                    <div className={`px-3 py-1 rounded-lg border text-[9px] font-black tracking-widest flex items-center gap-1.5 ${statusConfig[a.status].color} w-full md:w-auto justify-center shadow-sm`}>
                         {statusConfig[a.status].icon} {statusConfig[a.status].label}
                     </div>
-                    <div className="hidden md:flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        {canAssign && (
-                            <button onClick={() => handleUpdateAssignment(a.id, { status: 'CANCELLED' })} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Batalkan">
-                                <X size={14} />
+                    
+                    <div className="flex gap-1.5 w-full md:w-auto">
+                        {(canAssign || isAssignee) && a.status === 'PENDING' && (
+                            <button 
+                                onClick={() => handleUpdateAssignment(a.id, { status: 'IN_PROGRESS' })}
+                                className="flex-1 md:flex-none px-3 py-1 bg-indigo-600 text-white text-[9px] font-black rounded-lg hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200"
+                            >
+                                MULAI
                             </button>
                         )}
-                        {!expanded && (
-                             <button onClick={() => setExpanded(true)} className="p-1.5 text-indigo-400 hover:bg-indigo-50 rounded-lg">
-                                <Search size={14} />
+                        {(canAssign || isAssignee) && a.status === 'IN_PROGRESS' && (
+                            <button 
+                                onClick={() => handleUpdateAssignment(a.id, { status: 'COMPLETED', progressPercentage: 100 })}
+                                className="flex-1 md:flex-none px-3 py-1 bg-emerald-600 text-white text-[9px] font-black rounded-lg hover:bg-emerald-700 transition-all shadow-md shadow-emerald-200"
+                            >
+                                SELESAI
+                            </button>
+                        )}
+                        {canAssign && (
+                            <button 
+                                onClick={() => handleUpdateAssignment(a.id, { status: 'CANCELLED' })}
+                                className="p-1 px-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                                title="Batalkan"
+                            >
+                                <X size={12} strokeWidth={3} />
                             </button>
                         )}
                     </div>
