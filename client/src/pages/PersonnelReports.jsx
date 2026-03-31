@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Plus, Calendar, ChevronRight, CheckCircle2, Trash2, Sparkles, X, Loader2, Send, Filter, Download, Users } from 'lucide-react';
+import { FileText, Plus, Calendar, ChevronRight, CheckCircle2, Trash2, Sparkles, X, Loader2, Send, Filter, Download, Users, Activity } from 'lucide-react';
 import api from '../lib/axios';
 
 const PersonnelReports = () => {
@@ -390,7 +390,7 @@ const PersonnelReports = () => {
                                                     </span>
                                                     {report.metadata?.startTime && (
                                                         <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
-                                                            <Loader2 size={12} className="animate-spin-slow" />
+                                                            <Activity size={12} />
                                                             {report.metadata.startTime} - {report.metadata.endTime}
                                                         </span>
                                                     )}

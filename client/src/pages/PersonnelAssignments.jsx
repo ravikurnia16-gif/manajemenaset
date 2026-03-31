@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { FileCheck, Plus, Clock, CheckCircle2, AlertCircle, Calendar, User, Search, MapPin, Tag, ArrowRight, MoreVertical, Flag, Activity, Loader2, X, ChevronDown, ChevronUp, CheckSquare, Square } from 'lucide-react';
+import { FileCheck, Plus, Clock, CheckCircle2, AlertCircle, Calendar, User, Search, MapPin, Tag, ArrowRight, MoreVertical, Flag, Activity, Loader2, X, ChevronDown, ChevronUp, CheckSquare, Square, Zap } from 'lucide-react';
 import api from '../lib/axios';
 
 const StatusBadge = ({ status, statusConfig }) => (
-    <div className={`px-3 py-1 rounded-lg border text-[9px] font-black tracking-widest flex items-center gap-1.5 ${statusConfig[status].color} w-full md:w-auto justify-center shadow-sm whitespace-nowrap`}>
+    <div className={`px-4 py-1.5 rounded-full border text-[10px] font-black tracking-widest flex items-center gap-2 ${statusConfig[status].color} w-full md:w-auto justify-center shadow-lg shadow-indigo-100/20 backdrop-blur-sm transition-all hover:scale-105 whitespace-nowrap`}>
         {statusConfig[status].icon} {statusConfig[status].label}
     </div>
 );
@@ -11,12 +11,12 @@ const StatusBadge = ({ status, statusConfig }) => (
 const ExtensionBadge = ({ status }) => {
     if (!status) return null;
     const config = {
-        PENDING: { color: 'bg-amber-50 text-amber-600 border-amber-100', label: 'PENUNDAAN DIAJUKAN' },
-        APPROVED: { color: 'bg-emerald-50 text-emerald-600 border-emerald-100', label: 'PENUNDAAN DISETUJUI' },
-        REJECTED: { color: 'bg-rose-50 text-rose-600 border-rose-100', label: 'PENUNDAAN DITOLAK' }
+        PENDING: { color: 'bg-amber-50 text-amber-600 border-amber-100 shadow-amber-100/50', label: 'PENUNDAAN DIAJUKAN' },
+        APPROVED: { color: 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-emerald-100/50', label: 'PENUNDAAN DISETUJUI' },
+        REJECTED: { color: 'bg-rose-50 text-rose-600 border-rose-100 shadow-rose-100/50', label: 'PENUNDAAN DITOLAK' }
     };
     return (
-        <div className={`px-2 py-0.5 rounded-md border text-[8px] font-bold tracking-wider ${config[status]?.color || 'bg-slate-50 text-slate-400'}`}>
+        <div className={`px-3 py-1 rounded-full border text-[8px] font-black tracking-widest shadow-lg ${config[status]?.color || 'bg-slate-50 text-slate-400'}`}>
             {config[status]?.label || status}
         </div>
     );
@@ -445,11 +445,11 @@ const PersonnelAssignments = () => {
     }, []);
 
     const statusConfig = {
-        PENDING: { color: 'bg-amber-50 text-amber-600 border-amber-100', icon: <Clock size={14} />, label: 'MENUNGGU' },
-        IN_PROGRESS: { color: 'bg-indigo-50 text-indigo-600 border-indigo-100', icon: <Activity size={14} />, label: 'PROSES' },
-        IN_REVIEW: { color: 'bg-purple-50 text-purple-600 border-purple-100', icon: <Search size={14} />, label: 'REVIU' },
-        COMPLETED: { color: 'bg-emerald-50 text-emerald-600 border-emerald-100', icon: <CheckCircle2 size={14} />, label: 'SELESAI' },
-        CANCELLED: { color: 'bg-slate-50 text-slate-500 border-slate-100', icon: <X size={14} />, label: 'BATAL' }
+        PENDING: { color: 'bg-amber-50 text-amber-600 border-amber-100 shadow-sm', icon: <Clock size={13} />, label: 'MENUNGGU' },
+        IN_PROGRESS: { color: 'bg-indigo-50 text-indigo-600 border-indigo-100 shadow-sm', icon: <Zap size={13} fill="currentColor" fillOpacity={0.2} />, label: 'PROSES' },
+        IN_REVIEW: { color: 'bg-purple-50 text-purple-600 border-purple-100 shadow-sm', icon: <Search size={13} />, label: 'REVIU' },
+        COMPLETED: { color: 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-sm', icon: <CheckCircle2 size={13} />, label: 'SELESAI' },
+        CANCELLED: { color: 'bg-slate-50 text-slate-500 border-slate-100 shadow-sm', icon: <X size={13} />, label: 'BATAL' }
     };
 
     const priorityConfig = {

@@ -217,12 +217,16 @@ exports.createAssignment = async (req, res) => {
                 });
 
                 if (assignee?.phone) {
+                    const checklist = Array.isArray(items) 
+                        ? items.map((it, idx) => `${idx + 1}. ${it.text}`).join('\n')
+                        : '';
+
                     const msg = `*Bismillah*\n\n` +
                         `Telah masuk permintaan dari Kepala Bidang Sarana dan Prasarana Dengan Rinciannya:\n\n` +
                         `📌 *Judul* : ${title}\n` +
                         `📅 *Deadline* : ${dueDate ? new Date(dueDate).toLocaleDateString('id-ID') : '-'}\n` +
                         `👤 *Pemberi Tugas* : ${assigner?.name || assigner?.username || 'Admin'}\n\n` +
-                        `*Deskripsi* :\n${description}\n\n` +
+                        `*Deskripsi* :\n${checklist || description}\n\n` +
                         `Mohon bantuan untuk segera dilaksanakan ya Ustadz`;
 
                     await whatsappService.sendMessage(assignee.phone, msg);
