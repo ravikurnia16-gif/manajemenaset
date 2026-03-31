@@ -14,6 +14,8 @@ router.get('/reports', personnelController.getReports);
 router.post('/assignments', personnelController.createAssignment);
 router.get('/assignments', personnelController.getAssignments);
 router.put('/assignments/:id/status', personnelController.updateAssignmentStatus);
+router.post('/assignments/:id/request-extension', personnelController.requestExtension);
+router.post('/assignments/:id/handle-extension', personnelController.handleExtension);
 
 // Dashboard
 router.get('/dashboard', verifyToken, personnelController.getPersonnelDashboard);

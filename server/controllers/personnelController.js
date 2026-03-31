@@ -565,3 +565,177 @@ exports.getPersonnelDashboard = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+// --- AUTOMATED REMINDERS ---
+
+exports.checkAssignmentDeadlines = async () => {
+    console.log('[Personnel Assignment] Checking deadlines...');
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    try {
+        const assignments = await prisma.personnelAssignment.findMany({
+            where: {
+                status: { in: ['PENDING', 'IN_PROGRESS'] },
+                dueDate: { not: null },
+                OR: [
+                    { lastReminderSent: null },
+                    { lastReminderSent: { lt: today } }
+                ]
+            },
+            include: {
+                assignee: true,
+                assigner: true
+            }
+        });
+
+        console.log(`[Personnel Assignment] Found ${assignments.length} potential assignments to remind.`);
+
+        for (const a of assignments) {
+            const dueDate = new Date(a.dueDate);
+            const dueOnlyDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+            
+            let type = null;
+            let urgencyMsg = "";
+
+            if (dueOnlyDate < today) {
+                type = 'OVERDUE';
+                urgencyMsg = "⚠️ *PERINGATAN: TUGAS TERLAMBAT* ⚠️";
+            } else if (dueOnlyDate.getTime() === today.getTime()) {
+                type = 'TODAY';
+                urgencyMsg = "🔔 *PENGINGAT: DEADLINE HARI INI* 🔔";
+            } else if (dueOnlyDate.getTime() === tomorrow.getTime()) {
+                type = 'UPCOMING';
+                urgencyMsg = "🗓️ *PENGINGAT: DEADLINE BESOK* 🗓️";
+            }
+
+            if (type && a.assignee?.phone) {
+                const msg = `${urgencyMsg}\n\n` +
+                    `Assalamu'alaikum Ustadz ${a.assignee.name || ''},\n\n` +
+                    `Mohon izin mengingatkan kembali untuk tugas berikut:\n\n` +
+                    `📌 *Judul* : ${a.title}\n` +
+                    `📅 *Deadline* : ${new Date(a.dueDate).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}\n` +
+                    `📊 *Progres* : ${a.progressPercentage}%\n` +
+                    `👤 *Pemberi Tugas* : ${a.assigner?.name || 'Admin'}\n\n` +
+                    `Mohon kesediaannya untuk segera diselesaikan atau diupdate progresnya di aplikasi Manajemen Aset ya Ustadz. Syukron Katsiran.`;
+
+                try {
+                    await whatsappService.sendMessage(a.assignee.phone, msg);
+                    
+                    // Update last reminder sent to today
+                    await prisma.personnelAssignment.update({
+                        where: { id: a.id },
+                        data: { lastReminderSent: now }
+                    });
+                    console.log(`[Personnel Assignment] Reminder (${type}) sent to ${a.assignee.name} for assignment: ${a.title}`);
+                } catch (waErr) {
+                    console.error(`[Personnel Assignment] Failed to send reminder to ${a.assignee.name}:`, waErr.message);
+                }
+            }
+        }
+    } catch (err) {
+        console.error('[Personnel Assignment] Check Deadlines Error:', err);
+    }
+};
+
+// --- EXTENSION REQUESTS ---
+
+exports.requestExtension = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { id: userId } = req.user;
+        const { requestedDate, reason } = req.body;
+
+        if (!requestedDate || !reason) {
+            return res.status(400).json({ error: 'Tanggal baru dan alasan wajib diisi.' });
+        }
+
+        const assignment = await prisma.personnelAssignment.findUnique({
+            where: { id: parseInt(id) },
+            include: { assignee: true, assigner: true }
+        });
+
+        if (!assignment) return res.status(404).json({ error: 'Penugasan tidak ditemukan' });
+        if (assignment.assigneeId !== userId) return res.status(403).json({ error: 'Hanya pelaksana yang dapat mengajukan penundaan.' });
+
+        const updated = await prisma.personnelAssignment.update({
+            where: { id: parseInt(id) },
+            data: {
+                requestedExtensionDate: new Date(requestedDate),
+                extensionReason: reason,
+                extensionStatus: 'PENDING'
+            }
+        });
+
+        // Notify Assigner
+        if (assignment.assigner?.phone) {
+            const msg = `🔔 *PENGAJUAN PENUNDAAN TUGAS* 🔔\n\n` +
+                `Assalamu'alaikum Ustadz ${assignment.assigner.name || ''},\n\n` +
+                `Pelaksana *${assignment.assignee.name}* mengajukan penundaan untuk tugas:\n\n` +
+                `📌 *Tugas*: ${assignment.title}\n` +
+                `📅 *Deadline Awal*: ${new Date(assignment.dueDate).toLocaleDateString('id-ID')}\n` +
+                `⏳ *Usulan Baru*: ${new Date(requestedDate).toLocaleDateString('id-ID')}\n` +
+                `📝 *Alasan*: ${reason}\n\n` +
+                `Mohon segera tinjau pengajuan ini di aplikasi Manajemen Aset. Syukron.`;
+            
+            try { await whatsappService.sendMessage(assignment.assigner.phone, msg); } catch (e) {}
+        }
+
+        res.json(updated);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.handleExtension = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body; // APPROVED or REJECTED
+        const { role, id: userId } = req.user;
+
+        const assignment = await prisma.personnelAssignment.findUnique({
+            where: { id: parseInt(id) },
+            include: { assignee: true, assigner: true }
+        });
+
+        if (!assignment) return res.status(404).json({ error: 'Penugasan tidak ditemukan' });
+
+        // Permission: Assigner or Admin
+        if (assignment.assignerId !== userId && !['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+            return res.status(403).json({ error: 'Anda tidak memiliki hak untuk memproses pengajuan ini.' });
+        }
+
+        const isApproved = status === 'APPROVED';
+        const updatedData = { extensionStatus: status };
+
+        if (isApproved && assignment.requestedExtensionDate) {
+            updatedData.dueDate = assignment.requestedExtensionDate;
+        }
+
+        const updated = await prisma.personnelAssignment.update({
+            where: { id: parseInt(id) },
+            data: updatedData
+        });
+
+        // Notify Assignee
+        if (assignment.assignee?.phone) {
+            const statusIcon = isApproved ? '✅' : '❌';
+            const statusText = isApproved ? 'DISETUJUI' : 'DITOLAK';
+            const msg = `${statusIcon} *STATUS PENUNDAAN TUGAS* ${statusIcon}\n\n` +
+                `Assalamu'alaikum Ustadz ${assignment.assignee.name},\n\n` +
+                `Pengajuan penundaan untuk tugas *${assignment.title}* telah *${statusText}*.\n\n` +
+                (isApproved 
+                    ? `📅 *Deadline Baru*: ${new Date(assignment.requestedExtensionDate).toLocaleDateString('id-ID')}\n`
+                    : `⚠️ Mohon tetap selesaikan sesuai deadline awal: ${new Date(assignment.dueDate).toLocaleDateString('id-ID')}\n`) +
+                `\nMohon dicek kembali di aplikasi Manajemen Aset. Syukron.`;
+            
+            try { await whatsappService.sendMessage(assignment.assignee.phone, msg); } catch (e) {}
+        }
+
+        res.json(updated);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

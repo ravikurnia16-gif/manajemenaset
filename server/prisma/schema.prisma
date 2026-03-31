@@ -570,7 +570,7 @@ model VehicleService {
   date        DateTime
   category    String   @default("ROUTINE") // ROUTINE, NON_ROUTINE
   type        String   // SERVICE_RUTIN, GANTI_OLI, PAJAK, PERBAIKAN, OTHER
-  description String
+  description String   @db.Text
   cost        Float
   odometer    Int?
   nextServiceOdometer Int? // KM service berikutnya (Routine only)
@@ -738,6 +738,12 @@ model PersonnelAssignment {
   progressPercentage Int       @default(0)
   notes       String?          @db.Text
   items       Json?            @default("[]")
+  lastReminderSent DateTime?
+  
+  // Extension Request
+  requestedExtensionDate DateTime?
+  extensionReason       String?          @db.Text
+  extensionStatus       String?          // PENDING, APPROVED, REJECTED
   
   calendarEventId Int?
   calendarEvent   SarprasCalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)

@@ -9,8 +9,10 @@ exports.getAllVehicles = async (req, res) => {
         const { forMaintenance } = req.query;
         let where = {};
 
-        // Filter by PIC if requested for maintenance and not a global admin
-        if (forMaintenance === 'true' && userId && !['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+        // Filter by PIC if requested for maintenance and not a global admin/Sarpras staff
+        const isSarpras = role === 'KEPALA_BIDANG' || req.user?.position?.includes('Sarana dan Prasarana') || req.user?.position?.includes('Manajemen Aset');
+        
+        if (forMaintenance === 'true' && userId && !['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role) && !isSarpras) {
             where = {
                 pics: {
                     some: { id: userId }

@@ -1,6 +1,407 @@
 import { useState, useEffect } from 'react';
-import { FileCheck, Plus, Clock, CheckCircle2, AlertCircle, Calendar, User, Search, MapPin, Tag, ArrowRight, MoreVertical, Flag, Loader2, X, ChevronDown, ChevronUp, CheckSquare, Square } from 'lucide-react';
+import { FileCheck, Plus, Clock, CheckCircle2, AlertCircle, Calendar, User, Search, MapPin, Tag, ArrowRight, MoreVertical, Flag, Activity, Loader2, X, ChevronDown, ChevronUp, CheckSquare, Square } from 'lucide-react';
 import api from '../lib/axios';
+
+const StatusBadge = ({ status, statusConfig }) => (
+    <div className={`px-3 py-1 rounded-lg border text-[9px] font-black tracking-widest flex items-center gap-1.5 ${statusConfig[status].color} w-full md:w-auto justify-center shadow-sm whitespace-nowrap`}>
+        {statusConfig[status].icon} {statusConfig[status].label}
+    </div>
+);
+
+const ExtensionBadge = ({ status }) => {
+    if (!status) return null;
+    const config = {
+        PENDING: { color: 'bg-amber-50 text-amber-600 border-amber-100', label: 'PENUNDAAN DIAJUKAN' },
+        APPROVED: { color: 'bg-emerald-50 text-emerald-600 border-emerald-100', label: 'PENUNDAAN DISETUJUI' },
+        REJECTED: { color: 'bg-rose-50 text-rose-600 border-rose-100', label: 'PENUNDAAN DITOLAK' }
+    };
+    return (
+        <div className={`px-2 py-0.5 rounded-md border text-[8px] font-bold tracking-wider ${config[status]?.color || 'bg-slate-50 text-slate-400'}`}>
+            {config[status]?.label || status}
+        </div>
+    );
+};
+
+const ActionButtons = ({ a, canAssign, isAssignee, handleUpdateAssignment, fullWidth = false }) => (
+    <div className={`flex gap-1.5 ${fullWidth ? 'w-full' : 'w-full md:w-auto'}`}>
+        {(canAssign || isAssignee) && a.status === 'PENDING' && (
+            <button 
+                onClick={() => handleUpdateAssignment(a.id, { status: 'IN_PROGRESS' })}
+                className="flex-1 md:flex-none px-3 py-1 bg-indigo-600 text-white text-[9px] font-black rounded-lg hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200"
+            >
+                MULAI
+            </button>
+        )}
+        {(canAssign || isAssignee) && a.status === 'IN_PROGRESS' && (
+            <button 
+                onClick={() => handleUpdateAssignment(a.id, { status: 'COMPLETED', progressPercentage: 100 })}
+                className="flex-1 md:flex-none px-3 py-1 bg-emerald-600 text-white text-[9px] font-black rounded-lg hover:bg-emerald-700 transition-all shadow-md shadow-emerald-200"
+            >
+                SELESAI
+            </button>
+        )}
+        {canAssign && (
+            <button 
+                onClick={() => handleUpdateAssignment(a.id, { status: 'CANCELLED' })}
+                className="p-1 px-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                title="Batalkan"
+            >
+                <X size={12} strokeWidth={3} />
+            </button>
+        )}
+        {isAssignee && a.status !== 'COMPLETED' && !a.extensionStatus && (
+            <button 
+                onClick={() => window.dispatchEvent(new CustomEvent('openExtensionModal', { detail: a }))}
+                className="px-2 py-1 bg-amber-50 text-amber-600 text-[8px] font-bold rounded-lg border border-amber-100 hover:bg-amber-100 transition-all"
+            >
+                MINTA PENUNDAAN
+            </button>
+        )}
+        {canAssign && a.extensionStatus === 'PENDING' && (
+            <div className="flex gap-1">
+                <button 
+                    onClick={() => handleUpdateAssignment(a.id, { extensionStatus: 'APPROVED' }, true)}
+                    className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg border border-transparent hover:border-emerald-100"
+                    title="Setujui Penundaan"
+                >
+                    <CheckCircle2 size={12} strokeWidth={3} />
+                </button>
+                <button 
+                    onClick={() => handleUpdateAssignment(a.id, { extensionStatus: 'REJECTED' }, true)}
+                    className="p-1 text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-100"
+                    title="Tolak Penundaan"
+                >
+                    <X size={12} strokeWidth={3} />
+                </button>
+            </div>
+        )}
+    </div>
+);
+
+const ProgressBar = ({ progress }) => (
+    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden relative shadow-inner">
+        <div className={`h-full transition-all duration-[1500ms] ease-out ${progress === 100 ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)]' : 'bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-[0_0_8px_rgba(79,70,229,0.3)]'}`} style={{ width: `${progress}%` }} />
+    </div>
+);
+
+const AssignmentProgress = ({ progress, totalCount, completedCount, editProgress, manualProgress, setManualProgress, setEditProgress, a, handleUpdateAssignment, canAssign, isAssignee }) => (
+    <div className="flex items-center gap-2">
+        {editProgress && totalCount === 0 ? (
+            <div className="flex items-center gap-1 animate-in fade-in zoom-in duration-200">
+                <input 
+                    type="number" 
+                    min="0" max="100" 
+                    value={manualProgress} 
+                    onChange={(e) => setManualProgress(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            handleUpdateAssignment(a.id, { progressPercentage: manualProgress });
+                            setEditProgress(false);
+                        }
+                        if (e.key === 'Escape') {
+                            setManualProgress(a.progressPercentage || 0);
+                            setEditProgress(false);
+                        }
+                    }}
+                    onBlur={() => {
+                        if (manualProgress !== a.progressPercentage) {
+                            handleUpdateAssignment(a.id, { progressPercentage: manualProgress });
+                        }
+                        setEditProgress(false);
+                    }}
+                    className="w-14 md:w-16 px-1.5 md:py-1.5 bg-white border-2 border-indigo-500 rounded-lg text-center text-indigo-700 font-black outline-none shadow-xl shadow-indigo-100 text-[10px]"
+                    autoFocus
+                />
+                <span className="text-indigo-600 font-black">%</span>
+            </div>
+        ) : (
+            <div 
+                className={`flex items-center gap-2 group/val transition-all ${totalCount === 0 && (canAssign || isAssignee) ? 'cursor-edit hover:scale-105 active:scale-95' : ''}`}
+                onClick={() => totalCount === 0 && (canAssign || isAssignee) && setEditProgress(true)}
+                title={totalCount > 0 ? "Progres dihitung otomatis dari checklist" : (canAssign || isAssignee ? "Klik untuk ubah persentase" : "")}
+            >
+                <span className={`px-2 py-0.5 md:py-1 rounded-md font-black border transition-all ${totalCount > 0 ? 'bg-slate-50 text-slate-400 border-slate-100 italic' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-600 hover:text-white shadow-sm'}`}>
+                    {progress}%
+                </span>
+                {totalCount > 0 && <span className="text-[9px] text-slate-300 font-medium tracking-tight">({completedCount}/{totalCount})</span>}
+                {totalCount === 0 && (canAssign || isAssignee) && <Tag size={8} className="text-indigo-300 opacity-0 md:group-hover/val:opacity-100" />}
+            </div>
+        )}
+    </div>
+);
+
+const AssigneeAvatar = ({ assignee, size = "w-8 h-8" }) => (
+    <div className={`${size} rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-black text-slate-500 overflow-hidden shrink-0`}>
+        {assignee?.name ? assignee.name[0].toUpperCase() : <User size={14} />}
+    </div>
+);
+
+const DeadlineBadge = ({ dueDate }) => (
+    <div className="inline-flex flex-col items-center gap-0.5 bg-slate-100/50 md:bg-slate-50 px-3 py-1.5 rounded-xl transition-colors min-w-[70px]">
+        <span className="text-[8px] md:text-[9px] font-black text-slate-400 tracking-widest uppercase">Maks Selesai</span>
+        <span className="text-[10px] md:text-[11px] font-black text-slate-700">{dueDate ? new Date(dueDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : '-'}</span>
+    </div>
+);
+
+const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment, canAssign, userId }) => {
+    const isAssignee = a.assigneeId === userId;
+    const [expanded, setExpanded] = useState(false);
+    const [updating, setUpdating] = useState(false);
+    const [editProgress, setEditProgress] = useState(false);
+    const [manualProgress, setManualProgress] = useState(a.progressPercentage || 0);
+
+    useEffect(() => {
+        setManualProgress(a.progressPercentage || 0);
+    }, [a.progressPercentage]);
+    
+    // Parse items with safety
+    let items = [];
+    try {
+        items = Array.isArray(a.items) ? a.items : (typeof a.items === 'string' ? JSON.parse(a.items) : []);
+    } catch (e) {
+        console.error("Error parsing items:", e);
+        items = [];
+    }
+
+    const totalCount = items.length;
+    const completedCount = items.filter(it => it.status === 'COMPLETED').length;
+    
+    const progress = totalCount > 0 
+        ? Math.round((completedCount / totalCount) * 100) 
+        : (a.progressPercentage || 0);
+
+    const toggleItemStatus = async (itemIdx) => {
+        if (updating || (!isAssignee && !canAssign)) return;
+        setUpdating(true);
+        const newItems = [...items];
+        newItems[itemIdx].status = newItems[itemIdx].status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
+        await handleUpdateAssignment(a.id, { items: newItems });
+        setUpdating(false);
+    };
+
+    return (
+        <div className={`group bg-white rounded-[20px] md:rounded-2xl border ${expanded ? 'border-indigo-100 shadow-xl' : 'border-slate-100 hover:border-slate-200'} transition-all duration-300 relative overflow-hidden overflow-visible`}>
+            {/* Desktop View (Grid) */}
+            <div className="hidden md:grid md:grid-cols-12 gap-4 items-center p-5">
+                {/* Info Column */}
+                <div className="md:col-span-3 flex items-start gap-4">
+                    <button 
+                        onClick={() => setExpanded(!expanded)}
+                        className={`mt-1 p-1.5 rounded-lg transition-all ${expanded ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}
+                    >
+                        {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${priorityConfig[a.priority || 'MEDIUM'].color} bg-slate-50 border border-slate-100`}>
+                                {priorityConfig[a.priority || 'MEDIUM'].label}
+                            </span>
+                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{a.category}</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-800 truncate leading-tight group-hover:text-indigo-600 transition-colors uppercase">{a.title}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                            <ExtensionBadge status={a.extensionStatus} />
+                            <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium italic truncate">
+                                <MapPin size={10} /> {a.location || 'Lokasi Terpusat'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Progress Column */}
+                <div className="md:col-span-3">
+                   <div className="flex flex-col gap-1.5 group/prog">
+                        <div className="flex justify-between items-end text-[10px] font-black tracking-tighter">
+                            <span className="text-slate-400 uppercase">Progres Penugasan</span>
+                            <AssignmentProgress 
+                                progress={progress} 
+                                totalCount={totalCount} 
+                                completedCount={completedCount} 
+                                editProgress={editProgress}
+                                manualProgress={manualProgress}
+                                setManualProgress={setManualProgress}
+                                setEditProgress={setEditProgress}
+                                a={a}
+                                handleUpdateAssignment={handleUpdateAssignment}
+                                canAssign={canAssign}
+                                isAssignee={isAssignee}
+                            />
+                        </div>
+                        <ProgressBar progress={progress} />
+                   </div>
+                </div>
+
+                {/* Staff Column */}
+                <div className="md:col-span-2 flex items-center justify-center gap-3">
+                    <AssigneeAvatar assignee={a.assignee} />
+                    <div className="min-w-0">
+                        <p className="text-[11px] font-bold text-slate-700 truncate">{a.assignee?.name || 'Staff'}</p>
+                        <p className="text-[9px] text-slate-400 font-medium">Pelaksana</p>
+                    </div>
+                </div>
+
+                {/* Date Column */}
+                <div className="md:col-span-2 text-center">
+                    <DeadlineBadge dueDate={a.dueDate} />
+                </div>
+
+                {/* Status Column */}
+                <div className="md:col-span-2 flex flex-col items-end gap-2 px-4 md:px-0">
+                    <StatusBadge status={a.status} statusConfig={statusConfig} />
+                    <ActionButtons 
+                        a={a} 
+                        canAssign={canAssign} 
+                        isAssignee={isAssignee} 
+                        handleUpdateAssignment={handleUpdateAssignment} 
+                    />
+                </div>
+            </div>
+
+            {/* Mobile View (Optimized) */}
+            <div className="md:hidden p-5 space-y-4">
+                {/* Header: Priority, Category, Expand, Status */}
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={() => setExpanded(!expanded)}
+                            className={`p-1.5 rounded-lg transition-all ${expanded ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400'}`}
+                        >
+                            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-md ${priorityConfig[a.priority || 'MEDIUM'].color} bg-slate-50 border border-slate-100`}>
+                            {priorityConfig[a.priority || 'MEDIUM'].label}
+                        </span>
+                    </div>
+                    <StatusBadge status={a.status} statusConfig={statusConfig} />
+                </div>
+
+                {/* Title & Location */}
+                <div>
+                    <h4 className="text-sm font-bold text-slate-800 leading-snug uppercase">{a.title}</h4>
+                    <div className="flex items-center gap-2 text-[9px] text-slate-400 mt-1 font-medium italic uppercase tracking-wider">
+                        <MapPin size={10} /> {a.location || 'Lokasi Terpusat'} • {a.category}
+                    </div>
+                </div>
+
+                {/* Info Row: Assignee & Deadline */}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="flex items-center gap-2.5 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                        <AssigneeAvatar assignee={a.assignee} size="w-7 h-7" />
+                        <div className="min-w-0">
+                            <p className="text-[10px] font-bold text-slate-700 truncate">{a.assignee?.name?.split(' ')[0] || 'Staff'}</p>
+                            <p className="text-[8px] text-slate-400 font-medium">Pelaksana</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2.5 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                            <Clock size={12} />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-[10px] font-bold text-slate-700">{a.dueDate ? new Date(a.dueDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : '-'}</p>
+                            <p className="text-[8px] text-slate-400 font-medium">Deadline</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Progress Section */}
+                <div className="space-y-2 pt-1">
+                    <div className="flex justify-between items-center text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                        <span>Penyelesaian</span>
+                        <AssignmentProgress 
+                            progress={progress} 
+                            totalCount={totalCount} 
+                            completedCount={completedCount} 
+                            editProgress={editProgress}
+                            manualProgress={manualProgress}
+                            setManualProgress={setManualProgress}
+                            setEditProgress={setEditProgress}
+                            a={a}
+                            handleUpdateAssignment={handleUpdateAssignment}
+                            canAssign={canAssign}
+                            isAssignee={isAssignee}
+                        />
+                    </div>
+                    <ProgressBar progress={progress} />
+                </div>
+
+                {/* Actions Row */}
+                <div className="pt-2 border-t border-slate-50">
+                    <ActionButtons 
+                        a={a} 
+                        canAssign={canAssign} 
+                        isAssignee={isAssignee} 
+                        handleUpdateAssignment={handleUpdateAssignment}
+                        fullWidth={true}
+                    />
+                </div>
+            </div>
+
+            {/* Expanded Content (Sub-tasks Checklist) */}
+            {expanded && (
+                <div className="border-t border-slate-50 bg-slate-50/30 p-6 animate-in slide-in-from-top-2 duration-300">
+                    <div className="max-w-4xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <FileCheck size={14} className="text-indigo-600" /> Rincian Sub-Tugas (Checklist)
+                            </h5>
+                            <span className="text-[10px] font-bold text-slate-400 italic">Klik item untuk menandai selesai</span>
+                        </div>
+
+                        {totalCount === 0 ? (
+                            <div className="p-4 bg-white rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400 italic">
+                                Tidak ada sub-tugas yang didefinisikan.
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {items.map((item, idx) => {
+                                    const isDone = item.status === 'COMPLETED';
+                                    return (
+                                        <button
+                                            key={idx}
+                                            onClick={() => toggleItemStatus(idx)}
+                                            disabled={updating}
+                                            className={`flex items-center gap-4 p-4 rounded-xl border transition-all text-left shadow-sm ${isDone ? 'bg-emerald-50/50 border-emerald-100 border-l-4 border-l-emerald-500' : 'bg-white border-slate-100 hover:border-indigo-200'}`}
+                                        >
+                                            <div className={`shrink-0 ${isDone ? 'text-emerald-500' : 'text-slate-300'}`}>
+                                                {isDone ? <CheckSquare size={20} /> : <Square size={20} />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-xs font-bold leading-tight ${isDone ? 'text-emerald-700 line-through decoration-emerald-300' : 'text-slate-700'}`}>
+                                                    {item.text}
+                                                </p>
+                                                <span className={`text-[9px] font-black tracking-widest uppercase ${isDone ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                                    {isDone ? 'COMPLETED' : 'PENDING'}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {a.description && (
+                            <div className="mt-8 space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Instruksi Tambahan</label>
+                                <div className="p-4 bg-white border border-slate-100 rounded-xl text-xs text-slate-600 leading-relaxed font-medium">
+                                    {a.description}
+                                </div>
+                            </div>
+                        )}
+                        
+                        <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+                            <button 
+                                onClick={() => setExpanded(false)}
+                                className="text-[10px] font-black text-slate-400 hover:text-indigo-600 uppercase tracking-widest py-2 px-4"
+                            >
+                                Tutup Rincian
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const PersonnelAssignments = () => {
     const [assignments, setAssignments] = useState([]);
@@ -28,9 +429,24 @@ const PersonnelAssignments = () => {
         items: [{ text: '', status: 'PENDING' }]
     });
 
+    const [extensionModal, setExtensionModal] = useState({ show: false, assignment: null, requestedDate: '', reason: '' });
+
+    useEffect(() => {
+        const handleOpenModal = (e) => {
+            setExtensionModal({ 
+                show: true, 
+                assignment: e.detail, 
+                requestedDate: e.detail.requestedExtensionDate ? new Date(e.detail.requestedExtensionDate).toISOString().split('T')[0] : '', 
+                reason: e.detail.extensionReason || '' 
+            });
+        };
+        window.addEventListener('openExtensionModal', handleOpenModal);
+        return () => window.removeEventListener('openExtensionModal', handleOpenModal);
+    }, []);
+
     const statusConfig = {
         PENDING: { color: 'bg-amber-50 text-amber-600 border-amber-100', icon: <Clock size={14} />, label: 'MENUNGGU' },
-        IN_PROGRESS: { color: 'bg-indigo-50 text-indigo-600 border-indigo-100', icon: <Loader2 size={14} className="animate-spin" />, label: 'PROSES' },
+        IN_PROGRESS: { color: 'bg-indigo-50 text-indigo-600 border-indigo-100', icon: <Activity size={14} />, label: 'PROSES' },
         IN_REVIEW: { color: 'bg-purple-50 text-purple-600 border-purple-100', icon: <Search size={14} />, label: 'REVIU' },
         COMPLETED: { color: 'bg-emerald-50 text-emerald-600 border-emerald-100', icon: <CheckCircle2 size={14} />, label: 'SELESAI' },
         CANCELLED: { color: 'bg-slate-50 text-slate-500 border-slate-100', icon: <X size={14} />, label: 'BATAL' }
@@ -105,15 +521,37 @@ const PersonnelAssignments = () => {
         }
     };
 
-    const handleUpdateAssignment = async (id, payload) => {
+    const handleUpdateAssignment = async (id, payload, isExtension = false) => {
         try {
             setUpdating(id);
-            await api.put(`/personnel/assignments/${id}/status`, payload);
+            if (isExtension) {
+                await api.post(`/personnel/assignments/${id}/handle-extension`, { status: payload.extensionStatus });
+            } else {
+                await api.put(`/personnel/assignments/${id}/status`, payload);
+            }
             fetchAssignments();
         } catch (err) {
             alert(err.response?.data?.error || 'Gagal memperbarui tugas');
         } finally {
             setUpdating(null);
+        }
+    };
+
+    const handleRequestExtension = async (e) => {
+        e.preventDefault();
+        try {
+            setSubmitting(true);
+            await api.post(`/personnel/assignments/${extensionModal.assignment.id}/request-extension`, {
+                requestedDate: extensionModal.requestedDate,
+                reason: extensionModal.reason
+            });
+            setExtensionModal({ show: false, assignment: null, requestedDate: '', reason: '' });
+            fetchAssignments();
+            alert('Permohonan penundaan berhasil dikirim');
+        } catch (err) {
+            alert(err.response?.data?.error || 'Gagal mengirim permohonan');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -234,12 +672,12 @@ const PersonnelAssignments = () => {
             {/* Filter Hub */}
             {!showForm && (
                 <div className="flex flex-wrap items-center justify-between gap-4 bg-white/50 backdrop-blur-sm p-3 rounded-2xl border border-slate-100">
-                    <div className="flex gap-1 bg-slate-100/50 p-1 rounded-xl">
+                    <div className="flex gap-1 overflow-x-auto pb-2 md:pb-0 scrollbar-hide bg-slate-100/50 p-1 rounded-xl w-full md:w-auto">
                         {['ALL', 'PENDING', 'IN_PROGRESS', 'COMPLETED'].map((s) => (
                             <button
                                 key={s}
                                 onClick={() => setFilterStatus(s)}
-                                className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest transition-all ${filterStatus === s ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest transition-all whitespace-nowrap ${filterStatus === s ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                             >
                                 {s === 'ALL' ? 'SEMUA' : statusConfig[s].label}
                             </button>
@@ -283,245 +721,49 @@ const PersonnelAssignments = () => {
                     />
                 ))}
             </div>
-        </div>
-    );
-};
-
-const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment, canAssign, userId }) => {
-    const isAssignee = a.assigneeId === userId;
-    const [expanded, setExpanded] = useState(false);
-    const [updating, setUpdating] = useState(false);
-    const [editProgress, setEditProgress] = useState(false);
-    const [manualProgress, setManualProgress] = useState(a.progressPercentage || 0);
-
-    useEffect(() => {
-        setManualProgress(a.progressPercentage || 0);
-    }, [a.progressPercentage]);
-    
-    // Parse items with safety
-    let items = [];
-    try {
-        items = Array.isArray(a.items) ? a.items : (typeof a.items === 'string' ? JSON.parse(a.items) : []);
-    } catch (e) {
-        console.error("Error parsing items:", e);
-        items = [];
-    }
-
-    const totalCount = items.length;
-    const completedCount = items.filter(it => it.status === 'COMPLETED').length;
-    
-    // Logic: If there is a checklist, use calculation. If not, use DB value for simple tasks.
-    const progress = totalCount > 0 
-        ? Math.round((completedCount / totalCount) * 100) 
-        : (a.progressPercentage || 0);
-
-    const toggleItemStatus = async (itemIdx) => {
-        if (updating || (!isAssignee && !canAssign)) return;
-        setUpdating(true);
-        const newItems = [...items];
-        newItems[itemIdx].status = newItems[itemIdx].status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
-        await handleUpdateAssignment(a.id, { items: newItems });
-        setUpdating(false);
-    };
-
-    return (
-        <div className={`group bg-white rounded-2xl border ${expanded ? 'border-indigo-100 shadow-xl' : 'border-slate-100 hover:border-slate-200'} transition-all duration-300 relative overflow-hidden overflow-visible`}>
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center p-4 md:p-5">
-                {/* Info Column */}
-                <div className="col-span-1 md:col-span-3 flex items-start gap-4">
-                    <button 
-                        onClick={() => setExpanded(!expanded)}
-                        className={`mt-1 p-1.5 rounded-lg transition-all ${expanded ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}
-                    >
-                        {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </button>
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${priorityConfig[a.priority || 'MEDIUM'].color} bg-slate-50 border border-slate-100`}>
-                                {priorityConfig[a.priority || 'MEDIUM'].label}
-                            </span>
-                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{a.category}</span>
-                        </div>
-                        <h4 className="text-sm font-bold text-slate-800 truncate leading-tight group-hover:text-indigo-600 transition-colors uppercase">{a.title}</h4>
-                        <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1 font-medium italic">
-                            <MapPin size={10} /> {a.location || 'Lokasi Terpusat'}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Progress Column */}
-                <div className="col-span-1 md:col-span-3 px-4 md:px-0">
-                   <div className="flex flex-col gap-1.5 group/prog">
-                        <div className="flex justify-between items-end text-[10px] font-black tracking-tighter">
-                            <span className="text-slate-400 uppercase">Progres Penugasan</span>
-                            <div className="flex items-center gap-2">
-                                {editProgress && totalCount === 0 ? (
-                                    <div className="flex items-center gap-1 animate-in fade-in zoom-in duration-200">
-                                        <input 
-                                            type="number" 
-                                            min="0" max="100" 
-                                            value={manualProgress} 
-                                            onChange={(e) => setManualProgress(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    handleUpdateAssignment(a.id, { progressPercentage: manualProgress });
-                                                    setEditProgress(false);
-                                                }
-                                                if (e.key === 'Escape') {
-                                                    setManualProgress(a.progressPercentage || 0);
-                                                    setEditProgress(false);
-                                                }
-                                            }}
-                                            onBlur={() => {
-                                                if (manualProgress !== a.progressPercentage) {
-                                                    handleUpdateAssignment(a.id, { progressPercentage: manualProgress });
-                                                }
-                                                setEditProgress(false);
-                                            }}
-                                            className="w-16 px-2 py-1.5 bg-white border-2 border-indigo-500 rounded-lg text-center text-indigo-700 font-black outline-none shadow-xl shadow-indigo-100"
-                                            autoFocus
-                                        />
-                                        <span className="text-indigo-600 font-black">%</span>
-                                    </div>
-                                ) : (
-                                    <div 
-                                        className={`flex items-center gap-2 group/val transition-all ${totalCount === 0 && (canAssign || isAssignee) ? 'cursor-edit hover:scale-105 active:scale-95' : ''}`}
-                                        onClick={() => totalCount === 0 && (canAssign || isAssignee) && setEditProgress(true)}
-                                        title={totalCount > 0 ? "Progres dihitung otomatis dari checklist" : (canAssign || isAssignee ? "Klik untuk ubah persentase" : "")}
-                                    >
-                                        <span className={`px-2 py-1 rounded-md font-black border transition-all ${totalCount > 0 ? 'bg-slate-50 text-slate-400 border-slate-100 italic' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-600 hover:text-white shadow-sm'}`}>
-                                            {progress}%
-                                        </span>
-                                        {totalCount > 0 ? (
-                                            <span className="text-[9px] text-slate-300 font-medium tracking-tight">({completedCount}/{totalCount} item)</span>
-                                        ) : (
-                                            (canAssign || isAssignee) && <Tag size={10} className="text-indigo-300 opacity-0 group-hover/val:opacity-100 transition-opacity" />
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden relative shadow-inner">
-                            <div className={`h-full transition-all duration-[1500ms] ease-out ${progress === 100 ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)]' : 'bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-[0_0_8px_rgba(79,70,229,0.3)]'}`} style={{ width: `${progress}%` }} />
-                        </div>
-                   </div>
-                </div>
-
-                {/* Staff Column */}
-                <div className="col-span-1 md:col-span-2 flex items-center justify-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-black text-slate-500 overflow-hidden shrink-0">
-                        {a.assignee?.name ? a.assignee.name[0].toUpperCase() : <User size={14} />}
-                    </div>
-                    <div className="min-w-0">
-                        <p className="text-[11px] font-bold text-slate-700 truncate">{a.assignee?.name || 'Staff'}</p>
-                        <p className="text-[9px] text-slate-400 font-medium">Pelaksana</p>
-                    </div>
-                </div>
-
-                {/* Date Column */}
-                <div className="col-span-1 md:col-span-2 text-center">
-                    <div className="inline-flex flex-col items-center gap-0.5 bg-slate-50 group-hover:bg-red-50/50 px-3 py-1.5 rounded-xl transition-colors">
-                        <span className="text-[9px] font-black text-slate-400 tracking-widest uppercase">Maks Selesai</span>
-                        <span className="text-[11px] font-black text-slate-700">{a.dueDate ? new Date(a.dueDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : '-'}</span>
-                    </div>
-                </div>
-
-                {/* Status Column */}
-                <div className="col-span-1 md:col-span-2 flex flex-col items-end gap-2 px-4 md:px-0">
-                    <div className={`px-3 py-1 rounded-lg border text-[9px] font-black tracking-widest flex items-center gap-1.5 ${statusConfig[a.status].color} w-full md:w-auto justify-center shadow-sm`}>
-                        {statusConfig[a.status].icon} {statusConfig[a.status].label}
-                    </div>
-                    
-                    <div className="flex gap-1.5 w-full md:w-auto">
-                        {(canAssign || isAssignee) && a.status === 'PENDING' && (
-                            <button 
-                                onClick={() => handleUpdateAssignment(a.id, { status: 'IN_PROGRESS' })}
-                                className="flex-1 md:flex-none px-3 py-1 bg-indigo-600 text-white text-[9px] font-black rounded-lg hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200"
-                            >
-                                MULAI
+            {/* Extension Request Modal */}
+            {extensionModal.show && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-black text-slate-900 tracking-tight">Ajukan Penundaan</h3>
+                            <button onClick={() => setExtensionModal({ ...extensionModal, show: false })} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                                <X size={20} />
                             </button>
-                        )}
-                        {(canAssign || isAssignee) && a.status === 'IN_PROGRESS' && (
-                            <button 
-                                onClick={() => handleUpdateAssignment(a.id, { status: 'COMPLETED', progressPercentage: 100 })}
-                                className="flex-1 md:flex-none px-3 py-1 bg-emerald-600 text-white text-[9px] font-black rounded-lg hover:bg-emerald-700 transition-all shadow-md shadow-emerald-200"
-                            >
-                                SELESAI
-                            </button>
-                        )}
-                        {canAssign && (
-                            <button 
-                                onClick={() => handleUpdateAssignment(a.id, { status: 'CANCELLED' })}
-                                className="p-1 px-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
-                                title="Batalkan"
-                            >
-                                <X size={12} strokeWidth={3} />
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Expanded Content (Sub-tasks Checklist) */}
-            {expanded && (
-                <div className="border-t border-slate-50 bg-slate-50/30 p-6 animate-in slide-in-from-top-2 duration-300">
-                    <div className="max-w-4xl">
-                        <div className="flex items-center justify-between mb-4">
-                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                <FileCheck size={14} className="text-indigo-600" /> Rincian Sub-Tugas (Checklist)
-                            </h5>
-                            <span className="text-[10px] font-bold text-slate-400 italic">Klik item untuk menandai selesai</span>
                         </div>
-
-                        {totalCount === 0 ? (
-                            <div className="p-4 bg-white rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400 italic">
-                                Tidak ada sub-tugas yang didefinisikan.
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {items.map((item, idx) => {
-                                    const isDone = item.status === 'COMPLETED';
-                                    return (
-                                        <button
-                                            key={idx}
-                                            onClick={() => toggleItemStatus(idx)}
-                                            disabled={updating}
-                                            className={`flex items-center gap-4 p-4 rounded-xl border transition-all text-left shadow-sm ${isDone ? 'bg-emerald-50/50 border-emerald-100 border-l-4 border-l-emerald-500' : 'bg-white border-slate-100 hover:border-indigo-200'}`}
-                                        >
-                                            <div className={`shrink-0 ${isDone ? 'text-emerald-500' : 'text-slate-300'}`}>
-                                                {isDone ? <CheckSquare size={20} /> : <Square size={20} />}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className={`text-xs font-bold leading-tight ${isDone ? 'text-emerald-700 line-through decoration-emerald-300' : 'text-slate-700'}`}>
-                                                    {item.text}
-                                                </p>
-                                                <span className={`text-[9px] font-black tracking-widest uppercase ${isDone ? 'text-emerald-400' : 'text-slate-400'}`}>
-                                                    {isDone ? 'COMPLETED' : 'PENDING'}
-                                                </span>
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {a.description && (
-                            <div className="mt-8 space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Instruksi Tambahan</label>
-                                <div className="p-4 bg-white border border-slate-100 rounded-xl text-xs text-slate-600 leading-relaxed font-medium">
-                                    {a.description}
-                                </div>
-                            </div>
-                        )}
                         
-                        <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+                        <form onSubmit={handleRequestExtension} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Usulan Deadline Baru</label>
+                                <input 
+                                    type="date" 
+                                    required 
+                                    value={extensionModal.requestedDate} 
+                                    onChange={e => setExtensionModal({ ...extensionModal, requestedDate: e.target.value })}
+                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-amber-500 outline-none" 
+                                />
+                                <p className="text-[10px] text-slate-400 italic px-1 italic">Deadline asal: {new Date(extensionModal.assignment.dueDate).toLocaleDateString('id-ID')}</p>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Alasan Penundaan</label>
+                                <textarea 
+                                    required 
+                                    value={extensionModal.reason}
+                                    onChange={e => setExtensionModal({ ...extensionModal, reason: e.target.value })}
+                                    placeholder="Jelaskan alasan memerlukan waktu tambahan..."
+                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-amber-500 outline-none h-24 italic"
+                                />
+                            </div>
+                            
                             <button 
-                                onClick={() => setExpanded(false)}
-                                className="text-[10px] font-black text-slate-400 hover:text-indigo-600 uppercase tracking-widest py-2 px-4"
+                                type="submit" 
+                                disabled={submitting}
+                                className="w-full py-4 bg-amber-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-amber-600/20 hover:bg-amber-700 transition-all flex items-center justify-center gap-2"
                             >
-                                Tutup Rincian
+                                {submitting ? <Loader2 size={20} className="animate-spin" /> : 'KIRIM PENGAJUAN'}
                             </button>
-                        </div>
+                        </form>
                     </div>
                 </div>
             )}

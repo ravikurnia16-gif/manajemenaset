@@ -8,8 +8,10 @@ exports.getAllMaintenanceLogs = async (req, res) => {
         const { id: userId, role } = req.user;
         let where = {};
 
-        // Filter by PIC if not a global admin
-        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+        // Filter by PIC if not a global admin/Sarpras staff
+        const isSarpras = role === 'KEPALA_BIDANG' || req.user?.position?.includes('Sarana dan Prasarana') || req.user?.position?.includes('Manajemen Aset');
+        
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role) && !isSarpras) {
             where = {
                 vehicle: {
                     pics: {
@@ -71,7 +73,9 @@ exports.createMaintenanceLog = async (req, res) => {
         }
 
         // 2. PIC Validation
-        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+        const isSarpras = role === 'KEPALA_BIDANG' || req.user?.position?.includes('Sarana dan Prasarana') || req.user?.position?.includes('Manajemen Aset');
+        
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role) && !isSarpras) {
             const vehicle = await prisma.vehicle.findUnique({
                 where: { id: parseInt(vehicleId) },
                 include: { pics: { select: { id: true } } }
