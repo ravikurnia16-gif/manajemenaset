@@ -20,9 +20,9 @@ const MaintenanceForm = () => {
         selectedAssets: [], // Array of {id, label}
         description: '',
         location: '',
-        photo: ''
     });
-    const [file, setFile] = useState(null);
+    const [mediaFiles, setMediaFiles] = useState([]); // Array of { file, preview, type }
+    const fileInputRef = useRef(null);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -49,34 +49,46 @@ const MaintenanceForm = () => {
         }
     };
 
-    const handlePhotoChange = async (e) => {
-        const f = e.target.files[0];
-        if (!f) return;
+    const handleMediaChange = async (e) => {
+        const selectedFiles = Array.from(e.target.files);
+        if (selectedFiles.length === 0) return;
         
-        try {
-            // Compress image
-            const compressedFile = await compressImage(f, { maxWidth: 1024, quality: 0.8 });
-            
-            // Cleanup old preview URL if any (if we were using one)
-            if (form.photo && form.photo.startsWith('blob:')) {
-                URL.revokeObjectURL(form.photo);
+        const newMedia = [];
+        
+        for (const f of selectedFiles) {
+            if (f.type.startsWith('image/')) {
+                try {
+                    // Compress image
+                    const compressedFile = await compressImage(f, { maxWidth: 1200, quality: 0.8 });
+                    const previewUrl = URL.createObjectURL(compressedFile);
+                    newMedia.push({ file: compressedFile, preview: previewUrl, type: 'IMAGE', name: f.name });
+                } catch (err) {
+                    console.error('Compression failed for:', f.name, err);
+                    const previewUrl = URL.createObjectURL(f);
+                    newMedia.push({ file: f, preview: previewUrl, type: 'IMAGE', name: f.name });
+                }
+            } else if (f.type.startsWith('video/')) {
+                // Video processing (no compression, just check size)
+                if (f.size > 100 * 1024 * 1024) {
+                    alert(`Video ${f.name} terlalu besar (>100MB). Silakan kompres atau perkecil resolusinya.`);
+                    continue;
+                }
+                const previewUrl = URL.createObjectURL(f);
+                newMedia.push({ file: f, preview: previewUrl, type: 'VIDEO', name: f.name });
             }
-
-            const previewUrl = URL.createObjectURL(compressedFile);
-            setFile(compressedFile);
-            setForm(prev => ({ ...prev, photo: previewUrl }));
-            
-            console.log('[DEBUG] Maintenance Photo Compressed:', {
-                originalSize: (f.size / 1024).toFixed(1) + 'KB',
-                compressedSize: (compressedFile.size / 1024).toFixed(1) + 'KB'
-            });
-        } catch (err) {
-            console.error('Compression failed:', err);
-            // Fallback
-            const previewUrl = URL.createObjectURL(f);
-            setFile(f);
-            setForm(prev => ({ ...prev, photo: previewUrl }));
         }
+
+        setMediaFiles(prev => [...prev, ...newMedia]);
+        if (fileInputRef.current) fileInputRef.current.value = ""; // Reset input
+    };
+
+    const removeMedia = (index) => {
+        setMediaFiles(prev => {
+            const updated = [...prev];
+            if (updated[index].preview) URL.revokeObjectURL(updated[index].preview);
+            updated.splice(index, 1);
+            return updated;
+        });
     };
 
     const toggleAssetSelection = (asset) => {
@@ -126,9 +138,10 @@ const MaintenanceForm = () => {
                 assetIds.forEach(id => formData.append('assetIds[]', id));
             }
 
-            if (file) {
-                formData.append('photo', file);
-            }
+            // Append all media files
+            mediaFiles.forEach(m => {
+                formData.append('media', m.file);
+            });
 
             await api.post('/maintenance', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
@@ -319,14 +332,68 @@ const MaintenanceForm = () => {
                     />
                 </div>
 
-                {/* Photo Upload */}
+                {/* Photo & Video Upload */}
                 <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Foto Bukti (Opsional)</label>
-                    <input type="file" accept="image/*" onChange={handlePhotoChange} className="text-sm" />
-                    {form.photo && (
-                        <img src={form.photo} alt="Preview" className="mt-2 w-40 h-40 object-cover rounded-lg border" />
-                    )}
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Media Bukti (Foto/Video - Maks 10)</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {mediaFiles.map((m, idx) => (
+                            <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                                {m.type === 'IMAGE' ? (
+                                    <img src={m.preview} alt="Preview" className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-slate-500">
+                                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">▶</div>
+                                        <span className="text-[10px] px-2 text-center truncate w-full">{m.name}</span>
+                                    </div>
+                                )}
+                                <button 
+                                    type="button" 
+                                    onClick={() => removeMedia(idx)}
+                                    className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        ))}
+                        {mediaFiles.length < 10 && (
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current.click()}
+                                className="aspect-square rounded-xl border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50 flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-blue-600 transition-all"
+                            >
+                                <span className="text-2xl">+</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider">Tambah Media</span>
+                            </button>
+                        )}
+                    </div>
+                    <input 
+                        type="file" 
+                        ref={fileInputRef}
+                        accept="image/*,video/mp4,video/quicktime" 
+                        onChange={handleMediaChange} 
+                        multiple 
+                        className="hidden" 
+                    />
+                    <p className="mt-2 text-[10px] text-slate-400">
+                        * Foto akan dikompres otomatis. Video maksimal 100MB.
+                    </p>
                 </div>
+
+                {/* Submit */}
+                <button
+                    type="submit"
+                    disabled={saving}
+                    className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                    <Save size={18} />
+                    {saving ? 'Mengirim Laporan...' : 'Kirim Laporan'}
+                </button>
+            </form>
+        </div>
+    );
+};
+
+export default MaintenanceForm;
 
                 {/* Submit */}
                 <button

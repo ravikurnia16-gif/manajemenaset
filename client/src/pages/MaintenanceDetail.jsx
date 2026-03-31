@@ -231,13 +231,55 @@ const MaintenanceDetail = () => {
                 </div>
             )}
 
-            {/* Description */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <h3 className="text-sm font-semibold text-slate-600 mb-2">Deskripsi Masalah</h3>
-                <p className="text-sm text-slate-700 whitespace-pre-wrap">{report.description}</p>
-                {report.photo && (
-                    <div className="mt-3">
-                        <img src={getMediaUrl(report.photo)} alt="Bukti" className="max-w-xs rounded-lg border" />
+            {/* Description & Media Gallery */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+                <div>
+                    <h3 className="text-sm font-semibold text-slate-600 mb-2">Deskripsi Masalah</h3>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{report.description}</p>
+                </div>
+
+                {/* Media Gallery */}
+                {(report.media || report.photo) && (
+                    <div className="pt-4 border-t border-slate-100">
+                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Media Bukti & Dokumentasi</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {report.media ? (
+                                report.media.map((item, idx) => (
+                                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-100 bg-slate-50 group">
+                                        {item.type === 'IMAGE' ? (
+                                            <a href={getMediaUrl(item.url)} target="_blank" rel="noreferrer" className="block w-full h-full">
+                                                <img 
+                                                    src={getMediaUrl(item.url)} 
+                                                    alt={`Evidence ${idx + 1}`} 
+                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                                                />
+                                            </a>
+                                        ) : (
+                                            <video 
+                                                src={getMediaUrl(item.url)} 
+                                                controls 
+                                                className="w-full h-full object-cover"
+                                                poster={getMediaUrl(report.photo)}
+                                            />
+                                        )}
+                                        <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/50 text-white text-[8px] rounded font-bold backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {item.type}
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                // Fallback for single photo
+                                <div className="relative aspect-square rounded-xl overflow-hidden border border-slate-100 bg-slate-50 group">
+                                    <a href={getMediaUrl(report.photo)} target="_blank" rel="noreferrer" className="block w-full h-full">
+                                        <img 
+                                            src={getMediaUrl(report.photo)} 
+                                            alt="Evidence" 
+                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                                        />
+                                    </a>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>

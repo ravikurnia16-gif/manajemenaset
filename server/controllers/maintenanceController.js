@@ -74,11 +74,16 @@ exports.createReport = async (req, res) => {
     try {
         const code = await generateCode();
 
+        // --- Process Media ---
+        const media = req.uploadedMedia || [];
+        const firstImagePath = media.find(m => m.type === 'IMAGE')?.url || photo || null;
+
         // --- AI Analysis (Async) ---
         let aiResult = null;
         if (title || description) {
             try {
-                aiResult = await aiService.analyzeDamage(req.fileUrl || photo || null, title, description);
+                // Use the first image for the AI diagnosis
+                aiResult = await aiService.analyzeDamage(firstImagePath, title, description);
             } catch (aiErr) {
                 console.error("AI Analysis failed:", aiErr.message);
             }
@@ -97,7 +102,8 @@ exports.createReport = async (req, res) => {
                 title,
                 description,
                 location: location || null,
-                photo: req.fileUrl || photo || null,
+                photo: firstImagePath,
+                media: media.length > 0 ? media : undefined,
                 status: 'SUBMITTED',
                 aiDiagnosis: aiResult || undefined
             },

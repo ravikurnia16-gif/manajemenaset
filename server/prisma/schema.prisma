@@ -285,6 +285,7 @@ model Maintenance {
   description   String   @db.Text // Keluhan / Masalah
   location      String?  // Lokasi (for non-asset)
   photo         String?  @db.LongText // Foto bukti kerusakan (Base64)
+  media         Json?    // Array of { type: 'IMAGE' | 'VIDEO', url: '...' }
   
   status        String   @default("SUBMITTED")
   // SUBMITTED -> APPROVED -> VALIDATED -> ASSIGNED -> IN_PROGRESS -> COMPLETED / REJECTED
