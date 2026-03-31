@@ -656,7 +656,7 @@ model UniformOrder {
   customerUnit  String             // Unit: TK, SD, SMP, dll
   studentName   String             // Nama siswa
   studentClass  String?            // Kelas
-  note          String?
+  note          String? @db.Text
   status        String   @default("PENDING") // PENDING, CONFIRMED, READY, PICKED_UP, CANCELLED
   totalAmount   Float    @default(0)
   items         UniformOrderItem[]
@@ -675,7 +675,7 @@ model UniformOrderItem {
   quantity      Int
   price         Float    @default(0)
   status        String   @default("PENDING") // PENDING, READY, NO_STOCK, DONE
-  pickupDetails String?  // Info like "Senin, 07.30 - 16.00"
+  pickupDetails String? @db.Text
 }
 
 enum ReportType {
