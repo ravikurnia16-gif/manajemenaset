@@ -8,6 +8,7 @@ router.use(verifyToken); // All personnel routes require authentication
 // Reports
 router.post('/reports', personnelController.createReport);
 router.get('/reports', personnelController.getReports);
+router.get('/reports/ai-summary', personnelController.getAiSummaryReports);
 
 // Assignments
 router.post('/assignments', personnelController.createAssignment);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, DollarSign, AlertTriangle, TrendingDown, Loader2 } from 'lucide-react';
+import { Box, DollarSign, AlertTriangle, TrendingDown, Loader2, Clock, Wrench, Sparkles, ChevronRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import api from '../lib/axios';
 
@@ -231,51 +231,98 @@ const Dashboard = () => {
 
             {/* Unit Statistics Table - Only show if not specifically filtering one unit and data exists */}
             {canFilterUnit && filterUnit === 'all' && data?.unitStats?.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden animate-in zoom-in-95 duration-300">
-                    <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-white">
-                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                            <Box className="text-blue-600" size={20} /> Sebaran Aset per Unit
-                        </h3>
-                        <span className="text-xs font-medium text-slate-400 italic">Data terurut berdasarkan jumlah aset terbanyak</span>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50/50">
-                                <tr>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Unit / Satker</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Total Item</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Rusak Ringan/Berat</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Nilai Buku Saat Ini</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {data.unitStats.map((unit) => (
-                                    <tr key={unit.id} className="hover:bg-slate-50/50 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-col">
-                                                <span className="font-bold text-slate-700 text-sm">{unit.name}</span>
-                                                <span className="text-[10px] text-slate-400 font-medium uppercase tracking-tight">{unit.code}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
-                                                {unit.assetCount}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${unit.damagedCount > 0 ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-400'}`}>
-                                                {unit.damagedCount}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <span className="font-bold text-slate-600 text-sm">
-                                                Rp {unit.totalValue.toLocaleString()}
-                                            </span>
-                                        </td>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-white">
+                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <Box className="text-blue-600" size={20} /> Sebaran Aset per Unit
+                            </h3>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50/50">
+                                    <tr>
+                                        <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Unit / Satker</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Total Item</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Rusak Ringan/Berat</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Nilai Buku</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {data.unitStats.map((unit) => (
+                                        <tr key={unit.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-slate-700 text-sm">{unit.name}</span>
+                                                    <span className="text-[10px] text-slate-400 font-medium uppercase tracking-tight">{unit.code}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
+                                                    {unit.assetCount}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${unit.damagedCount > 0 ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-400'}`}>
+                                                    {unit.damagedCount}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <span className="font-bold text-slate-600 text-sm">
+                                                    Rp {unit.totalValue.toLocaleString()}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Predictive Maintenance Widget */}
+                    <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl shadow-xl overflow-hidden p-6 flex flex-col gap-4 text-white">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Sparkles className="text-blue-400" size={20} />
+                                <h3 className="font-bold text-sm uppercase tracking-wider">Predictive Alerts</h3>
+                            </div>
+                            <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-[10px] font-bold border border-blue-500/30 tracking-widest">AI ENGINE</span>
+                        </div>
+                        
+                        <div className="flex-1 space-y-4">
+                            {!data?.dueSoonAssets || data.dueSoonAssets.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3 opacity-50">
+                                    <div className="w-12 h-12 bg-slate-700/50 rounded-full flex items-center justify-center">
+                                        <Clock size={24} />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold">Semua Aman</p>
+                                        <p className="text-[10px]">Belum ada jadwal pemeliharaan mendesak.</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                data.dueSoonAssets.map((asset, i) => (
+                                    <div key={i} className="bg-white/5 hover:bg-white/10 rounded-xl p-3 border border-white/5 transition-all group cursor-pointer">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="text-[10px] font-black text-blue-400 uppercase tracking-tighter">Est. {new Date(asset.nextMaintenanceEst).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>
+                                            <Wrench size={12} className="text-slate-500 group-hover:text-blue-400 transition-colors" />
+                                        </div>
+                                        <div className="font-bold text-xs truncate uppercase tracking-tight">{asset.name}</div>
+                                        <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
+                                            <span className="font-mono">{asset.code}</span>
+                                            <span>•</span>
+                                            <span>{asset.unit?.name}</span>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="pt-2 border-t border-white/5">
+                            <p className="text-[9px] text-slate-500 italic text-center">
+                                *Prediksi berdasarkan riwayat pemeliharaan & umur manfaat aset.
+                            </p>
+                        </div>
                     </div>
                 </div>
             )}

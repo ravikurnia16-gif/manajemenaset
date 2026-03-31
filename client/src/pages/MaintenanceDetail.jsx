@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
 
@@ -177,6 +177,59 @@ const MaintenanceDetail = () => {
                     </div>
                 </div>
             </div>
+
+            {/* AI Diagnosis Section */}
+            {report.aiDiagnosis && (
+                <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl border border-indigo-100 p-6 shadow-sm relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Sparkles size={64} className="text-indigo-600" />
+                    </div>
+                    
+                    <div className="relative flex flex-col gap-4">
+                        <div className="flex items-center gap-2 text-indigo-700">
+                            <Sparkles size={20} className="animate-pulse" />
+                            <h3 className="font-bold text-sm uppercase tracking-wider">Analisis AI Gemini</h3>
+                            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded text-[10px] font-bold">BETA</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="md:col-span-2 space-y-4">
+                                <div>
+                                    <p className="text-sm text-slate-700 leading-relaxed italic">
+                                        "{report.aiDiagnosis.analysis || report.aiDiagnosis.diagnosis}"
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap gap-3">
+                                    <div className="flex items-center gap-2 bg-white/60 px-3 py-1.5 rounded-xl border border-white text-xs">
+                                        <Wrench size={14} className="text-indigo-500" />
+                                        <span className="font-semibold text-slate-700">Saran:</span>
+                                        <span className="text-slate-600">{report.aiDiagnosis.suggestedAction}</span>
+                                    </div>
+                                    {report.aiDiagnosis.estimatedCost && (
+                                        <div className="flex items-center gap-2 bg-white/60 px-3 py-1.5 rounded-xl border border-white text-xs">
+                                            <Info size={14} className="text-indigo-500" />
+                                            <span className="font-semibold text-slate-700">Est. Biaya:</span>
+                                            <span className="text-slate-600">{report.aiDiagnosis.estimatedCost}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col items-center justify-center bg-white/40 rounded-xl p-4 border border-white group-hover:bg-white/60 transition-colors">
+                                <div className={`text-3xl font-black ${report.aiDiagnosis.severity > 7 ? 'text-red-600' : report.aiDiagnosis.severity > 4 ? 'text-orange-500' : 'text-blue-600'}`}>
+                                    {report.aiDiagnosis.severity}/10
+                                </div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-widest text-center">Tingkat Bahaya</div>
+                                {report.aiDiagnosis.isSafetyHazard && (
+                                    <div className="mt-2 flex items-center gap-1 text-red-500 font-bold text-[10px] animate-bounce">
+                                        <AlertTriangle size={12} /> BERBAHAYA
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Description */}
             <div className="bg-white rounded-xl border border-slate-200 p-5">

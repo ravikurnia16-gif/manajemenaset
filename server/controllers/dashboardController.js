@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const predictiveService = require('../services/predictiveService');
 
 exports.getDashboardStats = async (req, res) => {
     try {
@@ -154,6 +154,9 @@ exports.getDashboardStats = async (req, res) => {
             unitStats.sort((a, b) => b.assetCount - a.assetCount);
         }
 
+        // 7. Predictive Maintenance (Due Soon)
+        const dueSoonAssets = await predictiveService.getDueSoonAssets(14); // Next 14 days
+
         res.json({
             stats: {
                 totalAssets,
@@ -166,6 +169,7 @@ exports.getDashboardStats = async (req, res) => {
             spendingData,
             maintenanceData,
             unitStats,
+            dueSoonAssets,
             units: isGlobalAdmin ? units : []
         });
     } catch (error) {

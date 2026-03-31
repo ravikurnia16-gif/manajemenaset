@@ -3,6 +3,9 @@ const prisma = new PrismaClient();
 const { deleteFile } = require('../services/minioService');
 const whatsappService = require('../services/whatsappService');
 const { createNotification } = require('./notificationController');
+const aiService = require('../services/aiService');
+const predictiveService = require('../services/predictiveService');
+const crypto = require('crypto');
 
 // Helper to generate Maintenance Code
 const generateCode = async () => {
@@ -71,6 +74,21 @@ exports.createReport = async (req, res) => {
     try {
         const code = await generateCode();
 
+        // --- AI Analysis (Async) ---
+        let aiResult = null;
+        if (type === 'ASSET' && (req.fileUrl || photo)) {
+            try {
+                // We use the photo (Base64 if uploaded via browser or URL if from S3/Minio)
+                // For simplicity, we assume req.fileUrl is accessible or photo is Base64
+                // Note: analyzeDamage expects plain base64 or a reachable URL could be added later
+                if (req.fileUrl || photo) {
+                    aiResult = await aiService.analyzeDamage(req.fileUrl || photo, description);
+                }
+            } catch (aiErr) {
+                console.error("AI Analysis skipped or failed:", aiErr.message);
+            }
+        }
+
         const report = await prisma.maintenance.create({
             data: {
                 code,
@@ -85,7 +103,8 @@ exports.createReport = async (req, res) => {
                 description,
                 location: location || null,
                 photo: req.fileUrl || photo || null,
-                status: 'SUBMITTED'
+                status: 'SUBMITTED',
+                aiDiagnosis: aiResult || undefined
             },
             include: {
                 unit: true,
@@ -211,16 +230,39 @@ exports.updateStatus = async (req, res) => {
         if (actionTaken) updateData.actionTaken = actionTaken;
         if (completionNote) updateData.completionNote = completionNote;
         if (cost !== undefined) updateData.cost = parseFloat(cost);
-        if (status === 'COMPLETED') updateData.completionDate = new Date();
+        if (status === 'COMPLETED') {
+            updateData.completionDate = new Date();
+            updateData.quickToken = null; // Clear token after use
+        }
+        
+        // Generate quickToken if assigned
+        if (status === 'ASSIGNED') {
+            updateData.quickToken = crypto.randomBytes(16).toString('hex');
+        }
 
         const report = await prisma.maintenance.update({
             where: { id: parseInt(id) },
             data: updateData,
             include: {
                 user: { select: { username: true, name: true, phone: true } },
-                unit: { select: { name: true } }
+                unit: { select: { name: true } },
+                assets: true // Include assets for prediction logic
             }
         });
+
+        // --- Predictive Maintenance Trigger (If Completed) ---
+        if (status === 'COMPLETED' && report.type === 'ASSET' && report.assets.length > 0) {
+            (async () => {
+                for (const asset of report.assets) {
+                    try {
+                        await predictiveService.predictNextMaintenance(asset.id);
+                        console.log(`[Predictive] Updated prediction for Asset ID: ${asset.id}`);
+                    } catch (err) {
+                        console.error(`[Predictive] Error for Asset ${asset.id}:`, err);
+                    }
+                }
+            })();
+        }
 
         // --- In-App Notification (Phase 3) ---
         const statusLabels = {
@@ -246,6 +288,36 @@ exports.updateStatus = async (req, res) => {
         // --- WhatsApp Notification to Submitter (Async) ---
         (async () => {
             try {
+                // --- WhatsApp Notification to Technician (Async) ---
+                if (status === 'ASSIGNED' && technician) {
+                    try {
+                        const techUser = await prisma.user.findFirst({
+                            where: { OR: [{ name: technician }, { username: technician }] }
+                        });
+                        
+                        if (techUser && techUser.phone && report.quickToken) {
+                            const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
+                            const quickLink = `${baseUrl}/q/${report.quickToken}`;
+                            
+                            const msgTech = `🛠 *PENUGASAN PEMELIHARAAN*\n\n` +
+                                `Halo *${techUser.name || techUser.username}*,\n` +
+                                `Anda ditugaskan untuk memperbaiki: *${report.title}*.\n\n` +
+                                `📜 *Kode* : ${report.code}\n` +
+                                `📋 *Judul* : ${report.title}\n` +
+                                `📝 *Masalah* : ${report.description}\n\n` +
+                                `Jika sudah selesai, klik link di bawah untuk konfirmasi:\n` +
+                                `👉 ${quickLink}\n\n` +
+                                `Terima kasih!`;
+                                
+                            setTimeout(async () => {
+                                await whatsappService.sendMessage(techUser.phone, msgTech);
+                            }, 45000); // Send slightly after submitter notif
+                        }
+                    } catch (e) {
+                        console.error('WA Tech Notif Error:', e);
+                    }
+                }
+                
                 const submitter = report.user;
                 if (!submitter?.phone) return;
 
@@ -272,16 +344,62 @@ exports.updateStatus = async (req, res) => {
                 setTimeout(async () => {
                     try {
                         await whatsappService.sendMessage(submitter.phone, msg);
-                        console.log(`[WA] Maintenance status notif sent to ${submitter.username} (${status})`);
+                        console.log(`[WA] Status notif sent to ${submitter.username}`);
                     } catch (e) {
-                        console.error('[WA] Failed maintenance status notif:', e);
+                        console.error('WA Status Error:', e);
                     }
                 }, 30000);
             } catch (err) {
                 console.error('WA Maintenance Status Error:', err);
             }
         })();
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
 
+// Quick Completion via Token (Public)
+exports.quickComplete = async (req, res) => {
+    const { token } = req.params;
+    const { actionTaken, cost } = req.body;
+
+    try {
+        const report = await prisma.maintenance.findUnique({
+            where: { quickToken: token },
+            include: { assets: true }
+        });
+
+        if (!report) {
+            return res.status(404).json({ error: 'Token tidak valid atau sudah kedaluwarsa.' });
+        }
+
+        if (report.status === 'COMPLETED') {
+            return res.status(400).json({ error: 'Pekerjaan ini sudah selesai sebelumnya.' });
+        }
+
+        const updatedReport = await prisma.maintenance.update({
+            where: { id: report.id },
+            data: {
+                status: 'COMPLETED',
+                actionTaken: actionTaken || 'Dikerjakan via Quick Link',
+                cost: cost ? parseFloat(cost) : report.cost,
+                completionDate: new Date(),
+                quickToken: null // Clear token
+            }
+        });
+
+        // Trigger predictive maintenance if applicable
+        if (report.type === 'ASSET' && report.assets.length > 0) {
+            for (const asset of report.assets) {
+                try {
+                    await predictiveService.predictNextMaintenance(asset.id);
+                } catch (e) {
+                    console.error('QuickComplete Predictive Error:', e);
+                }
+            }
+        }
+
+        res.json({ message: 'Laporan berhasil diperbarui!', data: updatedReport });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

@@ -202,6 +202,10 @@ model Asset {
   pic             User?    @relation("AssetPIC", fields: [picId], references: [id])
   picName         String?  // For custom PIC names not in system
   
+  // Prediction Fields
+  nextMaintenanceEst DateTime?
+  maintenanceInterval Int?       @default(180) // Default 180 days
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
@@ -294,6 +298,9 @@ model Maintenance {
   completionNote  String?  @db.Text
   completionDate  DateTime?
   cost            Float    @default(0)
+  
+  aiDiagnosis     Json?    // AI Diagnosis Results (Diagnosis, Severity, Actions)
+  quickToken      String?  @unique // Token for quick update via WA
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

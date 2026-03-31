@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
+const googleAiService = require('../services/googleAiService');
 
 // Helper to check if user belongs to 'Sarana dan Prasarana' unit
 const isSarprasUnit = async (unitId) => {
@@ -137,9 +138,49 @@ exports.getReports = async (req, res) => {
         }
 
         const reports = await prisma.personnelReport.findMany(queryOptions);
-
         res.json(reports);
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getAiSummaryReports = async (req, res) => {
+    const { startDate, endDate } = req.query;
+    const user = req.user;
+
+    try {
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
+            return res.status(403).json({ error: 'Akses ditolak.' });
+        }
+
+        if (!startDate || !endDate) {
+            return res.status(400).json({ error: 'Rentang tanggal wajib diisi.' });
+        }
+
+        // Fetch reports for the range
+        const reports = await prisma.personnelReport.findMany({
+            where: {
+                date: {
+                    gte: new Date(startDate),
+                    lte: new Date(endDate)
+                }
+            },
+            include: {
+                user: { select: { name: true, username: true } }
+            },
+            orderBy: { date: 'asc' }
+        });
+
+        if (reports.length === 0) {
+            return res.json({ summary: "Tidak ada laporan ditemukan untuk periode ini." });
+        }
+
+        // Call Gemini AI Service
+        const summary = await googleAiService.generatePersonnelSummary(reports, { start: startDate, end: endDate });
+
+        res.json({ summary });
+    } catch (error) {
+        console.error("AI Summary Controller Error:", error);
         res.status(500).json({ error: error.message });
     }
 };
@@ -302,6 +343,9 @@ exports.updateAssignmentStatus = async (req, res) => {
             // Record actual times
             if (status === 'IN_PROGRESS' && !assignment.actualStartDate) {
                 data.actualStartDate = new Date();
+            }
+            if (status === 'IN_REVIEW' && !assignment.actualCompletionDate) {
+                // Potential review stage
             }
             if (status === 'COMPLETED') {
                 data.actualCompletionDate = new Date();

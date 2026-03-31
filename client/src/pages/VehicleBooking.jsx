@@ -59,6 +59,11 @@ const VehicleBooking = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role);
     const isAdminAset = ['ADMIN_ASET'].includes(user.role);
+    
+    // Special Roles: Yayasan Leadership
+    const yayasanPositions = ['Ketua Yayasan', 'Bendahara Yayasan', 'Sekretaris Yayasan'];
+    const isYayasanLeader = yayasanPositions.includes(user.position);
+
     const [isPIC, setIsPIC] = useState(false);
 
     useEffect(() => {
@@ -498,6 +503,19 @@ const VehicleBooking = () => {
 
                             {/* Modal Body */}
                             <div className="p-6 max-h-[80vh] overflow-y-auto">
+                                {isYayasanLeader && (
+                                    <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex gap-3 items-start animate-in slide-in-from-top-2 duration-500">
+                                        <div className="p-2 bg-amber-100 text-amber-600 rounded-lg">
+                                            <AlertCircle size={20} />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-sm font-bold text-amber-800">Prioritas Pimpinan Yayasan</h4>
+                                            <p className="text-xs text-amber-600 leading-relaxed mt-0.5">
+                                                Sebagai <strong>{user.position}</strong>, permohonan Anda akan mendapatkan <strong>Persetujuan Otomatis</strong> oleh sistem tanpa perlu menunggu verifikasi PIC.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                                 <form onSubmit={handleSubmitRequest} className="space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         {/* Jenis Peminjaman */}
@@ -760,12 +778,15 @@ const VehicleBooking = () => {
                                         <button
                                             type="submit"
                                             disabled={submitting}
-                                            className="flex-[2] py-3 px-4 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 transition-all flex justify-center items-center gap-2"
+                                            className={`flex-[2] py-3 px-4 rounded-xl text-sm font-bold shadow-lg transition-all flex justify-center items-center gap-2 ${isYayasanLeader ? 'bg-amber-600 text-white shadow-amber-200 hover:bg-amber-700' : 'bg-blue-600 text-white shadow-blue-200 hover:bg-blue-700'} disabled:opacity-50`}
                                         >
                                             {submitting ? (
                                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                             ) : (
-                                                <>Kirim Permohonan <ArrowRight size={18} /></>
+                                                <>
+                                                    {isYayasanLeader ? 'Ajukan & Setujui Otomatis' : 'Kirim Permohonan'}
+                                                    <ArrowRight size={18} />
+                                                </>
                                             )}
                                         </button>
                                     </div>

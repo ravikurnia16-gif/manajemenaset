@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment } from 'react';
-import { Save, Building2, UserCheck, ShieldCheck, Globe, Mail, MapPin, Phone } from 'lucide-react';
+import { Save, Building2, UserCheck, ShieldCheck, Globe, Mail, MapPin, Phone, Eye, EyeOff } from 'lucide-react';
 import api from '../lib/axios';
 
 const Settings = () => {
@@ -50,6 +50,8 @@ const Settings = () => {
         newPassword: '',
         confirmPassword: ''
     });
+
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleChangePassword = async (e) => {
         e.preventDefault();
@@ -216,6 +218,7 @@ const Settings = () => {
             unitId: user.unitId || ''
         });
         setShowUserModal(true);
+        setShowPassword(false);
     };
 
     const handleDeleteUser = async (id) => {
@@ -569,6 +572,7 @@ const Settings = () => {
                             <button
                                 onClick={() => {
                                     setNewUser({ username: '', name: '', password: '', email: '', nip: '', phone: '', position: '', role: 'USER', unitId: '' });
+                                    setShowPassword(false);
                                     setShowUserModal(true);
                                 }}
                                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all whitespace-nowrap"
@@ -749,6 +753,7 @@ const Settings = () => {
                                         <input
                                             type="text"
                                             required
+                                            autoComplete="off"
                                             value={newUser.username}
                                             onChange={e => setNewUser({ ...newUser, username: e.target.value })}
                                             className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
@@ -780,14 +785,24 @@ const Settings = () => {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Password</label>
-                                    <input
-                                        type="password"
-                                        required={!newUser.id}
-                                        value={newUser.password}
-                                        onChange={e => setNewUser({ ...newUser, password: e.target.value })}
-                                        className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                        placeholder={newUser.id ? "Kosongkan jika tidak ubah password" : "********"}
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            type={showPassword ? "text" : "password"}
+                                            required={!newUser.id}
+                                            autoComplete="new-password"
+                                            value={newUser.password}
+                                            onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                                            className="w-full border border-slate-200 rounded-lg pl-4 pr-10 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            placeholder={newUser.id ? "Kosongkan jika tidak ubah password" : "********"}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                        >
+                                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>

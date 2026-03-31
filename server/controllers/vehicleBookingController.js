@@ -67,7 +67,12 @@ exports.requestBooking = async (req, res) => {
         }
 
         const isPIC = vehicle.pics.some(p => p.id === userId);
-        const initialStatus = isPIC ? 'APPROVED' : 'PENDING';
+        
+        // Special Roles: Yayasan Leadership (Auto-Approval)
+        const yayasanPositions = ['Ketua Yayasan', 'Bendahara Yayasan', 'Sekretaris Yayasan'];
+        const isYayasan = yayasanPositions.includes(currentUser.position);
+        
+        const initialStatus = (isPIC || isYayasan) ? 'APPROVED' : 'PENDING';
 
         const booking = await prisma.vehicleBooking.create({
             data: {
@@ -84,7 +89,7 @@ exports.requestBooking = async (req, res) => {
                 rentalPrice: rentalPrice ? parseFloat(rentalPrice) : null
             },
             include: {
-                user: { select: { name: true, phone: true } },
+                user: { select: { name: true, phone: true, position: true } },
                 vehicle: { select: { id: true, name: true, plateNumber: true, pics: true } },
                 driver: { select: { name: true } }
             }
@@ -101,14 +106,23 @@ exports.requestBooking = async (req, res) => {
             const endStr = formatWAWaktu(endDate);
             const driverName = booking.driver?.name || (booking.driverId ? 'Driver Terpilih' : 'Tanpa Driver / Lepas Kunci');
 
-            const msg = `🚗 *PERMINTAAN ${termHeader} KENDARAAN*\n\n` +
-                `Pemohon: ${booking.user.name}\n` +
+            let msgHeader = `🚗 *PERMINTAAN ${termHeader} KENDARAAN*`;
+            if (isYayasan) {
+                msgHeader = `👑 *PEMBERITAHUAN PENGGUNAAN KENDARAAN (PIMPINAN)*`;
+            } else if (isPIC) {
+                msgHeader = `🚗 *LAPORAN PENGGUNAAN KENDARAAN (PIC)*`;
+            }
+
+            const msg = `${msgHeader}\n\n` +
+                `Pemohon: ${booking.user.name} (${booking.user.position || 'User'})\n` +
                 `Armada: ${vehicle.name} (${vehicle.plateNumber})\n` +
                 `Driver: ${driverName}\n` +
                 `Jadwal: ${startStr} - ${endStr}\n` +
                 `Tujuan: ${destination}\n` +
                 `Keperluan: ${purpose}\n\n` +
-                (isPIC ? `*Status*: Otomatis Disetujui (PIC)` : `Mohon tinjau di sistem untuk persetujuan.`);
+                (initialStatus === 'APPROVED' ? 
+                    `*Status*: Otomatis Disetujui (${isYayasan ? 'Yayasan' : 'PIC'})` : 
+                    `Mohon tinjau di sistem untuk persetujuan.`);
 
             for (const pic of vehicle.pics) {
                 if (pic.phone) {
@@ -117,19 +131,49 @@ exports.requestBooking = async (req, res) => {
                 // Add System Notification for PICs
                 await createNotification(
                     pic.id,
-                    `Permintaan ${termTitle} Kendaraan`,
-                    `${booking.user.name} mengajukan ${termAction} ${vehicle.name}.`,
-                    'INFO',
+                    isYayasan ? 'Penggunaan Kendaraan oleh Pimpinan' : `Permintaan ${termTitle} Kendaraan`,
+                    isYayasan 
+                        ? `${booking.user.name} (${booking.user.position}) menggunakan ${vehicle.name}.`
+                        : `${booking.user.name} mengajukan ${termAction} ${vehicle.name}.`,
+                    isYayasan ? 'URGENT' : 'INFO',
                     isRental ? '/kendaraan/sewa' : '/kendaraan/peminjaman'
                 );
             }
         }
 
+        // Special Notification to Head of Sarpras for Yayasan usage
+        if (isYayasan) {
+            const headSarpras = await prisma.user.findFirst({
+                where: { position: 'Kepala Bidang Sarana dan Prasarana' }
+            });
+
+            if (headSarpras && headSarpras.phone) {
+                const startStr = formatWAWaktu(startDate);
+                const endStr = formatWAWaktu(endDate);
+                const msgHead = `📢 *INFO PRIORITAS PIMPINAN YAYASAN*\n\n` +
+                    `Ustadz *${booking.user.name}* (${booking.user.position}) akan menggunakan kendaraan:\n\n` +
+                    `Armada: ${vehicle.name} (${vehicle.plateNumber})\n` +
+                    `Jadwal: ${startStr} - ${endStr}\n` +
+                    `Tujuan: ${destination}\n\n` +
+                    `*Status*: Sistem telah memberikan Persetujuan Otomatis.`;
+                
+                await sendMessage(headSarpras.phone, msgHead);
+                await createNotification(
+                    headSarpras.id,
+                    'Prioritas Pimpinan Yayasan',
+                    `${booking.user.name} (${booking.user.position}) menggunakan ${vehicle.name}.`,
+                    'URGENT',
+                    '/kendaraan/peminjaman'
+                );
+            }
+        }
+
         // If Auto-Approved, notify the requester too
-        if (isPIC && booking.user.phone) {
+        if (initialStatus === 'APPROVED' && booking.user.phone) {
             const msg = `📢 *KONFIRMASI ${isRental ? 'PENYEWAAN' : 'PEMINJAMAN'}*\n\n` +
-                `Permintaan Anda untuk kendaraan *${vehicle.name}* telah *DISETUJUI OTOMATIS* (Sistem mendeteksi Anda sebagai PIC).\n\n` +
-                `Selamat bertugas!`;
+                `Permintaan Anda untuk kendaraan *${vehicle.name}* telah *DISETUJUI OTOMATIS*\n\n` +
+                (isYayasan ? `Sistem mendeteksi posisi Anda sebagai ${booking.user.position}.` : `Sistem mendeteksi Anda sebagai PIC armada ini.`) +
+                `\n\nSelamat bertugas!`;
             await sendMessage(booking.user.phone, msg);
         }
 

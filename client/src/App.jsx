@@ -49,6 +49,7 @@ import VendorManagement from './pages/VendorManagement';
 import ReportPage from './pages/ReportPage';
 import ModulePlaceholder from './components/ModulePlaceholder';
 import OfficialResidence from './pages/OfficialResidence';
+import QuickComplete from './pages/QuickComplete';
 
 // Komponen untuk melindungi route yang butuh login
 const ProtectedRoute = ({ children }) => {
@@ -67,6 +68,7 @@ function App() {
         <Route path="/pesan-seragam" element={<UniformOrderPage />} />
         <Route path="/public/asset/:id" element={<PublicAssetView />} />
         <Route path="/public/booking-bus" element={<BusBookingPublic />} />
+        <Route path="/q/:token" element={<QuickComplete />} />
 
         {/* Semua route di dalam sini diproteksi */}
         <Route path="/" element={
