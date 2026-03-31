@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wrench, Save, ArrowLeft, Search } from 'lucide-react';
 import api from '../lib/axios';
@@ -11,6 +11,7 @@ const MaintenanceForm = () => {
     const [assets, setAssets] = useState([]);
     const [assetSearch, setAssetSearch] = useState('');
     const [showAssetDropdown, setShowAssetDropdown] = useState(false);
+    const dropdownRef = useRef(null);
 
     const [form, setForm] = useState({
         title: '',
@@ -22,6 +23,16 @@ const MaintenanceForm = () => {
         photo: ''
     });
     const [file, setFile] = useState(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setShowAssetDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     useEffect(() => {
         if (form.type === 'ASSET') {
@@ -191,7 +202,7 @@ const MaintenanceForm = () => {
 
                 {/* Asset Selector (if ASSET) */}
                 {form.type === 'ASSET' && (
-                    <div className="relative">
+                    <div className="relative" ref={dropdownRef}>
                         <label className="block text-sm font-semibold text-slate-700 mb-1">Pilih Aset (Bisa lebih dari satu)</label>
 
                         {/* Selected Assets Tags */}
@@ -226,8 +237,15 @@ const MaintenanceForm = () => {
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="p-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                            {assetSearch ? `Hasil Pencarian (${filteredAssets.length})` : `Daftar Aset (${assets.length})`}
+                                        <div className="p-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center">
+                                            <span>{assetSearch ? `Hasil Pencarian (${filteredAssets.length})` : `Daftar Aset (${assets.length})`}</span>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setShowAssetDropdown(false)}
+                                                className="text-blue-600 hover:text-blue-800 font-bold"
+                                            >
+                                                TUTUP
+                                            </button>
                                         </div>
                                         {filteredAssets.slice(0, 50).map(a => {
                                             const isSelected = form.selectedAssets.some(sa => sa.id === a.id);
