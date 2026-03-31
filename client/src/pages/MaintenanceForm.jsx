@@ -394,19 +394,3 @@ const MaintenanceForm = () => {
 };
 
 export default MaintenanceForm;
-
-                {/* Submit */}
-                <button
-                    type="submit"
-                    disabled={saving}
-                    className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                    <Save size={18} />
-                    {saving ? 'Menyimpan...' : 'Kirim Laporan'}
-                </button>
-            </form>
-        </div>
-    );
-};
-
-export default MaintenanceForm;
