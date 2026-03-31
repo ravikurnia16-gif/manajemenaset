@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileCheck, Plus, Clock, CheckCircle2, AlertCircle, Calendar, User, Search, MapPin, Tag, ArrowRight, MoreVertical, Flag, Loader2 } from 'lucide-react';
+import { FileCheck, Plus, Clock, CheckCircle2, AlertCircle, Calendar, User, Search, MapPin, Tag, ArrowRight, MoreVertical, Flag, Loader2, X, ChevronDown, ChevronUp, CheckSquare, Square } from 'lucide-react';
 import api from '../lib/axios';
 
 const PersonnelAssignments = () => {
@@ -19,11 +19,12 @@ const PersonnelAssignments = () => {
         title: '',
         description: '',
         category: 'UMUM',
-        priority: 'MEDIUM', // NEW: Priority field
+        priority: 'MEDIUM',
         location: '',
         startDate: new Date().toISOString().split('T')[0],
         dueDate: '',
-        addToCalendar: true
+        addToCalendar: true,
+        items: [{ text: '', status: 'PENDING' }]
     });
 
     const statusConfig = {
@@ -70,15 +71,30 @@ const PersonnelAssignments = () => {
         fetchStaff();
     }, []);
 
+    const addItem = () => {
+        setForm({ ...form, items: [...form.items, { text: '', status: 'PENDING' }] });
+    };
+
+    const removeItem = (idx) => {
+        setForm({ ...form, items: form.items.filter((_, i) => i !== idx) });
+    };
+
+    const handleItemChange = (idx, value) => {
+        const newItems = [...form.items];
+        newItems[idx].text = value;
+        setForm({ ...form, items: newItems });
+    };
+
     const handleCreate = async (e) => {
         e.preventDefault();
+        const validItems = form.items.filter(it => it.text.trim());
         if (!form.assigneeId || !form.title) return alert('Penerima tugas dan Judul wajib diisi');
 
         try {
             setSubmitting(true);
-            await api.post('/personnel/assignments', form);
+            await api.post('/personnel/assignments', { ...form, items: validItems });
             setShowForm(false);
-            setForm({ assigneeId: '', title: '', description: '', category: 'UMUM', priority: 'MEDIUM', location: '', startDate: new Date().toISOString().split('T')[0], dueDate: '', addToCalendar: true });
+            setForm({ assigneeId: '', title: '', description: '', category: 'UMUM', priority: 'MEDIUM', location: '', startDate: new Date().toISOString().split('T')[0], dueDate: '', addToCalendar: true, items: [{ text: '', status: 'PENDING' }] });
             fetchAssignments();
             alert(`Tugas berhasil didelegasikan`);
         } catch (err) {
@@ -88,308 +104,354 @@ const PersonnelAssignments = () => {
         }
     };
 
-    const handleUpdateStatus = async (id, newStatus, additionalData = {}) => {
+    const handleUpdateAssignment = async (id, payload) => {
         try {
-            await api.put(`/personnel/assignments/${id}/status`, { status: newStatus, ...additionalData });
+            await api.put(`/personnel/assignments/${id}/status`, payload);
             fetchAssignments();
         } catch (err) {
-            alert('Gagal memperbarui status tugas');
+            alert('Gagal memperbarui tugas');
         }
     };
 
     const filteredAssignments = assignments.filter(a => filterStatus === 'ALL' || a.status === filterStatus);
 
     return (
-        <div className="max-w-6xl mx-auto space-y-8 p-4 animate-in fade-in duration-700">
+        <div className="max-w-7xl mx-auto space-y-6 p-4 animate-in fade-in duration-700">
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm relative overflow-hidden">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 md:p-8 rounded-[24px] border border-slate-100 shadow-sm relative overflow-hidden backdrop-blur-xl bg-white/80">
                 <div className="relative z-10">
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                        <div className="p-2.5 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-600/20">
-                            <FileCheck size={28} />
+                    <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                        <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-600/20">
+                            <FileCheck size={24} />
                         </div>
                         Manajemen Penugasan
                     </h1>
-                    <p className="text-slate-500 text-sm mt-2 font-medium">Delegasi tugas operasional dan pemantauan real-time progres staf Sarpras.</p>
+                    <p className="text-slate-500 text-xs md:text-sm mt-2 font-medium">Monitoring tugas staf dengan sistem checklist satu pintu.</p>
                 </div>
                 {canAssign && (
                     <button
                         onClick={() => setShowForm(!showForm)}
-                        className={`relative z-10 flex items-center gap-2 px-8 py-4 rounded-2xl font-bold shadow-xl transition-all active:scale-95 ${showForm ? 'bg-slate-100 text-slate-600' : 'bg-slate-900 text-white shadow-slate-900/20 hover:bg-slate-800'}`}
+                        className={`relative z-10 flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-bold shadow-xl transition-all active:scale-95 text-sm ${showForm ? 'bg-slate-100 text-slate-600' : 'bg-slate-900 text-white shadow-slate-900/20 hover:bg-slate-800'}`}
                     >
-                        {showForm ? <><X size={20} /> Batal</> : <><Plus size={20} /> Delegasi Tugas</>}
+                        {showForm ? <><X size={18} /> Tutup Form</> : <><Plus size={18} /> Delegasi Tugas</>}
                     </button>
                 )}
-                {/* Decoration */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full -mr-32 -mt-32 opacity-50"></div>
             </div>
 
-            {/* Filter Hub */}
-            {!showForm && (
-                <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-50/50 p-4 rounded-3xl border border-slate-200/50">
-                    <div className="flex gap-2 p-1 bg-white rounded-2xl border border-slate-200">
-                        {['ALL', 'PENDING', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'].map((s) => (
-                            <button
-                                key={s}
-                                onClick={() => setFilterStatus(s)}
-                                className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${filterStatus === s ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
-                            >
-                                {s === 'ALL' ? 'SEMUA' : s.replace('_', ' ')}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-slate-400">Limit:</span>
-                        <select value={limit} onChange={e => setLimit(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500">
-                            <option value="10">10 Data</option>
-                            <option value="25">25 Data</option>
-                            <option value="50">50 Data</option>
-                            <option value="all">Semua</option>
-                        </select>
-                    </div>
-                </div>
-            )}
-
-            {/* Form Section */}
+            {/* Form Section (Checklist items) */}
             {showForm && (
-                <div className="bg-white rounded-[40px] border border-indigo-100 p-10 shadow-2xl shadow-indigo-100/50 animate-in slide-in-from-top-10 duration-500">
-                    <h3 className="text-2xl font-black text-slate-900 mb-8 flex items-center gap-3">
-                        <Plus className="text-indigo-600" /> Form Delegasi Tugas Baru
+                <div className="bg-white rounded-[32px] border border-indigo-100 p-6 md:p-10 shadow-2xl shadow-indigo-100/50 animate-in slide-in-from-top-10 duration-500">
+                    <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3 border-b border-slate-50 pb-4">
+                        <Plus size={20} className="text-indigo-600" /> Buat Penugasan Checklist
                     </h3>
                     <form onSubmit={handleCreate} className="space-y-8">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Penerima Tugas (Staff PIC)</label>
-                                <select value={form.assigneeId} onChange={e => setForm({ ...form, assigneeId: e.target.value })} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Pilih Staf Pelaksana</label>
+                                <select value={form.assigneeId} onChange={e => setForm({ ...form, assigneeId: e.target.value })} className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                                     <option value="">-- Pilih Staf --</option>
                                     {staff.map(s => <option key={s.id} value={s.id}>{s.name} ({s.position})</option>)}
                                 </select>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Prioritas Kerja</label>
-                                <select value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Prioritas</label>
+                                <select value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })} className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                                     <option value="LOW">Rendah</option>
-                                    <option value="MEDIUM">Normal / Rutin</option>
+                                    <option value="MEDIUM">Normal</option>
                                     <option value="HIGH">Tinggi</option>
-                                    <option value="URGENT">Mendesak (Urgensi Tinggi)</option>
+                                    <option value="URGENT">Sangat Mendesak</option>
                                 </select>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Judul Penugasan</label>
-                                <input type="text" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Misal: Perbaikan AC Ruang Kantor" className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Kategori</label>
-                                <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                                    <option value="UMUM">Umum</option>
-                                    <option value="Perbaikan">🛠️ Perbaikan</option>
-                                    <option value="Pemeliharaan">🧹 Pemeliharaan</option>
-                                    <option value="Pengadaan">📦 Pengadaan</option>
-                                    <option value="Rapat">🤝 Rapat / Dinas</option>
-                                </select>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Lokasi Kerja</label>
-                                <input type="text" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Gedung, Lantai, atau Ruang" className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Tanggal Mulai</label>
-                                <input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Deadline Selesai</label>
-                                <input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Instruksi Lengkap (Deskripsi)</label>
-                            <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={4} placeholder="Jelaskan detail apa yang harus dikerjakan..." className="w-full p-5 bg-slate-50 border border-slate-200 rounded-3xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Judul Penugasan Utarna</label>
+                            <input type="text" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Misal: Pemeliharaan Fasilitas Gedung A" className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
                         </div>
 
-                        <div className="flex items-center justify-between bg-indigo-50 p-6 rounded-3xl">
-                            <div className="flex items-center gap-3">
-                                <input type="checkbox" id="syncCalendar" checked={form.addToCalendar} onChange={e => setForm({ ...form, addToCalendar: e.target.checked })} className="w-5 h-5 rounded-lg border-indigo-200 text-indigo-600 focus:ring-indigo-500" />
-                                <label htmlFor="syncCalendar" className="text-sm font-bold text-indigo-900 cursor-pointer">Singkronkan ke Kalender Kerja Sarpras</label>
+                        {/* Checklist Input Grid */}
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center px-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Rincian Item Tugas (Checklist)</label>
+                                <button type="button" onClick={addItem} className="text-indigo-600 hover:text-indigo-800 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                                    <Plus size={14} /> Tambah Item
+                                </button>
                             </div>
-                            <button disabled={submitting} type="submit" className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl shadow-indigo-600/30 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50">
-                                {submitting ? 'Memproses...' : 'Kirim Penugasan Resmi'}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {form.items.map((item, idx) => (
+                                    <div key={idx} className="flex gap-2 group">
+                                        <div className="flex-1 relative">
+                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 font-black text-[10px]">{idx + 1}</div>
+                                            <input 
+                                                value={item.text} 
+                                                onChange={e => handleItemChange(idx, e.target.value)}
+                                                placeholder="Sebutkan pekerjaan spesifik..." 
+                                                className="w-full pl-10 pr-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-indigo-500 outline-none group-hover:bg-white transition-all" 
+                                            />
+                                        </div>
+                                        {form.items.length > 1 && (
+                                            <button type="button" onClick={() => removeItem(idx)} className="p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
+                                                <X size={18} />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="col-span-1 space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Tgl Mulai</label>
+                                <input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                            </div>
+                            <div className="col-span-1 space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Deadline</label>
+                                <input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                            </div>
+                            <div className="col-span-2 space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Lokasi</label>
+                                <input type="text" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Area lokasi kerja" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" />
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-50">
+                            <div className="flex items-center gap-3">
+                                <input type="checkbox" id="syncCalendar" checked={form.addToCalendar} onChange={e => setForm({ ...form, addToCalendar: e.target.checked })} className="w-5 h-5 rounded-lg border-indigo-200 text-indigo-600" />
+                                <label htmlFor="syncCalendar" className="text-xs font-bold text-slate-600">Sync ke Kalender Kerja</label>
+                            </div>
+                            <button disabled={submitting} type="submit" className="w-full md:w-auto bg-indigo-600 text-white px-12 py-4 rounded-xl font-black shadow-xl shadow-indigo-600/30 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50">
+                                {submitting ? 'Mengirim Data...' : 'Kirim Penugasan'}
                             </button>
                         </div>
                     </form>
                 </div>
             )}
 
-            {/* Assignments Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pb-10">
-                {loading ? (
-                    <div className="md:col-span-2 py-20 flex flex-col items-center gap-4">
-                        <Loader2 className="animate-spin text-indigo-600" size={48} />
-                        <p className="text-slate-400 font-black animate-pulse uppercase tracking-[0.2em] text-[10px]">Sinkronisasi Tugas...</p>
-                    </div>
-                ) : filteredAssignments.length === 0 ? (
-                    <div className="md:col-span-2 py-20 bg-white rounded-[40px] border-2 border-dashed border-slate-100 flex flex-col items-center text-center">
-                        <div className="w-20 h-20 bg-slate-50 text-slate-200 rounded-3xl flex items-center justify-center mb-6">
-                            <FileCheck size={40} />
-                        </div>
-                        <h4 className="text-xl font-bold text-slate-800">Tidak Ada Tugas Ditemukan</h4>
-                        <p className="text-slate-400 text-sm max-w-xs mt-2">Daftar penugasan kosong untuk kategori filter ini.</p>
-                    </div>
-                ) : (
-                    filteredAssignments.map(a => (
-                        <AssignmentCard key={a.id} a={a} statusConfig={statusConfig} priorityConfig={priorityConfig} handleUpdateStatus={handleUpdateStatus} canAssign={canAssign} userId={user.id} />
-                    ))
-                )}
-            </div>
-        </div>
-    );
-};
-
-const AssignmentCard = ({ a, statusConfig, priorityConfig, handleUpdateStatus, canAssign, userId }) => {
-    const isAssignee = a.assigneeId === userId;
-    const [updating, setUpdating] = useState(false);
-    const [showActions, setShowActions] = useState(false);
-
-    const updateStatusWithLoading = async (newStatus) => {
-        setUpdating(true);
-        await handleUpdateStatus(a.id, newStatus);
-        setUpdating(false);
-        setShowActions(false);
-    };
-
-    return (
-        <div className="group bg-white rounded-[32px] border border-slate-100 p-8 shadow-sm hover:shadow-2xl hover:border-indigo-100 transition-all duration-500 relative overflow-hidden flex flex-col justify-between">
-            {/* Top Bar */}
-            <div className="relative z-10">
-                <div className="flex justify-between items-start mb-6">
-                    <div className={`px-4 py-1.5 rounded-full border text-[9px] font-black tracking-widest flex items-center gap-2 ${statusConfig[a.status].color}`}>
-                        {statusConfig[a.status].icon}
-                        {statusConfig[a.status].label}
-                    </div>
-                    {canAssign && (
-                        <button onClick={() => setShowActions(!showActions)} className="p-2 hover:bg-slate-50 rounded-xl text-slate-400 transition-all">
-                            <MoreVertical size={20} />
-                        </button>
-                    )}
-                </div>
-
-                <div className="space-y-4">
-                    <div className="flex justify-between items-start gap-4">
-                        <h3 className="text-xl font-black text-slate-900 leading-tight group-hover:text-indigo-600 transition-colors">{a.title}</h3>
-                        <div className="flex flex-col items-end shrink-0">
-                            <div className="flex items-center gap-1.5">
-                                <Flag size={14} className={priorityConfig[a.priority || 'MEDIUM'].color} />
-                                <span className={`text-[10px] font-black uppercase tracking-tighter ${priorityConfig[a.priority || 'MEDIUM'].color}`}>
-                                    {priorityConfig[a.priority || 'MEDIUM'].label}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <p className="text-sm text-slate-500 font-medium leading-relaxed line-clamp-3">{a.description}</p>
-
-                    <div className="grid grid-cols-2 gap-4 py-6 border-y border-slate-50 border-dashed">
-                        <div className="space-y-1">
-                            <p className="text-[9px] font-black text-slate-400 tracking-widest uppercase">Target Selesai</p>
-                            <p className="text-xs font-black text-slate-700 flex items-center gap-2">
-                                <Calendar size={14} className="text-red-400" />
-                                {a.dueDate ? new Date(a.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-                            </p>
-                        </div>
-                        <div className="space-y-1">
-                            <p className="text-[9px] font-black text-slate-400 tracking-widest uppercase">Staff Pengerjaan</p>
-                            <p className="text-xs font-black text-slate-700 flex items-center gap-2">
-                                <User size={14} className="text-indigo-400" />
-                                {a.assignee?.name || 'Unknown'}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-4 pt-2">
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                            <MapPin size={12} className="text-slate-300" /> {a.location || 'Lokasi Terpusat'}
-                        </div>
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                            <Tag size={12} className="text-slate-300" /> {a.category}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="mt-8 pt-6 border-t border-slate-50 relative z-10">
-                <div className="flex items-center gap-3">
-                    {a.status === 'PENDING' && (isAssignee || canAssign) && (
-                        <button
-                            disabled={updating}
-                            onClick={() => updateStatusWithLoading('IN_PROGRESS')}
-                            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs hover:bg-indigo-700 transition-all shadow-xl shadow-slate-900/10 flex items-center justify-center gap-2"
-                        >
-                            {updating ? <Loader2 className="animate-spin" size={16} /> : <ArrowRight size={16} />}
-                            MULAI KERJAKAN
-                        </button>
-                    )}
-                    {a.status === 'IN_PROGRESS' && isAssignee && (
-                        <button
-                            disabled={updating}
-                            onClick={() => updateStatusWithLoading('IN_REVIEW')}
-                            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2"
-                        >
-                            {updating ? <Loader2 className="animate-spin" size={16} /> : <Search size={16} />}
-                            AJUKAN REVIU / SELESAI
-                        </button>
-                    )}
-                    {a.status === 'IN_REVIEW' && canAssign && (
-                        <div className="flex w-full gap-3">
+            {/* Filter Hub */}
+            {!showForm && (
+                <div className="flex flex-wrap items-center justify-between gap-4 bg-white/50 backdrop-blur-sm p-3 rounded-2xl border border-slate-100">
+                    <div className="flex gap-1 bg-slate-100/50 p-1 rounded-xl">
+                        {['ALL', 'PENDING', 'IN_PROGRESS', 'COMPLETED'].map((s) => (
                             <button
-                                disabled={updating}
-                                onClick={() => updateStatusWithLoading('IN_PROGRESS')}
-                                className="flex-1 py-4 bg-red-50 text-red-600 rounded-2xl font-black text-[10px] hover:bg-red-100 transition-all border border-red-100"
+                                key={s}
+                                onClick={() => setFilterStatus(s)}
+                                className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest transition-all ${filterStatus === s ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                             >
-                                PERLU PERBAIKAN
+                                {s === 'ALL' ? 'SEMUA' : statusConfig[s].label}
                             </button>
-                            <button
-                                disabled={updating}
-                                onClick={() => updateStatusWithLoading('COMPLETED')}
-                                className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-600/20"
-                            >
-                                KONFIRMASI SELESAI
-                            </button>
-                        </div>
-                    )}
-                    {a.status === 'COMPLETED' && (
-                        <div className="w-full py-4 bg-emerald-50 text-emerald-600 rounded-2xl font-black text-[10px] flex items-center justify-center gap-2 border border-emerald-100 italic transition-all group-hover:scale-[1.02]">
-                            <CheckCircle2 size={16} /> TUGAS TELAH TERSELESAIKAN SECARA RESMI
-                        </div>
-                    )}
-                    {a.status === 'IN_REVIEW' && isAssignee && !canAssign && (
-                        <div className="w-full py-4 bg-purple-50 text-purple-600 rounded-2xl font-black text-[10px] flex items-center justify-center gap-2 border border-purple-100 italic">
-                            <Loader2 size={16} className="animate-spin" /> SEDANG DIREVIU OLEH ADMIN
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Admin context menu */}
-            {showActions && (
-                <div className="absolute top-20 right-8 w-48 bg-white border border-slate-100 shadow-2xl rounded-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
-                    <button onClick={() => updateStatusWithLoading('CANCELLED')} className="w-full px-4 py-2 text-left text-xs font-bold text-red-600 hover:bg-red-50">Batalkan Tugas</button>
-                    <button onClick={() => updateStatusWithLoading('PENDING')} className="w-full px-4 py-2 text-left text-xs font-bold text-slate-600 hover:bg-slate-50">Reset ke Pending</button>
+                        ))}
+                    </div>
                 </div>
             )}
 
-            {/* Subtle background decoration */}
-            <FileCheck className="absolute right-[-40px] top-[-40px] w-64 h-64 text-slate-50 group-hover:text-indigo-50/50 transition-colors duration-700 -rotate-12 pointer-events-none" />
+            {/* Assignments List (Professional List View) */}
+            <div className="space-y-3 pb-10">
+                {loading ? (
+                    <div className="py-20 flex flex-col items-center gap-4 bg-white rounded-3xl border border-slate-100 shadow-sm">
+                        <Loader2 className="animate-spin text-indigo-600" size={40} />
+                        <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">Sinkronisasi Data...</p>
+                    </div>
+                ) : filteredAssignments.length === 0 ? (
+                    <div className="py-20 bg-white rounded-3xl border-2 border-dashed border-slate-100 flex flex-col items-center text-center">
+                        <FileCheck size={48} className="text-slate-200 mb-4" />
+                        <h4 className="text-lg font-bold text-slate-800">Daftar Tugas Kosong</h4>
+                        <p className="text-slate-400 text-xs mt-1">Gunakan tombol diatas untuk memberi tugas baru.</p>
+                    </div>
+                ) : (
+                    <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                        <div className="col-span-3">Pekerjaan & Info</div>
+                        <div className="col-span-3 text-center">Checklist Progres</div>
+                        <div className="col-span-2 text-center">Personil</div>
+                        <div className="col-span-2 text-center">Deadline</div>
+                        <div className="col-span-2 text-right">Status & Aksi</div>
+                    </div>
+                )}
+
+                {!loading && filteredAssignments.map(a => (
+                    <AssignmentRow 
+                        key={a.id} 
+                        a={a} 
+                        statusConfig={statusConfig} 
+                        priorityConfig={priorityConfig} 
+                        handleUpdateAssignment={handleUpdateAssignment} 
+                        canAssign={canAssign} 
+                        userId={user.id} 
+                    />
+                ))}
+            </div>
         </div>
     );
 };
 
-const X = ({ size }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
+const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment, canAssign, userId }) => {
+    const isAssignee = a.assigneeId === userId;
+    const [expanded, setExpanded] = useState(false);
+    const [updating, setUpdating] = useState(false);
+    
+    // Parse items if it's a string (MySQL might return stringified JSON depending on config)
+    const items = Array.isArray(a.items) ? a.items : (typeof a.items === 'string' ? JSON.parse(a.items) : []);
+    const totalCount = items.length;
+    const completedCount = items.filter(it => it.status === 'COMPLETED').length;
+    
+    // Logic: If there is a checklist, use calculation. If not, use DB value for simple tasks.
+    const progress = totalCount > 0 
+        ? Math.round((completedCount / totalCount) * 100) 
+        : (a.progressPercentage || 0);
+
+    const toggleItemStatus = async (itemIdx) => {
+        if (updating || (!isAssignee && !canAssign)) return;
+        setUpdating(true);
+        const newItems = [...items];
+        newItems[itemIdx].status = newItems[itemIdx].status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
+        await handleUpdateAssignment(a.id, { items: newItems });
+        setUpdating(false);
+    };
+
+    return (
+        <div className={`group bg-white rounded-2xl border ${expanded ? 'border-indigo-100 shadow-xl' : 'border-slate-100 hover:border-slate-200'} transition-all duration-300 relative overflow-hidden overflow-visible`}>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center p-4 md:p-5">
+                {/* Info Column */}
+                <div className="col-span-1 md:col-span-3 flex items-start gap-4">
+                    <button 
+                        onClick={() => setExpanded(!expanded)}
+                        className={`mt-1 p-1.5 rounded-lg transition-all ${expanded ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}
+                    >
+                        {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${priorityConfig[a.priority || 'MEDIUM'].color} bg-slate-50 border border-slate-100`}>
+                                {priorityConfig[a.priority || 'MEDIUM'].label}
+                            </span>
+                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{a.category}</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-800 truncate leading-tight group-hover:text-indigo-600 transition-colors uppercase">{a.title}</h4>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1 font-medium italic">
+                            <MapPin size={10} /> {a.location || 'Lokasi Terpusat'}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Progress Column */}
+                <div className="col-span-1 md:col-span-3 px-4 md:px-0">
+                   <div className="flex flex-col gap-1.5">
+                        <div className="flex justify-between items-end text-[10px] font-black tracking-tighter">
+                            <span className="text-slate-400 uppercase">Progres Penugasan</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-indigo-600 px-1.5 py-0.5 bg-indigo-50 rounded-md border border-indigo-100">{progress}%</span>
+                                {totalCount > 0 && <span className="text-slate-300 font-medium">({completedCount}/{totalCount})</span>}
+                            </div>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div className={`h-full transition-all duration-1000 ${progress === 100 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-indigo-600'}`} style={{ width: `${progress}%` }} />
+                        </div>
+                   </div>
+                </div>
+
+                {/* Staff Column */}
+                <div className="col-span-1 md:col-span-2 flex items-center justify-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-black text-slate-500 overflow-hidden shrink-0">
+                        {a.assignee?.name ? a.assignee.name[0].toUpperCase() : <User size={14} />}
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-[11px] font-bold text-slate-700 truncate">{a.assignee?.name || 'Staff'}</p>
+                        <p className="text-[9px] text-slate-400 font-medium">Pelaksana</p>
+                    </div>
+                </div>
+
+                {/* Date Column */}
+                <div className="col-span-1 md:col-span-2 text-center">
+                    <div className="inline-flex flex-col items-center gap-0.5 bg-slate-50 group-hover:bg-red-50/50 px-3 py-1.5 rounded-xl transition-colors">
+                        <span className="text-[9px] font-black text-slate-400 tracking-widest uppercase">Maks Selesai</span>
+                        <span className="text-[11px] font-black text-slate-700">{a.dueDate ? new Date(a.dueDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : '-'}</span>
+                    </div>
+                </div>
+
+                {/* Status Column */}
+                <div className="col-span-1 md:col-span-2 flex flex-col items-end gap-2">
+                    <div className={`px-3 py-1 rounded-lg border text-[9px] font-black tracking-widest flex items-center gap-1.5 ${statusConfig[a.status].color} w-full md:w-auto justify-center`}>
+                        {statusConfig[a.status].icon} {statusConfig[a.status].label}
+                    </div>
+                    <div className="hidden md:flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        {canAssign && (
+                            <button onClick={() => handleUpdateAssignment(a.id, { status: 'CANCELLED' })} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Batalkan">
+                                <X size={14} />
+                            </button>
+                        )}
+                        {!expanded && (
+                             <button onClick={() => setExpanded(true)} className="p-1.5 text-indigo-400 hover:bg-indigo-50 rounded-lg">
+                                <Search size={14} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Expanded Content (Sub-tasks Checklist) */}
+            {expanded && (
+                <div className="border-t border-slate-50 bg-slate-50/30 p-6 animate-in slide-in-from-top-2 duration-300">
+                    <div className="max-w-4xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <FileCheck size={14} className="text-indigo-600" /> Rincian Sub-Tugas (Checklist)
+                            </h5>
+                            <span className="text-[10px] font-bold text-slate-400 italic">Klik item untuk menandai selesai</span>
+                        </div>
+
+                        {totalCount === 0 ? (
+                            <div className="p-4 bg-white rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400 italic">
+                                Tidak ada sub-tugas yang didefinisikan.
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {items.map((item, idx) => {
+                                    const isDone = item.status === 'COMPLETED';
+                                    return (
+                                        <button
+                                            key={idx}
+                                            onClick={() => toggleItemStatus(idx)}
+                                            disabled={updating}
+                                            className={`flex items-center gap-4 p-4 rounded-xl border transition-all text-left shadow-sm ${isDone ? 'bg-emerald-50/50 border-emerald-100 border-l-4 border-l-emerald-500' : 'bg-white border-slate-100 hover:border-indigo-200'}`}
+                                        >
+                                            <div className={`shrink-0 ${isDone ? 'text-emerald-500' : 'text-slate-300'}`}>
+                                                {isDone ? <CheckSquare size={20} /> : <Square size={20} />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-xs font-bold leading-tight ${isDone ? 'text-emerald-700 line-through decoration-emerald-300' : 'text-slate-700'}`}>
+                                                    {item.text}
+                                                </p>
+                                                <span className={`text-[9px] font-black tracking-widest uppercase ${isDone ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                                    {isDone ? 'COMPLETED' : 'PENDING'}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {a.description && (
+                            <div className="mt-8 space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Instruksi Tambahan</label>
+                                <div className="p-4 bg-white border border-slate-100 rounded-xl text-xs text-slate-600 leading-relaxed font-medium">
+                                    {a.description}
+                                </div>
+                            </div>
+                        )}
+                        
+                        <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+                            <button 
+                                onClick={() => setExpanded(false)}
+                                className="text-[10px] font-black text-slate-400 hover:text-indigo-600 uppercase tracking-widest py-2 px-4"
+                            >
+                                Tutup Rincian
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 export default PersonnelAssignments;

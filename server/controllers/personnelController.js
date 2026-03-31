@@ -188,32 +188,24 @@ exports.getAiSummaryReports = async (req, res) => {
 // --- ASSIGNMENTS ---
 
 exports.createAssignment = async (req, res) => {
-    const { assigneeId, title, description, startDate, dueDate, category, location, addToCalendar } = req.body;
-    const user = req.user;
-
-    try {
-        // Only Head or Admin can assign
-        if (!['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role)) {
-            return res.status(403).json({ error: 'Anda tidak memiliki wewenang untuk memberikan tugas.' });
-        }
-
-        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) && !await isSarprasUnit(user.unitId)) {
-            return res.status(403).json({ error: 'Akses ditolak.' });
-        }
-
-        const assignment = await prisma.personnelAssignment.create({
-            data: {
-                assignerId: user.id,
-                assigneeId: parseInt(assigneeId),
-                title,
-                description,
-                category: category || 'UMUM',
-                location: location || null,
-                startDate: startDate ? new Date(startDate) : null,
-                dueDate: dueDate ? new Date(dueDate) : null,
-                status: 'PENDING'
-            }
-        });
+        const { assigneeId, title, description, startDate, dueDate, category, location, items, addToCalendar } = req.body;
+        const user = req.user;
+    
+        try {
+            const assignment = await prisma.personnelAssignment.create({
+                data: {
+                    assignerId: user.id,
+                    assigneeId: parseInt(assigneeId),
+                    title,
+                    description,
+                    category: category || 'UMUM',
+                    location: location || null,
+                    startDate: startDate ? new Date(startDate) : null,
+                    dueDate: dueDate ? new Date(dueDate) : null,
+                    status: 'PENDING',
+                    items: items || []
+                }
+            });
 
         // AUTO-SYNC TO CALENDAR: Create a calendar event for this assignment (ONLY IF REQUESTED)
         if (addToCalendar) {
@@ -323,45 +315,61 @@ exports.getAssignments = async (req, res) => {
 
 exports.updateAssignmentStatus = async (req, res) => {
     const { id } = req.params;
-    const { status, progressPercentage, notes } = req.body;
-    const user = req.user;
-
-    try {
-        const assignment = await prisma.personnelAssignment.findUnique({
-            where: { id: parseInt(id) }
-        });
-
-        if (!assignment) return res.status(404).json({ error: 'Penugasan tidak ditemukan.' });
-
-        if (assignment.assigneeId !== user.id && assignment.assignerId !== user.id && !['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role)) {
-            return res.status(403).json({ error: 'Akses ditolak.' });
-        }
-
-        const data = {};
-        if (status) {
-            data.status = status;
-            // Record actual times
-            if (status === 'IN_PROGRESS' && !assignment.actualStartDate) {
-                data.actualStartDate = new Date();
+        const { status, progressPercentage, notes, items } = req.body;
+        const user = req.user;
+    
+        try {
+            const assignment = await prisma.personnelAssignment.findUnique({
+                where: { id: parseInt(id) }
+            });
+    
+            if (!assignment) return res.status(404).json({ error: 'Penugasan tidak ditemukan.' });
+    
+            if (assignment.assigneeId !== user.id && assignment.assignerId !== user.id && !['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role)) {
+                return res.status(403).json({ error: 'Akses ditolak.' });
             }
-            if (status === 'IN_REVIEW' && !assignment.actualCompletionDate) {
-                // Potential review stage
+    
+            const data = {};
+    
+            // Handle logical items/checklist update
+            if (items) {
+                data.items = items;
+                // Calculate progress based on items
+                if (Array.isArray(items) && items.length > 0) {
+                    const completedItems = items.filter(it => it.status === 'COMPLETED').length;
+                    const percentage = Math.round((completedItems / items.length) * 100);
+                    data.progressPercentage = percentage;
+                    
+                    if (percentage === 100 && assignment.status !== 'COMPLETED') {
+                        data.status = 'COMPLETED';
+                        data.actualCompletionDate = new Date();
+                    } else if (percentage > 0 && assignment.status === 'PENDING') {
+                        data.status = 'IN_PROGRESS';
+                        data.actualStartDate = new Date();
+                    }
+                }
             }
-            if (status === 'COMPLETED') {
-                data.actualCompletionDate = new Date();
-                data.progressPercentage = 100;
+    
+            if (status) {
+                data.status = status;
+                if (status === 'IN_PROGRESS' && !assignment.actualStartDate) {
+                    data.actualStartDate = new Date();
+                }
+                if (status === 'COMPLETED') {
+                    data.actualCompletionDate = new Date();
+                    data.progressPercentage = 100;
+                }
             }
-        }
-
-        if (progressPercentage !== undefined) {
-            data.progressPercentage = parseInt(progressPercentage);
-            if (parseInt(progressPercentage) === 100) {
-                data.status = 'COMPLETED';
-                data.actualCompletionDate = new Date();
+    
+            if (progressPercentage !== undefined) {
+                data.progressPercentage = parseInt(progressPercentage);
+                if (parseInt(progressPercentage) === 100) {
+                    data.status = 'COMPLETED';
+                    data.actualCompletionDate = new Date();
+                }
             }
-        }
-
-        if (notes !== undefined) data.notes = notes;
+    
+            if (notes !== undefined) data.notes = notes;
 
         const updated = await prisma.personnelAssignment.update({
             where: { id: parseInt(id) },

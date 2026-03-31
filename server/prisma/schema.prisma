@@ -736,6 +736,7 @@ model PersonnelAssignment {
   actualCompletionDate DateTime?
   progressPercentage Int       @default(0)
   notes       String?          @db.Text
+  items       Json?            @default("[]")
   
   calendarEventId Int?
   calendarEvent   SarprasCalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
