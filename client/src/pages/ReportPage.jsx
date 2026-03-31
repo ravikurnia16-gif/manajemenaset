@@ -471,9 +471,7 @@ const ReportPage = () => {
                                         </div>
                                     ))}
                                 </div>
-                                <button className="mt-8 px-6 py-3 bg-slate-800 text-white rounded-2xl font-bold text-sm hover:bg-slate-700 transition-all">
-                                    Buka Panel Analisa AI Terpusat
-                                </button>
+                                {/* AI Analysis button removed */}
                             </div>
                         </div>
                     )}

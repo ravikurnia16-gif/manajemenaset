@@ -3,7 +3,6 @@ const prisma = new PrismaClient();
 const { deleteFile } = require('../services/minioService');
 const whatsappService = require('../services/whatsappService');
 const { createNotification } = require('./notificationController');
-const aiService = require('../services/aiService');
 const predictiveService = require('../services/predictiveService');
 const crypto = require('crypto');
 
@@ -78,16 +77,7 @@ exports.createReport = async (req, res) => {
         const media = req.uploadedMedia || [];
         const firstImagePath = media.find(m => m.type === 'IMAGE')?.url || photo || null;
 
-        // --- AI Analysis (Async) ---
-        let aiResult = null;
-        if (title || description) {
-            try {
-                // Use the first image for the AI diagnosis
-                aiResult = await aiService.analyzeDamage(firstImagePath, title, description);
-            } catch (aiErr) {
-                console.error("AI Analysis failed:", aiErr.message);
-            }
-        }
+        // AI Analysis removed for stability
 
         const report = await prisma.maintenance.create({
             data: {
@@ -104,8 +94,7 @@ exports.createReport = async (req, res) => {
                 location: location || null,
                 photo: firstImagePath,
                 media: media.length > 0 ? media : undefined,
-                status: 'SUBMITTED',
-                aiDiagnosis: aiResult || undefined
+                status: 'SUBMITTED'
             },
             include: {
                 unit: true,

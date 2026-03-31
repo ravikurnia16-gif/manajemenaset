@@ -182,12 +182,6 @@ const PersonnelReports = () => {
                 </div>
                 <div className="flex flex-wrap gap-3">
                     <button
-                        onClick={() => setShowSummaryModal(true)}
-                        className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-all active:scale-95"
-                    >
-                        <Sparkles size={18} className="text-amber-400" /> Analisa AI
-                    </button>
-                    <button
                         onClick={() => setShowForm(!showForm)}
                         className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold shadow-lg transition-all active:scale-95 ${showForm ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-indigo-600 text-white shadow-indigo-600/20 hover:bg-indigo-700'}`}
                     >
@@ -450,83 +444,7 @@ const PersonnelReports = () => {
                 </div>
             )}
 
-            {/* AI Summary Modal */}
-            {showSummaryModal && (
-                <div className="fixed inset-0 bg-slate-900/40 z-[100] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-white rounded-[40px] w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl relative">
-                        <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-gradient-to-r from-slate-900 to-indigo-900 text-white">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center box-border border border-white/20">
-                                    <Sparkles className="text-amber-400 animate-pulse" size={26} />
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-black tracking-tight">Intelligence Executive Summary</h3>
-                                    <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-widest mt-0.5">Powered by Google Gemini 1.5</p>
-                                </div>
-                            </div>
-                            <button onClick={() => setShowSummaryModal(false)} className="w-10 h-10 bg-white/10 hover:bg-red-500 rounded-full flex items-center justify-center transition-all">
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <div className="p-8 overflow-y-auto custom-scrollbar space-y-8">
-                            <div className="bg-slate-50 p-8 rounded-[32px] border border-slate-200/60 shadow-inner">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-4 px-1">Konfigurasi Periode Analisa</label>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-1.5">
-                                        <div className="text-[10px] font-bold text-slate-500 ml-1 italic">Mulai Dari</div>
-                                        <input
-                                            type="date"
-                                            value={summaryDate.start}
-                                            onChange={e => setSummaryDate({ ...summaryDate, start: e.target.value })}
-                                            className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none shadow-sm"
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <div className="text-[10px] font-bold text-slate-500 ml-1 italic">Hingga Sampai</div>
-                                        <input
-                                            type="date"
-                                            value={summaryDate.end}
-                                            onChange={e => setSummaryDate({ ...summaryDate, end: e.target.value })}
-                                            className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none shadow-sm"
-                                        />
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={generateAISummary}
-                                    disabled={isGenerating || !summaryDate.start || !summaryDate.end}
-                                    className="w-full mt-8 bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-indigo-900 transition-all shadow-xl shadow-slate-900/30 flex justify-center items-center gap-3 disabled:opacity-50 active:scale-95"
-                                >
-                                    {isGenerating ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} className="text-amber-400" />}
-                                    {isGenerating ? 'Menghubungkan ke Gemini AI...' : 'Jalankan Analisa Cerdas'}
-                                </button>
-                            </div>
-
-                            {summaryResult && (
-                                <div className="space-y-4 animate-in slide-in-from-bottom-6 duration-700 pb-10">
-                                    <div className="flex justify-between items-end px-1">
-                                        <div>
-                                            <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                                                <FileText size={18} className="text-indigo-600" /> Hasil Analisa Eksekutif
-                                            </h4>
-                                            <p className="text-[10px] text-slate-400 font-medium mt-1">Data telah diproses secara otomatis oleh sistem AI.</p>
-                                        </div>
-                                        <button
-                                            onClick={handleCopySummary}
-                                            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-all active:scale-95"
-                                        >
-                                            <Download size={14} /> Salin Laporan
-                                        </button>
-                                    </div>
-                                    <div className="bg-slate-50/50 p-8 rounded-[32px] border border-indigo-100 text-sm text-slate-700 leading-relaxed font-semibold whitespace-pre-wrap shadow-inner font-sans selection:bg-indigo-100">
-                                        {summaryResult}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* AI Summary Modal Removed */}
         </div>
     );
 };
