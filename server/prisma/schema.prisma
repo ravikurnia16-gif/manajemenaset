@@ -728,6 +728,7 @@ model PersonnelAssignment {
   title       String
   description String   @db.Text
   category    String   @default("UMUM")
+  priority    String   @default("MEDIUM")
   location    String?
   startDate   DateTime?
   dueDate     DateTime?

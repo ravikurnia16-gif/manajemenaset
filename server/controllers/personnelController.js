@@ -148,24 +148,25 @@ exports.getReports = async (req, res) => {
 // --- ASSIGNMENTS ---
 
 exports.createAssignment = async (req, res) => {
-        const { assigneeId, title, description, startDate, dueDate, category, location, items, addToCalendar } = req.body;
-        const user = req.user;
-    
-        try {
-            const assignment = await prisma.personnelAssignment.create({
-                data: {
-                    assignerId: user.id,
-                    assigneeId: parseInt(assigneeId),
-                    title,
-                    description,
-                    category: category || 'UMUM',
-                    location: location || null,
-                    startDate: startDate ? new Date(startDate) : null,
-                    dueDate: dueDate ? new Date(dueDate) : null,
-                    status: 'PENDING',
-                    items: items || []
-                }
-            });
+    const { assigneeId, title, description, startDate, dueDate, category, location, items, addToCalendar, priority } = req.body;
+    const user = req.user;
+
+    try {
+        const assignment = await prisma.personnelAssignment.create({
+            data: {
+                assignerId: user.id,
+                assigneeId: parseInt(assigneeId),
+                title,
+                description,
+                category: category || 'UMUM',
+                priority: priority || 'MEDIUM',
+                location: location || null,
+                startDate: startDate ? new Date(startDate) : null,
+                dueDate: dueDate ? new Date(dueDate) : null,
+                status: 'PENDING',
+                items: items || []
+            }
+        });
 
         // AUTO-SYNC TO CALENDAR: Create a calendar event for this assignment (ONLY IF REQUESTED)
         if (addToCalendar) {
@@ -285,7 +286,9 @@ exports.updateAssignmentStatus = async (req, res) => {
     
             if (!assignment) return res.status(404).json({ error: 'Penugasan tidak ditemukan.' });
     
-            if (assignment.assigneeId !== user.id && assignment.assignerId !== user.id && !['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role)) {
+            if (assignment.assigneeId !== user.id && 
+                assignment.assignerId !== user.id && 
+                !['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user.role)) {
                 return res.status(403).json({ error: 'Akses ditolak.' });
             }
     
@@ -300,12 +303,22 @@ exports.updateAssignmentStatus = async (req, res) => {
                     const percentage = Math.round((completedItems / items.length) * 100);
                     data.progressPercentage = percentage;
                     
-                    if (percentage === 100 && assignment.status !== 'COMPLETED') {
-                        data.status = 'COMPLETED';
-                        data.actualCompletionDate = new Date();
-                    } else if (percentage > 0 && assignment.status === 'PENDING') {
-                        data.status = 'IN_PROGRESS';
-                        data.actualStartDate = new Date();
+                    if (percentage === 100) {
+                        if (assignment.status !== 'COMPLETED') {
+                            data.status = 'COMPLETED';
+                            data.actualCompletionDate = new Date();
+                        }
+                    } else if (percentage > 0) {
+                        if (assignment.status === 'PENDING') {
+                            data.status = 'IN_PROGRESS';
+                            data.actualStartDate = new Date();
+                        } else if (assignment.status === 'COMPLETED') {
+                            data.status = 'IN_PROGRESS';
+                            data.actualCompletionDate = null;
+                        }
+                    } else if (percentage === 0 && assignment.status !== 'PENDING') {
+                        data.status = 'PENDING';
+                        data.actualStartDate = null;
                     }
                 }
             }
@@ -322,10 +335,23 @@ exports.updateAssignmentStatus = async (req, res) => {
             }
     
             if (progressPercentage !== undefined) {
-                data.progressPercentage = parseInt(progressPercentage);
-                if (parseInt(progressPercentage) === 100) {
+                const newPercentage = parseInt(progressPercentage);
+                data.progressPercentage = newPercentage;
+                
+                if (newPercentage === 100) {
                     data.status = 'COMPLETED';
                     data.actualCompletionDate = new Date();
+                } else if (newPercentage > 0) {
+                    if (assignment.status === 'PENDING') {
+                        data.status = 'IN_PROGRESS';
+                        data.actualStartDate = new Date();
+                    } else if (assignment.status === 'COMPLETED') {
+                        data.status = 'IN_PROGRESS';
+                        data.actualCompletionDate = null;
+                    }
+                } else if (newPercentage === 0 && assignment.status !== 'PENDING') {
+                    data.status = 'PENDING';
+                    data.actualStartDate = null;
                 }
             }
     

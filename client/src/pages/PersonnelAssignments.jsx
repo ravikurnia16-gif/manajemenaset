@@ -298,8 +298,15 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
         setManualProgress(a.progressPercentage || 0);
     }, [a.progressPercentage]);
     
-    // Parse items if it's a string (MySQL might return stringified JSON depending on config)
-    const items = Array.isArray(a.items) ? a.items : (typeof a.items === 'string' ? JSON.parse(a.items) : []);
+    // Parse items with safety
+    let items = [];
+    try {
+        items = Array.isArray(a.items) ? a.items : (typeof a.items === 'string' ? JSON.parse(a.items) : []);
+    } catch (e) {
+        console.error("Error parsing items:", e);
+        items = [];
+    }
+
     const totalCount = items.length;
     const completedCount = items.filter(it => it.status === 'COMPLETED').length;
     
@@ -360,37 +367,42 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                                                     handleUpdateAssignment(a.id, { progressPercentage: manualProgress });
                                                     setEditProgress(false);
                                                 }
-                                                if (e.key === 'Escape') setEditProgress(false);
+                                                if (e.key === 'Escape') {
+                                                    setManualProgress(a.progressPercentage || 0);
+                                                    setEditProgress(false);
+                                                }
                                             }}
                                             onBlur={() => {
-                                                handleUpdateAssignment(a.id, { progressPercentage: manualProgress });
+                                                if (manualProgress !== a.progressPercentage) {
+                                                    handleUpdateAssignment(a.id, { progressPercentage: manualProgress });
+                                                }
                                                 setEditProgress(false);
                                             }}
-                                            className="w-14 px-2 py-1 bg-white border-2 border-indigo-500 rounded-lg text-center text-indigo-700 font-bold outline-none shadow-lg shadow-indigo-100"
+                                            className="w-16 px-2 py-1.5 bg-white border-2 border-indigo-500 rounded-lg text-center text-indigo-700 font-black outline-none shadow-xl shadow-indigo-100"
                                             autoFocus
                                         />
-                                        <span className="text-indigo-400 font-bold">%</span>
+                                        <span className="text-indigo-600 font-black">%</span>
                                     </div>
                                 ) : (
                                     <div 
-                                        className={`flex items-center gap-2 cursor-pointer group/val ${totalCount === 0 && (canAssign || isAssignee) ? 'hover:text-indigo-600' : ''}`}
+                                        className={`flex items-center gap-2 group/val transition-all ${totalCount === 0 && (canAssign || isAssignee) ? 'cursor-edit hover:scale-105 active:scale-95' : ''}`}
                                         onClick={() => totalCount === 0 && (canAssign || isAssignee) && setEditProgress(true)}
+                                        title={totalCount > 0 ? "Progres dihitung otomatis dari checklist" : (canAssign || isAssignee ? "Klik untuk ubah persentase" : "")}
                                     >
-                                        <span className="text-indigo-600 px-1.5 py-0.5 bg-indigo-50 rounded-md border border-indigo-100 font-black relative">
+                                        <span className={`px-2 py-1 rounded-md font-black border transition-all ${totalCount > 0 ? 'bg-slate-50 text-slate-400 border-slate-100 italic' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-600 hover:text-white shadow-sm'}`}>
                                             {progress}%
-                                            {totalCount === 0 && (canAssign || isAssignee) && (
-                                                <div className="absolute -right-1 -top-1 opacity-0 group-hover/val:opacity-100 transition-opacity bg-indigo-600 text-white rounded-full p-0.5 shadow-sm">
-                                                    <Tag size={6} />
-                                                </div>
-                                            )}
                                         </span>
-                                        {totalCount > 0 && <span className="text-slate-300 font-medium">({completedCount}/{totalCount})</span>}
+                                        {totalCount > 0 ? (
+                                            <span className="text-[9px] text-slate-300 font-medium tracking-tight">({completedCount}/{totalCount} item)</span>
+                                        ) : (
+                                            (canAssign || isAssignee) && <Tag size={10} className="text-indigo-300 opacity-0 group-hover/val:opacity-100 transition-opacity" />
+                                        )}
                                     </div>
                                 )}
                             </div>
                         </div>
-                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden relative">
-                            <div className={`h-full transition-all duration-1000 ${progress === 100 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-indigo-600'}`} style={{ width: `${progress}%` }} />
+                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden relative shadow-inner">
+                            <div className={`h-full transition-all duration-[1500ms] ease-out ${progress === 100 ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)]' : 'bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-[0_0_8px_rgba(79,70,229,0.3)]'}`} style={{ width: `${progress}%` }} />
                         </div>
                    </div>
                 </div>
