@@ -218,28 +218,43 @@ const MaintenanceForm = () => {
                             />
                         </div>
 
-                        {showAssetDropdown && assetSearch && (
-                            <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                        {showAssetDropdown && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
                                 {filteredAssets.length === 0 ? (
-                                    <div className="p-3 text-sm text-slate-400 text-center">Tidak ditemukan</div>
+                                    <div className="p-4 text-sm text-slate-400 text-center">
+                                        {assets.length === 0 ? 'Sedang memproses aset...' : 'Aset tidak ditemukan'}
+                                    </div>
                                 ) : (
-                                    filteredAssets.slice(0, 20).map(a => {
-                                        const isSelected = form.selectedAssets.some(sa => sa.id === a.id);
-                                        return (
-                                            <button
-                                                key={a.id}
-                                                type="button"
-                                                onClick={() => toggleAssetSelection(a)}
-                                                className={`w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 text-sm flex items-center justify-between ${isSelected ? 'bg-blue-50' : ''}`}
-                                            >
-                                                <div>
-                                                    <span className="font-mono text-xs text-blue-600 font-bold">{a.code}</span>
-                                                    <span className="ml-2 font-medium">{a.name}</span>
-                                                </div>
-                                                {isSelected && <span className="text-blue-600">✓</span>}
-                                            </button>
-                                        );
-                                    })
+                                    <>
+                                        <div className="p-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                            {assetSearch ? `Hasil Pencarian (${filteredAssets.length})` : `Daftar Aset (${assets.length})`}
+                                        </div>
+                                        {filteredAssets.slice(0, 50).map(a => {
+                                            const isSelected = form.selectedAssets.some(sa => sa.id === a.id);
+                                            return (
+                                                <button
+                                                    key={a.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        toggleAssetSelection(a);
+                                                        if (form.selectedAssets.length === 0) setAssetSearch('');
+                                                    }}
+                                                    className={`w-full text-left p-3 hover:bg-blue-50 border-b border-slate-100 text-sm flex items-center justify-between transition-colors ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
+                                                >
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">{a.code}</span>
+                                                            <span className="font-semibold text-slate-700">{a.name}</span>
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400 mt-0.5">
+                                                            {a.unit?.name} • {a.room?.name || 'Tanpa Ruangan'}
+                                                        </div>
+                                                    </div>
+                                                    {isSelected && <span className="text-blue-600 font-bold">✓</span>}
+                                                </button>
+                                            );
+                                        })}
+                                    </>
                                 )}
                             </div>
                         )}
