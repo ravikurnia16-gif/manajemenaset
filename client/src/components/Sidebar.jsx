@@ -78,7 +78,7 @@ const Sidebar = ({ isOpen = true }) => {
 
     return (
         <div className={cn(
-            "bg-slate-900 text-white min-h-screen flex flex-col shadow-xl z-20 flex-shrink-0 transition-all duration-300 ease-in-out border-r border-slate-800",
+            "bg-slate-900 text-white min-h-screen flex flex-col shadow-xl z-20 flex-shrink-0 transition-all duration-300 ease-in-out border-r border-slate-800 custom-scrollbar",
             isOpen ? "w-64" : "w-0 overflow-hidden border-none"
         )}>
             <div className={cn(

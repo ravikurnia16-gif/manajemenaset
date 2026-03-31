@@ -12,6 +12,18 @@
     animation: fadeIn 0.5s ease-in-out;
 }
 
+/* Sembunyikan scrollbar untuk elemen dengan class .custom-scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
+}
+
+.custom-scrollbar {
+    -ms-overflow-style: none !important;  /* IE and Edge */
+    scrollbar-width: none !important;  /* Firefox */
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;
