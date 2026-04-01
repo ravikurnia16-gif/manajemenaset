@@ -80,6 +80,7 @@ model User {
 
   vehiclesPIC         Vehicle[]       @relation("VehiclePICs")
   vehicleDriverBookings VehicleBooking[] @relation("VehicleDriver")
+  busDriverBookings     BusBooking[]     @relation("BusDriver")
 
   // Personnel Module Extensions
   assignedRoutines    PersonnelRoutine[] @relation("RoutineAssignee")
@@ -886,6 +887,8 @@ model BusBooking {
   startDate      DateTime
   endDate        DateTime
   passengerCount Int      @default(0)
+  driverId       Int?
+  driver         User?    @relation("BusDriver", fields: [driverId], references: [id])
   token          String?
   
   createdAt      DateTime @default(now())

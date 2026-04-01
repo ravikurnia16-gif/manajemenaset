@@ -5,7 +5,8 @@ const {
     getPublicBusBookings,
     createBusBooking,
     deleteBusBooking,
-    cancelByToken
+    cancelByToken,
+    assignDriver
 } = require('../controllers/busBookingController');
 const { verifyToken } = require('../middleware/authMiddleware');
 
@@ -18,5 +19,6 @@ router.post('/cancel-by-token', cancelByToken);
 router.get('/', verifyToken, getAllBusBookings);
 router.post('/', verifyToken, createBusBooking);
 router.delete('/:id', verifyToken, deleteBusBooking);
+router.put('/:id/assign-driver', verifyToken, assignDriver);
 
 module.exports = router;

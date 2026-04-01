@@ -964,7 +964,10 @@ exports.getKPILeaderboard = async (req, res) => {
                     { position: { contains: 'Sarana dan Prasarana' } },
                     { position: { contains: 'Manajemen Aset' } },
                     { position: { contains: 'Gudang' } },
-                    { position: { contains: 'Kendaraan' } }
+                    { position: { contains: 'Kendaraan' } },
+                    { position: { contains: 'Keuangan' } },
+                    { position: { contains: 'Administrasi' } },
+                    { position: { contains: 'Lantai' } }
                 ]
             },
             select: { id: true, name: true, position: true, unitId: true }

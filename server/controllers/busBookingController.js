@@ -127,9 +127,8 @@ const createBusBooking = async (req, res) => {
                 const recipients = await prisma.user.findMany({
                     where: {
                         OR: [
-                            { name: { contains: 'Wegi Fatriadi' } },
                             { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } },
-                            { name: { contains: 'Eldo Darjumeianto Putra' } }
+                            { position: { contains: 'Staff Manajemen Aset' } }
                         ],
                         phone: { not: null, not: '' }
                     }
@@ -214,11 +213,21 @@ const getAllBusBookings = async (req, res) => {
             where,
             include: {
                 vehicle: true,
-                user: { include: { unit: true } }
+                user: { include: { unit: true } },
+                driver: { select: { id: true, name: true, phone: true, position: true } }
             },
             orderBy: { startDate: 'asc' }
         });
-        res.json(bookings);
+
+        // Split into upcoming and past
+        const now = new Date();
+        const upcoming = bookings.filter(b => new Date(b.endDate) >= now);
+        const past = bookings.filter(b => new Date(b.endDate) < now);
+
+        // Sort past by most recent first (descending)
+        past.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+
+        res.json([...upcoming, ...past]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -287,10 +296,118 @@ const cancelByToken = async (req, res) => {
     }
 };
 
+// 5. Assign Driver
+const assignDriver = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { driverId } = req.body;
+        const user = req.user;
+
+        // Fetch current user with position
+        const currentUser = await prisma.user.findUnique({ where: { id: user.id } });
+        
+        const isSarpras = currentUser?.position?.toLowerCase().includes('sarana dan prasarana');
+        const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role);
+
+        if (!isSarpras && !isTechAdmin) {
+            return res.status(403).json({ error: 'Akses ditolak. Hanya bagian Sarana dan Prasarana yang dapat menugaskan supir.' });
+        }
+
+        const booking = await prisma.busBooking.update({
+            where: { id: parseInt(id) },
+            data: { driverId: driverId ? parseInt(driverId) : null },
+            include: { 
+                driver: { select: { name: true, phone: true } },
+                vehicle: true
+            }
+        });
+
+        // Notify Driver (Async)
+        if (booking.driver?.phone) {
+            (async () => {
+                const msg = `*PENUGASAN SUPIR BUS*\n\n` +
+                    `Assalamu'alaikum ${booking.driver.name},\n\n` +
+                    `Anda telah ditugaskan untuk mengendarai armada berikut:\n` +
+                    `🚌 *Bus*: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
+                    `📍 *Tujuan*: ${booking.destination}\n` +
+                    `📅 *Jadwal*: ${new Date(booking.startDate).toLocaleString('id-ID')} s/d ${new Date(booking.endDate).toLocaleString('id-ID')}\n\n` +
+                    `Mohon dicek di aplikasi. Syukron.`;
+                try { await whatsappService.sendMessage(booking.driver.phone, msg); } catch (e) {}
+            })();
+        }
+
+        res.json(booking);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 6. Automated Notifications (H-2)
+const checkBusBookingNotifications = async () => {
+    try {
+        const now = new Date();
+        const h2 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
+        const h2End = new Date(h2);
+        h2End.setHours(23, 59, 59, 999);
+
+        console.log(`[Bus Booking] Checking for trips on ${h2.toLocaleDateString('id-ID')}...`);
+
+        const bookings = await prisma.busBooking.findMany({
+            where: {
+                startDate: {
+                    gte: h2,
+                    lte: h2End
+                }
+            },
+            include: {
+                vehicle: true,
+                driver: { select: { name: true } }
+            }
+        });
+
+        if (bookings.length === 0) return;
+
+        // Find Recipients: Kabid Sarpras & Staff Manajemen Aset
+        const recipients = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } },
+                    { position: { contains: 'Manajemen Aset' } }
+                ],
+                phone: { not: null, not: '' }
+            }
+        });
+
+        if (recipients.length === 0) return;
+
+        for (const booking of bookings) {
+            const msg = `🗓️ *PENGINGAT PERJALANAN BUS (H-2)* 🗓️\n\n` +
+                `Informasi perjalanan yang akan dilaksanakan lusa:\n\n` +
+                `🚌 *Armada*: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
+                `📍 *Tujuan*: ${booking.destination}\n` +
+                `📅 *Jadwal*: ${new Date(booking.startDate).toLocaleString('id-ID')}\n` +
+                `👤 *Supir*: ${booking.driver?.name || '_Belum ditentukan_'} ⚠️\n` +
+                `🏢 *Unit*: ${booking.unit || 'Umum'}\n\n` +
+                `Mohon pastikan persiapan armada dan personil sudah siap. Syukron.`;
+
+            for (const person of recipients) {
+                try {
+                    await whatsappService.sendMessage(person.phone, msg);
+                    console.log(`[Bus Booking] H-2 Notif sent to ${person.name} for trip to ${booking.destination}`);
+                } catch (e) {}
+            }
+        }
+    } catch (err) {
+        console.error('[Bus Booking] H-2 Notif Error:', err);
+    }
+};
+
 module.exports = {
     getAllBusBookings,
     getPublicBusBookings,
     createBusBooking,
     deleteBusBooking,
-    cancelByToken
+    cancelByToken,
+    assignDriver,
+    checkBusBookingNotifications
 };
