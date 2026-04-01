@@ -470,6 +470,11 @@ exports.getBookings = async (req, res) => {
             }
         }
 
+        let orderBy = { createdAt: 'desc' }; // Default: Newest request first
+        if (tab === 'HISTORY' || tab === 'MY_REQUESTS' || tab === 'MY_HISTORY') {
+            orderBy = { startDate: 'desc' }; // User wants newest event first
+        }
+
         const bookings = await prisma.vehicleBooking.findMany({
             where,
             include: {
@@ -477,7 +482,7 @@ exports.getBookings = async (req, res) => {
                 vehicle: { select: { name: true, plateNumber: true, type: true, odometer: true } },
                 driver: { select: { name: true } }
             },
-            orderBy: { createdAt: 'desc' }
+            orderBy: [orderBy, { id: 'desc' }]
         });
 
         res.json(bookings);
@@ -592,7 +597,6 @@ exports.checkUpcomingVehicleBookings = async () => {
                 status: 'APPROVED',
                 startDate: { lt: now }, // Should have started
                 tripStartTime: null,   // Not started yet
-                bookingType: { not: 'RECURRING' } // Optional: focus on manual for now
             },
             include: {
                 user: true,
