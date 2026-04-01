@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, ClipboardList, Calendar, FileText, TrendingUp, Loader2, Award, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Users, ClipboardList, Calendar, FileText, TrendingUp, Loader2, Award, AlertCircle, CheckCircle2, Zap, Trophy } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/axios';
@@ -84,9 +84,9 @@ const PersonnelDashboard = () => {
 
     const stats = [
         { title: "Penugasan Aktif", value: data?.stats?.activeAssignments || 0, icon: ClipboardList, color: "bg-indigo-600", trend: "up", trendValue: "+12%" },
+        { title: "Rutinitas Otomatis", value: data?.stats?.totalRoutines || 0, icon: Zap, color: "bg-emerald-500", trend: "up", trendValue: "Auto" },
+        { title: "Top Performer", value: data?.stats?.topPerformer?.name?.split(' ')[0] || "-", icon: Trophy, color: "bg-amber-500", trend: "up", trendValue: `${data?.stats?.topPerformer?.score || 0}%` },
         { title: "Agenda Sarpras", value: data?.stats?.todayAgenda || 0, icon: Calendar, color: "bg-sky-500", trend: "down", trendValue: "-2" },
-        { title: "Input Laporan", value: data?.stats?.pendingReports || 0, icon: FileText, color: "bg-emerald-500", trend: "up", trendValue: "+5" },
-        { title: "Point Disiplin", value: "98.5%", icon: Award, color: "bg-amber-500", trend: "up", trendValue: "Top Perform" },
     ];
 
     const COLORS = ['#6366f1', '#f59e0b', '#0ea5e9', '#10b981', '#ef4444', '#94a3b8'];
@@ -206,12 +206,15 @@ const PersonnelDashboard = () => {
                     <h2 className="text-2xl font-bold mb-2">Siap Kelola Tugas Hari Ini?</h2>
                     <p className="text-slate-400 text-sm font-medium">Beri penugasan baru kepada staf atau reviu laporan yang masuk.</p>
                 </div>
-                <div className="flex gap-4 z-10 w-full md:w-auto">
-                    <button onClick={() => navigate('/personalia/penugasan')} className="flex-1 md:flex-none px-6 py-3 bg-white text-slate-900 rounded-2xl font-bold hover:bg-slate-50 transition-all shadow-lg">
+                <div className="flex flex-wrap gap-4 z-10 w-full md:w-auto">
+                    <button onClick={() => navigate('/personalia/penugasan')} className="flex-1 md:flex-none px-6 py-3 bg-white text-slate-900 rounded-2xl font-bold hover:bg-slate-50 transition-all shadow-lg text-xs tracking-widest uppercase">
                         Beri Penugasan
                     </button>
-                    <button onClick={() => navigate('/personalia/laporan')} className="flex-1 md:flex-none px-6 py-3 bg-slate-700 text-white rounded-2xl font-bold hover:bg-slate-600 transition-all border border-slate-500/30">
-                        Lihat Laporan
+                    <button onClick={() => navigate('/personalia/rutin')} className="flex-1 md:flex-none px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg text-xs tracking-widest uppercase border border-indigo-400/30">
+                        Atur Rutinitas
+                    </button>
+                    <button onClick={() => navigate('/personalia/kpi')} className="flex-1 md:flex-none px-6 py-3 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-all text-xs tracking-widest uppercase border border-slate-700">
+                        Papan KPI
                     </button>
                 </div>
                 {/* Decoration */}

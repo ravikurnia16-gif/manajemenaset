@@ -19,6 +19,13 @@ router.post('/assignments/:id/handle-extension', personnelController.handleExten
 
 // Dashboard
 router.get('/dashboard', verifyToken, personnelController.getPersonnelDashboard);
+router.get('/kpi-leaderboard', personnelController.getKPILeaderboard);
+
+// Routines
+router.get('/routines', personnelController.getRoutines);
+router.post('/routines', personnelController.createRoutine);
+router.put('/routines/:id', personnelController.updateRoutine);
+router.delete('/routines/:id', personnelController.deleteRoutine);
 
 // Drivers
 router.get('/drivers', personnelController.getDrivers);

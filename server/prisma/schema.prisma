@@ -80,6 +80,11 @@ model User {
 
   vehiclesPIC         Vehicle[]       @relation("VehiclePICs")
   vehicleDriverBookings VehicleBooking[] @relation("VehicleDriver")
+
+  // Personnel Module Extensions
+  assignedRoutines    PersonnelRoutine[] @relation("RoutineAssignee")
+  createdRoutines     PersonnelRoutine[] @relation("RoutineAssigner")
+  personnelKPIs       PersonnelKPI[]
 }
 
 model Notification {
@@ -748,6 +753,9 @@ model PersonnelAssignment {
   calendarEventId Int?
   calendarEvent   SarprasCalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
 
+  routineId   Int?
+  routine     PersonnelRoutine? @relation(fields: [routineId], references: [id])
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -959,3 +967,40 @@ model OfficialResidenceMOU {
   updatedAt       DateTime @updatedAt
 }
 
+model PersonnelRoutine {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String   @db.Text
+  assignerId  Int
+  assigner    User     @relation("RoutineAssigner", fields: [assignerId], references: [id])
+  assigneeId  Int
+  assignee    User     @relation("RoutineAssignee", fields: [assigneeId], references: [id])
+  category    String   @default("UMUM")
+  priority    String   @default("MEDIUM")
+  location    String?
+  items       Json?    @default("[]") // Checklist items template
+  frequency   String   // DAILY, WEEKLY, MONTHLY
+  dayOfWeek   Int?     // 0-6 (0=Sun) for WEEKLY
+  dayOfMonth  Int?     // 1-31 for MONTHLY
+  isActive    Boolean  @default(true)
+  lastGenerated DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  assignments PersonnelAssignment[]
+}
+
+model PersonnelKPI {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id])
+  month           Int      // 1-12
+  year            Int
+  completionRate  Float    @default(0) // 0-100
+  punctualityRate Float    @default(0) // 0-100
+  reportRate      Float    @default(0) // 0-100
+  averageScore    Float    @default(0)
+  grade           String?  // A, B, C, D
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, month, year])
+}

@@ -41,6 +41,8 @@ import MutationList from './pages/MutationList';
 import MutationForm from './pages/MutationForm';
 import PersonnelReports from './pages/PersonnelReports';
 import PersonnelAssignments from './pages/PersonnelAssignments';
+import PersonnelRoutine from './pages/PersonnelRoutine';
+import PersonnelKPI from './pages/PersonnelKPI';
 import DisposalList from './pages/DisposalList';
 import LoanList from './pages/LoanList';
 import SarprasRules from './pages/SarprasRules';
@@ -134,6 +136,8 @@ function App() {
           <Route path="personalia/laporan" element={<PersonnelReports />} />
           <Route path="personalia/penugasan" element={<PersonnelAssignments />} />
           <Route path="personalia/kalender" element={<SarprasCalendar />} />
+          <Route path="personalia/rutin" element={<PersonnelRoutine />} />
+          <Route path="personalia/kpi" element={<PersonnelKPI />} />
           <Route path="laporan" element={<ReportPage />} />
 
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />

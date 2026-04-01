@@ -4,6 +4,7 @@ const { checkTaxNotifications, checkKirNotifications } = require('../controllers
 const { checkOverdueLoans } = require('../controllers/loanController');
 const { checkOverdueVehicleBookings, checkUpcomingVehicleBookings } = require('../controllers/vehicleBookingController');
 const { checkMissingWeeklyReports } = require('../controllers/vehicleReportController');
+const { checkAssignmentDeadlines, generateRoutineTasks } = require('../controllers/personnelController');
 const { sendWeeklyAssetSummary } = require('./summaryNotification');
 
 let schedulerInterval = null;
@@ -21,6 +22,18 @@ const initScheduler = () => {
         const day = now.getDay(); // 0 = Sunday, 1 = Monday
         const hour = now.getHours();
         const minute = now.getMinutes();
+
+        // ----------------------------------------------------
+        // 0. ROUTINE TASK GENERATION (Daily at 00:01 AM)
+        // ----------------------------------------------------
+        if (hour === 0 && minute === 1) {
+            console.log('[Scheduler] Executing Daily Routine Task Generation...');
+            try {
+                await generateRoutineTasks();
+            } catch (err) {
+                console.error('[Scheduler] Error in Routine Task Generation:', err);
+            }
+        }
 
         // ----------------------------------------------------
         // 1. DAILY CALENDAR REMINDER (Every Day at 19:00 / 7 PM)
@@ -57,6 +70,7 @@ const initScheduler = () => {
                 await checkTaxNotifications();
                 await checkKirNotifications();
                 await checkOverdueLoans();
+                await checkAssignmentDeadlines();
             } catch (err) {
                 console.error('[Scheduler] Error in Vehicle Checks:', err);
             }
