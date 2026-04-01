@@ -13,8 +13,12 @@ const BusBooking = () => {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [assigning, setAssigning] = useState(false);
+    const [drivers, setDrivers] = useState([]);
     const [toasts, setToasts] = useState([]);
     const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     // Calendar States
     const today = new Date();
@@ -46,6 +50,8 @@ const BusBooking = () => {
         user.position === 'Kepala Bidang Sarana dan Prasarana' ||
         user.role === 'SUPER_ADMIN';
 
+    const isSarpras = user.position?.toLowerCase().includes('sarana dan prasarana') || user.role === 'SUPER_ADMIN';
+
     const showToast = (message, type = 'success') => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, message, type }]);
@@ -57,6 +63,7 @@ const BusBooking = () => {
     useEffect(() => {
         fetchVehicles();
         fetchBookings();
+        fetchDrivers();
     }, []);
 
     // Auto-fill form for logged in users
@@ -93,6 +100,13 @@ const BusBooking = () => {
             );
             setVehicles(busOnly);
         } catch (err) { console.error(err); }
+    };
+
+    const fetchDrivers = async () => {
+        try {
+            const res = await api.get('/personnel/drivers');
+            setDrivers(res.data || []);
+        } catch (err) { console.error('Failed to fetch drivers:', err); }
     };
 
     const fetchBookings = async () => {
@@ -147,6 +161,35 @@ const BusBooking = () => {
             showToast('Gagal menghapus: ' + (err.response?.data?.error || err.message), 'error');
         }
     };
+
+    const handleAssignDriver = async (bookingId, driverId) => {
+        try {
+            setAssigning(true);
+            await api.put(`/bus-bookings/${bookingId}/assign-driver`, { driverId });
+            showToast('Supir berhasil ditugaskan');
+            fetchBookings();
+            // Update selected booking to show the change immediately
+            const updated = bookings.find(b => b.id === bookingId);
+            if (updated) {
+                const driver = drivers.find(d => d.id === parseInt(driverId));
+                setSelectedBooking({ ...updated, driverId: parseInt(driverId), driver });
+            }
+        } catch (err) {
+            showToast('Gagal menugaskan supir: ' + (err.response?.data?.error || err.message), 'error');
+        } finally {
+            setAssigning(false);
+        }
+    };
+
+    // Pagination Logic
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(bookings.length / itemsPerPage);
+    const paginatedBookings = itemsPerPage === 'all'
+        ? bookings
+        : bookings.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    useEffect(() => {
+        setCurrentPage(1); // Reset to first page when items per page changes
+    }, [itemsPerPage]);
 
     // Calendar logic
     const calendarDays = (() => {
@@ -233,45 +276,97 @@ const BusBooking = () => {
                                 <p>Belum ada jadwal booking bus.</p>
                             </div>
                         ) : (
-                            <div className="divide-y divide-slate-100">
-                                {bookings.map(b => (
-                                    <div
-                                        key={b.id}
-                                        onClick={() => setSelectedBooking(b)}
-                                        className="p-4 hover:bg-slate-50/50 transition-colors flex flex-col md:flex-row md:items-center justify-between group cursor-pointer gap-4"
-                                    >
-                                        <div className="flex gap-4 items-start">
-                                            <div className="bg-blue-50 text-blue-600 p-3 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all flex-shrink-0">
-                                                <Bus size={20} />
+                            <>
+                                <div className="divide-y divide-slate-100">
+                                    {paginatedBookings.map(b => (
+                                        <div
+                                            key={b.id}
+                                            onClick={() => setSelectedBooking(b)}
+                                            className="p-4 hover:bg-slate-50/50 transition-colors flex flex-col md:flex-row md:items-center justify-between group cursor-pointer gap-4"
+                                        >
+                                            <div className="flex gap-4 items-start" >
+                                                <div className="bg-blue-50 text-blue-600 p-3 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all flex-shrink-0" >
+                                                    <Bus size={20} />
+                                                </div>
+                                                <div className="min-w-0 flex-1" >
+                                                    <div className="flex flex-wrap items-center gap-2" >
+                                                        <span className="font-bold text-slate-800 text-sm md:text-base truncate" >{b.vehicle?.name}</span>
+                                                        <span className="text-[9px] md:text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono font-bold uppercase" >{b.vehicle?.plateNumber}</span>
+                                                        <span className="text-[9px] md:text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-bold underline underline-offset-2 decoration-blue-100" >{b.unit || 'Umum'}</span>
+                                                    </div>
+                                                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] md:text-xs text-slate-500" >
+                                                        <div className="flex items-center gap-1.5 shrink-0" >
+                                                            <Calendar size={13} className="text-blue-500" />
+                                                            {new Date(b.startDate).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 font-bold text-slate-700 shrink-0" >
+                                                            <Clock size={13} className="text-blue-500" />
+                                                            {new Date(b.startDate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} - {new Date(b.endDate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 text-blue-600 font-bold shrink-0" >
+                                                            <MapPin size={13} /> {b.destination}
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <span className="font-bold text-slate-800 text-sm md:text-base truncate">{b.vehicle?.name}</span>
-                                                    <span className="text-[9px] md:text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-mono font-bold uppercase">{b.vehicle?.plateNumber}</span>
-                                                    <span className="text-[9px] md:text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-bold underline underline-offset-2 decoration-blue-100">{b.unit || 'Umum'}</span>
-                                                </div>
-                                                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] md:text-xs text-slate-500">
-                                                    <div className="flex items-center gap-1.5 shrink-0">
-                                                        <Calendar size={13} className="text-blue-500" />
-                                                        {new Date(b.startDate).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5 font-bold text-slate-700 shrink-0">
-                                                        <Clock size={13} className="text-blue-500" />
-                                                        {new Date(b.startDate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} - {new Date(b.endDate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5 text-blue-600 font-bold shrink-0">
-                                                        <MapPin size={13} /> {b.destination}
-                                                    </div>
-                                                </div>
+                                            <div className="flex items-center justify-between md:justify-end gap-3 border-t md:border-0 pt-3 md:pt-0" >
+                                                <div className="text-[10px] text-slate-400 italic" >Pesanan: {b.requesterName || b.user?.name}</div>
+                                                <ArrowRight size={18} className="text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
                                             </div>
                                         </div>
-                                        <div className="flex items-center justify-between md:justify-end gap-3 border-t md:border-0 pt-3 md:pt-0">
-                                            <div className="text-[10px] text-slate-400 italic">Pesanan: {b.requesterName || b.user?.name}</div>
-                                            <ArrowRight size={18} className="text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
-                                        </div>
+                                    ))}
+                                </div>
+                                
+                                {/* Pagination Controls */}
+                                <div className="bg-slate-50/50 p-4 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                    <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
+                                        <span>Tampilkan:</span>
+                                        <select 
+                                            value={itemsPerPage} 
+                                            onChange={(e) => setItemsPerPage(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
+                                            className="bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                            <option value="all">Semua</option>
+                                        </select>
+                                        <span className="opacity-50">| Menampilkan {paginatedBookings.length} dari {bookings.length} data</span>
                                     </div>
-                                ))}
-                            </div>
+
+                                    {itemsPerPage !== 'all' && totalPages > 1 && (
+                                        <div className="flex items-center gap-2">
+                                            <button 
+                                                disabled={currentPage === 1}
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all text-slate-600"
+                                            >
+                                                <ChevronLeft size={16} />
+                                            </button>
+                                            
+                                            <div className="flex items-center gap-1">
+                                                {[...Array(totalPages)].map((_, i) => (
+                                                    <button
+                                                        key={i + 1}
+                                                        onClick={() => setCurrentPage(i + 1)}
+                                                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === i + 1 ? 'bg-blue-600 text-white shadow-md shadow-blue-100' : 'text-slate-500 hover:bg-slate-100'}`}
+                                                    >
+                                                        {i + 1}
+                                                    </button>
+                                                )).slice(Math.max(0, currentPage - 3), Math.min(totalPages, currentPage + 2))}
+                                            </div>
+
+                                            <button 
+                                                disabled={currentPage === totalPages}
+                                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all text-slate-600"
+                                            >
+                                                <ChevronRight size={16} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
                         )}
                     </div>
                 ) : (
@@ -465,6 +560,31 @@ const BusBooking = () => {
                                 <div className="flex items-start gap-3"><MapPin size={14} className="text-blue-500 mt-1" /><div><label className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider">Tujuan</label><div className="font-bold">{selectedBooking.destination}</div></div></div>
                                 <div className="flex items-start gap-3"><Calendar size={14} className="text-blue-500 mt-1" /><div><label className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider">Jadwal</label><div className="font-bold">{new Date(selectedBooking.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</div><div className="text-[10px] text-slate-500">{new Date(selectedBooking.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} s/d {new Date(selectedBooking.endDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div></div></div>
                                 <div className="flex items-start gap-3"><Users size={14} className="text-blue-500 mt-1" /><div><label className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider">Penumpang</label><div className="font-bold">{selectedBooking.passengerCount} Orang</div></div></div>
+                                <div className="flex items-start gap-3 pt-1 border-t border-slate-200/50">
+                                    <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
+                                        <Users size={14} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider mb-1">Supir Terpilih</label>
+                                        {isSarpras ? (
+                                            <select 
+                                                className="w-full bg-slate-100 border-none rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-blue-500"
+                                                value={selectedBooking.driverId || ''}
+                                                onChange={(e) => handleAssignDriver(selectedBooking.id, e.target.value)}
+                                                disabled={assigning}
+                                            >
+                                                <option value="">-- Pilih Supir --</option>
+                                                {drivers.map(d => (
+                                                    <option key={d.id} value={d.id}>{d.name} ({d.position})</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div className="font-bold text-slate-700 text-xs py-1">
+                                                {selectedBooking.driver?.name || 'Belum ditugaskan'}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                             <div className="space-y-3 pt-2">
                                 {isAuthorizedForWA && selectedBooking.requesterPhone && (

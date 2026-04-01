@@ -19,6 +19,8 @@ const VehicleBooking = () => {
     const [toasts, setToasts] = useState([]);
     const [driverSearch, setDriverSearch] = useState('');
     const [showDriverDropdown, setShowDriverDropdown] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     const showToast = (message, type = 'success') => {
         const id = Date.now();
@@ -269,6 +271,16 @@ const VehicleBooking = () => {
         } catch (err) { showToast('Gagal membatalkan: ' + (err.response?.data?.error || err.message), 'error'); }
         finally { setSubmitting(false); }
     };
+
+    // Pagination Logic
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(bookings.length / itemsPerPage);
+    const paginatedBookings = itemsPerPage === 'all'
+        ? bookings
+        : bookings.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    useEffect(() => {
+        setCurrentPage(1); // Reset to first page when filters or items per page changes
+    }, [itemsPerPage, activeTab, filterVehicle, filterStartDate, filterEndDate, filterType]);
 
     // Render Logic for Status Badges
     const getStatusBadge = (status) => {
@@ -946,7 +958,7 @@ const VehicleBooking = () => {
                             <>
                                 {/* Mobile List */}
                                 <div className="grid grid-cols-1 gap-4 md:hidden">
-                                    {bookings.map(b => (
+                                    {paginatedBookings.map(b => (
                                         <div key={b.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-4">
                                             <div className="flex justify-between items-start">
                                                 <div>
@@ -1026,7 +1038,7 @@ const VehicleBooking = () => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {bookings.map(b => (
+                                            {paginatedBookings.map(b => (
                                                 <tr key={b.id} className="hover:bg-slate-50/50">
                                                     <td className="px-6 py-4">
                                                         <div className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-black tracking-tighter uppercase border mb-1.5 ${b.isRented ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
@@ -1104,6 +1116,56 @@ const VehicleBooking = () => {
                                         </tbody>
                                     </table>
                                 </div>
+
+                                {/* Pagination Controls (My Bookings) */}
+                                <div className="bg-slate-50/50 p-4 border rounded-2xl mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                    <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
+                                        <span>Tampilkan:</span>
+                                        <select 
+                                            value={itemsPerPage} 
+                                            onChange={(e) => setItemsPerPage(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
+                                            className="bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                            <option value="all">Semua</option>
+                                        </select>
+                                        <span className="opacity-50">| Menampilkan {paginatedBookings.length} dari {bookings.length} data</span>
+                                    </div>
+
+                                    {itemsPerPage !== 'all' && totalPages > 1 && (
+                                        <div className="flex items-center gap-2">
+                                            <button 
+                                                disabled={currentPage === 1}
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all text-slate-600"
+                                            >
+                                                <ChevronRight className="rotate-180" size={16} />
+                                            </button>
+                                            
+                                            <div className="flex items-center gap-1">
+                                                {[...Array(totalPages)].map((_, i) => (
+                                                    <button
+                                                        key={i + 1}
+                                                        onClick={() => setCurrentPage(i + 1)}
+                                                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === i + 1 ? 'bg-blue-600 text-white shadow-md shadow-blue-100' : 'text-slate-500 hover:bg-slate-100'}`}
+                                                    >
+                                                        {i + 1}
+                                                    </button>
+                                                )).slice(Math.max(0, currentPage - 3), Math.min(totalPages, currentPage + 2))}
+                                            </div>
+
+                                            <button 
+                                                disabled={currentPage === totalPages}
+                                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all text-slate-600"
+                                            >
+                                                <ChevronRight size={16} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </>
                         )}
                     </div>
@@ -1155,7 +1217,7 @@ const VehicleBooking = () => {
                             <>
                                 {/* Mobile History List */}
                                 <div className="grid grid-cols-1 gap-4 md:hidden">
-                                    {bookings.map(b => (
+                                    {paginatedBookings.map(b => (
                                         <div key={b.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-4">
                                             <div className="flex justify-between items-start">
                                                 <div>
@@ -1207,7 +1269,7 @@ const VehicleBooking = () => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {bookings.map(b => (
+                                            {paginatedBookings.map(b => (
                                                 <tr key={b.id} className="hover:bg-slate-50/50">
                                                     <td className="px-6 py-4">
                                                         <div className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-black tracking-tighter uppercase border mb-1.5 ${b.isRented ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
@@ -1258,6 +1320,56 @@ const VehicleBooking = () => {
                                             ))}
                                         </tbody>
                                     </table>
+                                </div>
+                                
+                                {/* Pagination Controls (Global for this tab) */}
+                                <div className="bg-slate-50/50 p-4 border rounded-2xl mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                    <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
+                                        <span>Tampilkan:</span>
+                                        <select 
+                                            value={itemsPerPage} 
+                                            onChange={(e) => setItemsPerPage(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
+                                            className="bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                            <option value="all">Semua</option>
+                                        </select>
+                                        <span className="opacity-50">| Menampilkan {paginatedBookings.length} dari {bookings.length} data</span>
+                                    </div>
+
+                                    {itemsPerPage !== 'all' && totalPages > 1 && (
+                                        <div className="flex items-center gap-2">
+                                            <button 
+                                                disabled={currentPage === 1}
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all text-slate-600"
+                                            >
+                                                <ChevronRight className="rotate-180" size={16} />
+                                            </button>
+                                            
+                                            <div className="flex items-center gap-1">
+                                                {[...Array(totalPages)].map((_, i) => (
+                                                    <button
+                                                        key={i + 1}
+                                                        onClick={() => setCurrentPage(i + 1)}
+                                                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === i + 1 ? 'bg-blue-600 text-white shadow-md shadow-blue-100' : 'text-slate-500 hover:bg-slate-100'}`}
+                                                    >
+                                                        {i + 1}
+                                                    </button>
+                                                )).slice(Math.max(0, currentPage - 3), Math.min(totalPages, currentPage + 2))}
+                                            </div>
+
+                                            <button 
+                                                disabled={currentPage === totalPages}
+                                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all text-slate-600"
+                                            >
+                                                <ChevronRight size={16} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </>
                         )}
