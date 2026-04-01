@@ -38,6 +38,10 @@ const PersonnelDashboard = () => {
     const userStr = localStorage.getItem('user');
     const currentUser = userStr ? JSON.parse(userStr) : {};
     const isAuthorized = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(currentUser.role);
+    const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(currentUser.role);
+    const isKabidSarpras = currentUser.position?.toLowerCase().includes('kepala bidang') && 
+                           currentUser.position?.toLowerCase().includes('sarana dan prasarana');
+    const canSeeKPI = isKabidSarpras || isTechAdmin;
 
     useEffect(() => {
         if (!isAuthorized) {
@@ -85,7 +89,7 @@ const PersonnelDashboard = () => {
     const stats = [
         { title: "Penugasan Aktif", value: data?.stats?.activeAssignments || 0, icon: ClipboardList, color: "bg-indigo-600", trend: "up", trendValue: "+12%" },
         { title: "Rutinitas Otomatis", value: data?.stats?.totalRoutines || 0, icon: Zap, color: "bg-emerald-500", trend: "up", trendValue: "Auto" },
-        { title: "Top Performer", value: data?.stats?.topPerformer?.name?.split(' ')[0] || "-", icon: Trophy, color: "bg-amber-500", trend: "up", trendValue: `${data?.stats?.topPerformer?.score || 0}%` },
+        ...(canSeeKPI ? [{ title: "Top Performer", value: data?.stats?.topPerformer?.name?.split(' ')[0] || "-", icon: Trophy, color: "bg-amber-500", trend: "up", trendValue: `${data?.stats?.topPerformer?.score || 0}%` }] : []),
         { title: "Agenda Sarpras", value: data?.stats?.todayAgenda || 0, icon: Calendar, color: "bg-sky-500", trend: "down", trendValue: "-2" },
     ];
 
@@ -213,9 +217,11 @@ const PersonnelDashboard = () => {
                     <button onClick={() => navigate('/personalia/rutin')} className="flex-1 md:flex-none px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg text-xs tracking-widest uppercase border border-indigo-400/30">
                         Atur Rutinitas
                     </button>
-                    <button onClick={() => navigate('/personalia/kpi')} className="flex-1 md:flex-none px-6 py-3 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-all text-xs tracking-widest uppercase border border-slate-700">
-                        Papan KPI
-                    </button>
+                    {canSeeKPI && (
+                        <button onClick={() => navigate('/personalia/kpi')} className="flex-1 md:flex-none px-6 py-3 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-all text-xs tracking-widest uppercase border border-slate-700">
+                            Papan KPI
+                        </button>
+                    )}
                 </div>
                 {/* Decoration */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>

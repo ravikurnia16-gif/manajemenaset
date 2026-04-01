@@ -137,7 +137,14 @@ function App() {
           <Route path="personalia/penugasan" element={<PersonnelAssignments />} />
           <Route path="personalia/kalender" element={<SarprasCalendar />} />
           <Route path="personalia/rutin" element={<PersonnelRoutine />} />
-          <Route path="personalia/kpi" element={<PersonnelKPI />} />
+          <Route path="personalia/kpi" element={
+            (() => {
+              const u = JSON.parse(localStorage.getItem('user'));
+              const isKabid = u?.position?.toLowerCase().includes('kepala bidang') && u?.position?.toLowerCase().includes('sarana dan prasarana');
+              const isTech = ['SUPER_ADMIN', 'BIDANG_IT'].includes(u?.role);
+              return isKabid || isTech ? <PersonnelKPI /> : <Navigate to="/personalia/dashboard" />;
+            })()
+          } />
           <Route path="laporan" element={<ReportPage />} />
 
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />

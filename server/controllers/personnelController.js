@@ -941,6 +941,18 @@ exports.getKPILeaderboard = async (req, res) => {
         const targetMonth = month ? parseInt(month) : new Date().getMonth() + 1;
         const targetYear = year ? parseInt(year) : new Date().getFullYear();
 
+        // [SEC] Authorization Check: Only Kabid Sarpras or Tech Admins
+        const userId = req.user.id;
+        const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+        
+        const isKabidSarpras = currentUser?.position?.toLowerCase().includes('kepala bidang') && 
+                              currentUser?.position?.toLowerCase().includes('sarana dan prasarana');
+        const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(currentUser?.role);
+
+        if (!isKabidSarpras && !isTechAdmin) {
+            return res.status(403).json({ error: 'Akses ditolak. Fitur ini hanya untuk Kepala Bidang Sarana dan Prasarana.' });
+        }
+
         // Start and end of specified month
         const startDate = new Date(targetYear, targetMonth - 1, 1);
         const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);

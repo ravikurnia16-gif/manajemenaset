@@ -45,7 +45,10 @@ const Sidebar = ({ isOpen = true }) => {
     }
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_UNIT'].includes(user?.role);
     const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user?.role);
+    const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user?.role);
     const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
+    const isKabidSarpras = user?.position?.toLowerCase().includes('kepala bidang') && 
+                           user?.position?.toLowerCase().includes('sarana dan prasarana');
 
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">
@@ -229,9 +232,11 @@ const Sidebar = ({ isOpen = true }) => {
                                     <Link to="/personalia/rutin" className={subNavItemClass('/personalia/rutin')}>
                                         <Zap size={16} /> Rutinitas
                                     </Link>
-                                    <Link to="/personalia/kpi" className={subNavItemClass('/personalia/kpi')}>
-                                        <Trophy size={16} /> KPI Staff
-                                    </Link>
+                                    {(isKabidSarpras || isTechAdmin) && (
+                                        <Link to="/personalia/kpi" className={subNavItemClass('/personalia/kpi')}>
+                                            <Trophy size={16} /> KPI Staff
+                                        </Link>
+                                    )}
                                 </>
                             )}
                             {isGlobalAdmin && (
