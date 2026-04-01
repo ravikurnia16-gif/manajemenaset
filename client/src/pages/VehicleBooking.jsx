@@ -42,7 +42,8 @@ const VehicleBooking = () => {
         passengerCount: 1,
         driverId: JSON.parse(localStorage.getItem('user') || '{}').id || '',
         isRented: false,
-        rentalDays: 1
+        rentalDays: 1,
+        startKm: ''
     });
 
     // Modal States
@@ -186,7 +187,8 @@ const VehicleBooking = () => {
                 endDate: formData.isRented 
                     ? new Date(startDateObj.getTime() + (parseInt(formData.rentalDays) * 24 * 60 * 60 * 1000))
                     : new Date(endStr),
-                rentalPrice: formData.isRented ? selectedVehicle?.defaultRentalPrice : null
+                rentalPrice: formData.isRented ? selectedVehicle?.defaultRentalPrice : null,
+                startKm: formData.startKm || null
             });
             showToast('Permohonan berhasil dikirim!', 'success');
             setShowBorrowModal(false);
@@ -198,7 +200,7 @@ const VehicleBooking = () => {
                 endDate: new Date().toISOString().split('T')[0], 
                 endTime: '17:00',
                 destination: '', purpose: '', passengerCount: 1, driverId: user.id || '',
-                isRented: false, rentalDays: 1
+                isRented: false, rentalDays: 1, startKm: ''
             });
         } catch (err) {
             showToast('Gagal mengirim permohonan: ' + (err.response?.data?.error || err.message), 'error');
@@ -647,7 +649,6 @@ const VehicleBooking = () => {
                                                 />
                                             </div>
                                         </div>
-
                                         <div className="md:col-span-2">
                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Keperluan</label>
                                             <textarea
@@ -659,6 +660,27 @@ const VehicleBooking = () => {
                                                 onChange={e => setFormData({ ...formData, purpose: e.target.value })}
                                             />
                                         </div>
+
+                                        {/* Optional KM Awal for Motor */}
+                                        {selectedVehicle?.type?.toLowerCase().includes('motor') && (
+                                            <div className="md:col-span-2 p-4 bg-blue-50 border border-blue-100 rounded-2xl animate-in zoom-in-95 duration-300">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <label className="block text-xs font-black text-blue-700 uppercase tracking-wider">Kilometer Awal (Opsional)</label>
+                                                    <span className="text-[10px] font-bold text-blue-500 bg-white px-2 py-0.5 rounded-full border border-blue-100">Odometer: {selectedVehicle.odometer || 0} km</span>
+                                                </div>
+                                                <div className="relative">
+                                                    <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-600" size={18} />
+                                                    <input
+                                                        type="number"
+                                                        placeholder="Isi jika ingin langsung mulai perjalanan..."
+                                                        className="w-full bg-white border border-blue-200 rounded-xl pl-12 pr-4 py-3 text-sm font-bold text-blue-900 focus:ring-4 focus:ring-blue-100 outline-none transition-all placeholder:text-blue-300 placeholder:font-normal"
+                                                        value={formData.startKm}
+                                                        onChange={e => setFormData({ ...formData, startKm: e.target.value })}
+                                                    />
+                                                </div>
+                                                <p className="text-[10px] text-blue-500 mt-2 font-medium italic">* Kosongkan jika ustadz ingin mengisi KM nanti saat berangkat.</p>
+                                            </div>
+                                        )}
 
                                         {/* Penumpang & Driver */}
                                         <div>

@@ -19,7 +19,7 @@ const formatWAWaktu = (date) => {
 // 1. Request Booking
 exports.requestBooking = async (req, res) => {
     try {
-        const { vehicleId, startDate, endDate, destination, purpose, passengerCount, driverId, isRented, rentalPrice, renterPhone } = req.body;
+        const { vehicleId, startDate, endDate, destination, purpose, passengerCount, driverId, isRented, rentalPrice, renterPhone, startKm } = req.body;
         const userId = req.user.id;
 
         // Fetch User to check phone
@@ -58,7 +58,9 @@ exports.requestBooking = async (req, res) => {
             return res.status(400).json({ error: 'Tujuan wajib diisi.' });
         }
 
-        if (start < now) {
+        if (start < now && !vehicle.type?.toLowerCase().includes('motor')) {
+            // For general vehicles, we don't allow past starts
+            // For motors, we might allow it if they start immediately
             return res.status(400).json({ error: 'Waktu mulai peminjaman tidak boleh di masa lampau.' });
         }
 
@@ -72,7 +74,26 @@ exports.requestBooking = async (req, res) => {
         const yayasanPositions = ['Ketua Yayasan', 'Bendahara Yayasan', 'Sekretaris Yayasan'];
         const isYayasan = yayasanPositions.includes(currentUser.position);
         
-        const initialStatus = (isPIC || isYayasan) ? 'APPROVED' : 'PENDING';
+        // Logic for Motorcycle Auto-Approval and Optional immediate Start
+        let initialStatus = (isPIC || isYayasan) ? 'APPROVED' : 'PENDING';
+        let tripStartTime = null;
+        let finalStartKm = null;
+
+        const isMotor = vehicle.type?.toLowerCase().includes('motor');
+        if (isMotor) {
+            if (startKm) {
+                const inputKm = parseInt(startKm);
+                if (isNaN(inputKm)) return res.status(400).json({ error: 'KM Awal harus angka.' });
+                if (inputKm < (vehicle.odometer || 0)) {
+                    return res.status(400).json({ error: `KM Awal (${inputKm}) tidak boleh lebih kecil dari odometer (${vehicle.odometer || 0}).` });
+                }
+                initialStatus = 'BERLANGSUNG';
+                tripStartTime = new Date();
+                finalStartKm = inputKm;
+            } else {
+                initialStatus = 'APPROVED';
+            }
+        }
 
         const booking = await prisma.vehicleBooking.create({
             data: {
@@ -85,12 +106,14 @@ exports.requestBooking = async (req, res) => {
                 passengerCount: parseInt(passengerCount) || 0,
                 driverId: driverId ? parseInt(driverId) : null,
                 status: initialStatus,
+                startKm: finalStartKm,
+                tripStartTime,
                 isRented: isRented === true || isRented === 'true',
                 rentalPrice: rentalPrice ? parseFloat(rentalPrice) : null
             },
             include: {
                 user: { select: { name: true, phone: true, position: true } },
-                vehicle: { select: { id: true, name: true, plateNumber: true, pics: true } },
+                vehicle: { select: { id: true, name: true, plateNumber: true, type: true, pics: true } },
                 driver: { select: { name: true } }
             }
         });
@@ -107,11 +130,17 @@ exports.requestBooking = async (req, res) => {
             const driverName = booking.driver?.name || (booking.driverId ? 'Driver Terpilih' : 'Tanpa Driver / Lepas Kunci');
 
             let msgHeader = `🚗 *PERMINTAAN ${termHeader} KENDARAAN*`;
-            if (isYayasan) {
+            if (isMotor) {
+                msgHeader = `🏍️ *PENGGUNAAN MOTOR (AUTO-APPROVED)*`;
+            } else if (isYayasan) {
                 msgHeader = `👑 *PEMBERITAHUAN PENGGUNAAN KENDARAAN (PIMPINAN)*`;
             } else if (isPIC) {
                 msgHeader = `🚗 *LAPORAN PENGGUNAAN KENDARAAN (PIC)*`;
             }
+
+            let statusText = `Mohon tinjau di sistem untuk persetujuan.`;
+            if (initialStatus === 'APPROVED') statusText = `*Status*: Otomatis Disetujui (${isMotor ? 'Sistem' : (isYayasan ? 'Yayasan' : 'PIC')})`;
+            if (initialStatus === 'BERLANGSUNG') statusText = `*Status*: BERLANGSUNG (Perjalanan sudah dimulai)`;
 
             const msg = `${msgHeader}\n\n` +
                 `Pemohon: ${booking.user.name} (${booking.user.position || 'User'})\n` +
@@ -120,9 +149,7 @@ exports.requestBooking = async (req, res) => {
                 `Jadwal: ${startStr} - ${endStr}\n` +
                 `Tujuan: ${destination}\n` +
                 `Keperluan: ${purpose}\n\n` +
-                (initialStatus === 'APPROVED' ? 
-                    `*Status*: Otomatis Disetujui (${isYayasan ? 'Yayasan' : 'PIC'})` : 
-                    `Mohon tinjau di sistem untuk persetujuan.`);
+                statusText;
 
             for (const pic of vehicle.pics) {
                 if (pic.phone) {
@@ -131,11 +158,11 @@ exports.requestBooking = async (req, res) => {
                 // Add System Notification for PICs
                 await createNotification(
                     pic.id,
-                    isYayasan ? 'Penggunaan Kendaraan oleh Pimpinan' : `Permintaan ${termTitle} Kendaraan`,
-                    isYayasan 
+                    (isMotor || isYayasan) ? 'Penggunaan Kendaraan' : `Permintaan ${termTitle} Kendaraan`,
+                    (isMotor || isYayasan)
                         ? `${booking.user.name} (${booking.user.position}) menggunakan ${vehicle.name}.`
                         : `${booking.user.name} mengajukan ${termAction} ${vehicle.name}.`,
-                    isYayasan ? 'URGENT' : 'INFO',
+                    (isMotor || isYayasan) ? 'URGENT' : 'INFO',
                     isRental ? '/kendaraan/sewa' : '/kendaraan/peminjaman'
                 );
             }
@@ -168,12 +195,18 @@ exports.requestBooking = async (req, res) => {
             }
         }
 
-        // If Auto-Approved, notify the requester too
-        if (initialStatus === 'APPROVED' && booking.user.phone) {
-            const msg = `📢 *KONFIRMASI ${isRental ? 'PENYEWAAN' : 'PEMINJAMAN'}*\n\n` +
-                `Permintaan Anda untuk kendaraan *${vehicle.name}* telah *DISETUJUI OTOMATIS*\n\n` +
-                (isYayasan ? `Sistem mendeteksi posisi Anda sebagai ${booking.user.position}.` : `Sistem mendeteksi Anda sebagai PIC armada ini.`) +
-                `\n\nSelamat bertugas!`;
+        // If Auto-Approved or Started, notify the requester too
+        if ((initialStatus === 'APPROVED' || initialStatus === 'BERLANGSUNG') && booking.user.phone) {
+            let msg = `📢 *KONFIRMASI ${isRental ? 'PENYEWAAN' : 'PEMINJAMAN'}*\n\n` +
+                `Permintaan Anda untuk kendaraan *${vehicle.name}* telah *DISETUJUI OTOMATIS*\n\n`;
+            
+            if (initialStatus === 'BERLANGSUNG') {
+                msg += `✅ Perjalanan Anda telah dimulai dengan KM Awal: ${finalStartKm}.\n\nJangan lupa selesaikan (End Trip) saat kembali.`;
+            } else {
+                msg += (isMotor ? `Silakan mulai perjalanan saat Anda berangkat.` : (isYayasan ? `Sistem mendeteksi posisi Anda sebagai ${booking.user.position}.` : `Sistem mendeteksi Anda sebagai PIC armada ini.`));
+            }
+            
+            msg += `\n\nSelamat bertugas!`;
             await sendMessage(booking.user.phone, msg);
         }
 
