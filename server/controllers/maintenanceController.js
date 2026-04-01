@@ -67,7 +67,7 @@ exports.getReportById = async (req, res) => {
 
 // Create Report
 exports.createReport = async (req, res) => {
-    const { title, type, assetIds, description, location, photo, category } = req.body;
+    const { title, type, assetIds, description, location, photo, category, urgency } = req.body;
     const user = req.user;
 
     try {
@@ -86,6 +86,7 @@ exports.createReport = async (req, res) => {
                 unitId: user.unitId,
                 type: type || 'NON_ASSET',
                 category: category || 'INCIDENTAL',
+                urgency: urgency || 'NORMAL',
                 assets: type === 'ASSET' && assetIds && assetIds.length > 0 ? {
                     connect: assetIds.map(id => ({ id: parseInt(id) }))
                 } : undefined,
@@ -169,8 +170,16 @@ exports.createReport = async (req, res) => {
                         ? report.assets.map(a => `- ${a.name} (${a.code})`).join('\n')
                         : '- (Non-Aset)';
 
+                    const urgencyLabels = {
+                        'NORMAL': 'Biasa',
+                        'URGENT': '🚨 Penting',
+                        'EMERGENCY': '🔴 DARURAT'
+                    };
+
                     const msgAdmin = `🔧 *LAPORAN PEMELIHARAAN BARU*\n\n` +
                         `👤 *Pelapor* : ${submitter?.name || submitter?.username || '-'}\n` +
+                        `📞 *Kontak* : wa.me/${submitter?.phone?.replace(/^0/, '62') || '-'}\n` +
+                        `⚡ *Urgensi* : ${urgencyLabels[report.urgency] || report.urgency}\n` +
                         `📂 *Kategori* : ${report.category === 'ROUTINE' ? 'Pemeliharaan Rutin' : 'Pemeliharaan Insidentil'}\n` +
                         `📜 *Kode* : ${code}\n` +
                         `📋 *Judul* : ${title}\n` +

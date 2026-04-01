@@ -22,6 +22,7 @@ const MaintenanceForm = () => {
         selectedAssets: [], // Array of {id, label}
         description: '',
         location: '',
+        urgency: 'NORMAL',
     });
     const [mediaFiles, setMediaFiles] = useState([]); // Array of { file, preview, type }
     const fileInputRef = useRef(null);
@@ -122,32 +123,13 @@ const MaintenanceForm = () => {
         }));
     };
 
-    const filteredAssets = assets.filter(a =>
-        (a.name?.toLowerCase() || '').includes(assetSearch.toLowerCase()) ||
-        (a.code?.toLowerCase() || '').includes(assetSearch.toLowerCase()) ||
-        (a.category?.name?.toLowerCase() || '').includes(assetSearch.toLowerCase())
-    );
-
-    const handleQuickSelect = (keyword) => {
-        setAssetSearch(keyword);
-        setShowAssetDropdown(true);
-        setForm(prev => ({ 
-            ...prev, 
-            type: 'ASSET',
-            category: 'ROUTINE',
-            title: `Service Rutin ${keyword}`
-        }));
-    };
-
-    const selectAllFiltered = () => {
-        const newSelected = [...form.selectedAssets];
-        filteredAssets.forEach(a => {
-            if (!newSelected.some(sa => sa.id === a.id)) {
-                newSelected.push({ id: a.id, label: `${a.code} - ${a.name}` });
-            }
-        });
-        setForm(prev => ({ ...prev, selectedAssets: newSelected }));
-    };
+    const filteredAssets = assets.filter(a => {
+        const isNotSelected = !form.selectedAssets.some(sa => sa.id === a.id);
+        const matchesSearch = (a.name?.toLowerCase() || '').includes(assetSearch.toLowerCase()) ||
+                             (a.code?.toLowerCase() || '').includes(assetSearch.toLowerCase()) ||
+                             (a.category?.name?.toLowerCase() || '').includes(assetSearch.toLowerCase());
+        return isNotSelected && matchesSearch;
+    });
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -161,6 +143,7 @@ const MaintenanceForm = () => {
             formData.append('title', form.title);
             formData.append('type', form.type);
             formData.append('category', form.category);
+            formData.append('urgency', form.urgency);
             formData.append('description', form.description);
             formData.append('location', form.location || '');
             
@@ -223,6 +206,42 @@ const MaintenanceForm = () => {
                     </div>
                 </div>
 
+                {/* Urgency Selection */}
+                <div className="animate-in slide-in-from-top-2 duration-500">
+                    <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-semibold text-slate-700">Tingkat Urgensi</label>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            form.urgency === 'NORMAL' ? 'bg-green-100 text-green-600' : 
+                            form.urgency === 'URGENT' ? 'bg-amber-100 text-amber-600' : 
+                            'bg-red-100 text-red-600'
+                        }`}>
+                            {form.urgency === 'NORMAL' ? 'NORMAL' : form.urgency === 'URGENT' ? 'PENTING' : 'DARURAT'}
+                        </span>
+                    </div>
+                    <div className="flex gap-2">
+                        {[
+                            { id: 'NORMAL', label: '🟢 Biasa', active: 'border-green-500 bg-green-50 text-green-700' },
+                            { id: 'URGENT', label: '🟡 Penting', active: 'border-amber-500 bg-amber-50 text-amber-700' },
+                            { id: 'EMERGENCY', label: '🔴 Darurat', active: 'border-red-500 bg-red-50 text-red-700' }
+                        ].map(item => (
+                            <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => setForm(prev => ({ ...prev, urgency: item.id }))}
+                                className={`flex-1 py-3 rounded-2xl border-2 text-xs font-bold transition-all shadow-sm ${form.urgency === item.id ? item.active : 'border-slate-100 bg-slate-50/50 text-slate-400 hover:border-slate-200'}`}
+                            >
+                                {item.label}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-2 px-1 flex items-center gap-1.5">
+                        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                        {form.urgency === 'NORMAL' && "Gunakan untuk pemeliharaan rutin atau kerusakan kecil."}
+                        {form.urgency === 'URGENT' && "Masalah yang menghambat fungsi namun aset masih bisa digunakan."}
+                        {form.urgency === 'EMERGENCY' && "Kerusakan fatal yang membutuhkan penanganan segera (H-0)."}
+                    </p>
+                </div>
+
                 {/* Type Toggle */}
                 <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Jenis Laporan</label>
@@ -258,26 +277,6 @@ const MaintenanceForm = () => {
                                     HAPUS SEMUA ({form.selectedAssets.length})
                                 </button>
                             )}
-                        </div>
-
-                        {/* Quick Selection Chips */}
-                        <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar pb-1">
-                            {[
-                                { id: 'AC', label: '❄️ AC', color: 'bg-blue-50 text-blue-600 border-blue-200' },
-                                { id: 'Mobil', label: '🚗 MOBIL', color: 'bg-slate-50 text-slate-600 border-slate-200' },
-                                { id: 'Motor', label: '🛵 MOTOR', color: 'bg-indigo-50 text-indigo-600 border-indigo-200' },
-                                { id: 'Pompa', label: '🚰 POMPA', color: 'bg-cyan-50 text-cyan-600 border-cyan-200' },
-                                { id: 'Tabung', label: '🔥 APAR', color: 'bg-red-50 text-red-600 border-red-200' },
-                            ].map(chip => (
-                                <button
-                                    key={chip.id}
-                                    type="button"
-                                    onClick={() => handleQuickSelect(chip.id)}
-                                    className={`px-3 py-1.5 rounded-full border text-[10px] font-bold whitespace-nowrap transition-all active:scale-95 ${chip.color}`}
-                                >
-                                    {chip.label}
-                                </button>
-                            ))}
                         </div>
 
                         {/* Selected Assets Tags / Summary */}
@@ -355,15 +354,6 @@ const MaintenanceForm = () => {
                                         <div className="p-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center">
                                             <span>{assetSearch ? `Hasil Pencarian (${filteredAssets.length})` : `Daftar Aset (${assets.length})`}</span>
                                             <div className="flex gap-3">
-                                                {assetSearch && filteredAssets.length > 0 && (
-                                                    <button 
-                                                        type="button" 
-                                                        onClick={selectAllFiltered}
-                                                        className="text-blue-600 hover:text-blue-800 font-bold"
-                                                    >
-                                                        PILIH SEMUA ({filteredAssets.length})
-                                                    </button>
-                                                )}
                                                 <button 
                                                     type="button" 
                                                     onClick={() => setShowAssetDropdown(false)}
@@ -373,7 +363,7 @@ const MaintenanceForm = () => {
                                                 </button>
                                             </div>
                                         </div>
-                                        {filteredAssets.slice(0, 50).map(a => {
+                                        {filteredAssets.slice(0, 100).map(a => {
                                             const isSelected = form.selectedAssets.some(sa => sa.id === a.id);
                                             return (
                                                 <button
@@ -381,7 +371,6 @@ const MaintenanceForm = () => {
                                                     type="button"
                                                     onClick={() => {
                                                         toggleAssetSelection(a);
-                                                        if (form.selectedAssets.length === 0) setAssetSearch('');
                                                     }}
                                                     className={`w-full text-left p-3 hover:bg-blue-50 border-b border-slate-100 text-sm flex items-center justify-between transition-colors ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
                                                 >

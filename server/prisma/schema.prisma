@@ -285,6 +285,7 @@ model Maintenance {
   
   type          String   // "ASSET" or "NON_ASSET"
   category      MaintenanceCategory @default(INCIDENTAL)
+  urgency       String   @default("NORMAL") // e.g. NORMAL, URGENT, EMERGENCY
   assets        Asset[]
   
   title         String   // Judul Ringkas
