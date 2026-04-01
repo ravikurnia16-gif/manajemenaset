@@ -21,6 +21,8 @@ const VehicleBooking = () => {
     const [showDriverDropdown, setShowDriverDropdown] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [vSearch, setVSearch] = useState('');
+    const [vTypeFilter, setVTypeFilter] = useState('ALL');
 
     const showToast = (message, type = 'success') => {
         const id = Date.now();
@@ -369,128 +371,183 @@ const VehicleBooking = () => {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 min-h-[400px]">
                 {activeTab === 'CURRENT_FLEET' && (
                     <div className="p-6">
+                        {/* Search & Filter Bar */}
+                        <div className="flex flex-col md:flex-row gap-4 mb-8 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                <input
+                                    type="text"
+                                    placeholder="Cari nama kendaraan atau plat nomor..."
+                                    className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-4 focus:ring-blue-100 outline-none transition-all shadow-sm"
+                                    value={vSearch}
+                                    onChange={e => setVSearch(e.target.value)}
+                                />
+                            </div>
+                            <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm overflow-x-auto custom-scrollbar no-scrollbar-h">
+                                {[
+                                    { id: 'ALL', label: 'SEMUA', icon: <Car size={14} /> },
+                                    { id: 'Mobil', label: 'MOBIL', icon: <Car size={14} /> },
+                                    { id: 'Motor', label: 'MOTOR', icon: <Navigation2 size={14} /> },
+                                    { id: 'Bus', label: 'BUS', icon: <Users size={14} /> },
+                                ].map(type => (
+                                    <button
+                                        key={type.id}
+                                        onClick={() => setVTypeFilter(type.id)}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black transition-all whitespace-nowrap ${vTypeFilter === type.id ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                                    >
+                                        {type.icon} {type.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {vehicles.map(v => (
-                                <div key={v.id} className="group bg-white border border-slate-100 rounded-2xl overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-                                    {/* Vehicle Image Container */}
-                                    <div className="relative h-44 md:h-72 lg:h-80 overflow-hidden bg-slate-50 flex items-center justify-center p-3">
-                                        {v.photo ? (
-                                            <img
-                                                src={v.photo}
-                                                alt={v.name}
-                                                className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-200 text-slate-300">
-                                                <Car size={48} strokeWidth={1} />
-                                                <span className="text-[10px] font-bold uppercase tracking-widest mt-2">No Photo Available</span>
-                                            </div>
-                                        )}
-                                        {/* Status Tag Overlay */}
-                                        <div className="absolute top-3 right-3">
-                                            <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold shadow-sm backdrop-blur-md ${v.isBorrowed
-                                                ? 'bg-indigo-600/90 text-white'
-                                                : v.status === 'ACTIVE'
-                                                    ? 'bg-green-500/90 text-white'
-                                                    : 'bg-red-500/90 text-white'
-                                                }`}>
-                                                {v.isBorrowed ? 'SEDANG DIGUNAKAN' : (v.status === 'ACTIVE' ? 'TERSEDIA' : v.status)}
-                                            </div>
-                                        </div>
-                                        {/* Type Tag Overlay */}
-                                        <div className="absolute bottom-3 left-3">
-                                            <div className="px-2 py-1 bg-black/40 backdrop-blur-md text-white/90 rounded text-[9px] font-bold uppercase tracking-wider">
-                                                {v.type}
-                                            </div>
-                                        </div>
-                                    </div>
+                            {(() => {
+                                const filtered = vehicles.filter(v => {
+                                    const matchSearch = (v.name || '').toLowerCase().includes(vSearch.toLowerCase()) || 
+                                                       (v.plateNumber || '').toLowerCase().includes(vSearch.toLowerCase());
+                                    const matchType = vTypeFilter === 'ALL' || v.type === vTypeFilter;
+                                    return matchSearch && matchType;
+                                });
 
-                                    <div className="p-5">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div>
-                                                <h3 className="font-bold text-slate-800 text-lg group-hover:text-blue-600 transition-colors">{v.name}</h3>
-                                                <p className="text-xs font-mono text-slate-400 font-bold uppercase tracking-wider">{v.plateNumber}</p>
-                                            </div>
+                                if (filtered.length === 0) {
+                                    return (
+                                        <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-400 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                            <Search size={48} className="mb-4 opacity-20" />
+                                            <p className="font-bold text-lg">Tidak ada kendaraan yang cocok</p>
+                                            <p className="text-sm">Coba ubah kata kunci atau filter pencarian ustadz.</p>
+                                            <button 
+                                                onClick={() => { setVSearch(''); setVTypeFilter('ALL'); }}
+                                                className="mt-4 text-blue-600 font-bold text-xs hover:underline"
+                                            >
+                                                Reset Semua Filter
+                                            </button>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-3 mb-4">
-                                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                                                <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">
-                                                    <Gauge size={10} className="text-blue-500" />
-                                                    Odometer
-                                                </div>
-                                                <div className="text-xs font-bold text-slate-700">{v.odometer?.toLocaleString()} km</div>
-                                            </div>
-                                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                                                <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">
-                                                    <Fuel size={10} className="text-orange-500" />
-                                                    Fuel
-                                                </div>
-                                                <div className="text-xs font-bold text-slate-700">{v.fuelType || '-'}</div>
-                                            </div>
-                                        </div>
+                                    );
+                                }
 
-                                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 mb-4">
-                                            <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">
-                                                <User size={10} className="text-purple-500" />
-                                                PIC Unit
-                                            </div>
-                                            <div className="text-xs font-bold text-slate-700 leading-relaxed">
-                                                {v.pics?.length > 0 ? v.pics.map(p => p.name).join(', ') : 'Belum ditunjuk'}
-                                            </div>
-                                        </div>
-
-                                        {/* Usage Info */}
-                                        <div className="mb-5 px-1">
-                                            {v.isBorrowed ? (
-                                                <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-600 bg-indigo-50 p-2 rounded-xl border border-indigo-100">
-                                                    <Navigation2 size={13} className="animate-pulse" />
-                                                    <span>Sedang digunakan: {v.currentUsedBy}</span>
-                                                </div>
+                                return filtered.map(v => (
+                                    <div key={v.id} className="group bg-white border border-slate-100 rounded-2xl overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                                        {/* Vehicle Image Container */}
+                                        <div className="relative h-44 md:h-72 lg:h-80 overflow-hidden bg-slate-50 flex items-center justify-center p-3">
+                                            {v.photo ? (
+                                                <img
+                                                    src={v.photo}
+                                                    alt={v.name}
+                                                    className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                                                />
                                             ) : (
-                                                v.lastUsedBy && (
-                                                    <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold bg-slate-50/50 p-2 rounded-xl border border-dashed border-slate-200">
-                                                        <Clock size={12} />
-                                                        <span>Terakhir oleh: {v.lastUsedBy}</span>
+                                                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-200 text-slate-300">
+                                                    <Car size={48} strokeWidth={1} />
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest mt-2">No Photo Available</span>
+                                                </div>
+                                            )}
+                                            {/* Status Tag Overlay */}
+                                            <div className="absolute top-3 right-3">
+                                                <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold shadow-sm backdrop-blur-md ${v.isBorrowed
+                                                    ? 'bg-indigo-600/90 text-white'
+                                                    : v.status === 'ACTIVE'
+                                                        ? 'bg-green-500/90 text-white'
+                                                        : 'bg-red-500/90 text-white'
+                                                    }`}>
+                                                    {v.isBorrowed ? 'SEDANG DIGUNAKAN' : (v.status === 'ACTIVE' ? 'TERSEDIA' : v.status)}
+                                                </div>
+                                            </div>
+                                            {/* Type Tag Overlay */}
+                                            <div className="absolute bottom-3 left-3">
+                                                <div className="px-2 py-1 bg-black/40 backdrop-blur-md text-white/90 rounded text-[9px] font-bold uppercase tracking-wider">
+                                                    {v.type}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-5">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div>
+                                                    <h3 className="font-bold text-slate-800 text-lg group-hover:text-blue-600 transition-colors">{v.name}</h3>
+                                                    <p className="text-xs font-mono text-slate-400 font-bold uppercase tracking-wider">{v.plateNumber}</p>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3 mb-4">
+                                                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                                    <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">
+                                                        <Gauge size={10} className="text-blue-500" />
+                                                        Odometer
                                                     </div>
-                                                )
+                                                    <div className="text-xs font-bold text-slate-700">{v.odometer?.toLocaleString()} km</div>
+                                                </div>
+                                                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                                    <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">
+                                                        <Fuel size={10} className="text-orange-500" />
+                                                        Fuel
+                                                    </div>
+                                                    <div className="text-xs font-bold text-slate-700">{v.fuelType || '-'}</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 mb-4">
+                                                <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">
+                                                    <User size={10} className="text-purple-500" />
+                                                    PIC Unit
+                                                </div>
+                                                <div className="text-xs font-bold text-slate-700 leading-relaxed">
+                                                    {v.pics?.length > 0 ? v.pics.map(p => p.name).join(', ') : 'Belum ditunjuk'}
+                                                </div>
+                                            </div>
+
+                                            {/* Usage Info */}
+                                            <div className="mb-5 px-1">
+                                                {v.isBorrowed ? (
+                                                    <div className="flex items-center gap-2 text-[11px] font-bold text-indigo-600 bg-indigo-50 p-2 rounded-xl border border-indigo-100">
+                                                        <Navigation2 size={13} className="animate-pulse" />
+                                                        <span>Sedang digunakan: {v.currentUsedBy}</span>
+                                                    </div>
+                                                ) : (
+                                                    v.lastUsedBy && (
+                                                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold bg-slate-50/50 p-2 rounded-xl border border-dashed border-slate-200">
+                                                            <Clock size={12} />
+                                                            <span>Terakhir oleh: {v.lastUsedBy}</span>
+                                                        </div>
+                                                    )
+                                                )}
+                                            </div>
+
+                                            {v.status === 'ACTIVE' && (
+                                                <button
+                                                    disabled={submitting || v.isBorrowed}
+                                                    onClick={() => {
+                                                        setSelectedVehicle(v);
+                                                        const now = new Date();
+                                                        setFormData({ 
+                                                            ...formData, 
+                                                            vehicleId: v.id,
+                                                            startDate: now.toISOString().split('T')[0],
+                                                            startTime: now.toTimeString().split(' ')[0].slice(0, 5)
+                                                        });
+                                                        setShowBorrowModal(true);
+                                                    }}
+                                                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all group/btn active:scale-[0.98] disabled:opacity-70 ${v.isBorrowed
+                                                        ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300'
+                                                        : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200'
+                                                        }`}
+                                                >
+                                                    {v.isBorrowed ? (
+                                                        <>
+                                                            <Lock size={16} />
+                                                            Sedang Digunakan
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Plus size={16} className="group-hover/btn:rotate-90 transition-transform" />
+                                                            Pinjam Sekarang
+                                                        </>
+                                                    )}
+                                                </button>
                                             )}
                                         </div>
-
-                                        {v.status === 'ACTIVE' && (
-                                            <button
-                                                disabled={submitting || v.isBorrowed}
-                                                onClick={() => {
-                                                    setSelectedVehicle(v);
-                                                    const now = new Date();
-                                                    setFormData({ 
-                                                        ...formData, 
-                                                        vehicleId: v.id,
-                                                        startDate: now.toISOString().split('T')[0],
-                                                        startTime: now.toTimeString().split(' ')[0].slice(0, 5)
-                                                    });
-                                                    setShowBorrowModal(true);
-                                                }}
-                                                className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all group/btn active:scale-[0.98] disabled:opacity-70 ${v.isBorrowed
-                                                    ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300'
-                                                    : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200'
-                                                    }`}
-                                            >
-                                                {v.isBorrowed ? (
-                                                    <>
-                                                        <Lock size={16} />
-                                                        Sedang Digunakan
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Plus size={16} className="group-hover/btn:rotate-90 transition-transform" />
-                                                        Pinjam Sekarang
-                                                    </>
-                                                )}
-                                            </button>
-                                        )}
                                     </div>
-                                </div>
-                            ))}
+                                ));
+                            })()}
                         </div>
                     </div>
                 )}
