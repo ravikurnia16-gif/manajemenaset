@@ -132,19 +132,19 @@ const VehicleDashboard = () => {
             });
 
             // Efficiency Ranking
-            const sorted = [...(data.vStats || [])].sort((a, b) => b.kml - a.kml);
+            const sorted = [...(data.vStats || [])].filter(v => v.fuelCpkm > 0).sort((a, b) => a.fuelCpkm - b.fuelCpkm);
             doc.addPage();
             doc.setFontSize(12);
             doc.setFont(undefined, 'bold');
-            doc.text('Peringkat Efisiensi Kendaraan (KM/L)', 14, 18);
+            doc.text('Peringkat Efisiensi BBM (Rp/KM)', 14, 18);
             const rankRows = sorted.map((v, i) => [
-                i + 1, v.name, v.plate, (v.kml || 0).toFixed(1) + ' KM/L',
+                i + 1, v.name, v.plate, `Rp ${Math.round(v.fuelCpkm || 0).toLocaleString('id-ID')}/KM`,
                 (v.totalKm || 0).toLocaleString('id-ID') + ' KM',
-                i === 0 ? '🏆 Terbaik' : i === sorted.length - 1 ? '⚠️ Perlu Evaluasi' : ''
+                i === 0 ? '🏆 Terhemat' : i === sorted.length - 1 ? '⚠️ Terboros' : ''
             ]);
             doc.autoTable({
                 startY: 22,
-                head: [['Rank', 'Kendaraan', 'Plat', 'Efisiensi', 'Total Jarak', 'Keterangan']],
+                head: [['Rank', 'Kendaraan', 'Plat', 'Biaya BBM/KM', 'Total Jarak', 'Keterangan']],
                 body: rankRows,
                 theme: 'striped',
                 headStyles: { fillColor: [245, 158, 11], fontSize: 8, fontStyle: 'bold' },
@@ -213,8 +213,8 @@ const VehicleDashboard = () => {
         { name: 'Sedang Digunakan', value: data?.availability?.onTrip || 0, color: '#6366f1' },
     ];
 
-    // Efficiency Ranking (sorted by KM/L descending)
-    const efficiencyRanking = [...(data?.vStats || [])].sort((a, b) => b.kml - a.kml);
+    // Efficiency Ranking (sorted by fuel Rp/KM ascending - lowest cost = most efficient)
+    const efficiencyRanking = [...(data?.vStats || [])].filter(v => v.fuelCpkm > 0).sort((a, b) => a.fuelCpkm - b.fuelCpkm);
 
     return (
         <div ref={dashboardRef} className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
@@ -351,14 +351,15 @@ const VehicleDashboard = () => {
                 {/* Peringkat Efisiensi Kendaraan */}
                 <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 lg:col-span-2">
                     <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight italic mb-6 flex items-center gap-3">
-                        <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg"><Trophy size={20} /></div> Peringkat Efisiensi Kendaraan (KM/L)
+                        <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg"><Trophy size={20} /></div> Peringkat Efisiensi BBM (Rp/KM)
                     </h3>
                     <div className="space-y-3 max-h-80 overflow-y-auto pr-2" style={{ scrollbarWidth: 'none' }}>
                         {efficiencyRanking.map((v, i) => {
-                            const maxKml = efficiencyRanking[0]?.kml || 1;
-                            const pct = maxKml > 0 ? (v.kml / maxKml) * 100 : 0;
+                            const maxCost = efficiencyRanking[efficiencyRanking.length - 1]?.fuelCpkm || 1;
+                            const pct = maxCost > 0 ? (v.fuelCpkm / maxCost) * 100 : 0;
                             const isTop = i === 0;
                             const isBottom = i === efficiencyRanking.length - 1 && efficiencyRanking.length > 1;
+                            const costVal = Math.round(v.fuelCpkm);
                             return (
                                 <div key={v.id || i} className={`flex items-center gap-4 p-3 rounded-2xl transition-all ${isTop ? 'bg-emerald-50 border border-emerald-100' : isBottom ? 'bg-red-50/50 border border-red-100' : 'bg-slate-50/50 hover:bg-slate-50'}`}>
                                     <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black ${isTop ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : isBottom ? 'bg-red-400 text-white' : 'bg-slate-200 text-slate-600'}`}>
@@ -368,10 +369,10 @@ const VehicleDashboard = () => {
                                         <div className="flex items-center justify-between mb-1">
                                             <div>
                                                 <span className="text-sm font-black text-slate-800">{v.name}</span>
-                                                {isTop && <span className="ml-2 text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">🏆 TERBAIK</span>}
-                                                {isBottom && <span className="ml-2 text-[10px] font-black text-red-500 bg-red-100 px-2 py-0.5 rounded-full">⚠️ EVALUASI</span>}
+                                                {isTop && <span className="ml-2 text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">🏆 TERHEMAT</span>}
+                                                {isBottom && <span className="ml-2 text-[10px] font-black text-red-500 bg-red-100 px-2 py-0.5 rounded-full">⚠️ TERBOROS</span>}
                                             </div>
-                                            <span className={`text-sm font-black ${v.kml > 10 ? 'text-emerald-600' : v.kml > 5 ? 'text-amber-600' : 'text-red-500'}`}>{v.kml?.toFixed(1) || '0.0'} KM/L</span>
+                                            <span className={`text-sm font-black ${costVal < 1000 ? 'text-emerald-600' : costVal < 3000 ? 'text-amber-600' : 'text-red-500'}`}>Rp {costVal.toLocaleString('id-ID')}/KM</span>
                                         </div>
                                         <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
                                             <div

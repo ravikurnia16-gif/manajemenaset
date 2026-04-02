@@ -547,6 +547,7 @@ exports.getVehicleDashboard = async (req, res) => {
                 kml: dLiters > 0 ? (dTotalKm / dLiters) : 0,
                 utilization: Math.min(utilization, 100),
                 cpkm: dTotalKm > 0 ? (dFuelCost + dServiceCost) / dTotalKm : 0,
+                fuelCpkm: dTotalKm > 0 ? dFuelCost / dTotalKm : 0,
                 totalKm: dTotalKm
             };
         }));
