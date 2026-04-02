@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, Activity, AlertCircle, Gauge, Filter, ChevronDown } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
+import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, Activity, AlertCircle, Gauge, Filter } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, Cell } from 'recharts';
 import api from '../lib/axios';
 
 const StatCard = ({ title, value, icon: Icon, color, desc }) => (
@@ -157,7 +157,7 @@ const VehicleDashboard = () => {
                     <div>
                         <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight italic">Matriks Performa Armada</h3>
                         <p className="text-xs text-slate-400 font-bold mt-1 uppercase tracking-widest">
-                            {data?.isSummary ? "Analisa Rata-Rata 30 Hari Terakhir" : `Analisa Bulan ${new Date(filter.year, filter.month-1).toLocaleString('id-ID', {month: 'long', year: 'numeric'})}`}
+                            {data?.isSummary ? `Analisa Rata-Rata 30 Hari Terakhir` : `Analisa Bulan ${new Date(filter.year, filter.month-1).toLocaleString('id-ID', {month: 'long', year: 'numeric'})}`}
                         </p>
                     </div>
                 </div>
