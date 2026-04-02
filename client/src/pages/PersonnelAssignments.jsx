@@ -199,14 +199,6 @@ const SubTaskItem = ({ item, idx, progressVal, isDone, updating, isAssignee, can
                     <span className="text-xs font-black text-slate-400">%</span>
                 </div>
             </div>
-            
-            {/* Item Progress Bar */}
-            <div className="mt-3 h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                    className={`h-full transition-all duration-500 ${isDone ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
-                    style={{ width: `${progressVal}%` }} 
-                />
-            </div>
         </div>
     );
 };
