@@ -143,6 +143,74 @@ const DeadlineBadge = ({ dueDate }) => (
     </div>
 );
 
+const SubTaskItem = ({ item, idx, progressVal, isDone, updating, isAssignee, canAssign, toggleItemStatus, updateItemProgress }) => {
+    const [localVal, setLocalVal] = useState(progressVal);
+
+    useEffect(() => {
+        setLocalVal(progressVal);
+    }, [progressVal]);
+
+    const commitProgress = () => {
+        const clamped = Math.min(100, Math.max(0, localVal));
+        if (clamped !== progressVal) {
+            updateItemProgress(idx, clamped);
+        }
+    };
+
+    return (
+        <div className={`p-4 rounded-2xl border transition-all shadow-sm ${isDone ? 'bg-emerald-50/30 border-emerald-100' : 'bg-white border-slate-100'}`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <button
+                        onClick={() => toggleItemStatus(idx)}
+                        disabled={updating}
+                        className={`shrink-0 transition-transform active:scale-90 ${isDone ? 'text-emerald-500' : 'text-slate-300'}`}
+                    >
+                        {isDone ? <CheckSquare size={22} /> : <Square size={22} />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-bold leading-tight ${isDone ? 'text-emerald-700 line-through decoration-emerald-200' : 'text-slate-700'}`}>
+                            {item.text}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className={`text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded ${isDone ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                {isDone ? 'SELESAI' : 'PROGRES'}
+                            </span>
+                            <span className={`text-[10px] font-black ${isDone ? 'text-emerald-500' : 'text-indigo-600'}`}>{progressVal}%</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Progress Percentage Input - local state, commit on blur/Enter */}
+                <div className="flex items-center gap-2 md:w-32">
+                    <input 
+                        type="number"
+                        min="0" max="100"
+                        value={localVal}
+                        onChange={(e) => setLocalVal(parseInt(e.target.value) || 0)}
+                        onBlur={commitProgress}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.target.blur(); }
+                            if (e.key === 'Escape') { setLocalVal(progressVal); e.target.blur(); }
+                        }}
+                        className="w-16 px-2 py-1.5 bg-white border-2 border-slate-200 rounded-lg text-center text-xs font-black text-indigo-700 outline-none focus:border-indigo-500 transition-all"
+                        disabled={updating || (!isAssignee && !canAssign)}
+                    />
+                    <span className="text-xs font-black text-slate-400">%</span>
+                </div>
+            </div>
+            
+            {/* Item Progress Bar */}
+            <div className="mt-3 h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div 
+                    className={`h-full transition-all duration-500 ${isDone ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
+                    style={{ width: `${progressVal}%` }} 
+                />
+            </div>
+        </div>
+    );
+};
+
 const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment, canAssign, userId }) => {
     const isAssignee = a.assigneeId === userId;
     const [expanded, setExpanded] = useState(false);
@@ -376,54 +444,18 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                                     const progressVal = item.progress || 0;
                                     const isDone = progressVal === 100;
                                     return (
-                                        <div 
+                                        <SubTaskItem
                                             key={idx}
-                                            className={`p-4 rounded-2xl border transition-all shadow-sm ${isDone ? 'bg-emerald-50/30 border-emerald-100' : 'bg-white border-slate-100'}`}
-                                        >
-                                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                    <button
-                                                        onClick={() => toggleItemStatus(idx)}
-                                                        disabled={updating}
-                                                        className={`shrink-0 transition-transform active:scale-90 ${isDone ? 'text-emerald-500' : 'text-slate-300'}`}
-                                                    >
-                                                        {isDone ? <CheckSquare size={22} /> : <Square size={22} />}
-                                                    </button>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className={`text-xs font-bold leading-tight ${isDone ? 'text-emerald-700 line-through decoration-emerald-200' : 'text-slate-700'}`}>
-                                                            {item.text}
-                                                        </p>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <span className={`text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded ${isDone ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                                                                {isDone ? 'SELESAI' : 'PROGRES'}
-                                                            </span>
-                                                            <span className={`text-[10px] font-black ${isDone ? 'text-emerald-500' : 'text-indigo-600'}`}>{progressVal}%</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Progress Percentage Input */}
-                                                <div className="flex items-center gap-2 md:w-32">
-                                                    <input 
-                                                        type="number"
-                                                        min="0" max="100"
-                                                        value={progressVal}
-                                                        onChange={(e) => updateItemProgress(idx, parseInt(e.target.value) || 0)}
-                                                        className="w-16 px-2 py-1.5 bg-white border-2 border-slate-200 rounded-lg text-center text-xs font-black text-indigo-700 outline-none focus:border-indigo-500 transition-all"
-                                                        disabled={updating || (!isAssignee && !canAssign)}
-                                                    />
-                                                    <span className="text-xs font-black text-slate-400">%</span>
-                                                </div>
-                                            </div>
-                                            
-                                            {/* Item Progress Bar */}
-                                            <div className="mt-3 h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-                                                <div 
-                                                    className={`h-full transition-all duration-500 ${isDone ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
-                                                    style={{ width: `${progressVal}%` }} 
-                                                />
-                                            </div>
-                                        </div>
+                                            item={item}
+                                            idx={idx}
+                                            progressVal={progressVal}
+                                            isDone={isDone}
+                                            updating={updating}
+                                            isAssignee={isAssignee}
+                                            canAssign={canAssign}
+                                            toggleItemStatus={toggleItemStatus}
+                                            updateItemProgress={updateItemProgress}
+                                        />
                                     );
                                 })}
                             </div>
