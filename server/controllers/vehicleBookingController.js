@@ -379,7 +379,7 @@ exports.startTrip = async (req, res) => {
 exports.endTrip = async (req, res) => {
     try {
         const { id } = req.params;
-        const { endKm, tripNotes, fuelRefill, fuelPrice } = req.body;
+        const { endKm, tripNotes, fuelRefill, fuelPrice, fuelLiters } = req.body;
 
         const booking = await prisma.vehicleBooking.findUnique({
             where: { id: parseInt(id) },
@@ -406,6 +406,7 @@ exports.endTrip = async (req, res) => {
                 tripNotes,
                 fuelRefill: !!fuelRefill,
                 fuelPrice: parseFloat(fuelPrice) || 0,
+                fuelLiters: fuelLiters ? parseFloat(fuelLiters) : null,
                 status: 'COMPLETED'
             }
         });

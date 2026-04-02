@@ -217,7 +217,7 @@ exports.createAssignment = async (req, res) => {
                 });
 
                 if (assignee?.phone) {
-                    const checklist = Array.isArray(items) 
+                    const checklist = Array.isArray(items)
                         ? items.map((it, idx) => `${idx + 1}. ${it.text}`).join('\n')
                         : '';
 
@@ -280,72 +280,39 @@ exports.getAssignments = async (req, res) => {
 
 exports.updateAssignmentStatus = async (req, res) => {
     const { id } = req.params;
-        const { status, progressPercentage, notes, items } = req.body;
-        const user = req.user;
-    
-        try {
-            const assignment = await prisma.personnelAssignment.findUnique({
-                where: { id: parseInt(id) }
-            });
-    
-            if (!assignment) return res.status(404).json({ error: 'Penugasan tidak ditemukan.' });
-    
-            if (assignment.assigneeId !== user.id && 
-                assignment.assignerId !== user.id && 
-                !['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user.role)) {
-                return res.status(403).json({ error: 'Akses ditolak.' });
-            }
-    
-            const data = {};
-    
-            // Handle logical items/checklist update
-            if (items) {
-                data.items = items;
-                // Calculate progress based on items
-                if (Array.isArray(items) && items.length > 0) {
-                    const completedItems = items.filter(it => it.status === 'COMPLETED').length;
-                    const percentage = Math.round((completedItems / items.length) * 100);
-                    data.progressPercentage = percentage;
-                    
-                    if (percentage === 100) {
-                        if (assignment.status !== 'COMPLETED') {
-                            data.status = 'COMPLETED';
-                            data.actualCompletionDate = new Date();
-                        }
-                    } else if (percentage > 0) {
-                        if (assignment.status === 'PENDING') {
-                            data.status = 'IN_PROGRESS';
-                            data.actualStartDate = new Date();
-                        } else if (assignment.status === 'COMPLETED') {
-                            data.status = 'IN_PROGRESS';
-                            data.actualCompletionDate = null;
-                        }
-                    } else if (percentage === 0 && assignment.status !== 'PENDING') {
-                        data.status = 'PENDING';
-                        data.actualStartDate = null;
+    const { status, progressPercentage, notes, items } = req.body;
+    const user = req.user;
+
+    try {
+        const assignment = await prisma.personnelAssignment.findUnique({
+            where: { id: parseInt(id) }
+        });
+
+        if (!assignment) return res.status(404).json({ error: 'Penugasan tidak ditemukan.' });
+
+        if (assignment.assigneeId !== user.id &&
+            assignment.assignerId !== user.id &&
+            !['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user.role)) {
+            return res.status(403).json({ error: 'Akses ditolak.' });
+        }
+
+        const data = {};
+
+        // Handle logical items/checklist update
+        if (items) {
+            data.items = items;
+            // Calculate progress based on items
+            if (Array.isArray(items) && items.length > 0) {
+                const completedItems = items.filter(it => it.status === 'COMPLETED').length;
+                const percentage = Math.round((completedItems / items.length) * 100);
+                data.progressPercentage = percentage;
+
+                if (percentage === 100) {
+                    if (assignment.status !== 'COMPLETED') {
+                        data.status = 'COMPLETED';
+                        data.actualCompletionDate = new Date();
                     }
-                }
-            }
-    
-            if (status) {
-                data.status = status;
-                if (status === 'IN_PROGRESS' && !assignment.actualStartDate) {
-                    data.actualStartDate = new Date();
-                }
-                if (status === 'COMPLETED') {
-                    data.actualCompletionDate = new Date();
-                    data.progressPercentage = 100;
-                }
-            }
-    
-            if (progressPercentage !== undefined) {
-                const newPercentage = parseInt(progressPercentage);
-                data.progressPercentage = newPercentage;
-                
-                if (newPercentage === 100) {
-                    data.status = 'COMPLETED';
-                    data.actualCompletionDate = new Date();
-                } else if (newPercentage > 0) {
+                } else if (percentage > 0) {
                     if (assignment.status === 'PENDING') {
                         data.status = 'IN_PROGRESS';
                         data.actualStartDate = new Date();
@@ -353,13 +320,46 @@ exports.updateAssignmentStatus = async (req, res) => {
                         data.status = 'IN_PROGRESS';
                         data.actualCompletionDate = null;
                     }
-                } else if (newPercentage === 0 && assignment.status !== 'PENDING') {
+                } else if (percentage === 0 && assignment.status !== 'PENDING') {
                     data.status = 'PENDING';
                     data.actualStartDate = null;
                 }
             }
-    
-            if (notes !== undefined) data.notes = notes;
+        }
+
+        if (status) {
+            data.status = status;
+            if (status === 'IN_PROGRESS' && !assignment.actualStartDate) {
+                data.actualStartDate = new Date();
+            }
+            if (status === 'COMPLETED') {
+                data.actualCompletionDate = new Date();
+                data.progressPercentage = 100;
+            }
+        }
+
+        if (progressPercentage !== undefined) {
+            const newPercentage = parseInt(progressPercentage);
+            data.progressPercentage = newPercentage;
+
+            if (newPercentage === 100) {
+                data.status = 'COMPLETED';
+                data.actualCompletionDate = new Date();
+            } else if (newPercentage > 0) {
+                if (assignment.status === 'PENDING') {
+                    data.status = 'IN_PROGRESS';
+                    data.actualStartDate = new Date();
+                } else if (assignment.status === 'COMPLETED') {
+                    data.status = 'IN_PROGRESS';
+                    data.actualCompletionDate = null;
+                }
+            } else if (newPercentage === 0 && assignment.status !== 'PENDING') {
+                data.status = 'PENDING';
+                data.actualStartDate = null;
+            }
+        }
+
+        if (notes !== undefined) data.notes = notes;
 
         const updated = await prisma.personnelAssignment.update({
             where: { id: parseInt(id) },
@@ -560,7 +560,7 @@ exports.getPersonnelDashboard = async (req, res) => {
                     topPerformer = { name: s.name, score: count > 0 ? 95 : 0 }; // Mock score for UI
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
 
         // Assignment Status Distribution
         const statusGroups = await prisma.personnelAssignment.groupBy({
@@ -586,12 +586,12 @@ exports.getPersonnelDashboard = async (req, res) => {
         }
 
         res.json({
-            stats: { 
-                activeAssignments, 
-                todayAgenda, 
+            stats: {
+                activeAssignments,
+                todayAgenda,
                 pendingReports,
                 totalRoutines,
-                topPerformer 
+                topPerformer
             },
             assignmentStatus: statusGroups.map(s => ({ name: s.status, value: s._count._all })),
             reportTrends
@@ -604,12 +604,13 @@ exports.getPersonnelDashboard = async (req, res) => {
 // --- AUTOMATED REMINDERS ---
 
 exports.checkAssignmentDeadlines = async () => {
-    console.log('[Personnel Assignment] Checking deadlines...');
+    console.log(`[${new Date().toLocaleString('id-ID')}] [Personnel Assignment] Checking deadlines...`);
     const now = new Date();
+    // Zero out time for current day comparison
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     try {
         const assignments = await prisma.personnelAssignment.findMany({
             where: {
@@ -626,22 +627,31 @@ exports.checkAssignmentDeadlines = async () => {
             }
         });
 
-        console.log(`[Personnel Assignment] Found ${assignments.length} potential assignments to remind.`);
+        if (assignments.length === 0) {
+            console.log('[Personnel Assignment] No pending assignments requiring reminders at this time.');
+            return;
+        }
+
+        console.log(`[Personnel Assignment] Found ${assignments.length} assignments to analyze.`);
 
         for (const a of assignments) {
-            const dueDate = new Date(a.dueDate);
-            const dueOnlyDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-            
+            // Standardize dueDate to zeroed-time Date object for comparison
+            const d = new Date(a.dueDate);
+            const dueOnlyDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            const dueTimestamp = dueOnlyDate.getTime();
+            const todayTimestamp = today.getTime();
+            const tomorrowTimestamp = tomorrow.getTime();
+
             let type = null;
             let urgencyMsg = "";
 
-            if (dueOnlyDate < today) {
+            if (dueTimestamp < todayTimestamp) {
                 type = 'OVERDUE';
                 urgencyMsg = "⚠️ *PERINGATAN: TUGAS TERLAMBAT* ⚠️";
-            } else if (dueOnlyDate.getTime() === today.getTime()) {
+            } else if (dueTimestamp === todayTimestamp) {
                 type = 'TODAY';
                 urgencyMsg = "🔔 *PENGINGAT: DEADLINE HARI INI* 🔔";
-            } else if (dueOnlyDate.getTime() === tomorrow.getTime()) {
+            } else if (dueTimestamp === tomorrowTimestamp) {
                 type = 'UPCOMING';
                 urgencyMsg = "🗓️ *PENGINGAT: DEADLINE BESOK* 🗓️";
             }
@@ -654,24 +664,27 @@ exports.checkAssignmentDeadlines = async () => {
                     `📅 *Deadline* : ${new Date(a.dueDate).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}\n` +
                     `📊 *Progres* : ${a.progressPercentage}%\n` +
                     `👤 *Pemberi Tugas* : ${a.assigner?.name || 'Admin'}\n\n` +
-                    `Mohon kesediaannya untuk segera diselesaikan atau diupdate progresnya di aplikasi Manajemen Aset ya Ustadz. Syukron Katsiran.`;
+                    `Mohon kesediaannya untuk segera diselesaikan atau diupdate progresnya di aplikasi Sarpras ya Ustadz. Syukron Jazakumullahu Khairan.`;
 
                 try {
                     await whatsappService.sendMessage(a.assignee.phone, msg);
-                    
-                    // Update last reminder sent to today
+
+                    // Update last reminder sent to now (preventing duplicate sends today)
                     await prisma.personnelAssignment.update({
                         where: { id: a.id },
                         data: { lastReminderSent: now }
                     });
-                    console.log(`[Personnel Assignment] Reminder (${type}) sent to ${a.assignee.name} for assignment: ${a.title}`);
+                    console.log(`[Personnel Assignment] SUCCESS: Reminder (${type}) sent to ${a.assignee.name} for: ${a.title}`);
                 } catch (waErr) {
-                    console.error(`[Personnel Assignment] Failed to send reminder to ${a.assignee.name}:`, waErr.message);
+                    console.error(`[Personnel Assignment] ERROR: Failed to send ${type} reminder to ${a.assignee.name}:`, waErr.message);
                 }
+            } else if (!type) {
+                // Task is in the future (more than H-1), so we skip it silently or log for debug
+                // console.log(`[Personnel Assignment] SKIP: Assignment "${a.title}" is still in the future.`);
             }
         }
     } catch (err) {
-        console.error('[Personnel Assignment] Check Deadlines Error:', err);
+        console.error('[Personnel Assignment] CRITICAL ERROR in Check Deadlines:', err);
     }
 };
 
@@ -714,8 +727,8 @@ exports.requestExtension = async (req, res) => {
                 `⏳ *Usulan Baru*: ${new Date(requestedDate).toLocaleDateString('id-ID')}\n` +
                 `📝 *Alasan*: ${reason}\n\n` +
                 `Mohon segera tinjau pengajuan ini di aplikasi Manajemen Aset. Syukron.`;
-            
-            try { await whatsappService.sendMessage(assignment.assigner.phone, msg); } catch (e) {}
+
+            try { await whatsappService.sendMessage(assignment.assigner.phone, msg); } catch (e) { }
         }
 
         res.json(updated);
@@ -761,12 +774,12 @@ exports.handleExtension = async (req, res) => {
             const msg = `${statusIcon} *STATUS PENUNDAAN TUGAS* ${statusIcon}\n\n` +
                 `Assalamu'alaikum Ustadz ${assignment.assignee.name},\n\n` +
                 `Pengajuan penundaan untuk tugas *${assignment.title}* telah *${statusText}*.\n\n` +
-                (isApproved 
+                (isApproved
                     ? `📅 *Deadline Baru*: ${new Date(assignment.requestedExtensionDate).toLocaleDateString('id-ID')}\n`
                     : `⚠️ Mohon tetap selesaikan sesuai deadline awal: ${new Date(assignment.dueDate).toLocaleDateString('id-ID')}\n`) +
                 `\nMohon dicek kembali di aplikasi Manajemen Aset. Syukron.`;
-            
-            try { await whatsappService.sendMessage(assignment.assignee.phone, msg); } catch (e) {}
+
+            try { await whatsappService.sendMessage(assignment.assignee.phone, msg); } catch (e) { }
         }
 
         res.json(updated);
@@ -912,7 +925,7 @@ exports.generateRoutineTasks = async () => {
 
                 // Notify WA
                 if (assignment.assignee?.phone) {
-                    const checklist = Array.isArray(routine.items) 
+                    const checklist = Array.isArray(routine.items)
                         ? routine.items.map((it, idx) => `${idx + 1}. ${it.text}`).join('\n')
                         : '';
 
@@ -924,7 +937,7 @@ exports.generateRoutineTasks = async () => {
                         `*Deskripsi* :\n${checklist || routine.description}\n\n` +
                         `Mohon bantuan untuk segera dilaksanakan ya Ustadz. Semangat!`;
 
-                    try { await whatsappService.sendMessage(assignment.assignee.phone, msg); } catch (e) {}
+                    try { await whatsappService.sendMessage(assignment.assignee.phone, msg); } catch (e) { }
                 }
             }
         }
@@ -944,9 +957,9 @@ exports.getKPILeaderboard = async (req, res) => {
         // [SEC] Authorization Check: Only Kabid Sarpras or Tech Admins
         const userId = req.user.id;
         const currentUser = await prisma.user.findUnique({ where: { id: userId } });
-        
-        const isKabidSarpras = currentUser?.position?.toLowerCase().includes('kepala bidang') && 
-                              currentUser?.position?.toLowerCase().includes('sarana dan prasarana');
+
+        const isKabidSarpras = currentUser?.position?.toLowerCase().includes('kepala bidang') &&
+            currentUser?.position?.toLowerCase().includes('sarana dan prasarana');
         const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(currentUser?.role);
 
         if (!isKabidSarpras && !isTechAdmin) {
@@ -1017,10 +1030,10 @@ exports.getKPILeaderboard = async (req, res) => {
                 name: s.name,
                 position: s.position,
                 stats: { total, completed, punctual, reports: reportCount },
-                scores: { 
-                    completion: Math.round(completionRate), 
-                    punctuality: Math.round(punctualityRate), 
-                    report: Math.round(reportRate) 
+                scores: {
+                    completion: Math.round(completionRate),
+                    punctuality: Math.round(punctualityRate),
+                    report: Math.round(reportRate)
                 },
                 averageScore: Math.round(averageScore * 10) / 10,
                 grade

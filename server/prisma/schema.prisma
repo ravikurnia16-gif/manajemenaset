@@ -563,6 +563,7 @@ model VehicleBooking {
   tripNotes   String?  @db.Text
   fuelRefill  Boolean  @default(false)
   fuelPrice   Float    @default(0)
+  fuelLiters  Float?   // Amount in liters if refilled during trip
   tripStartTime DateTime?
   tripEndTime   DateTime?
   

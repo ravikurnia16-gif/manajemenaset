@@ -154,29 +154,48 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
         setManualProgress(a.progressPercentage || 0);
     }, [a.progressPercentage]);
     
-    // Parse items with safety
+    // Parse items with safety and enhance with progress if missing
     let items = [];
     try {
-        items = Array.isArray(a.items) ? a.items : (typeof a.items === 'string' ? JSON.parse(a.items) : []);
+        const rawItems = Array.isArray(a.items) ? a.items : (typeof a.items === 'string' ? JSON.parse(a.items) : []);
+        items = rawItems.map(it => ({
+            ...it,
+            progress: typeof it.progress === 'number' ? it.progress : (it.status === 'COMPLETED' ? 100 : 0)
+        }));
     } catch (e) {
         console.error("Error parsing items:", e);
         items = [];
     }
 
     const totalCount = items.length;
-    const completedCount = items.filter(it => it.status === 'COMPLETED').length;
     
+    // Average progress of all sub-tasks
     const progress = totalCount > 0 
-        ? Math.round((completedCount / totalCount) * 100) 
+        ? Math.round(items.reduce((acc, it) => acc + (it.progress || 0), 0) / totalCount)
         : (a.progressPercentage || 0);
 
-    const toggleItemStatus = async (itemIdx) => {
+    const completedCount = items.filter(it => it.progress === 100).length;
+    
+    const updateItemProgress = async (itemIdx, newProgress) => {
         if (updating || (!isAssignee && !canAssign)) return;
-        setUpdating(true);
         const newItems = [...items];
-        newItems[itemIdx].status = newItems[itemIdx].status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
-        await handleUpdateAssignment(a.id, { items: newItems });
+        newItems[itemIdx].progress = Math.min(100, Math.max(0, newProgress));
+        newItems[itemIdx].status = newItems[itemIdx].progress === 100 ? 'COMPLETED' : 'PENDING';
+        
+        // Calculate new overall progress
+        const newOverallProgress = Math.round(newItems.reduce((acc, it) => acc + it.progress, 0) / totalCount);
+        
+        setUpdating(true);
+        await handleUpdateAssignment(a.id, { 
+            items: newItems,
+            progressPercentage: newOverallProgress 
+        });
         setUpdating(false);
+    };
+
+    const toggleItemStatus = async (itemIdx) => {
+        const currentProgress = items[itemIdx].progress;
+        await updateItemProgress(itemIdx, currentProgress === 100 ? 0 : 100);
     };
 
     return (
@@ -352,28 +371,75 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                                 Tidak ada sub-tugas yang didefinisikan.
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-4">
                                 {items.map((item, idx) => {
-                                    const isDone = item.status === 'COMPLETED';
+                                    const progressVal = item.progress || 0;
+                                    const isDone = progressVal === 100;
                                     return (
-                                        <button
+                                        <div 
                                             key={idx}
-                                            onClick={() => toggleItemStatus(idx)}
-                                            disabled={updating}
-                                            className={`flex items-center gap-4 p-4 rounded-xl border transition-all text-left shadow-sm ${isDone ? 'bg-emerald-50/50 border-emerald-100 border-l-4 border-l-emerald-500' : 'bg-white border-slate-100 hover:border-indigo-200'}`}
+                                            className={`p-4 rounded-2xl border transition-all shadow-sm ${isDone ? 'bg-emerald-50/30 border-emerald-100' : 'bg-white border-slate-100'}`}
                                         >
-                                            <div className={`shrink-0 ${isDone ? 'text-emerald-500' : 'text-slate-300'}`}>
-                                                {isDone ? <CheckSquare size={20} /> : <Square size={20} />}
+                                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                    <button
+                                                        onClick={() => toggleItemStatus(idx)}
+                                                        disabled={updating}
+                                                        className={`shrink-0 transition-transform active:scale-90 ${isDone ? 'text-emerald-500' : 'text-slate-300'}`}
+                                                    >
+                                                        {isDone ? <CheckSquare size={22} /> : <Square size={22} />}
+                                                    </button>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className={`text-xs font-bold leading-tight ${isDone ? 'text-emerald-700 line-through decoration-emerald-200' : 'text-slate-700'}`}>
+                                                            {item.text}
+                                                        </p>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className={`text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded ${isDone ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                                {isDone ? 'SELESAI' : 'PROGRES'}
+                                                            </span>
+                                                            <span className={`text-[10px] font-black ${isDone ? 'text-emerald-500' : 'text-indigo-600'}`}>{progressVal}%</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Progress Modifier */}
+                                                <div className="flex items-center gap-3 bg-slate-50/50 p-2 rounded-xl border border-slate-100 md:w-48">
+                                                    <input 
+                                                        type="range"
+                                                        min="0" max="100"
+                                                        step="5"
+                                                        value={progressVal}
+                                                        onChange={(e) => updateItemProgress(idx, parseInt(e.target.value))}
+                                                        className="flex-1 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                                        disabled={updating || (!isAssignee && !canAssign)}
+                                                    />
+                                                    <div className="flex flex-col items-center">
+                                                        <div className="flex gap-1">
+                                                            <button 
+                                                                onClick={() => updateItemProgress(idx, Math.max(0, progressVal - 10))}
+                                                                className="w-5 h-5 flex items-center justify-center bg-white border border-slate-200 rounded text-[10px] font-bold hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                                                            >
+                                                                -
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => updateItemProgress(idx, Math.min(100, progressVal + 10))}
+                                                                className="w-5 h-5 flex items-center justify-center bg-white border border-slate-200 rounded text-[10px] font-bold hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                                                            >
+                                                                +
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className={`text-xs font-bold leading-tight ${isDone ? 'text-emerald-700 line-through decoration-emerald-300' : 'text-slate-700'}`}>
-                                                    {item.text}
-                                                </p>
-                                                <span className={`text-[9px] font-black tracking-widest uppercase ${isDone ? 'text-emerald-400' : 'text-slate-400'}`}>
-                                                    {isDone ? 'COMPLETED' : 'PENDING'}
-                                                </span>
+                                            
+                                            {/* Item Progress Bar */}
+                                            <div className="mt-3 h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                <div 
+                                                    className={`h-full transition-all duration-500 ${isDone ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
+                                                    style={{ width: `${progressVal}%` }} 
+                                                />
                                             </div>
-                                        </button>
+                                        </div>
                                     );
                                 })}
                             </div>
@@ -426,7 +492,7 @@ const PersonnelAssignments = () => {
         startDate: new Date().toISOString().split('T')[0],
         dueDate: '',
         addToCalendar: true,
-        items: [{ text: '', status: 'PENDING' }]
+        items: [{ text: '', status: 'PENDING', progress: 0 }]
     });
 
     const [extensionModal, setExtensionModal] = useState({ show: false, assignment: null, requestedDate: '', reason: '' });
@@ -489,7 +555,7 @@ const PersonnelAssignments = () => {
     }, []);
 
     const addItem = () => {
-        setForm({ ...form, items: [...form.items, { text: '', status: 'PENDING' }] });
+        setForm({ ...form, items: [...form.items, { text: '', status: 'PENDING', progress: 0 }] });
     };
 
     const removeItem = (idx) => {
@@ -511,7 +577,7 @@ const PersonnelAssignments = () => {
             setSubmitting(true);
             await api.post('/personnel/assignments', { ...form, items: validItems });
             setShowForm(false);
-            setForm({ assigneeId: '', title: '', description: '', category: 'UMUM', priority: 'MEDIUM', location: '', startDate: new Date().toISOString().split('T')[0], dueDate: '', addToCalendar: true, items: [{ text: '', status: 'PENDING' }] });
+            setForm({ assigneeId: '', title: '', description: '', category: 'UMUM', priority: 'MEDIUM', location: '', startDate: new Date().toISOString().split('T')[0], dueDate: '', addToCalendar: true, items: [{ text: '', status: 'PENDING', progress: 0 }] });
             fetchAssignments();
             alert(`Tugas berhasil didelegasikan`);
         } catch (err) {

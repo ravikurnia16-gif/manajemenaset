@@ -53,7 +53,7 @@ const VehicleBooking = () => {
     const [showBorrowModal, setShowBorrowModal] = useState(false);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
     const [showActionModal, setShowActionModal] = useState(null); // { type: 'REJECT'|'START'|'END', data: booking }
-    const [actionData, setActionData] = useState({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '' });
+    const [actionData, setActionData] = useState({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelLiters: '' });
 
     // Filter State for History
     const [filterVehicle, setFilterVehicle] = useState('');
@@ -255,11 +255,12 @@ const VehicleBooking = () => {
                 endKm: parseInt(actionData.km),
                 tripNotes: actionData.notes,
                 fuelRefill: actionData.fuelRefill,
-                fuelPrice: actionData.fuelPrice
+                fuelPrice: actionData.fuelPrice,
+                fuelLiters: actionData.fuelLiters
             });
             showToast('Perjalanan selesai!', 'success');
             setShowActionModal(null);
-            setActionData({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '' });
+            setActionData({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelLiters: '' });
             fetchBookings();
         } catch (err) { showToast('Gagal menyelesaikan perjalanan: ' + (err.response?.data?.error || err.message), 'error'); }
         finally { setSubmitting(false); }
@@ -408,6 +409,11 @@ const VehicleBooking = () => {
                                                        (v.plateNumber || '').toLowerCase().includes(vSearch.toLowerCase());
                                     const matchType = vTypeFilter === 'ALL' || v.type === vTypeFilter;
                                     return matchSearch && matchType;
+                                }).sort((a, b) => {
+                                    const typeOrder = { 'Mobil': 1, 'Bus': 2, 'Motor': 3 };
+                                    const priorityA = typeOrder[a.type] || 99;
+                                    const priorityB = typeOrder[b.type] || 99;
+                                    return priorityA - priorityB;
                                 });
 
                                 if (filtered.length === 0) {
@@ -1690,17 +1696,34 @@ const VehicleBooking = () => {
                                         </div>
 
                                         {actionData.fuelRefill && (
-                                            <div className="animate-in slide-in-from-top-2 duration-200">
-                                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Biaya Pengisian BBM</label>
-                                                <div className="relative">
-                                                    <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                                    <input
-                                                        type="number"
-                                                        className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold"
-                                                        placeholder="Rp 0"
-                                                        value={actionData.fuelPrice}
-                                                        onChange={e => setActionData({ ...actionData, fuelPrice: e.target.value })}
-                                                    />
+                                            <div className="animate-in slide-in-from-top-2 duration-200 mt-4 space-y-3">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Total Biaya (Rp)</label>
+                                                        <div className="relative">
+                                                            <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                            <input
+                                                                type="number"
+                                                                className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold"
+                                                                placeholder="Rp 0"
+                                                                value={actionData.fuelPrice}
+                                                                onChange={e => setActionData({ ...actionData, fuelPrice: e.target.value })}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Jumlah Liter (L)</label>
+                                                        <div className="relative">
+                                                            <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                            <input
+                                                                type="number" step="0.01"
+                                                                className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold"
+                                                                placeholder="0.00"
+                                                                value={actionData.fuelLiters}
+                                                                onChange={e => setActionData({ ...actionData, fuelLiters: e.target.value })}
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}

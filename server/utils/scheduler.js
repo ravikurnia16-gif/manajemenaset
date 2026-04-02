@@ -71,7 +71,6 @@ const initScheduler = () => {
                 await checkTaxNotifications();
                 await checkKirNotifications();
                 await checkOverdueLoans();
-                await checkAssignmentDeadlines();
                 await checkBusBookingNotifications();
             } catch (err) {
                 console.error('[Scheduler] Error in Vehicle Checks:', err);
@@ -87,6 +86,7 @@ const initScheduler = () => {
             try {
                 await checkOverdueVehicleBookings();
                 await checkUpcomingVehicleBookings();
+                await checkAssignmentDeadlines();
             } catch (err) {
                 console.error('[Scheduler] Error in Overdue Reminders:', err);
             }
