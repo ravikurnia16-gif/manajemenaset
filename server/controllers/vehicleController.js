@@ -436,16 +436,27 @@ exports.deleteVehicle = async (req, res) => {
 
 exports.getVehicleDashboard = async (req, res) => {
     try {
+        const { month, year } = req.query;
         const now = new Date();
-        const thirtyDaysAgo = new Date(new Date().setDate(now.getDate() - 30));
         const thirtyDaysFromNow = new Date(new Date().setDate(now.getDate() + 30));
 
-        // 1. Fetch ONLY Mobil & Bus with basic info and services
+        // 1. Determine Date Filter Range
+        let filterStart, filterEnd, isSummary = true;
+        if (month && year) {
+            filterStart = new Date(parseInt(year), parseInt(month) - 1, 1);
+            filterEnd = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59, 999);
+            isSummary = false;
+        } else {
+            // Default to all-time summary or last 30 days depending on metric
+            filterStart = new Date(0); // All time
+            filterEnd = new Date(now);
+        }
+
+        const thirtyDaysPast = new Date(new Date().setDate(now.getDate() - 30));
+
+        // 2. Fetch ALL Active Vehicles
         const allVehicles = await prisma.vehicle.findMany({
-            where: { 
-                status: 'ACTIVE',
-                type: { in: ['Mobil', 'Bus', 'MINIBUS', 'MICROBUS', 'VAN', 'PICKUP'] }
-            },
+            where: { status: 'ACTIVE' },
             include: {
                 services: {
                     where: { category: 'ROUTINE', nextServiceOdometer: { not: null } },
@@ -454,67 +465,24 @@ exports.getVehicleDashboard = async (req, res) => {
                 }
             }
         });
-
-        const vehicleIds = allVehicles.map(v => v.id);
         const allVehicleNames = allVehicles.map(v => v.name);
 
         const activeBookingsCount = await prisma.vehicleBooking.count({
-            where: {
-                status: 'BERLANGSUNG',
-                vehicleId: { in: vehicleIds }
-            }
+            where: { status: 'BERLANGSUNG' }
         });
 
-        // 2. Identify Urgent Actions (Alerts)
+        // 3. Urgent Actions (Real-time - Always showing upcoming)
         const urgentActions = [];
         allVehicles.forEach(v => {
-            // Check Tax
-            if (v.taxDueDate && v.taxDueDate <= thirtyDaysFromNow) {
-                urgentActions.push({ vehicle: v.name, plate: v.plateNumber, action: 'Perpanjang Pajak', type: 'TAX', date: v.taxDueDate });
-            }
-            // Check STNK
-            if (v.stnkDueDate && v.stnkDueDate <= thirtyDaysFromNow) {
-                urgentActions.push({ vehicle: v.name, plate: v.plateNumber, action: 'Ganti Plat/STNK', type: 'STNK', date: v.stnkDueDate });
-            }
-            // Check KIR
-            if (v.kirDueDate && v.kirDueDate <= thirtyDaysFromNow) {
-                urgentActions.push({ vehicle: v.name, plate: v.plateNumber, action: 'Uji KIR', type: 'KIR', date: v.kirDueDate });
-            }
-            // Check Service
+            if (v.taxDueDate && v.taxDueDate <= thirtyDaysFromNow) urgentActions.push({ vehicle: v.name, plate: v.plateNumber, action: 'Perpanjang Pajak', type: 'TAX', date: v.taxDueDate });
+            if (v.stnkDueDate && v.stnkDueDate <= thirtyDaysFromNow) urgentActions.push({ vehicle: v.name, plate: v.plateNumber, action: 'Ganti Plat/STNK', type: 'STNK', date: v.stnkDueDate });
+            if (v.kirDueDate && v.kirDueDate <= thirtyDaysFromNow) urgentActions.push({ vehicle: v.name, plate: v.plateNumber, action: 'Uji KIR', type: 'KIR', date: v.kirDueDate });
             const lastRoutine = v.services?.[0];
-            if (lastRoutine && v.odometer >= lastRoutine.nextServiceOdometer) {
-                urgentActions.push({ vehicle: v.name, plate: v.plateNumber, action: 'Servis Rutin (Overdue)', type: 'SERVICE', km: lastRoutine.nextServiceOdometer });
-            }
+            if (lastRoutine && v.odometer >= lastRoutine.nextServiceOdometer) urgentActions.push({ vehicle: v.name, plate: v.plateNumber, action: 'Servis Rutin (Overdue)', type: 'SERVICE', km: lastRoutine.nextServiceOdometer });
         });
         urgentActions.sort((a, b) => (a.date || 0) - (b.date || 0));
 
-        // 3. Destinasi & Usage (Filtered)
-        const [destinations, vehicleUsage] = await Promise.all([
-            prisma.vehicleBooking.groupBy({
-                by: ['destination'],
-                where: { status: 'COMPLETED', vehicleId: { in: vehicleIds } },
-                _count: { _all: true }
-            }),
-            prisma.vehicleBooking.groupBy({
-                by: ['vehicleId'],
-                where: { status: 'COMPLETED', vehicleId: { in: vehicleIds } },
-                _count: { _all: true }
-            })
-        ]);
-
-        const topDestinations = destinations.sort((a, b) => b._count._all - a._count._all).slice(0, 5).map(d => ({
-            name: d.destination || 'Tanpa Tujuan',
-            value: d._count._all
-        }));
-
-        const vehicleMap = {};
-        allVehicles.forEach(v => vehicleMap[v.id] = v.name);
-        const topVehicles = vehicleUsage.sort((a, b) => b._count._all - a._count._all).slice(0, 5).map(u => ({
-            name: vehicleMap[u.vehicleId] || 'Unknown',
-            value: u._count._all
-        }));
-
-        // 4. Monthly Trends (Bookings & Mileage - Last 6 Months)
+        // 4. Monthly Trends (Always 6 Months back from NOW)
         const bookingTrends = [];
         const mileageTrends = [];
         for (let i = 5; i >= 0; i--) {
@@ -524,131 +492,104 @@ exports.getVehicleDashboard = async (req, res) => {
             const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
 
             const bCount = await prisma.vehicleBooking.count({
-                where: { createdAt: { gte: mStart, lte: mEnd }, vehicleId: { in: vehicleIds } }
+                where: { createdAt: { gte: mStart, lte: mEnd } }
             });
 
-            const completedBookings = await prisma.vehicleBooking.findMany({
-                where: {
-                    status: 'COMPLETED',
-                    tripEndTime: { gte: mStart, lte: mEnd },
-                    startKm: { not: null },
-                    endKm: { not: null },
-                    vehicleId: { in: vehicleIds }
-                },
+            const completedForMonth = await prisma.vehicleBooking.findMany({
+                where: { status: 'COMPLETED', tripEndTime: { gte: mStart, lte: mEnd }, startKm: { not: null }, endKm: { not: null } },
                 select: { startKm: true, endKm: true, vehicle: { select: { name: true } } }
             });
 
             const monthName = d.toLocaleString('id-ID', { month: 'short', year: 'numeric' });
             const mileageObj = { name: monthName };
             allVehicleNames.forEach(name => mileageObj[name] = 0);
-
-            completedBookings.forEach(b => {
-                if (b.vehicle && b.vehicle.name) {
-                    mileageObj[b.vehicle.name] += (b.endKm - b.startKm);
-                }
-            });
+            completedForMonth.forEach(b => { if (b.vehicle?.name) mileageObj[b.vehicle.name] += (b.endKm - b.startKm); });
 
             bookingTrends.push({ name: monthName, value: bCount });
             mileageTrends.push(mileageObj);
         }
 
-        // 5. Advanced Stats Per Vehicle (KM/L, Utilization, Cost/KM)
+        // 5. Filtered Vehicle Matrix (vStats)
         const vStats = await Promise.all(allVehicles.map(async v => {
             const [completedBookings, fuelLogs, serviceLogs] = await Promise.all([
                 prisma.vehicleBooking.findMany({
-                    where: { vehicleId: v.id, status: 'COMPLETED', tripEndTime: { gte: thirtyDaysAgo } },
+                    where: { vehicleId: v.id, status: 'COMPLETED', tripEndTime: { gte: isSummary ? thirtyDaysPast : filterStart, lte: filterEnd } },
                     select: { startKm: true, endKm: true, fuelLiters: true, fuelPrice: true, tripStartTime: true, tripEndTime: true }
                 }),
                 prisma.vehicleFuelLog.findMany({
-                    where: { vehicleId: v.id, date: { gte: thirtyDaysAgo } },
+                    where: { vehicleId: v.id, date: { gte: isSummary ? thirtyDaysPast : filterStart, lte: filterEnd } },
                     select: { liters: true, cost: true }
                 }),
                 prisma.vehicleService.findMany({
-                    where: { vehicleId: v.id, date: { gte: thirtyDaysAgo } },
+                    where: { vehicleId: v.id, date: { gte: isSummary ? thirtyDaysPast : filterStart, lte: filterEnd } },
                     select: { cost: true }
                 })
             ]);
 
-            const totalKm = completedBookings.reduce((sum, b) => sum + ((b.endKm || 0) - (b.startKm || 0)), 0);
-            const totalLitersFromBookings = completedBookings.reduce((sum, b) => sum + (b.fuelLiters || 0), 0);
-            const totalLitersFromLogs = fuelLogs.reduce((sum, l) => sum + l.liters, 0);
-            const totalLiters = totalLitersFromBookings + totalLitersFromLogs;
+            const dTotalKm = completedBookings.reduce((sum, b) => sum + ((b.endKm || 0) - (b.startKm || 0)), 0);
+            const dLiters = completedBookings.reduce((sum, b) => sum + (b.fuelLiters || 0), 0) + fuelLogs.reduce((sum, l) => sum + l.liters, 0);
+            const dFuelCost = completedBookings.reduce((sum, b) => sum + (b.fuelPrice || 0), 0) + fuelLogs.reduce((sum, l) => sum + l.cost, 0);
+            const dServiceCost = serviceLogs.reduce((sum, l) => sum + l.cost, 0);
 
-            const totalFuelCost = completedBookings.reduce((sum, b) => sum + (b.fuelPrice || 0), 0) + fuelLogs.reduce((sum, l) => sum + l.cost, 0);
-            const totalServiceCost = serviceLogs.reduce((sum, l) => sum + l.cost, 0);
-
-            // Efficiency (KM/L)
-            const kml = totalLiters > 0 ? (totalKm / totalLiters) : 0;
-
-            // Utilization (Active days in last 30)
             const activeDays = new Set();
             completedBookings.forEach(b => {
                 if (b.tripStartTime) {
                     const start = new Date(b.tripStartTime);
                     const end = b.tripEndTime ? new Date(b.tripEndTime) : new Date();
-                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                        activeDays.add(new Date(d).toDateString());
-                    }
+                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) activeDays.add(new Date(d).toDateString());
                 }
             });
-            const utilization = (activeDays.size / 30) * 100;
-
-            // Cost per KM
-            const cpkm = totalKm > 0 ? (totalFuelCost + totalServiceCost) / totalKm : 0;
+            const daysInPeriod = isSummary ? 30 : (filterEnd.getDate());
+            const utilization = (activeDays.size / daysInPeriod) * 100;
 
             return {
-                id: v.id,
-                name: v.name,
-                plate: v.plateNumber,
-                kml,
-                utilization,
-                cpkm,
-                totalKm
+                id: v.id, name: v.name, plate: v.plateNumber,
+                kml: dLiters > 0 ? (dTotalKm / dLiters) : 0,
+                utilization: Math.min(utilization, 100),
+                cpkm: dTotalKm > 0 ? (dFuelCost + dServiceCost) / dTotalKm : 0,
+                totalKm: dTotalKm
             };
         }));
 
-        // 6. Overall Fleet Stats (Filtered)
-        const [totalFuelCost, totalServiceCost, totalFleetKm] = await Promise.all([
-            prisma.vehicleFuelLog.aggregate({ _sum: { cost: true }, where: { vehicleId: { in: vehicleIds } } }),
-            prisma.vehicleService.aggregate({ _sum: { cost: true }, where: { vehicleId: { in: vehicleIds } } }),
-            prisma.vehicleBooking.findMany({ where: { status: 'COMPLETED', vehicleId: { in: vehicleIds } }, select: { startKm: true, endKm: true } })
+        // 6. Overall Stats & availableMonths
+        const availableMonthsData = await prisma.vehicleBooking.findMany({
+            where: { status: 'COMPLETED' },
+            select: { tripEndTime: true },
+            distinct: ['tripEndTime']
+        });
+        const availableMonths = [...new Set(availableMonthsData.map(b => {
+            const date = new Date(b.tripEndTime);
+            return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+        }))].sort().reverse();
+
+        const [fuelTotalObj, serviceTotalObj, fleetKmAll] = await Promise.all([
+            prisma.vehicleFuelLog.aggregate({ _sum: { cost: true, liters: true }, where: { date: { gte: filterStart, lte: filterEnd } } }),
+            prisma.vehicleService.aggregate({ _sum: { cost: true }, where: { date: { gte: filterStart, lte: filterEnd } } }),
+            prisma.vehicleBooking.findMany({ where: { status: 'COMPLETED', tripEndTime: { gte: filterStart, lte: filterEnd } }, select: { startKm: true, endKm: true, fuelPrice: true, fuelLiters: true } })
         ]);
 
-        const totalKmAll = totalFleetKm.reduce((sum, b) => sum + ((b.endKm || 0) - (b.startKm || 0)), 0);
-        const fuelTotal = (totalFuelCost._sum.cost || 0) + (await prisma.vehicleBooking.aggregate({ _sum: { fuelPrice: true }, where: { fuelRefill: true, vehicleId: { in: vehicleIds } } }))._sum.fuelPrice || 0;
-        const serviceTotal = totalServiceCost._sum.cost || 0;
-
-        const fleetCostPerKm = totalKmAll > 0 ? (fuelTotal + serviceTotal) / totalKmAll : 0;
-
-        // Fleet Average KM/L (Filtered)
-        const fleetLiters = (await prisma.vehicleFuelLog.aggregate({ _sum: { liters: true }, where: { vehicleId: { in: vehicleIds } } }))._sum.liters || 0 +
-                            (await prisma.vehicleBooking.aggregate({ _sum: { fuelLiters: true }, where: { vehicleId: { in: vehicleIds } } }))._sum.fuelLiters || 0;
-        const fleetKml = fleetLiters > 0 ? (totalKmAll / fleetLiters) : 0;
+        const totalKmAll = fleetKmAll.reduce((sum, b) => sum + ((b.endKm || 0) - (b.startKm || 0)), 0);
+        const fuelTotal = (fuelTotalObj._sum.cost || 0) + fleetKmAll.reduce((sum, b) => sum + (b.fuelPrice || 0), 0);
+        const fuelLiters = (fuelTotalObj._sum.liters || 0) + fleetKmAll.reduce((sum, b) => sum + (b.fuelLiters || 0), 0);
+        const serviceTotal = serviceTotalObj._sum.cost || 0;
 
         res.json({
+            isSummary,
+            period: month && year ? `${month}/${year}` : 'SUMMARY',
             stats: {
                 totalVehicles: allVehicles.length,
                 activeBookings: activeBookingsCount,
                 needingService: urgentActions.filter(a => a.type === 'SERVICE').length,
                 taxWarnings: urgentActions.filter(a => ['TAX', 'STNK', 'KIR'].includes(a.type)).length,
-                totalFuelCost: fuelTotal,
-                totalServiceCost: serviceTotal,
-                fleetCostPerKm,
-                fleetKml
+                fleetCostPerKm: totalKmAll > 0 ? (fuelTotal + serviceTotal) / totalKmAll : 0,
+                fleetKml: fuelLiters > 0 ? (totalKmAll / fuelLiters) : 0
             },
             urgentActions,
+            availableMonths,
             vStats: vStats.sort((a, b) => b.totalKm - a.totalKm),
             bookingTrends,
-            costTrends: [], // Recalculate if needed, but keeping lean for now
             mileageTrends,
-            topDestinations,
-            topVehicles,
-            allVehicleNames,
-            typeDistribution: await prisma.vehicle.groupBy({
-                by: ['type'],
-                where: { status: 'ACTIVE', id: { in: vehicleIds } },
-                _count: { _all: true }
-            }).then(types => types.map(t => ({ name: t.type, value: t._count._all })))
+            allVehicleNames
         });
     } catch (error) {
         console.error('Vehicle Dashboard Error:', error);
