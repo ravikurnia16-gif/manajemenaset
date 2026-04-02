@@ -1,7 +1,23 @@
 import { useState, useEffect } from 'react';
-import { Warehouse, Package, ArrowDownCircle, ArrowUpCircle, AlertTriangle, Loader2, Receipt, History, ShoppingBag, TrendingUp, User } from 'lucide-react';
+import { Warehouse, Package, ArrowDownCircle, ArrowUpCircle, AlertTriangle, Loader2, Receipt, History, ShoppingBag, TrendingUp, User, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import api from '../lib/axios';
+
+/* ── jsPDF + autoTable CDN loader ── */
+function loadJsPDF() {
+    return new Promise((resolve) => {
+        if (window.jspdf) { resolve(window.jspdf.jsPDF); return; }
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = () => {
+            const s2 = document.createElement('script');
+            s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+            s2.onload = () => resolve(window.jspdf.jsPDF);
+            document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+    });
+}
 
 const StatCard = ({ label, value, icon, color, subValue }) => (
     <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm hover:shadow-md transition-all relative overflow-hidden group">
@@ -18,6 +34,7 @@ const StatCard = ({ label, value, icon, color, subValue }) => (
 const WarehouseDashboard = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
         api.get('/warehouse/dashboard')
@@ -41,6 +58,141 @@ const WarehouseDashboard = () => {
         { label: 'Keluar (Bulan Ini)', value: data.txOutThisMonth, icon: <ArrowUpCircle size={24} />, color: 'from-orange-500 to-amber-500' },
     ];
 
+    // --- PDF EXPORT ---
+    const handleExportPDF = async () => {
+        if (!data) return;
+        setExporting(true);
+        try {
+            const jsPDF = await loadJsPDF();
+            const doc = new jsPDF('landscape', 'mm', 'a4');
+            const pageW = doc.internal.pageSize.getWidth();
+            const now = new Date();
+
+            // Header
+            doc.setFontSize(18);
+            doc.setFont(undefined, 'bold');
+            doc.text('LAPORAN DASHBOARD LOGISTIK', pageW / 2, 18, { align: 'center' });
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            doc.text(`Tanggal Cetak: ${now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, pageW / 2, 25, { align: 'center' });
+
+            // KPI Summary
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('Ringkasan KPI Logistik', 14, 35);
+            doc.autoTable({
+                startY: 38,
+                head: [['Total Nilai Aset', 'Jenis Barang', 'Total Stok', 'Pesanan Pending', 'Masuk (Bln Ini)', 'Keluar (Bln Ini)', 'Stok Rendah']],
+                body: [[
+                    `Rp ${(data.totalValuation || 0).toLocaleString('id-ID')}`,
+                    data.totalItems || 0,
+                    (data.totalStock || 0).toLocaleString('id-ID'),
+                    data.orderStats?.PENDING || 0,
+                    data.txInThisMonth || 0,
+                    data.txOutThisMonth || 0,
+                    data.lowStockCount || 0
+                ]],
+                theme: 'grid',
+                headStyles: { fillColor: [99, 102, 241], fontSize: 8, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 9, fontStyle: 'bold' },
+                margin: { left: 14, right: 14 }
+            });
+
+            // Stock by Category
+            if (data.stockByCategory?.length > 0) {
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'bold');
+                doc.text('Valuasi Stok per Kategori', 14, doc.lastAutoTable.finalY + 10);
+                doc.autoTable({
+                    startY: doc.lastAutoTable.finalY + 13,
+                    head: [['Kategori', 'Valuasi (Rp)']],
+                    body: data.stockByCategory.map(c => [c.name, `Rp ${(c.value || 0).toLocaleString('id-ID')}`]),
+                    theme: 'striped',
+                    headStyles: { fillColor: [99, 102, 241], fontSize: 8, fontStyle: 'bold' },
+                    bodyStyles: { fontSize: 8 },
+                    margin: { left: 14, right: 14 }
+                });
+            }
+
+            // Order Status Breakdown
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('Status Pesanan Unit', 14, doc.lastAutoTable.finalY + 10);
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 13,
+                head: [['Status', 'Jumlah']],
+                body: [
+                    ['Dalam Proses (Pending)', data.orderStats?.PENDING || 0],
+                    ['Siap Diambil (Ready)', data.orderStats?.READY || 0],
+                    ['Selesai (Done)', (data.orderStats?.PICKED_UP || 0) + (data.orderStats?.DONE || 0)],
+                    ['Total Pesanan', data.orderStats?.total || 0],
+                ],
+                theme: 'striped',
+                headStyles: { fillColor: [16, 185, 129], fontSize: 8, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 8 },
+                margin: { left: 14, right: 14 }
+            });
+
+            // Low Stock Watchlist
+            if (data.lowStockItems?.length > 0) {
+                doc.addPage();
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'bold');
+                doc.text(`Daftar Stok Rendah (${data.lowStockItems.length} Item)`, 14, 18);
+                doc.autoTable({
+                    startY: 22,
+                    head: [['#', 'Nama Barang', 'Kategori', 'Stok Saat Ini', 'Stok Minimum', 'Status']],
+                    body: data.lowStockItems.map((item, i) => [
+                        i + 1, item.name, item.category || '-',
+                        item.stock, item.minStock,
+                        item.stock <= 0 ? '\u26a0\ufe0f HABIS' : '\u26a0\ufe0f RENDAH'
+                    ]),
+                    theme: 'striped',
+                    headStyles: { fillColor: [239, 68, 68], fontSize: 8, fontStyle: 'bold' },
+                    bodyStyles: { fontSize: 8 },
+                    margin: { left: 14, right: 14 }
+                });
+            }
+
+            // Recent Transactions
+            if (data.recentTransactions?.length > 0) {
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'bold');
+                doc.text('Log Aktivitas Gudang Terbaru', 14, doc.lastAutoTable.finalY + 10);
+                doc.autoTable({
+                    startY: doc.lastAutoTable.finalY + 13,
+                    head: [['Tipe', 'Barang', 'Tanggal', 'Petugas']],
+                    body: data.recentTransactions.map(tx => [
+                        tx.type === 'IN' ? 'Masuk' : 'Keluar',
+                        tx.items?.map(it => `${it.item?.name} (${it.quantity})`).join(', ') || '-',
+                        new Date(tx.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+                        tx.createdBy?.name || '-'
+                    ]),
+                    theme: 'striped',
+                    headStyles: { fillColor: [59, 130, 246], fontSize: 8, fontStyle: 'bold' },
+                    bodyStyles: { fontSize: 8 },
+                    margin: { left: 14, right: 14 }
+                });
+            }
+
+            // Footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'normal');
+                doc.text(`Halaman ${i} dari ${pageCount}  |  Dicetak oleh Sistem Manajemen Aset`, pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
+            }
+
+            doc.save(`Laporan_Logistik_${now.toISOString().slice(0, 10)}.pdf`);
+        } catch (err) {
+            console.error('PDF Export Error:', err);
+            alert('Gagal mengekspor PDF: ' + err.message);
+        } finally {
+            setExporting(false);
+        }
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
@@ -51,9 +203,19 @@ const WarehouseDashboard = () => {
                     </h1>
                     <p className="text-sm text-slate-500 mt-1 font-medium">Monitoring ketersediaan kain, seragam, dan logistik operasional.</p>
                 </div>
-                <div className="flex items-center gap-3 bg-red-50 px-4 py-2 rounded-2xl border border-red-100 animate-pulse">
-                    <AlertTriangle className="text-red-500" size={18} />
-                    <span className="text-xs font-black text-red-700 uppercase tracking-wider">{data.lowStockCount} Item Stok Rendah</span>
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-3 bg-red-50 px-4 py-2 rounded-2xl border border-red-100 animate-pulse">
+                        <AlertTriangle className="text-red-500" size={18} />
+                        <span className="text-xs font-black text-red-700 uppercase tracking-wider">{data.lowStockCount} Item Stok Rendah</span>
+                    </div>
+                    <button
+                        onClick={handleExportPDF}
+                        disabled={exporting}
+                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl text-sm font-black uppercase tracking-tight shadow-lg shadow-indigo-200 transition-all disabled:opacity-50"
+                    >
+                        {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                        {exporting ? 'Mengekspor...' : 'Export PDF'}
+                    </button>
                 </div>
             </div>
 

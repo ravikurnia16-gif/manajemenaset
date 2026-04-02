@@ -402,33 +402,17 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                                                     </div>
                                                 </div>
 
-                                                {/* Progress Modifier */}
-                                                <div className="flex items-center gap-3 bg-slate-50/50 p-2 rounded-xl border border-slate-100 md:w-48">
+                                                {/* Progress Percentage Input */}
+                                                <div className="flex items-center gap-2 md:w-32">
                                                     <input 
-                                                        type="range"
+                                                        type="number"
                                                         min="0" max="100"
-                                                        step="5"
                                                         value={progressVal}
-                                                        onChange={(e) => updateItemProgress(idx, parseInt(e.target.value))}
-                                                        className="flex-1 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                                        onChange={(e) => updateItemProgress(idx, parseInt(e.target.value) || 0)}
+                                                        className="w-16 px-2 py-1.5 bg-white border-2 border-slate-200 rounded-lg text-center text-xs font-black text-indigo-700 outline-none focus:border-indigo-500 transition-all"
                                                         disabled={updating || (!isAssignee && !canAssign)}
                                                     />
-                                                    <div className="flex flex-col items-center">
-                                                        <div className="flex gap-1">
-                                                            <button 
-                                                                onClick={() => updateItemProgress(idx, Math.max(0, progressVal - 10))}
-                                                                className="w-5 h-5 flex items-center justify-center bg-white border border-slate-200 rounded text-[10px] font-bold hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                                                            >
-                                                                -
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => updateItemProgress(idx, Math.min(100, progressVal + 10))}
-                                                                className="w-5 h-5 flex items-center justify-center bg-white border border-slate-200 rounded text-[10px] font-bold hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                                                            >
-                                                                +
-                                                            </button>
-                                                        </div>
-                                                    </div>
+                                                    <span className="text-xs font-black text-slate-400">%</span>
                                                 </div>
                                             </div>
                                             
