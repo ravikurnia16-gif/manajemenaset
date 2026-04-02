@@ -440,9 +440,12 @@ exports.getVehicleDashboard = async (req, res) => {
         const thirtyDaysAgo = new Date(new Date().setDate(now.getDate() - 30));
         const thirtyDaysFromNow = new Date(new Date().setDate(now.getDate() + 30));
 
-        // 1. Fetch ALL Vehicles with basic info and services
+        // 1. Fetch ONLY Mobil & Bus with basic info and services
         const allVehicles = await prisma.vehicle.findMany({
-            where: { status: 'ACTIVE' },
+            where: { 
+                status: 'ACTIVE',
+                type: { in: ['Mobil', 'Bus', 'MINIBUS', 'MICROBUS', 'VAN', 'PICKUP'] }
+            },
             include: {
                 services: {
                     where: { category: 'ROUTINE', nextServiceOdometer: { not: null } },
@@ -452,9 +455,13 @@ exports.getVehicleDashboard = async (req, res) => {
             }
         });
 
+        const vehicleIds = allVehicles.map(v => v.id);
+        const allVehicleNames = allVehicles.map(v => v.name);
+
         const activeBookingsCount = await prisma.vehicleBooking.count({
             where: {
-                status: 'BERLANGSUNG'
+                status: 'BERLANGSUNG',
+                vehicleId: { in: vehicleIds }
             }
         });
 
@@ -481,16 +488,16 @@ exports.getVehicleDashboard = async (req, res) => {
         });
         urgentActions.sort((a, b) => (a.date || 0) - (b.date || 0));
 
-        // 3. Destinasi & Usage
+        // 3. Destinasi & Usage (Filtered)
         const [destinations, vehicleUsage] = await Promise.all([
             prisma.vehicleBooking.groupBy({
                 by: ['destination'],
-                where: { status: 'COMPLETED' },
+                where: { status: 'COMPLETED', vehicleId: { in: vehicleIds } },
                 _count: { _all: true }
             }),
             prisma.vehicleBooking.groupBy({
                 by: ['vehicleId'],
-                where: { status: 'COMPLETED' },
+                where: { status: 'COMPLETED', vehicleId: { in: vehicleIds } },
                 _count: { _all: true }
             })
         ]);
@@ -507,8 +514,6 @@ exports.getVehicleDashboard = async (req, res) => {
             value: u._count._all
         }));
 
-        const allVehicleNames = allVehicles.map(v => v.name);
-
         // 4. Monthly Trends (Bookings & Mileage - Last 6 Months)
         const bookingTrends = [];
         const mileageTrends = [];
@@ -519,7 +524,7 @@ exports.getVehicleDashboard = async (req, res) => {
             const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
 
             const bCount = await prisma.vehicleBooking.count({
-                where: { createdAt: { gte: mStart, lte: mEnd } }
+                where: { createdAt: { gte: mStart, lte: mEnd }, vehicleId: { in: vehicleIds } }
             });
 
             const completedBookings = await prisma.vehicleBooking.findMany({
@@ -527,7 +532,8 @@ exports.getVehicleDashboard = async (req, res) => {
                     status: 'COMPLETED',
                     tripEndTime: { gte: mStart, lte: mEnd },
                     startKm: { not: null },
-                    endKm: { not: null }
+                    endKm: { not: null },
+                    vehicleId: { in: vehicleIds }
                 },
                 select: { startKm: true, endKm: true, vehicle: { select: { name: true } } }
             });
@@ -601,22 +607,22 @@ exports.getVehicleDashboard = async (req, res) => {
             };
         }));
 
-        // 6. Overall Fleet Stats
+        // 6. Overall Fleet Stats (Filtered)
         const [totalFuelCost, totalServiceCost, totalFleetKm] = await Promise.all([
-            prisma.vehicleFuelLog.aggregate({ _sum: { cost: true } }),
-            prisma.vehicleService.aggregate({ _sum: { cost: true } }),
-            prisma.vehicleBooking.findMany({ where: { status: 'COMPLETED' }, select: { startKm: true, endKm: true } })
+            prisma.vehicleFuelLog.aggregate({ _sum: { cost: true }, where: { vehicleId: { in: vehicleIds } } }),
+            prisma.vehicleService.aggregate({ _sum: { cost: true }, where: { vehicleId: { in: vehicleIds } } }),
+            prisma.vehicleBooking.findMany({ where: { status: 'COMPLETED', vehicleId: { in: vehicleIds } }, select: { startKm: true, endKm: true } })
         ]);
 
         const totalKmAll = totalFleetKm.reduce((sum, b) => sum + ((b.endKm || 0) - (b.startKm || 0)), 0);
-        const fuelTotal = (totalFuelCost._sum.cost || 0) + (await prisma.vehicleBooking.aggregate({ _sum: { fuelPrice: true }, where: { fuelRefill: true } }))._sum.fuelPrice || 0;
+        const fuelTotal = (totalFuelCost._sum.cost || 0) + (await prisma.vehicleBooking.aggregate({ _sum: { fuelPrice: true }, where: { fuelRefill: true, vehicleId: { in: vehicleIds } } }))._sum.fuelPrice || 0;
         const serviceTotal = totalServiceCost._sum.cost || 0;
 
         const fleetCostPerKm = totalKmAll > 0 ? (fuelTotal + serviceTotal) / totalKmAll : 0;
 
-        // Fleet Average KM/L
-        const fleetLiters = (await prisma.vehicleFuelLog.aggregate({ _sum: { liters: true } }))._sum.liters || 0 +
-                            (await prisma.vehicleBooking.aggregate({ _sum: { fuelLiters: true } }))._sum.fuelLiters || 0;
+        // Fleet Average KM/L (Filtered)
+        const fleetLiters = (await prisma.vehicleFuelLog.aggregate({ _sum: { liters: true }, where: { vehicleId: { in: vehicleIds } } }))._sum.liters || 0 +
+                            (await prisma.vehicleBooking.aggregate({ _sum: { fuelLiters: true }, where: { vehicleId: { in: vehicleIds } } }))._sum.fuelLiters || 0;
         const fleetKml = fleetLiters > 0 ? (totalKmAll / fleetLiters) : 0;
 
         res.json({
@@ -640,7 +646,7 @@ exports.getVehicleDashboard = async (req, res) => {
             allVehicleNames,
             typeDistribution: await prisma.vehicle.groupBy({
                 by: ['type'],
-                where: { status: 'ACTIVE' },
+                where: { status: 'ACTIVE', id: { in: vehicleIds } },
                 _count: { _all: true }
             }).then(types => types.map(t => ({ name: t.type, value: t._count._all })))
         });
