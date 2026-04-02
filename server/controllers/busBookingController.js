@@ -265,6 +265,12 @@ const deleteBusBooking = async (req, res) => {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 
+        // Cancel associated Vehicle Booking if any
+        await prisma.vehicleBooking.updateMany({
+            where: { adminNote: `[BUS_BOOKING]-${id}` },
+            data: { status: 'CANCELLED' }
+        });
+
         await prisma.busBooking.delete({ where: { id: parseInt(id) } });
         res.json({ message: 'Booking berhasil dihapus' });
     } catch (error) {
@@ -284,6 +290,13 @@ const cancelByToken = async (req, res) => {
 
         if (bookings.length === 0) {
             return res.status(404).json({ error: 'Token tidak valid atau tidak ditemukan' });
+        }
+
+        for (const b of bookings) {
+            await prisma.vehicleBooking.updateMany({
+                where: { adminNote: `[BUS_BOOKING]-${b.id}` },
+                data: { status: 'CANCELLED' }
+            });
         }
 
         await prisma.busBooking.deleteMany({
@@ -322,6 +335,48 @@ const assignDriver = async (req, res) => {
             }
         });
 
+        // --- MANAGE VEHICLE BOOKING SYNCHRONIZATION ---
+        const tag = `[BUS_BOOKING]-${booking.id}`;
+        
+        const existingVBooking = await prisma.vehicleBooking.findFirst({
+            where: { adminNote: tag }
+        });
+
+        if (driverId) {
+            if (existingVBooking) {
+                await prisma.vehicleBooking.update({
+                    where: { id: existingVBooking.id },
+                    data: {
+                        userId: parseInt(driverId),
+                        driverId: parseInt(driverId),
+                        status: existingVBooking.status === 'CANCELLED' ? 'APPROVED' : undefined
+                    }
+                });
+            } else {
+                await prisma.vehicleBooking.create({
+                    data: {
+                        vehicleId: booking.vehicleId,
+                        userId: parseInt(driverId),
+                        driverId: parseInt(driverId),
+                        destination: booking.destination,
+                        purpose: `Tugas Bus: ${booking.purpose || booking.requesterName}`,
+                        startDate: booking.startDate,
+                        endDate: booking.endDate,
+                        status: 'APPROVED',
+                        adminNote: tag,
+                        passengerCount: booking.passengerCount
+                    }
+                });
+            }
+        } else {
+            if (existingVBooking) {
+                await prisma.vehicleBooking.update({
+                    where: { id: existingVBooking.id },
+                    data: { status: 'CANCELLED' }
+                });
+            }
+        }
+
         // Notify Driver (Async)
         if (booking.driver?.phone) {
             (async () => {
@@ -331,7 +386,7 @@ const assignDriver = async (req, res) => {
                     `🚌 *Bus*: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
                     `📍 *Tujuan*: ${booking.destination}\n` +
                     `📅 *Jadwal*: ${new Date(booking.startDate).toLocaleString('id-ID')} s/d ${new Date(booking.endDate).toLocaleString('id-ID')}\n\n` +
-                    `Mohon dicek di aplikasi. Syukron.`;
+                    `Tugas ini sudah masuk secara otomatis ke menu *Permohonan Saya*. Silakan klik *Mulai Perjalanan* saat Anda berangkat.\n\nSyukron.`;
                 try { await whatsappService.sendMessage(booking.driver.phone, msg); } catch (e) {}
             })();
         }
