@@ -1,7 +1,23 @@
 import { useState, useEffect } from 'react';
-import { Box, DollarSign, AlertTriangle, TrendingDown, Loader2 } from 'lucide-react';
+import { Box, DollarSign, AlertTriangle, TrendingDown, Loader2, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import api from '../lib/axios';
+
+/* ── jsPDF + autoTable CDN loader ── */
+function loadJsPDF() {
+    return new Promise((resolve) => {
+        if (window.jspdf) { resolve(window.jspdf.jsPDF); return; }
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = () => {
+            const s2 = document.createElement('script');
+            s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+            s2.onload = () => resolve(window.jspdf.jsPDF);
+            document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+    });
+}
 
 const StatCard = ({ title, value, icon: Icon, color, desc }) => (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-start justify-between">
@@ -20,7 +36,8 @@ const Dashboard = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [filterUnit, setFilterUnit] = useState('all');
-    const [chartMode, setChartMode] = useState('count'); // 'count' or 'spending'
+    const [chartMode, setChartMode] = useState('count');
+    const [exporting, setExporting] = useState(false);
 
     const userStr = localStorage.getItem('user');
     const currentUser = userStr ? JSON.parse(userStr) : {};
@@ -58,6 +75,122 @@ const Dashboard = () => {
 
     const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
+    // --- PDF EXPORT ---
+    const handleExportPDF = async () => {
+        if (!data) return;
+        setExporting(true);
+        try {
+            const jsPDF = await loadJsPDF();
+            const doc = new jsPDF('landscape', 'mm', 'a4');
+            const pageW = doc.internal.pageSize.getWidth();
+            const now = new Date();
+            const unitLabel = filterUnit !== 'all' ? (data?.units?.find(u => u.id === parseInt(filterUnit))?.name || 'Unit Spesifik') : 'Seluruh Unit';
+
+            // Header
+            doc.setFontSize(18);
+            doc.setFont(undefined, 'bold');
+            doc.text('LAPORAN DASHBOARD MANAJEMEN ASET', pageW / 2, 18, { align: 'center' });
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            doc.text(`Unit: ${unitLabel}  |  Tanggal Cetak: ${now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, pageW / 2, 25, { align: 'center' });
+
+            // KPI Summary
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('Ringkasan KPI Aset', 14, 35);
+            doc.autoTable({
+                startY: 38,
+                head: [['Total Aset', 'Nilai Buku (Rp)', 'Aset Rusak', 'Habis Umur']],
+                body: [[
+                    data.stats.totalAssets || 0,
+                    `Rp ${(data.stats.totalValue || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`,
+                    data.stats.damagedAssets || 0,
+                    data.stats.expiredAssets || 0
+                ]],
+                theme: 'grid',
+                headStyles: { fillColor: [59, 130, 246], fontSize: 9, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 10, fontStyle: 'bold' },
+                margin: { left: 14, right: 14 }
+            });
+
+            // Procurement Data
+            if (data.chartData?.length > 0) {
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'bold');
+                doc.text('Analisa Pengadaan Aset (Per Kategori)', 14, doc.lastAutoTable.finalY + 10);
+                doc.autoTable({
+                    startY: doc.lastAutoTable.finalY + 13,
+                    head: [['Kategori', 'Jumlah Unit', 'Nilai (Rp)']],
+                    body: (data.chartData || []).map((d, i) => [
+                        d.name,
+                        d.value,
+                        data.spendingData?.[i]?.value ? `Rp ${data.spendingData[i].value.toLocaleString('id-ID')}` : '-'
+                    ]),
+                    theme: 'striped',
+                    headStyles: { fillColor: [99, 102, 241], fontSize: 8, fontStyle: 'bold' },
+                    bodyStyles: { fontSize: 8 },
+                    margin: { left: 14, right: 14 }
+                });
+            }
+
+            // Maintenance Statistics
+            if (data.maintenanceData?.length > 0) {
+                const mtTotal = data.maintenanceData.reduce((sum, item) => sum + item.value, 0);
+                const mtCompleted = data.maintenanceData.find(d => d.name === 'COMPLETED')?.value || 0;
+                const mtPercent = mtTotal > 0 ? Math.round((mtCompleted / mtTotal) * 100) : 0;
+
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'bold');
+                doc.text(`Statistik Pemeliharaan (Ketercapaian: ${mtPercent}%)`, 14, doc.lastAutoTable.finalY + 10);
+                doc.autoTable({
+                    startY: doc.lastAutoTable.finalY + 13,
+                    head: [['Status', 'Jumlah']],
+                    body: data.maintenanceData.map(d => [d.name, d.value]),
+                    theme: 'striped',
+                    headStyles: { fillColor: [16, 185, 129], fontSize: 8, fontStyle: 'bold' },
+                    bodyStyles: { fontSize: 8 },
+                    margin: { left: 14, right: 14 }
+                });
+            }
+
+            // Unit Statistics
+            if (data.unitStats?.length > 0) {
+                doc.addPage();
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'bold');
+                doc.text('Sebaran Aset per Unit', 14, 18);
+                doc.autoTable({
+                    startY: 22,
+                    head: [['Unit', 'Kode', 'Total Item', 'Rusak', 'Nilai Buku (Rp)']],
+                    body: data.unitStats.map(u => [
+                        u.name, u.code, u.assetCount, u.damagedCount,
+                        `Rp ${u.totalValue.toLocaleString('id-ID')}`
+                    ]),
+                    theme: 'striped',
+                    headStyles: { fillColor: [59, 130, 246], fontSize: 8, fontStyle: 'bold' },
+                    bodyStyles: { fontSize: 8 },
+                    margin: { left: 14, right: 14 }
+                });
+            }
+
+            // Footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'normal');
+                doc.text(`Halaman ${i} dari ${pageCount}  |  Dicetak oleh Sistem Manajemen Aset`, pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
+            }
+
+            doc.save(`Laporan_Aset_${unitLabel.replace(/[/ ]/g, '_')}_${now.toISOString().slice(0, 10)}.pdf`);
+        } catch (err) {
+            console.error('PDF Export Error:', err);
+            alert('Gagal mengekspor PDF: ' + err.message);
+        } finally {
+            setExporting(false);
+        }
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -69,21 +202,31 @@ const Dashboard = () => {
                             : 'Ringkasan statistik aset seluruh perusahaan'}
                     </p>
                 </div>
-                {canFilterUnit && (
-                    <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
-                        <span className="text-xs font-bold text-slate-400 ml-2 uppercase">Filter Unit:</span>
-                        <select
-                            value={filterUnit}
-                            onChange={(e) => setFilterUnit(e.target.value)}
-                            className="text-sm border-none bg-transparent focus:ring-0 text-slate-700 font-semibold cursor-pointer"
-                        >
-                            <option value="all">Semua Unit</option>
-                            {data?.units?.map(u => (
-                                <option key={u.id} value={u.id}>{u.name}</option>
-                            ))}
-                        </select>
-                    </div>
-                )}
+                <div className="flex flex-wrap items-center gap-3">
+                    {canFilterUnit && (
+                        <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
+                            <span className="text-xs font-bold text-slate-400 ml-2 uppercase">Filter Unit:</span>
+                            <select
+                                value={filterUnit}
+                                onChange={(e) => setFilterUnit(e.target.value)}
+                                className="text-sm border-none bg-transparent focus:ring-0 text-slate-700 font-semibold cursor-pointer"
+                            >
+                                <option value="all">Semua Unit</option>
+                                {data?.units?.map(u => (
+                                    <option key={u.id} value={u.id}>{u.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                    <button
+                        onClick={handleExportPDF}
+                        disabled={exporting}
+                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 transition-all disabled:opacity-50"
+                    >
+                        {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                        {exporting ? 'Mengekspor...' : 'Export PDF'}
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
