@@ -40,22 +40,52 @@ exports.getDashboard = async (req, res) => {
 
         // Stock per category
         const categories = await prisma.warehouseCategory.findMany({
-            include: { items: { select: { stock: true } } }
+            include: { items: { select: { stock: true, purchasePrice: true } } }
         });
-        const stockByCategory = categories.map(c => ({
-            name: c.name,
-            total: c.items.reduce((s, i) => s + i.stock, 0)
-        }));
+        
+        let totalValuation = 0;
+        const stockByCategory = categories.map(c => {
+            const catTotal = c.items.reduce((s, i) => s + i.stock, 0);
+            const catValue = c.items.reduce((s, i) => s + (i.stock * (i.purchasePrice || 0)), 0);
+            totalValuation += catValue;
+            return { name: c.name, total: catTotal, value: catValue };
+        });
+
+        // Recent Transactions (Log Aktivitas)
+        const recentTransactions = await prisma.warehouseTransaction.findMany({
+            take: 10,
+            orderBy: { createdAt: 'desc' },
+            include: {
+                createdBy: { select: { name: true } },
+                items: { include: { item: { select: { name: true, size: true } } } }
+            }
+        });
+
+        // Order Stats (Statistik Pesanan)
+        const orders = await prisma.uniformOrder.findMany({
+            select: { status: true, totalAmount: true }
+        });
+        const orderStats = orders.reduce((acc, o) => {
+            acc[o.status] = (acc[o.status] || 0) + 1;
+            acc.totalPendingValue = acc.totalPendingValue || 0;
+            if (['PENDING', 'CONFIRMED'].includes(o.status)) {
+                acc.totalPendingValue += (o.totalAmount || 0);
+            }
+            return acc;
+        }, { total: orders.length, PENDING: 0, CONFIRMED: 0, READY: 0, PICKED_UP: 0 });
 
         res.json({
             totalItems,
             totalStock: totalStock._sum.stock || 0,
+            totalValuation,
             lowStockCount: lowStockItems.length,
             lowStockItems: lowStockItems.slice(0, 10).map(i => ({ ...i, category: i.category?.name || '-' })),
             txThisMonth,
             txInThisMonth,
             txOutThisMonth,
-            stockByCategory
+            stockByCategory,
+            recentTransactions,
+            orderStats
         });
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
