@@ -388,8 +388,8 @@ const VehicleBooking = () => {
                                 {[
                                     { id: 'ALL', label: 'SEMUA', icon: <Car size={14} /> },
                                     { id: 'Mobil', label: 'MOBIL', icon: <Car size={14} /> },
-                                    { id: 'Bus', label: 'BUS', icon: <Users size={14} /> },
                                     { id: 'Motor', label: 'MOTOR', icon: <Navigation2 size={14} /> },
+                                    { id: 'Bus', label: 'BUS', icon: <Users size={14} /> },
                                 ].map(type => (
                                     <button
                                         key={type.id}
@@ -410,10 +410,17 @@ const VehicleBooking = () => {
                                     const matchType = vTypeFilter === 'ALL' || v.type === vTypeFilter;
                                     return matchSearch && matchType;
                                 }).sort((a, b) => {
-                                    const typeOrder = { 'Mobil': 1, 'Bus': 2, 'Motor': 3 };
-                                    const priorityA = typeOrder[a.type] || 99;
-                                    const priorityB = typeOrder[b.type] || 99;
-                                    return priorityA - priorityB;
+                                    const typeA = (a.type || '').toLowerCase();
+                                    const typeB = (b.type || '').toLowerCase();
+                                    
+                                    const getPriority = (type) => {
+                                        if (type.includes('mobil')) return 1;
+                                        if (type.includes('bus') || type.includes('microbus') || type.includes('minibus')) return 2;
+                                        if (type.includes('motor') || type.includes('sepeda motor')) return 3;
+                                        return 99; // Lainnya di paling akhir
+                                    };
+
+                                    return getPriority(typeA) - getPriority(typeB);
                                 });
 
                                 if (filtered.length === 0) {
