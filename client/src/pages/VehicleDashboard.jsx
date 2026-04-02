@@ -1,9 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
 import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, Activity, AlertCircle, Gauge, Filter, Download, Trophy, Clock, CheckCircle2, MapPin, User } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, Cell, PieChart, Pie } from 'recharts';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
 import api from '../lib/axios';
+
+/* ── jsPDF + autoTable CDN loader ── */
+function loadJsPDF() {
+    return new Promise((resolve) => {
+        if (window.jspdf) { resolve(window.jspdf.jsPDF); return; }
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = () => {
+            const s2 = document.createElement('script');
+            s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+            s2.onload = () => resolve(window.jspdf.jsPDF);
+            document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+    });
+}
+
 
 const StatCard = ({ title, value, icon: Icon, color, desc }) => (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-start justify-between hover:shadow-md transition-all">
@@ -64,6 +79,7 @@ const VehicleDashboard = () => {
         if (!data) return;
         setExporting(true);
         try {
+            const jsPDF = await loadJsPDF();
             const doc = new jsPDF('landscape', 'mm', 'a4');
             const pageW = doc.internal.pageSize.getWidth();
             const now = new Date();
