@@ -579,6 +579,36 @@ exports.getVehicleDashboard = async (req, res) => {
         const serviceTotal = serviceTotalObj._sum.cost || 0;
         const serviceTotalYearly = serviceTotalYearlyObj._sum.cost || 0;
 
+        // 7. Fleet Availability Status
+        const onTripCount = await prisma.vehicleBooking.count({
+            where: { status: { in: ['APPROVED', 'BERLANGSUNG'] } }
+        });
+        const inServiceVehicleIds = await prisma.vehicleService.findMany({
+            where: { date: { gte: new Date(now.getFullYear(), now.getMonth(), 1), lte: now } },
+            select: { vehicleId: true },
+            distinct: ['vehicleId']
+        });
+        // Vehicles currently on trip
+        const onTripVehicleIds = await prisma.vehicleBooking.findMany({
+            where: { status: { in: ['APPROVED', 'BERLANGSUNG'] } },
+            select: { vehicleId: true },
+            distinct: ['vehicleId']
+        });
+        const onTripSet = new Set(onTripVehicleIds.map(b => b.vehicleId));
+        const availableCount = allVehicles.filter(v => !onTripSet.has(v.id)).length;
+
+        // 8. Recent Bookings (last 8)
+        const recentBookings = await prisma.vehicleBooking.findMany({
+            orderBy: { createdAt: 'desc' },
+            take: 8,
+            select: {
+                id: true, destination: true, purpose: true, status: true,
+                startDate: true, endDate: true, createdAt: true,
+                user: { select: { name: true, username: true } },
+                vehicle: { select: { name: true, plateNumber: true } }
+            }
+        });
+
         res.json({
             isSummary,
             period: month && year ? `${month}/${year}` : 'SUMMARY',
@@ -592,12 +622,18 @@ exports.getVehicleDashboard = async (req, res) => {
                 totalFuelCost: fuelTotal,
                 totalServiceCostYearly: serviceTotalYearly
             },
+            availability: {
+                available: availableCount,
+                onTrip: onTripSet.size,
+                total: allVehicles.length
+            },
             urgentActions,
             availableMonths,
             vStats: vStats.sort((a, b) => b.totalKm - a.totalKm),
             bookingTrends,
             mileageTrends,
-            allVehicleNames
+            allVehicleNames,
+            recentBookings
         });
     } catch (error) {
         console.error('Vehicle Dashboard Error:', error);

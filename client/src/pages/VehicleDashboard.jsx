@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, Activity, AlertCircle, Gauge, Filter } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, Cell } from 'recharts';
+import { useState, useEffect, useRef } from 'react';
+import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, Activity, AlertCircle, Gauge, Filter, Download, Trophy, Clock, CheckCircle2, MapPin, User } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, Cell, PieChart, Pie } from 'recharts';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 import api from '../lib/axios';
 
 const StatCard = ({ title, value, icon: Icon, color, desc }) => (
@@ -16,10 +18,21 @@ const StatCard = ({ title, value, icon: Icon, color, desc }) => (
     </div>
 );
 
+const BOOKING_STATUS_MAP = {
+    'PENDING': { label: 'Menunggu', color: 'bg-amber-100 text-amber-700' },
+    'APPROVED': { label: 'Disetujui', color: 'bg-blue-100 text-blue-700' },
+    'BERLANGSUNG': { label: 'Berjalan', color: 'bg-indigo-100 text-indigo-700' },
+    'COMPLETED': { label: 'Selesai', color: 'bg-emerald-100 text-emerald-700' },
+    'REJECTED': { label: 'Ditolak', color: 'bg-red-100 text-red-700' },
+    'CANCELLED': { label: 'Dibatalkan', color: 'bg-slate-100 text-slate-500' },
+};
+
 const VehicleDashboard = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState({ month: '', year: '' }); // '' means Summary
+    const [filter, setFilter] = useState({ month: '', year: '' });
+    const [exporting, setExporting] = useState(false);
+    const dashboardRef = useRef(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -46,6 +59,139 @@ const VehicleDashboard = () => {
         }
     };
 
+    // --- PDF EXPORT ---
+    const handleExportPDF = async () => {
+        if (!data) return;
+        setExporting(true);
+        try {
+            const doc = new jsPDF('landscape', 'mm', 'a4');
+            const pageW = doc.internal.pageSize.getWidth();
+            const now = new Date();
+            const periodLabel = data.isSummary ? 'Ringkasan Keseluruhan' : `Bulan ${data.period}`;
+
+            // Header
+            doc.setFontSize(18);
+            doc.setFont(undefined, 'bold');
+            doc.text('LAPORAN DASHBOARD ARMADA', pageW / 2, 18, { align: 'center' });
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            doc.text(`Periode: ${periodLabel}  |  Tanggal Cetak: ${now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, pageW / 2, 25, { align: 'center' });
+
+            // KPI Summary
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('Ringkasan KPI', 14, 35);
+            doc.autoTable({
+                startY: 38,
+                head: [['Total Armada', 'Efisiensi (KM/L)', 'Total Biaya BBM', 'Biaya Service (Tahunan)']],
+                body: [[
+                    data.stats.totalVehicles,
+                    (data.stats.fleetKml || 0).toFixed(1),
+                    `Rp ${Math.round(data.stats.totalFuelCost || 0).toLocaleString('id-ID')}`,
+                    `Rp ${Math.round(data.stats.totalServiceCostYearly || 0).toLocaleString('id-ID')}`
+                ]],
+                theme: 'grid',
+                headStyles: { fillColor: [99, 102, 241], fontSize: 9, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 10, fontStyle: 'bold' },
+                margin: { left: 14, right: 14 }
+            });
+
+            // Availability
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('Status Ketersediaan Armada', 14, doc.lastAutoTable.finalY + 10);
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 13,
+                head: [['Tersedia', 'Sedang Digunakan', 'Total Armada']],
+                body: [[data.availability?.available || 0, data.availability?.onTrip || 0, data.availability?.total || 0]],
+                theme: 'grid',
+                headStyles: { fillColor: [16, 185, 129], fontSize: 9, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 10, fontStyle: 'bold' },
+                margin: { left: 14, right: 14 }
+            });
+
+            // Performance Matrix
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('Matriks Performa Kendaraan', 14, doc.lastAutoTable.finalY + 10);
+            const vStatsRows = (data.vStats || []).map((v, i) => [
+                i + 1, v.name, v.plate,
+                (v.kml || 0).toFixed(1) + ' KM/L',
+                (v.utilization || 0).toFixed(0) + '%',
+                `Rp ${Math.round(v.cpkm || 0).toLocaleString('id-ID')}`,
+                (v.totalKm || 0).toLocaleString('id-ID') + ' KM'
+            ]);
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 13,
+                head: [['#', 'Kendaraan', 'Plat', 'Efisiensi', 'Utilisasi', 'Cost/KM', 'Total Jarak']],
+                body: vStatsRows,
+                theme: 'striped',
+                headStyles: { fillColor: [99, 102, 241], fontSize: 8, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 8 },
+                margin: { left: 14, right: 14 }
+            });
+
+            // Efficiency Ranking
+            const sorted = [...(data.vStats || [])].sort((a, b) => b.kml - a.kml);
+            doc.addPage();
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('Peringkat Efisiensi Kendaraan (KM/L)', 14, 18);
+            const rankRows = sorted.map((v, i) => [
+                i + 1, v.name, v.plate, (v.kml || 0).toFixed(1) + ' KM/L',
+                (v.totalKm || 0).toLocaleString('id-ID') + ' KM',
+                i === 0 ? '🏆 Terbaik' : i === sorted.length - 1 ? '⚠️ Perlu Evaluasi' : ''
+            ]);
+            doc.autoTable({
+                startY: 22,
+                head: [['Rank', 'Kendaraan', 'Plat', 'Efisiensi', 'Total Jarak', 'Keterangan']],
+                body: rankRows,
+                theme: 'striped',
+                headStyles: { fillColor: [245, 158, 11], fontSize: 8, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 8 },
+                margin: { left: 14, right: 14 }
+            });
+
+            // Recent Bookings
+            if (data.recentBookings?.length > 0) {
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'bold');
+                doc.text('Riwayat Peminjaman Terbaru', 14, doc.lastAutoTable.finalY + 10);
+                const bookingRows = data.recentBookings.map(b => [
+                    b.vehicle?.name || '-', b.vehicle?.plateNumber || '-',
+                    b.user?.name || b.user?.username || '-',
+                    b.destination || '-',
+                    BOOKING_STATUS_MAP[b.status]?.label || b.status,
+                    new Date(b.startDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+                ]);
+                doc.autoTable({
+                    startY: doc.lastAutoTable.finalY + 13,
+                    head: [['Kendaraan', 'Plat', 'Peminjam', 'Tujuan', 'Status', 'Tanggal']],
+                    body: bookingRows,
+                    theme: 'striped',
+                    headStyles: { fillColor: [59, 130, 246], fontSize: 8, fontStyle: 'bold' },
+                    bodyStyles: { fontSize: 8 },
+                    margin: { left: 14, right: 14 }
+                });
+            }
+
+            // Footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'normal');
+                doc.text(`Halaman ${i} dari ${pageCount}  |  Dicetak oleh Sistem Manajemen Aset`, pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
+            }
+
+            doc.save(`Laporan_Armada_${periodLabel.replace(/[/ ]/g, '_')}_${now.toISOString().slice(0, 10)}.pdf`);
+        } catch (err) {
+            console.error('PDF Export Error:', err);
+        } finally {
+            setExporting(false);
+        }
+    };
+
     if (loading && !data) return (
         <div className="flex h-96 items-center justify-center">
             <Loader2 className="animate-spin text-indigo-600" size={40} />
@@ -61,9 +207,18 @@ const VehicleDashboard = () => {
 
     const COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
+    // Availability Donut Data
+    const availData = [
+        { name: 'Tersedia', value: data?.availability?.available || 0, color: '#10b981' },
+        { name: 'Sedang Digunakan', value: data?.availability?.onTrip || 0, color: '#6366f1' },
+    ];
+
+    // Efficiency Ranking (sorted by KM/L descending)
+    const efficiencyRanking = [...(data?.vStats || [])].sort((a, b) => b.kml - a.kml);
+
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
-            {/* Header with Filter */}
+        <div ref={dashboardRef} className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
+            {/* Header with Filter & Export */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                 <div>
                     <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3 italic">
@@ -88,6 +243,14 @@ const VehicleDashboard = () => {
                             ))}
                         </select>
                     </div>
+                    <button
+                        onClick={handleExportPDF}
+                        disabled={exporting}
+                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl text-sm font-black uppercase tracking-tight shadow-lg shadow-indigo-200 transition-all disabled:opacity-50"
+                    >
+                        {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                        {exporting ? 'Mengekspor...' : 'Export PDF'}
+                    </button>
                 </div>
             </div>
 
@@ -147,6 +310,85 @@ const VehicleDashboard = () => {
             {/* KPI Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {stats.map((s, i) => <StatCard key={i} {...s} />)}
+            </div>
+
+            {/* Status Ketersediaan Armada + Peringkat Efisiensi */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Donut - Ketersediaan */}
+                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight italic mb-6 flex items-center gap-3">
+                        <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg"><CheckCircle2 size={20} /></div> Status Ketersediaan
+                    </h3>
+                    <div className="h-56">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={availData}
+                                    cx="50%" cy="50%"
+                                    innerRadius={55} outerRadius={85}
+                                    dataKey="value"
+                                    strokeWidth={3}
+                                    stroke="#fff"
+                                >
+                                    {availData.map((entry, idx) => (
+                                        <Cell key={idx} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip formatter={(v) => `${v} Unit`} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)' }} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="flex justify-center gap-6 mt-4">
+                        {availData.map((d, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }}></div>
+                                <span className="text-xs font-bold text-slate-600">{d.name}: <span className="font-black text-slate-800">{d.value}</span></span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Peringkat Efisiensi Kendaraan */}
+                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 lg:col-span-2">
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight italic mb-6 flex items-center gap-3">
+                        <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg"><Trophy size={20} /></div> Peringkat Efisiensi Kendaraan (KM/L)
+                    </h3>
+                    <div className="space-y-3 max-h-80 overflow-y-auto pr-2" style={{ scrollbarWidth: 'none' }}>
+                        {efficiencyRanking.map((v, i) => {
+                            const maxKml = efficiencyRanking[0]?.kml || 1;
+                            const pct = maxKml > 0 ? (v.kml / maxKml) * 100 : 0;
+                            const isTop = i === 0;
+                            const isBottom = i === efficiencyRanking.length - 1 && efficiencyRanking.length > 1;
+                            return (
+                                <div key={v.id || i} className={`flex items-center gap-4 p-3 rounded-2xl transition-all ${isTop ? 'bg-emerald-50 border border-emerald-100' : isBottom ? 'bg-red-50/50 border border-red-100' : 'bg-slate-50/50 hover:bg-slate-50'}`}>
+                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black ${isTop ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : isBottom ? 'bg-red-400 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                                        {i + 1}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div>
+                                                <span className="text-sm font-black text-slate-800">{v.name}</span>
+                                                {isTop && <span className="ml-2 text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">🏆 TERBAIK</span>}
+                                                {isBottom && <span className="ml-2 text-[10px] font-black text-red-500 bg-red-100 px-2 py-0.5 rounded-full">⚠️ EVALUASI</span>}
+                                            </div>
+                                            <span className={`text-sm font-black ${v.kml > 10 ? 'text-emerald-600' : v.kml > 5 ? 'text-amber-600' : 'text-red-500'}`}>{v.kml?.toFixed(1) || '0.0'} KM/L</span>
+                                        </div>
+                                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-1000 ${isTop ? 'bg-gradient-to-r from-emerald-400 to-emerald-500' : isBottom ? 'bg-gradient-to-r from-red-300 to-red-400' : 'bg-gradient-to-r from-indigo-300 to-indigo-400'}`}
+                                                style={{ width: `${pct}%` }}
+                                            ></div>
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 font-mono font-bold">{v.plate} • {v.totalKm?.toLocaleString('id-ID')} KM</span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {efficiencyRanking.length === 0 && (
+                            <p className="text-center text-slate-400 text-sm py-8">Belum ada data efisiensi.</p>
+                        )}
+                    </div>
+                </div>
             </div>
 
             {/* Performance Matrix */}
@@ -253,14 +495,39 @@ const VehicleDashboard = () => {
                     </div>
                 </div>
 
-                {/* Destinasi Ringkasan */}
-                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex items-center justify-center">
-                    <div className="text-center">
-                         <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <Calendar size={32} />
-                         </div>
-                         <h4 className="text-slate-800 font-black uppercase tracking-widest text-sm italic">Summary Report</h4>
-                         <p className="text-slate-400 text-xs font-bold mt-2">Pilih bulan di atas untuk analisa detail performa & efisiensi armada ustadz.</p>
+                {/* Riwayat Peminjaman Terbaru */}
+                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+                    <h3 className="text-lg font-black text-slate-800 mb-6 uppercase tracking-tight italic flex items-center gap-3">
+                        <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><Clock size={20} /></div> Riwayat Peminjaman Terbaru
+                    </h3>
+                    <div className="space-y-3 max-h-72 overflow-y-auto pr-1" style={{ scrollbarWidth: 'none' }}>
+                        {data?.recentBookings?.length > 0 ? data.recentBookings.map((b, i) => {
+                            const statusInfo = BOOKING_STATUS_MAP[b.status] || { label: b.status, color: 'bg-slate-100 text-slate-500' };
+                            return (
+                                <div key={b.id || i} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
+                                    <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <Car size={16} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                            <span className="text-sm font-black text-slate-800 truncate">{b.vehicle?.name || '-'}</span>
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase flex-shrink-0 ${statusInfo.color}`}>{statusInfo.label}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
+                                            <User size={10} /> {b.user?.name || b.user?.username || '-'}
+                                        </div>
+                                        <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium mt-0.5">
+                                            <MapPin size={10} /> {b.destination || '-'}
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 font-bold mt-1">
+                                            {new Date(b.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} - {new Date(b.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        }) : (
+                            <p className="text-center text-slate-400 text-sm py-8">Belum ada riwayat peminjaman.</p>
+                        )}
                     </div>
                 </div>
             </div>
