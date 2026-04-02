@@ -87,8 +87,16 @@ const MaintenanceDetail = () => {
     const isRejected = report.status === 'REJECTED';
 
     // What's the next possible action?
+    const isAssignedTechnician = report.technician && (report.technician === user.name || report.technician === user.username);
+
     const getNextAction = () => {
         if (isRejected) return null;
+
+        // Assigned technician can only complete
+        if (!isAdmin && isAssignedTechnician && report.status === 'ASSIGNED') {
+            return { label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion' };
+        }
+
         if (!isAdmin) return null;
         const transitions = {
             'SUBMITTED': { label: 'Setujui', nextStatus: 'APPROVED', type: 'approval', rejectLabel: 'Tolak' },
