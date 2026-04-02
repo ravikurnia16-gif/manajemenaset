@@ -388,8 +388,8 @@ const VehicleBooking = () => {
                                 {[
                                     { id: 'ALL', label: 'SEMUA', icon: <Car size={14} /> },
                                     { id: 'Mobil', label: 'MOBIL', icon: <Car size={14} /> },
-                                    { id: 'Motor', label: 'MOTOR', icon: <Navigation2 size={14} /> },
                                     { id: 'Bus', label: 'BUS', icon: <Users size={14} /> },
+                                    { id: 'Motor', label: 'MOTOR', icon: <Navigation2 size={14} /> },
                                 ].map(type => (
                                     <button
                                         key={type.id}
