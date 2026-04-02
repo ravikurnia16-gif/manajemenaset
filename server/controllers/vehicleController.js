@@ -562,16 +562,22 @@ exports.getVehicleDashboard = async (req, res) => {
             return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
         }))].sort().reverse();
 
-        const [fuelTotalObj, serviceTotalObj, fleetKmAll] = await Promise.all([
+        // Yearly service cost (Jan 1 - Dec 31 of current year)
+        const yearStart = new Date(now.getFullYear(), 0, 1);
+        const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+
+        const [fuelTotalObj, serviceTotalObj, fleetKmAll, serviceTotalYearlyObj] = await Promise.all([
             prisma.vehicleFuelLog.aggregate({ _sum: { cost: true, liters: true }, where: { date: { gte: filterStart, lte: filterEnd } } }),
             prisma.vehicleService.aggregate({ _sum: { cost: true }, where: { date: { gte: filterStart, lte: filterEnd } } }),
-            prisma.vehicleBooking.findMany({ where: { status: 'COMPLETED', tripEndTime: { gte: filterStart, lte: filterEnd } }, select: { startKm: true, endKm: true, fuelPrice: true, fuelLiters: true } })
+            prisma.vehicleBooking.findMany({ where: { status: 'COMPLETED', tripEndTime: { gte: filterStart, lte: filterEnd } }, select: { startKm: true, endKm: true, fuelPrice: true, fuelLiters: true } }),
+            prisma.vehicleService.aggregate({ _sum: { cost: true }, where: { date: { gte: yearStart, lte: yearEnd } } })
         ]);
 
         const totalKmAll = fleetKmAll.reduce((sum, b) => sum + ((b.endKm || 0) - (b.startKm || 0)), 0);
         const fuelTotal = (fuelTotalObj._sum.cost || 0) + fleetKmAll.reduce((sum, b) => sum + (b.fuelPrice || 0), 0);
         const fuelLiters = (fuelTotalObj._sum.liters || 0) + fleetKmAll.reduce((sum, b) => sum + (b.fuelLiters || 0), 0);
         const serviceTotal = serviceTotalObj._sum.cost || 0;
+        const serviceTotalYearly = serviceTotalYearlyObj._sum.cost || 0;
 
         res.json({
             isSummary,
@@ -582,7 +588,9 @@ exports.getVehicleDashboard = async (req, res) => {
                 needingService: urgentActions.filter(a => a.type === 'SERVICE').length,
                 taxWarnings: urgentActions.filter(a => ['TAX', 'STNK', 'KIR'].includes(a.type)).length,
                 fleetCostPerKm: totalKmAll > 0 ? (fuelTotal + serviceTotal) / totalKmAll : 0,
-                fleetKml: fuelLiters > 0 ? (totalKmAll / fuelLiters) : 0
+                fleetKml: fuelLiters > 0 ? (totalKmAll / fuelLiters) : 0,
+                totalFuelCost: fuelTotal,
+                totalServiceCostYearly: serviceTotalYearly
             },
             urgentActions,
             availableMonths,

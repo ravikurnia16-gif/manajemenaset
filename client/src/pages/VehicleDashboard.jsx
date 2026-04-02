@@ -54,11 +54,9 @@ const VehicleDashboard = () => {
 
     const stats = [
         { title: "Total Armada", value: data?.stats?.totalVehicles || 0, icon: Car, color: "bg-slate-800", desc: "Unit aktif terdaftar" },
-        { title: "Efisiensi Armada", value: `${data?.stats?.fleetKml?.toFixed(1) || 0} KM/L`, icon: Gauge, color: "bg-emerald-600", desc: data?.isSummary ? "Rata-rata 30 hari" : `Periode ${data?.period}` },
-        { title: "Biaya Operasional", value: `Rp ${Math.round(data?.stats?.fleetCostPerKm || 0).toLocaleString('id-ID')}/KM`, icon: TrendingUp, color: "bg-indigo-600", desc: `Biaya BBM & Servis` },
-        { title: "Peminjaman", value: data?.stats?.activeBookings || 0, icon: Activity, color: "bg-blue-600", desc: "Sedang berjalan" },
-        { title: "Jadwal Servis", value: data?.stats?.needingService || 0, icon: Wrench, color: "bg-orange-500", desc: "Odometer Overdue" },
-        { title: "Pajak & Dokumen", value: data?.stats?.taxWarnings || 0, icon: AlertOctagon, color: "bg-red-600", desc: "Jatuh tempo < 30 Hari" },
+        { title: "Efisiensi Armada", value: `${data?.stats?.fleetKml?.toFixed(1) || 0} KM/L`, icon: Gauge, color: "bg-emerald-600", desc: "Rata-rata seluruh armada" },
+        { title: "Biaya BBM", value: `Rp ${Math.round(data?.stats?.totalFuelCost || 0).toLocaleString('id-ID')}`, icon: Fuel, color: "bg-indigo-600", desc: data?.isSummary ? "Total keseluruhan" : `Bulan ${data?.period}` },
+        { title: "Biaya Service", value: `Rp ${Math.round(data?.stats?.totalServiceCostYearly || 0).toLocaleString('id-ID')}`, icon: Wrench, color: "bg-orange-500", desc: `Total Tahun ${new Date().getFullYear()}` },
     ];
 
     const COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
@@ -147,7 +145,7 @@ const VehicleDashboard = () => {
             )}
 
             {/* KPI Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {stats.map((s, i) => <StatCard key={i} {...s} />)}
             </div>
 
