@@ -12,8 +12,30 @@ const assignmentTimers = new Map();
 // Helper to generate Request Code
 const generateCode = async () => {
     const year = new Date().getFullYear();
-    const count = await prisma.procurement.count();
-    const sequence = (count + 1).toString().padStart(3, '0');
+    
+    const lastRecord = await prisma.procurement.findFirst({
+        where: {
+            code: {
+                startsWith: `REQ/${year}/`
+            }
+        },
+        orderBy: {
+            code: 'desc'
+        }
+    });
+
+    let nextSequence = 1;
+    if (lastRecord) {
+        const parts = lastRecord.code.split('/');
+        if (parts.length === 3) {
+            const lastSeq = parseInt(parts[2]);
+            if (!isNaN(lastSeq)) {
+                nextSequence = lastSeq + 1;
+            }
+        }
+    }
+
+    const sequence = nextSequence.toString().padStart(3, '0');
     return `REQ/${year}/${sequence}`;
 };
 

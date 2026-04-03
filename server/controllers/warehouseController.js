@@ -136,8 +136,30 @@ exports.getItemById = async (req, res) => {
 // Generate warehouse item code
 const generateItemCode = async (categoryName) => {
     const prefix = categoryName?.toLowerCase().includes('seragam') ? 'GD/SRG' : 'GD/PLK';
-    const count = await prisma.warehouseItem.count();
-    return `${prefix}/${(count + 1).toString().padStart(3, '0')}`;
+    
+    const lastItem = await prisma.warehouseItem.findFirst({
+        where: {
+            code: {
+                startsWith: `${prefix}/`
+            }
+        },
+        orderBy: {
+            code: 'desc'
+        }
+    });
+
+    let nextSequence = 1;
+    if (lastItem) {
+        const parts = lastItem.code.split('/');
+        if (parts.length === 3) {
+            const lastSeq = parseInt(parts[2]);
+            if (!isNaN(lastSeq)) {
+                nextSequence = lastSeq + 1;
+            }
+        }
+    }
+
+    return `${prefix}/${nextSequence.toString().padStart(3, '0')}`;
 };
 
 exports.createItem = async (req, res) => {
@@ -244,8 +266,30 @@ exports.exportItems = async (req, res) => {
 // ======================== TRANSACTIONS ========================
 const generateTxCode = async () => {
     const year = new Date().getFullYear();
-    const count = await prisma.warehouseTransaction.count();
-    return `TRX/${year}/${(count + 1).toString().padStart(3, '0')}`;
+    
+    const lastTx = await prisma.warehouseTransaction.findFirst({
+        where: {
+            code: {
+                startsWith: `TRX/${year}/`
+            }
+        },
+        orderBy: {
+            code: 'desc'
+        }
+    });
+
+    let nextSequence = 1;
+    if (lastTx) {
+        const parts = lastTx.code.split('/');
+        if (parts.length === 3) {
+            const lastSeq = parseInt(parts[2]);
+            if (!isNaN(lastSeq)) {
+                nextSequence = lastSeq + 1;
+            }
+        }
+    }
+
+    return `TRX/${year}/${nextSequence.toString().padStart(3, '0')}`;
 };
 
 exports.getAllTransactions = async (req, res) => {

@@ -143,9 +143,29 @@ exports.createRoom = async (req, res) => {
         if (!finalCode && unitId) {
             const unit = await prisma.unit.findUnique({ where: { id: parseInt(unitId) } });
             if (unit) {
-                const count = await prisma.room.count({ where: { unitId: unit.id } });
-                const seq = (count + 1).toString().padStart(2, '0');
-                finalCode = `${unit.code}-${seq}`;
+                const lastRoom = await prisma.room.findFirst({
+                    where: {
+                        unitId: unit.id,
+                        code: {
+                            startsWith: `${unit.code}-`
+                        }
+                    },
+                    orderBy: {
+                        code: 'desc'
+                    }
+                });
+
+                let nextSeq = 1;
+                if (lastRoom) {
+                    const parts = lastRoom.code.split('-');
+                    const lastSeqPart = parts[parts.length - 1];
+                    const lastSeq = parseInt(lastSeqPart);
+                    if (!isNaN(lastSeq)) {
+                        nextSeq = lastSeq + 1;
+                    }
+                }
+                
+                finalCode = `${unit.code}-${nextSeq.toString().padStart(2, '0')}`;
             }
         }
 
