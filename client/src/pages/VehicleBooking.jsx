@@ -49,6 +49,7 @@ const VehicleBooking = () => {
     });
 
     // Modal States
+    const [showKeyReminderModal, setShowKeyReminderModal] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(null);
     const [showBorrowModal, setShowBorrowModal] = useState(false);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
@@ -270,7 +271,7 @@ const VehicleBooking = () => {
             
             // Pop up pemberitahuan pengembalian kunci
             setTimeout(() => {
-                alert('INFO PENTING:\nMohon pastikan Anda telah mengembalikan kunci kendaraan ke Pos Satpam. Terima kasih!');
+                setShowKeyReminderModal(true);
             }, 300);
 
         } catch (err) { showToast('Gagal menyelesaikan perjalanan: ' + (err.response?.data?.error || err.message), 'error'); }
@@ -1856,6 +1857,32 @@ const VehicleBooking = () => {
                                     <div className="text-sm text-red-600 font-medium italic">"{showDetailModal.adminNote}"</div>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Key Reminder Modal */}
+            {showKeyReminderModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-300 border border-slate-100">
+                        <div className="p-8 text-center space-y-4">
+                            <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner border border-amber-100">
+                                <Lock size={36} className="text-amber-500" strokeWidth={2.5} />
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-800 tracking-tight">Kunci Kendaraan</h3>
+                            <p className="text-sm font-medium text-slate-500 leading-relaxed">
+                                Mohon pastikan Anda telah <strong className="text-amber-600 font-bold">mengembalikan kunci kendaraan</strong> ke Pos Satpam.
+                            </p>
+                            
+                            <div className="pt-6">
+                                <button 
+                                    onClick={() => setShowKeyReminderModal(false)}
+                                    className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-3.5 font-black transition-all shadow-xl shadow-slate-900/20 active:scale-95"
+                                >
+                                    Siap, Sudah Dikembalikan!
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

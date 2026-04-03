@@ -191,7 +191,6 @@ exports.checkMissingWeeklyReports = async () => {
             where: {
                 OR: [
                     { position: 'Kepala Bidang Sarana dan Prasarana' },
-                    { name: { contains: 'Wegi Fatriadi' } },
                     { name: { contains: 'Ringgo Afriwansyah Putra' } }
                 ],
                 phone: { not: null, not: '' }
