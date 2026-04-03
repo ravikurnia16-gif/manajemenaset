@@ -158,6 +158,8 @@ const VehicleBooking = () => {
 
     const handleSubmitRequest = async (e) => {
         e.preventDefault();
+        if (submitting) return; // Prevent double clicking
+        
         try {
             setSubmitting(true);
             const startStr = `${formData.startDate}T${formData.startTime}`;
@@ -210,6 +212,7 @@ const VehicleBooking = () => {
     };
 
     const handleAction = async (bookingId, status) => {
+        if (submitting) return;
         try {
             setSubmitting(true);
             await api.post(`/vehicles/booking/${bookingId}/review`, {
@@ -224,6 +227,7 @@ const VehicleBooking = () => {
     };
 
     const handleStartTrip = async () => {
+        if (submitting) return;
         try {
             const currentOdometer = showActionModal.data.vehicle.odometer || 0;
             const inputKm = parseInt(actionData.km);
@@ -245,6 +249,7 @@ const VehicleBooking = () => {
     };
 
     const handleEndTrip = async () => {
+        if (submitting) return;
         try {
             if (parseInt(actionData.km) < (showActionModal.data.startKm || 0)) {
                 showToast(`KM Akhir tidak boleh lebih kecil dari KM Awal (${showActionModal.data.startKm || 0})`, 'error');
@@ -262,6 +267,12 @@ const VehicleBooking = () => {
             setShowActionModal(null);
             setActionData({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelLiters: '' });
             fetchBookings();
+            
+            // Pop up pemberitahuan pengembalian kunci
+            setTimeout(() => {
+                alert('INFO PENTING:\nMohon pastikan Anda telah mengembalikan kunci kendaraan ke Pos Satpam. Terima kasih!');
+            }, 300);
+
         } catch (err) { showToast('Gagal menyelesaikan perjalanan: ' + (err.response?.data?.error || err.message), 'error'); }
         finally { setSubmitting(false); }
     };
