@@ -183,8 +183,8 @@ const StaffPerformance = () => {
         assigneeId: '',
         priority: 'MEDIUM',
         location: '',
-        generalItems: [{ activity: '', status: 'SELESAI', percentage: 100, note: '' }],
-        isPlan: false
+        generalItems: activeTab === 'RENCANA' ? [{ activity: '', status: 'PENDING', percentage: 0, note: '' }] : [{ activity: '', status: 'SELESAI', percentage: 100, note: '' }],
+        isPlan: activeTab === 'RENCANA'
     });
 
     const statusConfig = {
@@ -276,10 +276,13 @@ const StaffPerformance = () => {
 
     // --- SUBMIT LOGIC ---
 
-    const addGeneralItem = (activity = '', note = '', status = 'SELESAI', percentage = 100) => {
+    const addGeneralItem = (activity = '', note = '', status = null, percentage = null) => {
+        const defaultStatus = status || (activeTab === 'RENCANA' ? 'PENDING' : 'SELESAI');
+        const defaultPercentage = percentage !== null ? percentage : (activeTab === 'RENCANA' ? 0 : 100);
+        
         setForm({
             ...form,
-            generalItems: [...form.generalItems, { activity, status, percentage, note }]
+            generalItems: [...form.generalItems, { activity, status: defaultStatus, percentage: defaultPercentage, note }]
         });
     };
 
@@ -422,7 +425,7 @@ const StaffPerformance = () => {
             assigneeId: '',
             priority: 'MEDIUM',
             location: '',
-            generalItems: [{ activity: '', status: 'SELESAI', percentage: 100, note: '' }],
+            generalItems: activeTab === 'RENCANA' ? [{ activity: '', status: 'PENDING', percentage: 0, note: '' }] : [{ activity: '', status: 'SELESAI', percentage: 100, note: '' }],
             isPlan: activeTab === 'RENCANA'
         });
     };

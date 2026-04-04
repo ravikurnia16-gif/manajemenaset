@@ -278,8 +278,7 @@ const SubTaskItem = ({ item, idx, progressVal, isDone, updating, isAssignee, can
     );
 };
 
-const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment, canAssign, userId }) => {
-    const isAssignee = a.assigneeId === userId;
+const AssignmentRow = ({ a, canAssign, isAssignee, handleUpdateAssignment, extensionStatus, priorityConfig, statusConfig, fetchAssignments, index, currentUserId }) => {
     const [expanded, setExpanded] = useState(false);
     const [updating, setUpdating] = useState(false);
     const [editProgress, setEditProgress] = useState(false);
@@ -335,7 +334,7 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
         const newLog = {
             text: noteText,
             timestamp: new Date().toISOString(),
-            userId: userId
+            userId: currentUserId || a.assigneeId
         };
         newItems[itemIdx].logs = [newLog, ...(newItems[itemIdx].logs || [])]; // Newest first
         
@@ -353,18 +352,19 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
 
     const addNewTaskItem = async (text) => {
         if (!text.trim() || updating) return;
-        const newItems = [...items, { text, status: 'PENDING', progress: 0, logs: [{ text: 'Tahapan ditambahkan oleh pelaksana', timestamp: new Date().toISOString(), userId }] }];
+        const newItems = [...items, { text, status: 'PENDING', progress: 0, logs: [{ text: 'Tahapan ditambah oleh pelaksana/admin', timestamp: new Date().toISOString(), userId: currentUserId || a.assigneeId }] }];
         setUpdating(true);
         await handleUpdateAssignment(a.id, { items: newItems });
         setUpdating(false);
     };
 
     const [newItemText, setNewItemText] = useState('');
+    const isEven = index % 2 === 0;
 
     return (
-        <div className={`group bg-white rounded-[20px] md:rounded-2xl border ${expanded ? 'border-indigo-100 shadow-xl' : 'border-slate-100 hover:border-slate-200'} transition-all duration-300 relative overflow-hidden overflow-visible`}>
+        <div className={`group ${isEven ? 'bg-white' : 'bg-slate-50/50'} border-b border-slate-100 hover:bg-indigo-50/30 transition-all duration-300 relative overflow-visible`}>
             {/* Desktop View (Grid) */}
-            <div className="hidden md:grid md:grid-cols-12 gap-4 items-center p-5">
+            <div className="hidden md:grid md:grid-cols-12 gap-4 items-center p-4 px-6">
                 {/* Info Column */}
                 <div className="md:col-span-3 flex items-start gap-4">
                     <button 
@@ -382,7 +382,7 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                         </div>
                         <h4 className="text-sm font-bold text-slate-800 truncate leading-tight group-hover:text-indigo-600 transition-colors uppercase">{a.title}</h4>
                         <div className="flex items-center gap-2 mt-1">
-                            <ExtensionBadge status={a.extensionStatus} />
+                            <ExtensionBadge status={extensionStatus} />
                             <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium italic truncate">
                                 <MapPin size={10} /> {a.location || 'Lokasi Terpusat'}
                             </div>
@@ -428,7 +428,7 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                 </div>
 
                 {/* Status Column */}
-                <div className="md:col-span-2 flex flex-col items-end gap-2 px-4 md:px-0">
+                <div className="md:col-span-2 flex items-center justify-end gap-4">
                     <StatusBadge status={a.status} statusConfig={statusConfig} />
                     <ActionButtons 
                         a={a} 
@@ -440,8 +440,7 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
             </div>
 
             {/* Mobile View (Optimized) */}
-            <div className="md:hidden p-5 space-y-4">
-                {/* Header: Priority, Category, Expand, Status */}
+            <div className="md:hidden p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                         <button 
@@ -457,7 +456,6 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                     <StatusBadge status={a.status} statusConfig={statusConfig} />
                 </div>
 
-                {/* Title & Location */}
                 <div>
                     <h4 className="text-sm font-bold text-slate-800 leading-snug uppercase">{a.title}</h4>
                     <div className="flex items-center gap-2 text-[9px] text-slate-400 mt-1 font-medium italic uppercase tracking-wider">
@@ -465,7 +463,6 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                     </div>
                 </div>
 
-                {/* Info Row: Assignee & Deadline */}
                 <div className="grid grid-cols-2 gap-3 pt-1">
                     <div className="flex items-center gap-2.5 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
                         <AssigneeAvatar assignee={a.assignee} size="w-7 h-7" />
@@ -485,7 +482,6 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                     </div>
                 </div>
 
-                {/* Progress Section */}
                 <div className="space-y-2 pt-1">
                     <div className="flex justify-between items-center text-[9px] font-black text-slate-400 uppercase tracking-widest">
                         <span>Penyelesaian</span>
@@ -506,7 +502,6 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                     <ProgressBar progress={progress} />
                 </div>
 
-                {/* Actions Row */}
                 <div className="pt-2 border-t border-slate-50">
                     <ActionButtons 
                         a={a} 
@@ -979,26 +974,33 @@ const PersonnelAssignments = () => {
                         <p className="text-slate-400 text-xs mt-1">Gunakan tombol diatas untuk memberi tugas baru.</p>
                     </div>
                 ) : (
-                    <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                        <div className="col-span-3">Pekerjaan & Info</div>
-                        <div className="col-span-3 text-center">Checklist Progres</div>
-                        <div className="col-span-2 text-center">Personil</div>
-                        <div className="col-span-2 text-center">Deadline</div>
-                        <div className="col-span-2 text-right">Status & Aksi</div>
+                    <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden mb-20">
+                        {user.role === 'SUPER_ADMIN' && (
+                            <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 py-3 bg-slate-50/80 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                <div className="md:col-span-3">Info Tugas</div>
+                                <div className="md:col-span-3">Progres</div>
+                                <div className="md:col-span-2 text-center">Pelaksana</div>
+                                <div className="md:col-span-2 text-center">Target Selesai</div>
+                                <div className="md:col-span-2 text-right">Status & Aksi</div>
+                            </div>
+                        )}
+                        {filteredAssignments.map((a, idx) => (
+                            <AssignmentRow 
+                                key={a.id} 
+                                a={a} 
+                                index={idx}
+                                canAssign={canAssign} 
+                                isAssignee={a.assigneeId === user.id}
+                                handleUpdateAssignment={handleUpdateAssignment}
+                                extensionStatus={a.extensionStatus}
+                                priorityConfig={priorityConfig}
+                                statusConfig={statusConfig}
+                                fetchAssignments={fetchAssignments}
+                                currentUserId={user.id}
+                            />
+                        ))}
                     </div>
                 )}
-
-                {!loading && filteredAssignments.map(a => (
-                    <AssignmentRow 
-                        key={a.id} 
-                        a={a} 
-                        statusConfig={statusConfig} 
-                        priorityConfig={priorityConfig} 
-                        handleUpdateAssignment={handleUpdateAssignment} 
-                        canAssign={canAssign} 
-                        userId={user.id} 
-                    />
-                ))}
             </div>
             {/* Extension Request Modal */}
             {extensionModal.show && (
