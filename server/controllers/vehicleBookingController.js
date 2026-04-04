@@ -69,11 +69,11 @@ exports.requestBooking = async (req, res) => {
         }
 
         const isPIC = vehicle.pics.some(p => p.id === userId);
-        
+
         // Special Roles: Yayasan Leadership (Auto-Approval)
         const yayasanPositions = ['Ketua Yayasan', 'Bendahara Yayasan', 'Sekretaris Yayasan'];
         const isYayasan = yayasanPositions.includes(currentUser.position);
-        
+
         // Logic for Motorcycle Auto-Approval and Optional immediate Start
         let initialStatus = (isPIC || isYayasan) ? 'APPROVED' : 'PENDING';
         let tripStartTime = null;
@@ -183,7 +183,7 @@ exports.requestBooking = async (req, res) => {
                     `Jadwal: ${startStr} - ${endStr}\n` +
                     `Tujuan: ${destination}\n\n` +
                     `*Status*: Sistem telah memberikan Persetujuan Otomatis.`;
-                
+
                 await sendMessage(headSarpras.phone, msgHead);
                 await createNotification(
                     headSarpras.id,
@@ -199,13 +199,13 @@ exports.requestBooking = async (req, res) => {
         if ((initialStatus === 'APPROVED' || initialStatus === 'BERLANGSUNG') && booking.user.phone) {
             let msg = `📢 *KONFIRMASI ${isRental ? 'PENYEWAAN' : 'PEMINJAMAN'}*\n\n` +
                 `Permintaan Anda untuk kendaraan *${vehicle.name}* telah *DISETUJUI OTOMATIS*\n\n`;
-            
+
             if (initialStatus === 'BERLANGSUNG') {
                 msg += `✅ Perjalanan Anda telah dimulai dengan KM Awal: ${finalStartKm}.\n\nJangan lupa selesaikan (End Trip) saat kembali.`;
             } else {
                 msg += (isMotor ? `Silakan mulai perjalanan saat Anda berangkat.` : (isYayasan ? `Sistem mendeteksi posisi Anda sebagai ${booking.user.position}.` : `Sistem mendeteksi Anda sebagai PIC armada ini.`));
             }
-            
+
             msg += `\n\nSelamat bertugas!`;
             await sendMessage(booking.user.phone, msg);
         }
@@ -532,13 +532,12 @@ exports.checkOverdueVehicleBookings = async () => {
     try {
         const now = new Date();
 
-        // Find bookings that are APPROVED or BERLANGSUNG but passed endDate
-        // status APPROVED means it's scheduled but not yet marked COMPLETED
+        // Find bookings that are BERLANGSUNG but passed endDate
         // status BERLANGSUNG means it's currently in progress
         // We check if tripEndTime is null and endDate is in the past
         const overdueBookings = await prisma.vehicleBooking.findMany({
             where: {
-                status: { in: ['APPROVED', 'BERLANGSUNG'] },
+                status: { in: ['BERLANGSUNG'] },
                 endDate: { lt: now },
                 tripEndTime: null
             },
