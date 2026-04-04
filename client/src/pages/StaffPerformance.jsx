@@ -139,6 +139,15 @@ const SubTaskItem = ({ item, idx, progressVal, isDone, updating, isAssignee, can
                 <div className="flex items-center gap-3 md:w-32 self-start md:self-center mt-2 md:mt-0 bg-slate-50 p-2 rounded-xl border border-slate-100">
                     <input type="number" min="0" max="100" value={localVal} onChange={(e) => setLocalVal(parseInt(e.target.value) || 0)} onBlur={commitProgress} className="w-12 bg-transparent text-center text-xs font-black text-indigo-700 outline-none" disabled={updating || (!isAssignee && !canAssign)} />
                     <span className="text-[10px] font-black text-slate-300">%</span>
+                    {canAssign && (
+                        <button 
+                            onClick={() => toggleItemStatus(idx)}
+                            className="p-1 px-2 text-rose-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                            title="Hapus Tahapan (Hanya Super Admin)"
+                        >
+                            <Trash2 size={14} />
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -784,7 +793,6 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
         item.isDone = !item.isDone;
         item.percentage = item.isDone ? 100 : 0;
         
-        // Add log
         const logText = item.isDone ? 'Ditandai selesai' : 'Ditandai belum selesai';
         item.logs = [...(item.logs || []), { text: logText, timestamp: new Date().toISOString() }];
 
@@ -802,7 +810,6 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
         newItems[idx].percentage = val;
         newItems[idx].isDone = val === 100;
         
-        // Add log
         newItems[idx].logs = [...(newItems[idx].logs || []), { text: `Update progres ke ${val}%`, timestamp: new Date().toISOString() }];
 
         await handleUpdate(aId, { 
@@ -819,6 +826,19 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
 
         await handleUpdate(aId, { items: newItems });
     };
+
+    const addNewTaskItem = async (aId, text) => {
+        if (!text.trim()) return;
+        const assignment = assignments.find(a => a.id === aId);
+        if (!assignment) return;
+        const newItems = [...(assignment.items || []), { text, isDone: false, percentage: 0, logs: [{ text: 'Tahapan ditambahkan oleh pelaksana', timestamp: new Date().toISOString() }] }];
+        await handleUpdate(aId, { 
+            items: newItems,
+            status: 'IN_PROGRESS'
+        });
+    };
+
+    const [newItemTexts, setNewItemTexts] = useState({});
 
     return (
         <div className="grid grid-cols-1 gap-8">
@@ -889,6 +909,34 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
                                             appendItemNote={(i, n) => appendItemNote(a.id, i, n)}
                                         />
                                     ))}
+
+                                    {(isAssigneeFor(a) || canAssign) && (
+                                        <div className="flex gap-2 mt-6 p-4 bg-white rounded-2xl border border-dashed border-indigo-200">
+                                            <input 
+                                                type="text" 
+                                                value={newItemTexts[a.id] || ''}
+                                                onChange={(e) => setNewItemTexts({...newItemTexts, [a.id]: e.target.value})}
+                                                placeholder="Tambah tahapan pekerjaan baru..."
+                                                className="flex-1 bg-transparent border-none text-xs font-bold text-slate-700 outline-none placeholder:text-slate-300"
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && newItemTexts[a.id]) {
+                                                        addNewTaskItem(a.id, newItemTexts[a.id]);
+                                                        setNewItemTexts({...newItemTexts, [a.id]: ''});
+                                                    }
+                                                }}
+                                            />
+                                            <button 
+                                                onClick={() => {
+                                                    addNewTaskItem(a.id, newItemTexts[a.id]);
+                                                    setNewItemTexts({...newItemTexts, [a.id]: ''});
+                                                }}
+                                                disabled={!newItemTexts[a.id]?.trim()}
+                                                className="px-4 py-1.5 bg-indigo-600 text-white text-[10px] font-black rounded-xl hover:bg-indigo-700 transition-all font-inter"
+                                            >
+                                                TAMBAH TAHAP
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

@@ -264,6 +264,15 @@ const SubTaskItem = ({ item, idx, progressVal, isDone, updating, isAssignee, can
                     />
                     <span className="text-xs font-black text-slate-400">%</span>
                 </div>
+                {canAssign && (
+                    <button 
+                        onClick={() => toggleItemStatus(idx)}
+                        className="p-2 text-rose-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                        title="Hapus Tahapan (Hanya Super Admin)"
+                    >
+                        <X size={16} />
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -341,6 +350,16 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
         const currentProgress = items[itemIdx].progress;
         await updateItemProgress(itemIdx, currentProgress === 100 ? 0 : 100);
     };
+
+    const addNewTaskItem = async (text) => {
+        if (!text.trim() || updating) return;
+        const newItems = [...items, { text, status: 'PENDING', progress: 0, logs: [{ text: 'Tahapan ditambahkan oleh pelaksana', timestamp: new Date().toISOString(), userId }] }];
+        setUpdating(true);
+        await handleUpdateAssignment(a.id, { items: newItems });
+        setUpdating(false);
+    };
+
+    const [newItemText, setNewItemText] = useState('');
 
     return (
         <div className={`group bg-white rounded-[20px] md:rounded-2xl border ${expanded ? 'border-indigo-100 shadow-xl' : 'border-slate-100 hover:border-slate-200'} transition-all duration-300 relative overflow-hidden overflow-visible`}>
@@ -535,6 +554,35 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                                         />
                                     );
                                 })}
+                                
+                                {/* Add New Item for Assignee/Admin */}
+                                {(isAssignee || canAssign) && (
+                                    <div className="flex gap-2 mt-6 p-4 bg-white rounded-2xl border border-dashed border-indigo-200">
+                                        <input 
+                                            type="text" 
+                                            value={newItemText}
+                                            onChange={(e) => setNewItemText(e.target.value)}
+                                            placeholder="Tambah tahapan pekerjaan baru..."
+                                            className="flex-1 bg-transparent border-none text-xs font-bold text-slate-700 outline-none placeholder:text-slate-300"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && newItemText) {
+                                                    addNewTaskItem(newItemText);
+                                                    setNewItemText('');
+                                                }
+                                            }}
+                                        />
+                                        <button 
+                                            onClick={() => {
+                                                addNewTaskItem(newItemText);
+                                                setNewItemText('');
+                                            }}
+                                            disabled={!newItemText.trim() || updating}
+                                            className="px-4 py-1.5 bg-indigo-600 text-white text-[10px] font-black rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all font-inter"
+                                        >
+                                            TAMBAH TAHAP
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
 
