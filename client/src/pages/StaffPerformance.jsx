@@ -441,27 +441,32 @@ const StaffPerformance = () => {
             <div className="max-w-7xl mx-auto space-y-8">
                 
                 {/* Header Hub */}
-                <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-50" />
-                    <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div className="flex items-center gap-5">
-                            <div className="w-16 h-16 bg-slate-900 rounded-[24px] flex items-center justify-center shadow-2xl shadow-slate-200">
-                                <TrendingUp className="text-white" size={32} />
+                <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6 md:p-10 rounded-[32px] md:rounded-[48px] shadow-2xl shadow-indigo-200/20 relative overflow-hidden border border-white/5">
+                    <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] -mr-48 -mt-48 opacity-50 animate-pulse" />
+                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[80px] -ml-32 -mb-32 opacity-30" />
+                    
+                    <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+                        <div className="flex items-center gap-4 md:gap-6">
+                            <div className="w-14 h-14 md:w-20 md:h-20 bg-white/10 backdrop-blur-xl rounded-[20px] md:rounded-[28px] flex items-center justify-center shadow-2xl border border-white/10 group-hover:rotate-6 transition-transform">
+                                <TrendingUp className="text-indigo-400 group-hover:text-white transition-colors" size={28} md:size={40} />
                             </div>
                             <div>
-                                <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic">KINERJA <span className="text-indigo-600"> STAF</span></h1>
-                                <p className="text-[10px] font-black text-slate-400 tracking-[0.2em] uppercase mt-1">Sistem Terpadu Perencanaan & Realisasi Pekerjaan</p>
+                                <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-white tracking-tighter uppercase italic flex items-center gap-2">
+                                    KINERJA <span className="text-indigo-400">STAF</span>
+                                    <Sparkles size={18} className="text-indigo-400/50 hidden md:block" />
+                                </h1>
+                                <p className="text-[9px] md:text-[11px] font-black text-indigo-200/60 tracking-[0.25em] uppercase mt-1 md:mt-2">Sistem Monitoring & Performa Terintegrasi</p>
                             </div>
                         </div>
                         
-                        <div className="flex items-center gap-2 md:gap-3 bg-slate-50 p-1.5 md:p-2 rounded-[20px] md:rounded-[24px] border border-slate-200/50 overflow-x-auto no-scrollbar max-w-full">
+                        <div className="grid grid-cols-2 md:flex items-center gap-2 md:gap-3 bg-white/5 backdrop-blur-md p-1.5 md:p-2.5 rounded-[24px] md:rounded-[32px] border border-white/10">
                             {['RENCANA', 'LAPORAN', 'PENUGASAN', 'KPI'].filter(t => t !== 'KPI' || user.role === 'SUPER_ADMIN').map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => { setActiveTab(tab); setShowForm(false); }}
-                                    className={`px-4 md:px-6 py-2 md:py-2.5 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black tracking-widest transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-100/50 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`px-4 md:px-7 py-2.5 md:py-3.5 rounded-xl md:rounded-[24px] text-[10px] md:text-[11px] font-black tracking-widest transition-all duration-300 relative group overflow-hidden ${activeTab === tab ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                                 >
-                                    {tab === 'RENCANA' ? 'RENCANA KERJA' : tab === 'LAPORAN' ? 'LAPORAN HARIAN' : tab === 'PENUGASAN' ? 'PENUGASAN' : 'NILAI & KPI'}
+                                    <span className="relative z-10">{tab === 'RENCANA' ? 'RENCANA' : tab === 'LAPORAN' ? 'LAPORAN' : tab === 'PENUGASAN' ? 'TUGAS' : 'KPI'}</span>
                                 </button>
                             ))}
                         </div>
@@ -968,16 +973,20 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
                     const accentClass = statusColors[a.status] || 'border-l-slate-200';
 
                     return (
-                        <div key={a.id} className={`bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-8 border border-slate-50 border-l-[12px] md:border-l-[16px] ${accentClass} shadow-xl transition-all hover:scale-[1.01] group`}>
-                        <div className="flex flex-col md:flex-row justify-between gap-6 mb-8 pb-6 border-b border-slate-50">
-                            <div className="space-y-3">
-                                <div className="flex flex-wrap items-center gap-2">
+                        <div key={a.id} className={`bg-white rounded-[40px] p-8 md:p-10 border border-slate-100 border-l-[10px] md:border-l-[14px] ${accentClass} shadow-2xl shadow-indigo-100/30 transition-all hover:scale-[1.005] group relative overflow-hidden backdrop-blur-sm bg-white/95`}>
+                        <div className="blue-orb absolute -right-20 -top-20 w-40 h-40 bg-indigo-50 rounded-full blur-3xl opacity-0 group-hover:opacity-60 transition-opacity duration-700" />
+                        
+                        <div className="flex flex-col md:flex-row justify-between gap-6 mb-8 pb-8 border-b border-slate-100/60">
+                            <div className="space-y-4">
+                                <div className="flex flex-wrap items-center gap-2.5">
                                     <PriorityBadge priority={a.priority} config={priorityConfig} />
                                     <StatusBadge status={a.status} config={statusConfig} />
-                                    <span className="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">ID: {a.id}</span>
+                                    <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-300 uppercase tracking-widest bg-slate-50/50 px-3 py-1 rounded-full border border-slate-100">
+                                        <History size={10} className="text-slate-200" /> ID: {a.id}
+                                    </div>
                                 </div>
-                                <h3 className="text-lg md:text-xl font-black text-slate-900 italic uppercase leading-tight tracking-tighter">{a.title}</h3>
-                                <div className="flex flex-wrap items-center gap-4">
+                                <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-tight uppercase italic group-hover:text-indigo-600 transition-colors">{a.title}</h3>
+                                <div className="flex flex-wrap items-center gap-5">
                                     <div className="flex items-center gap-2">
                                         <Users size={14} className="text-indigo-400" />
                                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{a.assignee?.name || a.assignee?.username}</span>
@@ -988,15 +997,15 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-end gap-2">
+                            <div className="flex flex-col items-center md:items-end gap-3 px-4 py-3 bg-slate-50/50 rounded-3xl border border-slate-100">
                                 <div className="relative w-16 h-16 md:w-20 md:h-20 flex items-center justify-center">
                                     <svg className="w-full h-full -rotate-90">
-                                        <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-50" />
-                                        <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={251.2} strokeDashoffset={251.2 - (251.2 * a.progressPercentage) / 100} className="text-indigo-500 transition-all duration-1000 stroke-linecap-round" />
+                                        <circle cx="48" cy="48" r="42" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-slate-100" />
+                                        <circle cx="48" cy="48" r="42" stroke="currentColor" strokeWidth="6" fill="transparent" strokeDasharray={263.8} strokeDashoffset={263.8 - (263.8 * a.progressPercentage) / 100} className="text-indigo-600 transition-all duration-1000 stroke-linecap-round shadow-lg" />
                                     </svg>
-                                    <span className="absolute text-sm md:text-base font-black text-slate-900 tracking-tighter">{a.progressPercentage}%</span>
+                                    <span className="absolute text-base md:text-xl font-black text-slate-900 tracking-tighter italic">{a.progressPercentage}%</span>
                                 </div>
-                                <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mr-2">PROGRES</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">PROGRES KERJA</p>
                             </div>
                         </div>
 
