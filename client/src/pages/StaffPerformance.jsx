@@ -772,8 +772,9 @@ const KPITab = ({ leaderboard }) => (
 );
 
 const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate, userId, isAdmin, fetchData }) => {
+    const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAssigneeFor = (a) => a.assigneeId === userId;
-    const canAssign = isAdmin;
+    const canAssign = user.role === 'SUPER_ADMIN';
 
     const toggleItemStatus = async (aId, idx) => {
         const assignment = assignments.find(a => a.id === aId);

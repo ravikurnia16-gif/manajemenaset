@@ -574,7 +574,7 @@ const PersonnelAssignments = () => {
     const [filterStaff, setFilterStaff] = useState('ALL');
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
-    const canAssign = ['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user.role);
+    const canAssign = user.role === 'SUPER_ADMIN';
 
     const [form, setForm] = useState({
         assigneeId: '',
