@@ -1100,8 +1100,7 @@ const VehicleBooking = () => {
                                                     <button
                                                         disabled={submitting}
                                                         onClick={() => {
-                                                            const startVal = b.startKm || b.vehicle.odometer || '';
-                                                            setActionData({ ...actionData, km: startVal });
+                                                            setActionData({ ...actionData, km: '' });
                                                             setShowActionModal({ type: 'END', data: b });
                                                         }}
                                                         className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
@@ -1189,8 +1188,7 @@ const VehicleBooking = () => {
                                                                 <button
                                                                     disabled={submitting}
                                                                     onClick={() => {
-                                                                        const startVal = b.startKm || b.vehicle.odometer || '';
-                                                                        setActionData({ ...actionData, km: startVal });
+                                                                        setActionData({ ...actionData, km: '' });
                                                                         setShowActionModal({ type: 'END', data: b });
                                                                     }}
                                                                     className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1 disabled:opacity-50"
