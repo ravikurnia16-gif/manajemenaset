@@ -907,7 +907,7 @@ const ReportTab = ({ reports, type }) => (
                                     <div key={i} className="p-4 bg-slate-50/50 border border-slate-100 rounded-2xl flex items-center justify-between group/item hover:bg-white hover:border-indigo-100 transition-all">
                                         <div className="flex items-center gap-3">
                                             <div className={`w-2 h-2 rounded-full ${item.status === 'SELESAI' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                                            <span className="text-xs font-bold text-slate-700">{item.activity}</span>
+                                            <span className="text-xs font-bold text-slate-700">{item.activity || item.name || item.text}</span>
                                         </div>
                                         <span className="text-[10px] font-black text-indigo-600 bg-white px-2 py-1 rounded-lg border border-slate-100">{item.percentage}%</span>
                                     </div>
