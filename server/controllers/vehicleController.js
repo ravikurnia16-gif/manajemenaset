@@ -49,13 +49,16 @@ exports.getAllVehicles = async (req, res) => {
             const activeBooking = v.bookings?.[0];
 
             const lastBooking = await prisma.vehicleBooking.findFirst({
-                where: { vehicleId: v.id, status: 'COMPLETED' },
+                where: { vehicleId: v.id, status: 'COMPLETED', endKm: { not: null } },
                 orderBy: { tripEndTime: 'desc' },
                 include: { user: { select: { name: true } } }
             });
 
+            const actualOdometer = Math.max(v.odometer || 0, lastBooking?.endKm || 0);
+
             return {
                 ...v,
+                odometer: actualOdometer,
                 nextServiceOdometer: latestService?.nextServiceOdometer || null,
                 lastServiceOdometer: latestService?.odometer || null,
                 lastServiceDate: latestService?.date || null,
