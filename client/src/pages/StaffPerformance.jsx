@@ -6,7 +6,7 @@ import {
     ArrowRight, MoreVertical, Flag, Loader2, X, ChevronDown, 
     ChevronUp, CheckSquare, Square, Target, Timer, Award,
     Medal, Crown, Send, Trash2, Sparkles, Download, ListChecks,
-    ClipboardCheck, History
+    ClipboardCheck, History, ClipboardList
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -506,7 +506,7 @@ const StaffPerformance = () => {
                                 )}
                             </div>
 
-                            {activeTab !== 'KPI' && (
+                            {(activeTab !== 'KPI' && (activeTab !== 'PENUGASAN' || user.role === 'SUPER_ADMIN')) && (
                                 <button 
                                     onClick={() => { resetForm(); setShowForm(true); }}
                                     className="bg-slate-900 text-white px-8 py-3.5 rounded-2xl text-[11px] font-black tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-95 flex items-center gap-2"
