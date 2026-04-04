@@ -422,13 +422,10 @@ exports.getStaffSarpras = async (req, res) => {
                 OR: [
                     { position: { contains: 'Sarana dan Prasarana' } },
                     { position: { contains: 'Manajemen Aset' } },
-                    { position: { contains: 'Gudang' } },
-                    { position: { contains: 'Kendaraan' } },
-                    { position: { contains: 'Teknisi' } },
-                    { position: { contains: 'Sopir' } },
-                    { position: { contains: 'Driver' } },
-                    { position: { contains: 'Kebersihan' } },
-                    { position: { contains: 'Lantai' } }
+                    { position: { contains: 'Staff Gudang dan Logistik' } },
+                    { position: { contains: 'Staff Kendaraan' } },
+                    { position: { contains: 'Teknisi Aset' } },
+                    { position: { contains: 'Keuangan dan Administrasi' } }
                 ],
                 NOT: { position: { contains: 'Keuangan' } }
             },
@@ -553,9 +550,9 @@ exports.getPersonnelDashboard = async (req, res) => {
         try {
             // Simplified leaderboard logic for dash
             const staff = await prisma.user.findMany({
-                where: { 
+                where: {
                     OR: [
-                        { position: { contains: 'Sarana dan Prasarana' } }, 
+                        { position: { contains: 'Sarana dan Prasarana' } },
                         { position: { contains: 'Manajemen Aset' } },
                         { position: { contains: 'Gudang' } },
                         { position: { contains: 'Kendaraan' } },
