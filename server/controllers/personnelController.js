@@ -420,13 +420,17 @@ exports.getStaffSarpras = async (req, res) => {
         const staff = await prisma.user.findMany({
             where: {
                 OR: [
-                    { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } },
-                    { position: { contains: 'Keuangan dan Administrasi' } },
+                    { position: { contains: 'Sarana dan Prasarana' } },
                     { position: { contains: 'Manajemen Aset' } },
-                    { position: { contains: 'Gudang dan Logistik' } },
-                    { position: { contains: 'Staff Kendaraan' } },
-                    { position: { contains: 'Staf Kendaraan' } }
-                ]
+                    { position: { contains: 'Gudang' } },
+                    { position: { contains: 'Kendaraan' } },
+                    { position: { contains: 'Teknisi' } },
+                    { position: { contains: 'Sopir' } },
+                    { position: { contains: 'Driver' } },
+                    { position: { contains: 'Kebersihan' } },
+                    { position: { contains: 'Lantai' } }
+                ],
+                NOT: { position: { contains: 'Keuangan' } }
             },
             orderBy: { name: 'asc' },
             select: { id: true, name: true, position: true }
@@ -549,8 +553,18 @@ exports.getPersonnelDashboard = async (req, res) => {
         try {
             // Simplified leaderboard logic for dash
             const staff = await prisma.user.findMany({
-                where: { OR: [{ position: { contains: 'Sarana' } }, { position: { contains: 'Aset' } }] },
-                take: 10
+                where: { 
+                    OR: [
+                        { position: { contains: 'Sarana dan Prasarana' } }, 
+                        { position: { contains: 'Manajemen Aset' } },
+                        { position: { contains: 'Gudang' } },
+                        { position: { contains: 'Kendaraan' } },
+                        { position: { contains: 'Teknisi' } },
+                        { position: { contains: 'Sopir' } }
+                    ],
+                    NOT: { position: { contains: 'Keuangan' } }
+                },
+                take: 20
             });
             let maxScore = -1;
             for (const s of staff) {
@@ -980,9 +994,15 @@ exports.getKPILeaderboard = async (req, res) => {
                     { position: { contains: 'Manajemen Aset' } },
                     { position: { contains: 'Gudang' } },
                     { position: { contains: 'Kendaraan' } },
+                    { position: { contains: 'Teknisi' } },
+                    { position: { contains: 'Sopir' } },
+                    { position: { contains: 'Driver' } },
+                    { position: { contains: 'Lantai' } },
+                    { position: { contains: 'Kebersihan' } }
+                ],
+                NOT: [
                     { position: { contains: 'Keuangan' } },
-                    { position: { contains: 'Administrasi' } },
-                    { position: { contains: 'Lantai' } }
+                    { name: { contains: 'Harta' } } // Optional name-based filter if needed
                 ]
             },
             select: { id: true, name: true, position: true, unitId: true }
