@@ -424,7 +424,8 @@ exports.getStaffSarpras = async (req, res) => {
                     { position: { contains: 'Manajemen Aset' } },
                     { position: { contains: 'Gudang dan Logistik' } },
                     { position: { contains: 'Teknisi' } },
-                    { position: { contains: 'Keuangan dan Administrasi' } }
+                    { position: { contains: 'Keuangan dan Administrasi' } },
+                    { position: { contains: 'Kendaraan' } }
                 ]
             },
             orderBy: { name: 'asc' },
@@ -554,7 +555,8 @@ exports.getPersonnelDashboard = async (req, res) => {
                         { position: { contains: 'Manajemen Aset' } },
                         { position: { contains: 'Gudang dan Logistik' } },
                         { position: { contains: 'Teknisi' } },
-                        { position: { contains: 'Keuangan dan Administrasi' } }
+                        { position: { contains: 'Keuangan dan Administrasi' } },
+                        { position: { contains: 'Kendaraan' } }
                     ]
                 },
                 take: 20
@@ -987,7 +989,8 @@ exports.getKPILeaderboard = async (req, res) => {
                     { position: { contains: 'Manajemen Aset' } },
                     { position: { contains: 'Gudang dan Logistik' } },
                     { position: { contains: 'Teknisi' } },
-                    { position: { contains: 'Keuangan dan Administrasi' } }
+                    { position: { contains: 'Keuangan dan Administrasi' } },
+                    { position: { contains: 'Kendaraan' } }
                 ]
             },
             select: { id: true, name: true, position: true, unitId: true }
