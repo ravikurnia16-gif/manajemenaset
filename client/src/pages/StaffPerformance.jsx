@@ -171,8 +171,11 @@ const StaffPerformance = () => {
         category: 'UMUM',
         content: '',
         date: new Date().toISOString().split('T')[0],
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date().toISOString().split('T', 1)[0], // End of week default maybe
         startTime: '08:00',
         endTime: '17:00',
+        title: '',
         generalItems: [{ activity: '', status: 'SELESAI', percentage: 100, note: '' }],
         isPlan: false
     });
@@ -346,18 +349,23 @@ const StaffPerformance = () => {
                 .join('\n');
 
             const isPlan = activeTab === 'RENCANA';
-            const title = isPlan ? 'RENCANA KERJA' : 'LAPORAN AKTIVITAS';
-            const details = `🕒 Jam: ${form.startTime}-${form.endTime}\n📋 ${title}:\n${itemsList}\n\n📝 Catatan tambahan: ${form.content || '-'}`;
+            const title = isPlan ? (form.title || 'RENCANA KERJA') : 'LAPORAN AKTIVITAS';
+            const timeHeader = isPlan ? `📅 Periode: ${form.startDate} s/d ${form.endDate}` : `🕒 Jam: ${form.startTime}-${form.endTime}`;
+            const details = `${timeHeader}\n📋 ${title}:\n${itemsList}\n\n📝 Catatan tambahan: ${form.content || '-'}`;
 
             await api.post('/personnel/reports', {
                 ...form,
+                date: isPlan ? form.startDate : form.date,
                 type: isPlan ? 'WEEKLY' : 'DAILY',
                 details: details.replace(/\*/g, ''),
                 metadata: {
-                    startTime: form.startTime,
-                    endTime: form.endTime,
-                    items: validItems,
-                    isPlan: isPlan
+                    startTime: isPlan ? '-' : form.startTime,
+                    endTime: isPlan ? '-' : form.endTime,
+                    startDate: form.startDate,
+                    endDate: form.endDate,
+                    isPlan: isPlan,
+                    title: form.title,
+                    items: validItems
                 }
             });
 
@@ -378,8 +386,11 @@ const StaffPerformance = () => {
             category: 'UMUM',
             content: '',
             date: new Date().toISOString().split('T')[0],
+            startDate: new Date().toISOString().split('T')[0],
+            endDate: new Date().toISOString().split('T', 1)[0],
             startTime: '08:00',
             endTime: '17:00',
+            title: '',
             generalItems: [{ activity: '', status: 'SELESAI', percentage: 100, note: '' }],
             isPlan: activeTab === 'RENCANA'
         });
@@ -498,17 +509,39 @@ const StaffPerformance = () => {
                             </div>
 
                             <form onSubmit={handleSubmit} className="space-y-12">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                    <FormGroup label="📅 Tanggal Target">
-                                        <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="form-input" />
-                                    </FormGroup>
-                                    <FormGroup label="🕒 Mulai Jam">
-                                        <input type="time" value={form.startTime} onChange={e => setForm({...form, startTime: e.target.value})} className="form-input" />
-                                    </FormGroup>
-                                    <FormGroup label="🕒 Selesai Jam">
-                                        <input type="time" value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})} className="form-input" />
-                                    </FormGroup>
-                                </div>
+                                {activeTab === 'RENCANA' ? (
+                                    <>
+                                        <div className="md:col-span-3 space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">📝 Judul Rencana Kerja</label>
+                                            <input 
+                                                type="text" 
+                                                value={form.title} 
+                                                onChange={e => setForm({...form, title: e.target.value})} 
+                                                placeholder="Misal: Perbaikan Instalasi Listrik Gedung B"
+                                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-3xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all" 
+                                            />
+                                        </div>
+                                        <FormGroup label="📅 Tanggal Mulai">
+                                            <input type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} className="form-input" />
+                                        </FormGroup>
+                                        <FormGroup label="📅 Tanggal Selesai">
+                                            <input type="date" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} className="form-input" />
+                                        </FormGroup>
+                                        <div className="hidden md:block"></div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <FormGroup label="📅 Tanggal Target">
+                                            <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="form-input" />
+                                        </FormGroup>
+                                        <FormGroup label="🕒 Mulai Jam">
+                                            <input type="time" value={form.startTime} onChange={e => setForm({...form, startTime: e.target.value})} className="form-input" />
+                                        </FormGroup>
+                                        <FormGroup label="🕒 Selesai Jam">
+                                            <input type="time" value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})} className="form-input" />
+                                        </FormGroup>
+                                    </>
+                                )}
 
                                 <div className="space-y-6">
                                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -535,22 +568,24 @@ const StaffPerformance = () => {
                                                 <div className="flex flex-col md:flex-row gap-6">
                                                     <div className="flex-1">
                                                         <input 
-                                                            placeholder="Apa yang akan/telah Anda kerjakan?"
+                                                            placeholder={activeTab === 'RENCANA' ? "Sebutkan tahapan rencana kerja..." : "Apa yang akan/telah Anda kerjakan?"}
                                                             value={item.activity}
                                                             onChange={e => handleGeneralItemChange(idx, 'activity', e.target.value)}
                                                             className="w-full bg-transparent border-none text-sm font-bold text-slate-700 placeholder:text-slate-300 focus:ring-0"
                                                         />
                                                     </div>
                                                     <div className="flex gap-4">
-                                                        <select 
-                                                            value={item.status}
-                                                            onChange={e => handleGeneralItemChange(idx, 'status', e.target.value)}
-                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest border-none cursor-pointer ${item.status === 'SELESAI' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
-                                                        >
-                                                            <option value="SELESAI">SELESAI</option>
-                                                            <option value="PROSES">PROSES</option>
-                                                            <option value="PENDING">PENDING</option>
-                                                        </select>
+                                                        {activeTab === 'LAPORAN' && (
+                                                            <select 
+                                                                value={item.status}
+                                                                onChange={e => handleGeneralItemChange(idx, 'status', e.target.value)}
+                                                                className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest border-none cursor-pointer ${item.status === 'SELESAI' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
+                                                            >
+                                                                <option value="SELESAI">SELESAI</option>
+                                                                <option value="PROSES">PROSES</option>
+                                                                <option value="PENDING">PENDING</option>
+                                                            </select>
+                                                        )}
                                                         {form.generalItems.length > 1 && (
                                                             <button type="button" onClick={() => removeGeneralItem(idx)} className="p-2 text-rose-300 hover:text-rose-500 transition-colors">
                                                                 <Trash2 size={18} />
@@ -558,12 +593,14 @@ const StaffPerformance = () => {
                                                         )}
                                                     </div>
                                                 </div>
-                                                <input 
-                                                    placeholder="Tambahkan catatan detail jika perlu..."
-                                                    value={item.note && isNaN(item.note) ? item.note : ''}
-                                                    onChange={e => handleGeneralItemChange(idx, 'note', e.target.value)}
-                                                    className="w-full bg-transparent border-none text-[10px] font-medium text-slate-400 italic mt-2 focus:ring-0"
-                                                />
+                                                {activeTab === 'LAPORAN' && (
+                                                    <input 
+                                                        placeholder="Tambahkan catatan detail jika perlu..."
+                                                        value={item.note && isNaN(item.note) ? item.note : ''}
+                                                        onChange={e => handleGeneralItemChange(idx, 'note', e.target.value)}
+                                                        className="w-full bg-transparent border-none text-[10px] font-medium text-slate-400 italic mt-2 focus:ring-0"
+                                                    />
+                                                )}
                                             </div>
                                         ))}
                                         <button type="button" onClick={() => addGeneralItem()} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-[32px] text-slate-400 hover:text-indigo-500 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all flex items-center justify-center gap-2">
@@ -893,9 +930,20 @@ const ReportTab = ({ reports, type }) => (
                                 <CheckCircle2 size={16} />
                                 <span className="text-[10px] font-black uppercase tracking-widest">Tervalidasi</span>
                              </div>
-                             <span className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">{r.metadata?.startTime} - {r.metadata?.endTime} WIB</span>
+                             {r.metadata?.isPlan ? (
+                                 <span className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em]">{new Date(r.metadata.startDate).toLocaleDateString()} - {new Date(r.metadata.endDate).toLocaleDateString()}</span>
+                             ) : (
+                                 <span className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">{r.metadata?.startTime} - {r.metadata?.endTime} WIB</span>
+                             )}
                         </div>
                     </div>
+
+                    {r.metadata?.title && r.metadata?.isPlan && (
+                        <div className="mt-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-3xl">
+                            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Judul Rencana</p>
+                            <h5 className="text-sm font-bold text-slate-700 uppercase">{r.metadata.title}</h5>
+                        </div>
+                    )}
 
                     <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-10">
                         <div className="space-y-6">
