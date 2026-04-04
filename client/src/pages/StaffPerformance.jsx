@@ -176,15 +176,12 @@ const StaffPerformance = () => {
 
     // Form State (Consolidated)
     const [form, setForm] = useState({
-        type: 'DAILY',
-        category: 'UMUM',
-        content: '',
-        date: new Date().toISOString().split('T')[0],
-        startDate: new Date().toISOString().split('T')[0],
-        endDate: new Date().toISOString().split('T', 1)[0], // End of week default maybe
         startTime: '08:00',
         endTime: '17:00',
         title: '',
+        assigneeId: '',
+        priority: 'MEDIUM',
+        location: '',
         generalItems: [{ activity: '', status: 'SELESAI', percentage: 100, note: '' }],
         isPlan: false
     });
@@ -358,6 +355,27 @@ const StaffPerformance = () => {
                 .join('\n');
 
             const isPlan = activeTab === 'RENCANA';
+            const isTask = activeTab === 'PENUGASAN';
+
+            if (isTask) {
+                const taskData = {
+                    assigneeId: form.assigneeId,
+                    title: form.title || 'Penugasan Hub',
+                    description: form.content,
+                    category: form.category,
+                    priority: form.priority,
+                    location: form.location,
+                    items: validItems.map(it => ({ text: it.activity, isDone: false, percentage: 0 }))
+                };
+                if (!taskData.assigneeId) return alert('Pilih staf penerima tugas');
+                await api.post('/personnel/assignments', taskData);
+                fetchAssignments();
+                setShowForm(false);
+                resetForm();
+                alert('Penugasan berhasil dikirim');
+                return;
+            }
+
             const title = isPlan ? (form.title || 'RENCANA KERJA') : 'LAPORAN AKTIVITAS';
             const timeHeader = isPlan ? `📅 Periode: ${form.startDate} s/d ${form.endDate}` : `🕒 Jam: ${form.startTime}-${form.endTime}`;
             const details = `${timeHeader}\n📋 ${title}:\n${itemsList}\n\n📝 Catatan tambahan: ${form.content || '-'}`;
@@ -396,10 +414,13 @@ const StaffPerformance = () => {
             content: '',
             date: new Date().toISOString().split('T')[0],
             startDate: new Date().toISOString().split('T')[0],
-            endDate: new Date().toISOString().split('T', 1)[0],
+            endDate: new Date().toISOString().split('T')[0],
             startTime: '08:00',
             endTime: '17:00',
             title: '',
+            assigneeId: '',
+            priority: 'MEDIUM',
+            location: '',
             generalItems: [{ activity: '', status: 'SELESAI', percentage: 100, note: '' }],
             isPlan: activeTab === 'RENCANA'
         });
@@ -503,11 +524,11 @@ const StaffPerformance = () => {
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
                                 <div className="flex items-center gap-6">
                                     <div className="w-16 h-16 bg-indigo-600 text-white rounded-[24px] flex items-center justify-center shadow-2xl shadow-indigo-200 ring-8 ring-indigo-50">
-                                        {activeTab === 'RENCANA' ? <Calendar size={28} /> : <FileText size={28} />}
+                                        {activeTab === 'RENCANA' ? <Calendar size={28} /> : activeTab === 'PENUGASAN' ? <ClipboardList size={28} /> : <FileText size={28} />}
                                     </div>
                                     <div>
                                         <h2 className="text-3xl font-black text-slate-900 italic uppercase">
-                                            {activeTab === 'RENCANA' ? 'Input Rencana Kerja' : 'Input Laporan Harian'}
+                                            {activeTab === 'RENCANA' ? 'Input Rencana Kerja' : activeTab === 'PENUGASAN' ? 'Input Penugasan Baru' : 'Input Laporan Harian'}
                                         </h2>
                                         <p className="text-xs font-black text-slate-400 uppercase tracking-widest mt-1">Lengkapi rincian aktivitas Anda</p>
                                     </div>
@@ -538,6 +559,50 @@ const StaffPerformance = () => {
                                         </FormGroup>
                                         <div className="hidden md:block"></div>
                                     </>
+                                ) : activeTab === 'PENUGASAN' ? (
+                                    <>
+                                        <div className="md:col-span-3 space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">📝 Judul Penugasan</label>
+                                            <input 
+                                                type="text" 
+                                                value={form.title} 
+                                                onChange={e => setForm({...form, title: e.target.value})} 
+                                                placeholder="Misal: Pengecekan Panel Listrik Utama"
+                                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-3xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all" 
+                                            />
+                                        </div>
+                                        <FormGroup label="👤 Penerima Tugas (Staf)">
+                                            <select 
+                                                className="form-input uppercase"
+                                                value={form.assigneeId}
+                                                onChange={(e) => setForm({...form, assigneeId: e.target.value})}
+                                            >
+                                                <option value="">PILIH STAF</option>
+                                                {staffList.map(s => <option key={s.id} value={s.id}>{s.name || s.username}</option>)}
+                                            </select>
+                                        </FormGroup>
+                                        <FormGroup label="⚡ Prioritas">
+                                            <select 
+                                                className="form-input"
+                                                value={form.priority}
+                                                onChange={(e) => setForm({...form, priority: e.target.value})}
+                                            >
+                                                <option value="LOW">RENDAH</option>
+                                                <option value="MEDIUM">MEDIUM</option>
+                                                <option value="HIGH">TINGGI</option>
+                                                <option value="URGENT">URGENT</option>
+                                            </select>
+                                        </FormGroup>
+                                        <FormGroup label="📍 Lokasi">
+                                            <input 
+                                                type="text" 
+                                                value={form.location} 
+                                                onChange={e => setForm({...form, location: e.target.value})} 
+                                                placeholder="Misal: Gedung A Lt. 1"
+                                                className="form-input"
+                                            />
+                                        </FormGroup>
+                                    </>
                                 ) : (
                                     <>
                                         <FormGroup label="📅 Tanggal Target">
@@ -555,7 +620,7 @@ const StaffPerformance = () => {
                                 <div className="space-y-6">
                                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                                         <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[.25em] flex items-center gap-2">
-                                            <ListChecks size={18} className="text-indigo-500" /> Rincian Aktivitas
+                                            <ListChecks size={18} className="text-indigo-500" /> {activeTab === 'PENUGASAN' ? 'Checklist Pekerjaan' : 'Rincian Aktivitas'}
                                         </h3>
                                         <div className="flex flex-wrap gap-2">
                                             {activeTab === 'LAPORAN' && (
@@ -577,14 +642,14 @@ const StaffPerformance = () => {
                                                 <div className="flex flex-col md:flex-row gap-6">
                                                     <div className="flex-1">
                                                         <input 
-                                                            placeholder={activeTab === 'RENCANA' ? "Sebutkan tahapan rencana kerja..." : "Apa yang akan/telah Anda kerjakan?"}
+                                                            placeholder={activeTab === 'RENCANA' ? "Sebutkan tahapan rencana kerja..." : activeTab === 'PENUGASAN' ? "Deskripsikan langkah/item pekerjaan..." : "Apa yang akan/telah Anda kerjakan?"}
                                                             value={item.activity}
                                                             onChange={e => handleGeneralItemChange(idx, 'activity', e.target.value)}
                                                             className="w-full bg-transparent border-none text-sm font-bold text-slate-700 placeholder:text-slate-300 focus:ring-0"
                                                         />
                                                     </div>
                                                     <div className="flex gap-4">
-                                                        {activeTab === 'LAPORAN' && (
+                                                        {(activeTab === 'LAPORAN' || (activeTab === 'RENCANA' && false)) && (
                                                             <select 
                                                                 value={item.status}
                                                                 onChange={e => handleGeneralItemChange(idx, 'status', e.target.value)}
@@ -637,7 +702,7 @@ const StaffPerformance = () => {
                                         className="bg-indigo-600 text-white px-12 py-5 rounded-[28px] text-sm font-black tracking-widest hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-200 active:scale-95 flex items-center gap-3 disabled:opacity-50"
                                     >
                                         {submitting ? <Loader2 className="animate-spin" /> : <Send size={20} />}
-                                        {submitting ? 'SEDANG MENGIRIM...' : activeTab === 'RENCANA' ? 'KIRIM RENCANA KERJA' : 'KIRIM LAPORAN RESMI'}
+                                        {submitting ? 'SEDANG MENGIRIM...' : activeTab === 'RENCANA' ? 'KIRIM RENCANA KERJA' : activeTab === 'PENUGASAN' ? 'DELEGASIKAN TUGAS SEKARANG' : 'KIRIM LAPORAN RESMI'}
                                     </button>
                                 </div>
                             </form>
