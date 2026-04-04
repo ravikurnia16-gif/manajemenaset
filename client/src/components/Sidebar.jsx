@@ -223,11 +223,8 @@ const Sidebar = ({ isOpen = true }) => {
                             {/* Only Sarpras or Global Admin can see active reports & assignments */}
                             {(isGlobalAdmin || user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) && (
                                 <>
-                                    <Link to="/personalia/laporan" className={subNavItemClass('/personalia/laporan')}>
-                                        <FileText size={16} /> Laporan Staff
-                                    </Link>
-                                    <Link to="/personalia/penugasan" className={subNavItemClass('/personalia/penugasan')}>
-                                        <FileCheck size={16} /> Penugasan
+                                    <Link to="/personalia/kinerja" className={subNavItemClass('/personalia/kinerja')}>
+                                        <TrendingUp size={16} /> Kinerja Staf
                                     </Link>
                                     <Link to="/personalia/rutin" className={subNavItemClass('/personalia/rutin')}>
                                         <Zap size={16} /> Rutinitas

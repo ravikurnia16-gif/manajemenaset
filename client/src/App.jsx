@@ -39,6 +39,7 @@ import LoginPage from './pages/LoginPage';
 import PublicAssetView from './pages/PublicAssetView';
 import MutationList from './pages/MutationList';
 import MutationForm from './pages/MutationForm';
+import StaffPerformance from './pages/StaffPerformance';
 import PersonnelReports from './pages/PersonnelReports';
 import PersonnelAssignments from './pages/PersonnelAssignments';
 import PersonnelRoutine from './pages/PersonnelRoutine';
@@ -137,12 +138,13 @@ function App() {
           <Route path="personalia/penugasan" element={<PersonnelAssignments />} />
           <Route path="personalia/kalender" element={<SarprasCalendar />} />
           <Route path="personalia/rutin" element={<PersonnelRoutine />} />
+          <Route path="personalia/kinerja" element={<StaffPerformance />} />
           <Route path="personalia/kpi" element={
             (() => {
               const u = JSON.parse(localStorage.getItem('user'));
               const isKabid = u?.position?.toLowerCase().includes('kepala bidang') && u?.position?.toLowerCase().includes('sarana dan prasarana');
               const isTech = ['SUPER_ADMIN', 'BIDANG_IT'].includes(u?.role);
-              return isKabid || isTech ? <PersonnelKPI /> : <Navigate to="/personalia/dashboard" />;
+              return isKabid || isTech ? <PersonnelKPI /> : <Navigate to="/personalia/kinerja" />;
             })()
           } />
           <Route path="laporan" element={<ReportPage />} />

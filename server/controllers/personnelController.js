@@ -49,7 +49,9 @@ exports.createReport = async (req, res) => {
                         where: { id: user.id }
                     });
 
-                    const typeLabel = type === 'DAILY' ? 'Harian' : 'Mingguan';
+                    const isPlan = metadata?.isPlan;
+                    const typeLabel = isPlan ? 'Rencana Kerja' : (type === 'DAILY' ? 'Harian' : 'Mingguan');
+                    const emoji = isPlan ? '📅' : '📋';
                     const catLabel = {
                         'KEUANGAN': '💰 Keuangan',
                         'ASET': '📦 Manajemen Aset',
@@ -58,7 +60,7 @@ exports.createReport = async (req, res) => {
                         'UMUM': '📝 Umum'
                     }[category] || '📝 Umum';
 
-                    let msg = `📋 *LAPORAN PERSONALIA BARU*\n\n` +
+                    let msg = `${emoji} *${isPlan ? 'RENCANA KERJA MINGGUAN' : 'LAPORAN PERSONALIA'} BARU*\n\n` +
                         `👤 *Staf* : ${reporter?.name || reporter?.username || 'Staf'}\n` +
                         `📅 *Tanggal* : ${new Date(date || new Date()).toLocaleDateString('id-ID')}\n` +
                         `📑 *Tipe* : ${typeLabel}\n` +

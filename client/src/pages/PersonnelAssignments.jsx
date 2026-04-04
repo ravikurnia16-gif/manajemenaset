@@ -143,8 +143,10 @@ const DeadlineBadge = ({ dueDate }) => (
     </div>
 );
 
-const SubTaskItem = ({ item, idx, progressVal, isDone, updating, isAssignee, canAssign, toggleItemStatus, updateItemProgress }) => {
+const SubTaskItem = ({ item, idx, progressVal, isDone, updating, isAssignee, canAssign, toggleItemStatus, updateItemProgress, appendItemNote }) => {
     const [localVal, setLocalVal] = useState(progressVal);
+    const [newNote, setNewNote] = useState('');
+    const [showNoteInput, setShowNoteInput] = useState(false);
 
     useEffect(() => {
         setLocalVal(progressVal);
@@ -157,14 +159,23 @@ const SubTaskItem = ({ item, idx, progressVal, isDone, updating, isAssignee, can
         }
     };
 
+    const handleAddNote = () => {
+        if (!newNote.trim()) return;
+        appendItemNote(idx, newNote);
+        setNewNote('');
+        setShowNoteInput(false);
+    };
+
+    const logs = Array.isArray(item.logs) ? item.logs : [];
+
     return (
         <div className={`p-4 rounded-2xl border transition-all shadow-sm ${isDone ? 'bg-emerald-50/30 border-emerald-100' : 'bg-white border-slate-100'}`}>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
                     <button
                         onClick={() => toggleItemStatus(idx)}
                         disabled={updating}
-                        className={`shrink-0 transition-transform active:scale-90 ${isDone ? 'text-emerald-500' : 'text-slate-300'}`}
+                        className={`mt-0.5 shrink-0 transition-transform active:scale-90 ${isDone ? 'text-emerald-500' : 'text-slate-300'}`}
                     >
                         {isDone ? <CheckSquare size={22} /> : <Square size={22} />}
                     </button>
@@ -178,11 +189,66 @@ const SubTaskItem = ({ item, idx, progressVal, isDone, updating, isAssignee, can
                             </span>
                             <span className={`text-[10px] font-black ${isDone ? 'text-emerald-500' : 'text-indigo-600'}`}>{progressVal}%</span>
                         </div>
+
+                        {/* History Logs */}
+                        {logs.length > 0 && (
+                            <div className="mt-3 space-y-2 pl-1 border-l-2 border-slate-100">
+                                {logs.map((log, lIdx) => (
+                                    <div key={lIdx} className="group/log">
+                                        <p className="text-[10px] font-medium text-slate-600 leading-relaxed italic">
+                                            "{log.text}"
+                                        </p>
+                                        <p className="text-[8px] font-black text-slate-300 uppercase tracking-tighter mt-0.5">
+                                            {new Date(log.timestamp).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Add Note Input */}
+                        {(isAssignee || canAssign) && (
+                            <div className="mt-3">
+                                {!showNoteInput ? (
+                                    <button 
+                                        onClick={() => setShowNoteInput(true)}
+                                        className="text-[9px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-widest flex items-center gap-1.5 transition-colors"
+                                    >
+                                        <Plus size={10} strokeWidth={3} /> Tambah Catatan
+                                    </button>
+                                ) : (
+                                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                                        <textarea 
+                                            value={newNote}
+                                            onChange={(e) => setNewNote(e.target.value)}
+                                            placeholder="Tulis progres atau kendala di sini..."
+                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none h-16 transition-all"
+                                            autoFocus
+                                        />
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={handleAddNote}
+                                                disabled={!newNote.trim() || updating}
+                                                className="px-3 py-1 bg-indigo-600 text-white text-[9px] font-black rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all"
+                                            >
+                                                SIMPAN CATATAN
+                                            </button>
+                                            <button 
+                                                onClick={() => setShowNoteInput(false)}
+                                                className="px-3 py-1 bg-slate-100 text-slate-500 text-[9px] font-black rounded-lg hover:bg-slate-200 transition-all"
+                                            >
+                                                BATAL
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Progress Percentage Input - local state, commit on blur/Enter */}
-                <div className="flex items-center gap-2 md:w-32">
+                {/* Progress Percentage Input */}
+                <div className="flex items-center gap-2 md:w-32 self-start md:self-center mt-2 md:mt-0">
                     <input 
                         type="number"
                         min="0" max="100"
@@ -214,13 +280,14 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
         setManualProgress(a.progressPercentage || 0);
     }, [a.progressPercentage]);
     
-    // Parse items with safety and enhance with progress if missing
+    // Parse items with safety and enhance with progress and logs if missing
     let items = [];
     try {
         const rawItems = Array.isArray(a.items) ? a.items : (typeof a.items === 'string' ? JSON.parse(a.items) : []);
         items = rawItems.map(it => ({
             ...it,
-            progress: typeof it.progress === 'number' ? it.progress : (it.status === 'COMPLETED' ? 100 : 0)
+            progress: typeof it.progress === 'number' ? it.progress : (it.status === 'COMPLETED' ? 100 : 0),
+            logs: Array.isArray(it.logs) ? it.logs : []
         }));
     } catch (e) {
         console.error("Error parsing items:", e);
@@ -249,6 +316,23 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
         await handleUpdateAssignment(a.id, { 
             items: newItems,
             progressPercentage: newOverallProgress 
+        });
+        setUpdating(false);
+    };
+
+    const appendItemNote = async (itemIdx, noteText) => {
+        if (updating || (!isAssignee && !canAssign)) return;
+        const newItems = [...items];
+        const newLog = {
+            text: noteText,
+            timestamp: new Date().toISOString(),
+            userId: userId
+        };
+        newItems[itemIdx].logs = [newLog, ...(newItems[itemIdx].logs || [])]; // Newest first
+        
+        setUpdating(true);
+        await handleUpdateAssignment(a.id, { 
+            items: newItems
         });
         setUpdating(false);
     };
@@ -447,6 +531,7 @@ const AssignmentRow = ({ a, statusConfig, priorityConfig, handleUpdateAssignment
                                             canAssign={canAssign}
                                             toggleItemStatus={toggleItemStatus}
                                             updateItemProgress={updateItemProgress}
+                                            appendItemNote={appendItemNote}
                                         />
                                     );
                                 })}
@@ -501,7 +586,7 @@ const PersonnelAssignments = () => {
         startDate: new Date().toISOString().split('T')[0],
         dueDate: '',
         addToCalendar: true,
-        items: [{ text: '', status: 'PENDING', progress: 0 }]
+        items: [{ text: '', status: 'PENDING', progress: 0, logs: [] }]
     });
 
     const [extensionModal, setExtensionModal] = useState({ show: false, assignment: null, requestedDate: '', reason: '' });
@@ -564,7 +649,7 @@ const PersonnelAssignments = () => {
     }, []);
 
     const addItem = () => {
-        setForm({ ...form, items: [...form.items, { text: '', status: 'PENDING', progress: 0 }] });
+        setForm({ ...form, items: [...form.items, { text: '', status: 'PENDING', progress: 0, logs: [] }] });
     };
 
     const removeItem = (idx) => {
@@ -586,7 +671,7 @@ const PersonnelAssignments = () => {
             setSubmitting(true);
             await api.post('/personnel/assignments', { ...form, items: validItems });
             setShowForm(false);
-            setForm({ assigneeId: '', title: '', description: '', category: 'UMUM', priority: 'MEDIUM', location: '', startDate: new Date().toISOString().split('T')[0], dueDate: '', addToCalendar: true, items: [{ text: '', status: 'PENDING', progress: 0 }] });
+            setForm({ assigneeId: '', title: '', description: '', category: 'UMUM', priority: 'MEDIUM', location: '', startDate: new Date().toISOString().split('T')[0], dueDate: '', addToCalendar: true, items: [{ text: '', status: 'PENDING', progress: 0, logs: [] }] });
             fetchAssignments();
             alert(`Tugas berhasil didelegasikan`);
         } catch (err) {

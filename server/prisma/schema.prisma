@@ -697,6 +697,7 @@ model UniformOrderItem {
 enum ReportType {
   DAILY
   WEEKLY
+  PLAN
 }
 
 enum PersonnelReportCategory {
