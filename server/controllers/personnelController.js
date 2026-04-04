@@ -243,7 +243,7 @@ exports.createAssignment = async (req, res) => {
 };
 
 exports.getAssignments = async (req, res) => {
-    const { limit } = req.query;
+    const { limit, status, userId, staffId } = req.query;
     const user = req.user;
 
     try {
@@ -252,11 +252,23 @@ exports.getAssignments = async (req, res) => {
         }
 
         const where = {};
+        
+        // Role-based visibility
         if (!['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role)) {
             where.OR = [
                 { assigneeId: user.id },
                 { assignerId: user.id }
             ];
+        }
+
+        // Apply filters if provided
+        if (status && status !== 'ALL') {
+            where.status = status;
+        }
+
+        const targetUserId = userId || staffId;
+        if (targetUserId && targetUserId !== 'ALL') {
+            where.assigneeId = parseInt(targetUserId);
         }
 
         const queryOptions = {

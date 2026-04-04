@@ -168,6 +168,7 @@ const StaffPerformance = () => {
 
     // Filters
     const [filterStaff, setFilterStaff] = useState('ALL');
+    const [filterStatus, setFilterStatus] = useState('ALL');
     const [filterPeriod, setFilterPeriod] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
@@ -210,7 +211,7 @@ const StaffPerformance = () => {
         if (activeTab === 'LAPORAN' || activeTab === 'RENCANA') fetchReports();
         if (activeTab === 'PENUGASAN') fetchAssignments();
         if (activeTab === 'KPI') fetchKPI();
-    }, [activeTab, filterStaff, filterPeriod]);
+    }, [activeTab, filterStaff, filterStatus, filterPeriod]);
 
     const fetchInitialData = async () => {
         try {
@@ -250,7 +251,7 @@ const StaffPerformance = () => {
         try {
             const params = { 
                 userId: filterStaff !== 'ALL' ? filterStaff : undefined,
-                status: isAdmin ? undefined : 'IN_PROGRESS' 
+                status: filterStatus !== 'ALL' ? filterStatus : undefined
             };
             const res = await api.get('/personnel/assignments', { params });
             setAssignments(res.data || []);
@@ -483,6 +484,21 @@ const StaffPerformance = () => {
                                         >
                                             <option value="ALL">SEMUA STAF</option>
                                             {staffList.map(s => <option key={s.id} value={s.id}>{s.name || s.username}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                                {activeTab === 'PENUGASAN' && (
+                                    <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-slate-100 shadow-sm">
+                                        <Tag size={16} className="text-emerald-400" />
+                                        <select 
+                                            className="bg-transparent border-none text-[11px] font-black text-slate-600 focus:ring-0 cursor-pointer uppercase tracking-wider"
+                                            value={filterStatus}
+                                            onChange={(e) => setFilterStatus(e.target.value)}
+                                        >
+                                            <option value="ALL">SEMUA STATUS</option>
+                                            <option value="PENDING">MENUNGGU</option>
+                                            <option value="IN_PROGRESS">DALAM PROSES</option>
+                                            <option value="COMPLETED">SELESAI</option>
                                         </select>
                                     </div>
                                 )}
