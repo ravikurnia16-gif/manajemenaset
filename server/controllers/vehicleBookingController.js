@@ -532,12 +532,13 @@ exports.checkOverdueVehicleBookings = async () => {
     try {
         const now = new Date();
 
-        // Find bookings that are APPROVED/IN_PROGRESS but passed endDate
+        // Find bookings that are APPROVED or BERLANGSUNG but passed endDate
         // status APPROVED means it's scheduled but not yet marked COMPLETED
+        // status BERLANGSUNG means it's currently in progress
         // We check if tripEndTime is null and endDate is in the past
         const overdueBookings = await prisma.vehicleBooking.findMany({
             where: {
-                status: 'APPROVED',
+                status: { in: ['APPROVED', 'BERLANGSUNG'] },
                 endDate: { lt: now },
                 tripEndTime: null
             },
