@@ -424,7 +424,7 @@ const StaffPerformance = () => {
                         </div>
                         
                         <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-[24px] border border-slate-200/50">
-                            {['RENCANA', 'LAPORAN', 'PENUGASAN', 'KPI'].map((tab) => (
+                            {['RENCANA', 'LAPORAN', 'PENUGASAN', 'KPI'].filter(t => t !== 'KPI' || user.role === 'SUPER_ADMIN').map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => { setActiveTab(tab); setShowForm(false); }}
@@ -642,7 +642,7 @@ const StaffPerformance = () => {
                                 </div>
                             ) : (
                                 <div className="space-y-8">
-                                    {activeTab === 'KPI' ? (
+                                    {activeTab === 'KPI' && user.role === 'SUPER_ADMIN' ? (
                                         <KPITab leaderboard={leaderboard} />
                                     ) : activeTab === 'PENUGASAN' ? (
                                         <AssignmentTab 

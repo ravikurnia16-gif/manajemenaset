@@ -229,11 +229,6 @@ const Sidebar = ({ isOpen = true }) => {
                                     <Link to="/personalia/rutin" className={subNavItemClass('/personalia/rutin')}>
                                         <Zap size={16} /> Rutinitas
                                     </Link>
-                                    {(isKabidSarpras || isTechAdmin) && (
-                                        <Link to="/personalia/kpi" className={subNavItemClass('/personalia/kpi')}>
-                                            <Trophy size={16} /> KPI Staff
-                                        </Link>
-                                    )}
                                 </>
                             )}
                             {isGlobalAdmin && (
