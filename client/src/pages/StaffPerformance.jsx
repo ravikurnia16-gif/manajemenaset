@@ -959,122 +959,113 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
     const [newItemTexts, setNewItemTexts] = useState({});
 
     return (
-        <div className="grid grid-cols-1 gap-8">
+        <div className="bg-white rounded-[24px] md:rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
             {assignments.length === 0 ? (
-                <div className="py-40 bg-white rounded-[48px] text-center opacity-40">
-                    <ClipboardCheck size={64} className="mx-auto text-slate-200 mb-6" />
-                    <p className="text-sm font-black text-slate-400 uppercase tracking-[0.4em]">Belum ada penugasan aktif</p>
+                <div className="py-24 text-center opacity-40">
+                    <ClipboardCheck size={48} className="mx-auto text-slate-200 mb-4" />
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Belum ada penugasan aktif</p>
                 </div>
             ) : (
-                assignments.map(a => {
+                assignments.map((a, idx) => {
                     const statusColors = {
-                        'PENDING': 'border-l-amber-500 shadow-amber-100/50',
-                        'IN_PROGRESS': 'border-l-indigo-600 shadow-indigo-100/50',
-                        'COMPLETED': 'border-l-emerald-500 shadow-emerald-100/50',
-                        'OVERDUE': 'border-l-rose-500 shadow-rose-100/50'
+                        'PENDING': 'border-l-amber-500',
+                        'IN_PROGRESS': 'border-l-indigo-600',
+                        'COMPLETED': 'border-l-emerald-500',
+                        'OVERDUE': 'border-l-rose-500'
                     };
                     const accentClass = statusColors[a.status] || 'border-l-slate-200';
+                    const isEven = idx % 2 === 0;
 
                     return (
-                        <div key={a.id} className={`bg-white rounded-[40px] p-8 md:p-10 border border-slate-100 border-l-[10px] md:border-l-[14px] ${accentClass} shadow-2xl shadow-indigo-100/30 transition-all hover:scale-[1.005] group relative overflow-hidden backdrop-blur-sm bg-white/95`}>
-                        <div className="blue-orb absolute -right-20 -top-20 w-40 h-40 bg-indigo-50 rounded-full blur-3xl opacity-0 group-hover:opacity-60 transition-opacity duration-700" />
-                        
-                        <div className="flex flex-col md:flex-row justify-between gap-6 mb-8 pb-8 border-b border-slate-100/60">
-                            <div className="space-y-4">
-                                <div className="flex flex-wrap items-center gap-2.5">
-                                    <PriorityBadge priority={a.priority} config={priorityConfig} />
-                                    <StatusBadge status={a.status} config={statusConfig} />
-                                    <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-300 uppercase tracking-widest bg-slate-50/50 px-3 py-1 rounded-full border border-slate-100">
-                                        <History size={10} className="text-slate-200" /> ID: {a.id}
+                        <div key={a.id} className={`p-6 md:p-8 border-b border-slate-50 border-l-[8px] md:border-l-[12px] ${accentClass} ${isEven ? 'bg-white' : 'bg-slate-50/50'} hover:bg-indigo-50/30 transition-all group relative`}>
+                            <div className="flex flex-col md:flex-row justify-between gap-6">
+                                <div className="space-y-3 flex-1 min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <PriorityBadge priority={a.priority} config={priorityConfig} />
+                                        <StatusBadge status={a.status} config={statusConfig} />
+                                        <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest bg-white/50 px-2 py-0.5 rounded-full border border-slate-100">ID: {a.id}</span>
+                                    </div>
+                                    <h3 className="text-lg md:text-xl font-black text-slate-900 italic uppercase leading-tight tracking-tight group-hover:text-indigo-600 transition-colors">{a.title}</h3>
+                                    
+                                    <div className="flex flex-wrap items-center gap-4">
+                                        <div className="flex items-center gap-2">
+                                            <Users size={14} className="text-indigo-400" />
+                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{a.assignee?.name || a.assignee?.username}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-slate-400">
+                                            <MapPin size={14} />
+                                            <span className="text-[10px] font-bold uppercase tracking-widest">{a.location || 'SARPRAS ZONE'}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="pt-4 max-w-2xl">
+                                        <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-3 flex items-center gap-2 italic">📌 Deskripsi & Checklist</h4>
+                                        <div className="bg-white/40 p-4 rounded-2xl border border-slate-100/50 text-xs text-slate-600 italic leading-relaxed mb-4">
+                                            {a.description || 'Tidak ada deskripsi tambahan.'}
+                                        </div>
+                                        
+                                        <div className="space-y-3">
+                                            {(Array.isArray(a.items) ? a.items : []).map((item, iIdx) => (
+                                                <SubTaskItem 
+                                                    key={iIdx} 
+                                                    item={item} 
+                                                    idx={iIdx} 
+                                                    progressVal={item.percentage || 0}
+                                                    isDone={item.isDone}
+                                                    isAssignee={isAssigneeFor(a)}
+                                                    canAssign={canAssign}
+                                                    toggleItemStatus={() => toggleItemStatus(a.id, iIdx)}
+                                                    updateItemProgress={(i, v) => updateItemProgress(a.id, i, v)}
+                                                    appendItemNote={(i, n) => appendItemNote(a.id, i, n)}
+                                                />
+                                            ))}
+
+                                            {(isAssigneeFor(a) || canAssign) && (
+                                                <div className="flex gap-2 p-3 bg-white/60 rounded-xl border border-dashed border-slate-200 mt-4">
+                                                    <input 
+                                                        type="text" 
+                                                        value={newItemTexts[a.id] || ''}
+                                                        onChange={(e) => setNewItemTexts({...newItemTexts, [a.id]: e.target.value})}
+                                                        placeholder="Tambah tahapan pekerjaan..."
+                                                        className="flex-1 bg-transparent border-none text-[10px] font-bold text-slate-700 outline-none placeholder:text-slate-300"
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter' && newItemTexts[a.id]) {
+                                                                addNewTaskItem(a.id, newItemTexts[a.id]);
+                                                                setNewItemTexts({...newItemTexts, [a.id]: ''});
+                                                            }
+                                                        }}
+                                                    />
+                                                    <button 
+                                                        onClick={() => {
+                                                            addNewTaskItem(a.id, newItemTexts[a.id]);
+                                                            setNewItemTexts({...newItemTexts, [a.id]: ''});
+                                                        }}
+                                                        disabled={!newItemTexts[a.id]?.trim()}
+                                                        className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black rounded-lg hover:bg-indigo-700 transition-all uppercase tracking-widest disabled:opacity-30"
+                                                    >
+                                                        TAMBAH
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                                <h3 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-tight uppercase italic group-hover:text-indigo-600 transition-colors">{a.title}</h3>
-                                <div className="flex flex-wrap items-center gap-5">
-                                    <div className="flex items-center gap-2">
-                                        <Users size={14} className="text-indigo-400" />
-                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{a.assignee?.name || a.assignee?.username}</span>
+
+                                <div className="flex flex-col items-center md:items-end gap-3 self-start">
+                                    <div className="relative w-16 h-16 md:w-20 md:h-20 flex items-center justify-center bg-white rounded-full shadow-sm border border-slate-100">
+                                        <svg className="w-full h-full -rotate-90">
+                                            <circle cx="40" cy="40" r="34" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-slate-50" />
+                                            <circle cx="40" cy="40" r="34" stroke="currentColor" strokeWidth="6" fill="transparent" strokeDasharray={213.5} strokeDashoffset={213.5 - (213.5 * a.progressPercentage) / 100} className="text-indigo-600 transition-all duration-1000 stroke-linecap-round" />
+                                        </svg>
+                                        <span className="absolute text-sm md:text-base font-black text-slate-900 italic tracking-tighter">{a.progressPercentage}%</span>
                                     </div>
-                                    <div className="flex items-center gap-2 text-slate-400">
-                                        <MapPin size={14} />
-                                        <span className="text-[10px] font-bold uppercase tracking-widest">{a.location || 'SARPRAS ZONE'}</span>
-                                    </div>
+                                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Penyelesaian</p>
                                 </div>
-                            </div>
-                            <div className="flex flex-col items-center md:items-end gap-3 px-4 py-3 bg-slate-50/50 rounded-3xl border border-slate-100">
-                                <div className="relative w-16 h-16 md:w-20 md:h-20 flex items-center justify-center">
-                                    <svg className="w-full h-full -rotate-90">
-                                        <circle cx="48" cy="48" r="42" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-slate-100" />
-                                        <circle cx="48" cy="48" r="42" stroke="currentColor" strokeWidth="6" fill="transparent" strokeDasharray={263.8} strokeDashoffset={263.8 - (263.8 * a.progressPercentage) / 100} className="text-indigo-600 transition-all duration-1000 stroke-linecap-round shadow-lg" />
-                                    </svg>
-                                    <span className="absolute text-base md:text-xl font-black text-slate-900 tracking-tighter italic">{a.progressPercentage}%</span>
-                                </div>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">PROGRES KERJA</p>
                             </div>
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                            <div className="space-y-6">
-                                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
-                                    <AlertCircle size={16} /> Deskripsi Tugas
-                                </h4>
-                                <div className="bg-slate-50/50 p-6 rounded-[32px] border border-slate-100 italic text-sm text-slate-600 leading-relaxed min-h-[120px]">
-                                    {a.description || 'Tidak ada deskripsi tambahan.'}
-                                </div>
-                            </div>
-                            <div className="space-y-6">
-                                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
-                                    <ListChecks size={16} /> Checklist & Output
-                                </h4>
-                                <div className="space-y-4">
-                                    {(Array.isArray(a.items) ? a.items : []).map((item, idx) => (
-                                        <SubTaskItem 
-                                            key={idx} 
-                                            item={item} 
-                                            idx={idx} 
-                                            progressVal={item.percentage || 0}
-                                            isDone={item.isDone}
-                                            isAssignee={isAssigneeFor(a)}
-                                            canAssign={canAssign}
-                                            toggleItemStatus={() => toggleItemStatus(a.id, idx)}
-                                            updateItemProgress={(i, v) => updateItemProgress(a.id, i, v)}
-                                            appendItemNote={(i, n) => appendItemNote(a.id, i, n)}
-                                        />
-                                    ))}
-
-                                    {(isAssigneeFor(a) || canAssign) && (
-                                        <div className="flex gap-2 mt-6 p-4 bg-white rounded-2xl border border-dashed border-indigo-200">
-                                            <input 
-                                                type="text" 
-                                                value={newItemTexts[a.id] || ''}
-                                                onChange={(e) => setNewItemTexts({...newItemTexts, [a.id]: e.target.value})}
-                                                placeholder="Tambah tahapan pekerjaan baru..."
-                                                className="flex-1 bg-transparent border-none text-xs font-bold text-slate-700 outline-none placeholder:text-slate-300"
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' && newItemTexts[a.id]) {
-                                                        addNewTaskItem(a.id, newItemTexts[a.id]);
-                                                        setNewItemTexts({...newItemTexts, [a.id]: ''});
-                                                    }
-                                                }}
-                                            />
-                                            <button 
-                                                onClick={() => {
-                                                    addNewTaskItem(a.id, newItemTexts[a.id]);
-                                                    setNewItemTexts({...newItemTexts, [a.id]: ''});
-                                                }}
-                                                disabled={!newItemTexts[a.id]?.trim()}
-                                                className="px-4 py-1.5 bg-indigo-600 text-white text-[10px] font-black rounded-xl hover:bg-indigo-700 transition-all font-inter"
-                                            >
-                                                TAMBAH TAHAP
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                                </div>
-                            </div>
-                        );
-                    })
-                )}
+                    );
+                })
+            )}
         </div>
     );
 };
