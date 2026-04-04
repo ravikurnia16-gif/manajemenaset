@@ -162,7 +162,8 @@ const StaffPerformance = () => {
     const [filterPeriod, setFilterPeriod] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
-    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role);
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) || 
+                    (user.position?.toLowerCase().includes('kepala bidang') && user.unit?.name?.toLowerCase().includes('sarana dan prasarana'));
 
     // Form State (Consolidated)
     const [form, setForm] = useState({
