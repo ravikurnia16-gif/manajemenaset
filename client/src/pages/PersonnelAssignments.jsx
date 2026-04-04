@@ -486,6 +486,7 @@ const PersonnelAssignments = () => {
     const [updating, setUpdating] = useState(null); // id of assignment being updated
     const [limit, setLimit] = useState(25);
     const [filterStatus, setFilterStatus] = useState('ALL');
+    const [filterStaff, setFilterStaff] = useState('ALL');
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const canAssign = ['KEPALA_BIDANG', 'ADMIN_UNIT', 'SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user.role);
@@ -629,10 +630,60 @@ const PersonnelAssignments = () => {
         }
     };
 
-    const filteredAssignments = assignments.filter(a => filterStatus === 'ALL' || a.status === filterStatus);
+    const filteredAssignments = assignments.filter(a => {
+        const matchStatus = filterStatus === 'ALL' || a.status === filterStatus;
+        const matchStaff = filterStaff === 'ALL' || a.assigneeId === parseInt(filterStaff);
+        return matchStatus && matchStaff;
+    });
+
+    const staffAssignmentsForStats = assignments.filter(a => filterStaff === 'ALL' || a.assigneeId === parseInt(filterStaff));
+    const stats = {
+        total: staffAssignmentsForStats.length,
+        pending: staffAssignmentsForStats.filter(a => a.status === 'PENDING').length,
+        inProgress: staffAssignmentsForStats.filter(a => a.status === 'IN_PROGRESS').length,
+        completed: staffAssignmentsForStats.filter(a => a.status === 'COMPLETED').length,
+    };
 
     return (
         <div className="max-w-7xl mx-auto space-y-6 p-4 animate-in fade-in duration-700">
+             {/* Stats Cards Section */}
+             {user.role === 'SUPER_ADMIN' && !showForm && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-slate-900 text-white p-6 rounded-[32px] border border-slate-800 shadow-xl relative overflow-hidden group hover:scale-[1.02] transition-all">
+                        <div className="absolute right-[-10%] top-[-20%] w-32 h-32 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-colors" />
+                        <p className="text-[10px] font-black tracking-widest text-slate-400 uppercase">Total Tugas</p>
+                        <h3 className="text-3xl font-black mt-2 tracking-tighter">{stats.total}</h3>
+                        <p className="text-[9px] text-slate-500 font-medium mt-1">Seluruh penugasan</p>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm relative overflow-hidden group hover:scale-[1.02] transition-all">
+                        <div className="absolute right-[-10%] top-[-20%] w-32 h-32 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-colors" />
+                        <p className="text-[10px] font-black tracking-widest text-amber-500 uppercase">Menunggu</p>
+                        <h3 className="text-3xl font-black mt-2 tracking-tighter text-slate-900">{stats.pending}</h3>
+                        <div className="flex items-center gap-1 mt-1 text-[9px] text-slate-400 font-medium italic">
+                            <Clock size={8} /> Belum dikerjakan
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm relative overflow-hidden group hover:scale-[1.02] transition-all">
+                        <div className="absolute right-[-10%] top-[-20%] w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/10 transition-colors" />
+                        <p className="text-[10px] font-black tracking-widest text-indigo-500 uppercase">Proses</p>
+                        <h3 className="text-3xl font-black mt-2 tracking-tighter text-slate-900">{stats.inProgress}</h3>
+                        <div className="flex items-center gap-1 mt-1 text-[9px] text-slate-400 font-medium italic">
+                            <Zap size={8} className="fill-indigo-500 text-indigo-500" /> Sedang dilaksanakan
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm relative overflow-hidden group hover:scale-[1.02] transition-all">
+                        <div className="absolute right-[-10%] top-[-20%] w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors" />
+                        <p className="text-[10px] font-black tracking-widest text-emerald-500 uppercase">Selesai</p>
+                        <h3 className="text-3xl font-black mt-2 tracking-tighter text-slate-900">{stats.completed}</h3>
+                        <div className="flex items-center gap-1 mt-1 text-[9px] text-slate-400 font-medium italic">
+                            <CheckCircle2 size={8} className="text-emerald-500" /> Tugas rampung
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 md:p-8 rounded-[24px] border border-slate-100 shadow-sm relative overflow-hidden backdrop-blur-xl bg-white/80">
                 <div className="relative z-10">
@@ -746,16 +797,37 @@ const PersonnelAssignments = () => {
             {/* Filter Hub */}
             {!showForm && (
                 <div className="flex flex-wrap items-center justify-between gap-4 bg-white/50 backdrop-blur-sm p-3 rounded-2xl border border-slate-100">
-                    <div className="flex gap-1 overflow-x-auto pb-2 md:pb-0 scrollbar-hide bg-slate-100/50 p-1 rounded-xl w-full md:w-auto">
-                        {['ALL', 'PENDING', 'IN_PROGRESS', 'COMPLETED'].map((s) => (
-                            <button
-                                key={s}
-                                onClick={() => setFilterStatus(s)}
-                                className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest transition-all whitespace-nowrap ${filterStatus === s ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                            >
-                                {s === 'ALL' ? 'SEMUA' : statusConfig[s].label}
-                            </button>
-                        ))}
+                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                        <div className="flex gap-1 overflow-x-auto pb-2 md:pb-0 scrollbar-hide bg-slate-100/50 p-1 rounded-xl">
+                            {['ALL', 'PENDING', 'IN_PROGRESS', 'COMPLETED'].map((s) => (
+                                <button
+                                    key={s}
+                                    onClick={() => setFilterStatus(s)}
+                                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-widest transition-all whitespace-nowrap ${filterStatus === s ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    {s === 'ALL' ? 'SEMUA' : statusConfig[s].label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Staff Filter (Super Admin Only) */}
+                        {user.role === 'SUPER_ADMIN' && (
+                            <div className="flex items-center gap-2 bg-slate-100/50 p-1 rounded-xl border border-slate-100">
+                                <div className="pl-3 text-slate-400">
+                                    <User size={14} />
+                                </div>
+                                <select 
+                                    value={filterStaff} 
+                                    onChange={(e) => setFilterStaff(e.target.value)}
+                                    className="bg-transparent border-none text-[10px] font-black tracking-widest text-slate-600 focus:ring-0 cursor-pointer pr-8 py-1.5"
+                                >
+                                    <option value="ALL">SEMUA STAF</option>
+                                    {staff.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name.toUpperCase()}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
