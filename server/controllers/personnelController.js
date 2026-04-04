@@ -422,12 +422,10 @@ exports.getStaffSarpras = async (req, res) => {
                 OR: [
                     { position: { contains: 'Sarana dan Prasarana' } },
                     { position: { contains: 'Manajemen Aset' } },
-                    { position: { contains: 'Staff Gudang dan Logistik' } },
-                    { position: { contains: 'Staff Kendaraan' } },
-                    { position: { contains: 'Teknisi Aset' } },
+                    { position: { contains: 'Gudang dan Logistik' } },
+                    { position: { contains: 'Teknisi' } },
                     { position: { contains: 'Keuangan dan Administrasi' } }
-                ],
-                NOT: { position: { contains: 'Keuangan' } }
+                ]
             },
             orderBy: { name: 'asc' },
             select: { id: true, name: true, position: true }
@@ -554,12 +552,10 @@ exports.getPersonnelDashboard = async (req, res) => {
                     OR: [
                         { position: { contains: 'Sarana dan Prasarana' } },
                         { position: { contains: 'Manajemen Aset' } },
-                        { position: { contains: 'Gudang' } },
-                        { position: { contains: 'Kendaraan' } },
+                        { position: { contains: 'Gudang dan Logistik' } },
                         { position: { contains: 'Teknisi' } },
-                        { position: { contains: 'Sopir' } }
-                    ],
-                    NOT: { position: { contains: 'Keuangan' } }
+                        { position: { contains: 'Keuangan dan Administrasi' } }
+                    ]
                 },
                 take: 20
             });
@@ -983,23 +979,15 @@ exports.getKPILeaderboard = async (req, res) => {
         const startDate = new Date(targetYear, targetMonth - 1, 1);
         const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
 
-        // Get all staff from Sarpras
+        // Get all staff from Sarpras (Exact 5 Categories)
         const staff = await prisma.user.findMany({
             where: {
                 OR: [
                     { position: { contains: 'Sarana dan Prasarana' } },
                     { position: { contains: 'Manajemen Aset' } },
-                    { position: { contains: 'Gudang' } },
-                    { position: { contains: 'Kendaraan' } },
+                    { position: { contains: 'Gudang dan Logistik' } },
                     { position: { contains: 'Teknisi' } },
-                    { position: { contains: 'Sopir' } },
-                    { position: { contains: 'Driver' } },
-                    { position: { contains: 'Lantai' } },
-                    { position: { contains: 'Kebersihan' } }
-                ],
-                NOT: [
-                    { position: { contains: 'Keuangan' } },
-                    { name: { contains: 'Harta' } } // Optional name-based filter if needed
+                    { position: { contains: 'Keuangan dan Administrasi' } }
                 ]
             },
             select: { id: true, name: true, position: true, unitId: true }
