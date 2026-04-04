@@ -288,7 +288,7 @@ const StaffPerformance = () => {
     };
 
     const importFromAssignments = () => {
-        const activeAssignments = assignments.filter(a => a.status === 'IN_PROGRESS' || a.status === 'PENDING');
+        const activeAssignments = assignments.filter(a => a.assigneeId === user.id && (a.status === 'IN_PROGRESS' || a.status === 'PENDING'));
         if (activeAssignments.length === 0) return alert('Tidak ada penugasan aktif yang ditemukan.');
         
         const newItems = activeAssignments.map(a => ({
