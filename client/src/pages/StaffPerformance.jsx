@@ -929,8 +929,17 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
                     <p className="text-sm font-black text-slate-400 uppercase tracking-[0.4em]">Belum ada penugasan aktif</p>
                 </div>
             ) : (
-                assignments.map(a => (
-                    <div key={a.id} className="bg-white rounded-[48px] p-8 md:p-12 border border-slate-50 shadow-xl shadow-slate-100 group transition-all hover:border-indigo-100">
+                assignments.map(a => {
+                    const statusColors = {
+                        'PENDING': 'border-l-amber-500 shadow-amber-100/50',
+                        'IN_PROGRESS': 'border-l-indigo-600 shadow-indigo-100/50',
+                        'COMPLETED': 'border-l-emerald-500 shadow-emerald-100/50',
+                        'OVERDUE': 'border-l-rose-500 shadow-rose-100/50'
+                    };
+                    const accentClass = statusColors[a.status] || 'border-l-slate-200';
+
+                    return (
+                        <div key={a.id} className={`bg-white rounded-[48px] p-8 md:p-12 border border-slate-50 border-l-[16px] ${accentClass} shadow-2xl transition-all hover:scale-[1.01] group`}>
                         <div className="flex flex-col md:flex-row justify-between gap-8 mb-10 pb-8 border-b border-slate-50">
                             <div className="space-y-4">
                                 <div className="flex flex-wrap items-center gap-3">
@@ -1020,10 +1029,11 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
                                     )}
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                ))
-            )}
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
         </div>
     );
 };
