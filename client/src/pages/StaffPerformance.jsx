@@ -454,12 +454,12 @@ const StaffPerformance = () => {
                             </div>
                         </div>
                         
-                        <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-[24px] border border-slate-200/50">
+                        <div className="flex items-center gap-2 md:gap-3 bg-slate-50 p-1.5 md:p-2 rounded-[20px] md:rounded-[24px] border border-slate-200/50 overflow-x-auto no-scrollbar max-w-full">
                             {['RENCANA', 'LAPORAN', 'PENUGASAN', 'KPI'].filter(t => t !== 'KPI' || user.role === 'SUPER_ADMIN').map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => { setActiveTab(tab); setShowForm(false); }}
-                                    className={`px-6 py-2.5 rounded-2xl text-[10px] font-black tracking-widest transition-all ${activeTab === tab ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-100/50 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+                                    className={`px-4 md:px-6 py-2 md:py-2.5 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black tracking-widest transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-100/50 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
                                 >
                                     {tab === 'RENCANA' ? 'RENCANA KERJA' : tab === 'LAPORAN' ? 'LAPORAN HARIAN' : tab === 'PENUGASAN' ? 'PENUGASAN' : 'NILAI & KPI'}
                                 </button>
@@ -472,13 +472,13 @@ const StaffPerformance = () => {
                 <div className="space-y-6">
                     {/* Filter & Action Row */}
                     {!showForm && (
-                        <div className="flex flex-wrap items-center justify-between gap-6 bg-white/50 backdrop-blur-xl p-4 rounded-[32px] border border-slate-200/40 shadow-sm">
-                            <div className="flex items-center gap-4 flex-1">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/50 backdrop-blur-xl p-3 md:p-4 rounded-[28px] md:rounded-[32px] border border-slate-200/40 shadow-sm overflow-x-auto no-scrollbar">
+                            <div className="flex items-center gap-3 md:gap-4 flex-nowrap md:flex-1">
                                 {isAdmin && (
-                                    <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-slate-100 shadow-sm min-w-[240px]">
-                                        <Users size={16} className="text-indigo-400" />
+                                    <div className="flex items-center gap-2 bg-white px-3 md:px-4 py-2 md:py-2.5 rounded-xl md:rounded-2xl border border-slate-100 shadow-sm min-w-[180px] md:min-w-[240px] shrink-0">
+                                        <Users size={14} className="text-indigo-400" />
                                         <select 
-                                            className="bg-transparent border-none text-[11px] font-black text-slate-600 focus:ring-0 w-full cursor-pointer uppercase tracking-wider"
+                                            className="bg-transparent border-none text-[10px] md:text-[11px] font-black text-slate-600 focus:ring-0 w-full cursor-pointer uppercase tracking-wider"
                                             value={filterStaff}
                                             onChange={(e) => setFilterStaff(e.target.value)}
                                         >
@@ -488,16 +488,16 @@ const StaffPerformance = () => {
                                     </div>
                                 )}
                                 {activeTab === 'PENUGASAN' && (
-                                    <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-slate-100 shadow-sm">
-                                        <Tag size={16} className="text-emerald-400" />
+                                    <div className="flex items-center gap-2 bg-white px-3 md:px-4 py-2 md:py-2.5 rounded-xl md:rounded-2xl border border-slate-100 shadow-sm shrink-0">
+                                        <Tag size={14} className="text-emerald-400" />
                                         <select 
-                                            className="bg-transparent border-none text-[11px] font-black text-slate-600 focus:ring-0 cursor-pointer uppercase tracking-wider"
+                                            className="bg-transparent border-none text-[10px] md:text-[11px] font-black text-slate-600 focus:ring-0 cursor-pointer uppercase tracking-wider"
                                             value={filterStatus}
                                             onChange={(e) => setFilterStatus(e.target.value)}
                                         >
                                             <option value="ALL">SEMUA STATUS</option>
                                             <option value="PENDING">MENUNGGU</option>
-                                            <option value="IN_PROGRESS">DALAM PROSES</option>
+                                            <option value="IN_PROGRESS">PROSES</option>
                                             <option value="COMPLETED">SELESAI</option>
                                         </select>
                                     </div>
@@ -525,9 +525,9 @@ const StaffPerformance = () => {
                             {(activeTab !== 'KPI' && (activeTab !== 'PENUGASAN' || user.role === 'SUPER_ADMIN')) && (
                                 <button 
                                     onClick={() => { resetForm(); setShowForm(true); }}
-                                    className="bg-slate-900 text-white px-8 py-3.5 rounded-2xl text-[11px] font-black tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-95 flex items-center gap-2"
+                                    className="bg-slate-900 text-white px-6 md:px-8 py-3 md:py-3.5 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-black tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-95 flex items-center justify-center gap-2 shrink-0"
                                 >
-                                    <Plus size={16} strokeWidth={3} /> 
+                                    <Plus size={14} md:size={16} strokeWidth={3} /> 
                                     {activeTab === 'RENCANA' ? 'BUAT RENCANA' : activeTab === 'LAPORAN' ? 'BUAT LAPORAN' : 'TAMBAH TUGAS'}
                                 </button>
                             )}
@@ -735,15 +735,37 @@ const StaffPerformance = () => {
                                     {activeTab === 'KPI' && user.role === 'SUPER_ADMIN' ? (
                                         <KPITab leaderboard={leaderboard} />
                                     ) : activeTab === 'PENUGASAN' ? (
-                                        <AssignmentTab 
-                                            assignments={assignments} 
-                                            statusConfig={statusConfig} 
-                                            priorityConfig={priorityConfig}
-                                            handleUpdate={handleUpdateAssignment}
-                                            userId={user.id}
-                                            isAdmin={isAdmin}
-                                            fetchData={fetchAssignments}
-                                        />
+                                        <div className="space-y-6">
+                                            {/* Summary Stats Row */}
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-sm flex flex-col gap-1 items-center justify-center text-center">
+                                                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Total Tugas</p>
+                                                    <p className="text-xl font-black text-slate-900 tracking-tighter">{assignments.length}</p>
+                                                </div>
+                                                <div className="bg-amber-50 p-4 rounded-[24px] border border-amber-100 shadow-sm flex flex-col gap-1 items-center justify-center text-center">
+                                                    <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Menunggu</p>
+                                                    <p className="text-xl font-black text-amber-600 tracking-tighter">{assignments.filter(a => a.status === 'PENDING').length}</p>
+                                                </div>
+                                                <div className="bg-indigo-50 p-4 rounded-[24px] border border-indigo-100 shadow-sm flex flex-col gap-1 items-center justify-center text-center">
+                                                    <p className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Proses</p>
+                                                    <p className="text-xl font-black text-indigo-600 tracking-tighter">{assignments.filter(a => a.status === 'IN_PROGRESS').length}</p>
+                                                </div>
+                                                <div className="bg-emerald-50 p-4 rounded-[24px] border border-emerald-100 shadow-sm flex flex-col gap-1 items-center justify-center text-center">
+                                                    <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Selesai</p>
+                                                    <p className="text-xl font-black text-emerald-600 tracking-tighter">{assignments.filter(a => a.status === 'COMPLETED').length}</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <AssignmentTab 
+                                                assignments={assignments} 
+                                                statusConfig={statusConfig} 
+                                                priorityConfig={priorityConfig}
+                                                handleUpdate={handleUpdateAssignment}
+                                                userId={user.id}
+                                                isAdmin={isAdmin}
+                                                fetchData={fetchAssignments}
+                                            />
+                                        </div>
                                     ) : (
                                         <ReportTab 
                                             reports={reports} 
@@ -774,6 +796,13 @@ const StaffPerformance = () => {
                     border-color: #6366F1;
                     background-color: #FFFFFF;
                     box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+                }
+                .no-scrollbar::-webkit-scrollbar {
+                    display: none;
+                }
+                .no-scrollbar {
+                    -ms-overflow-style: none;  /* IE and Edge */
+                    scrollbar-width: none;  /* Firefox */
                 }
             `}} />
         </div>
@@ -939,16 +968,16 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
                     const accentClass = statusColors[a.status] || 'border-l-slate-200';
 
                     return (
-                        <div key={a.id} className={`bg-white rounded-[48px] p-8 md:p-12 border border-slate-50 border-l-[16px] ${accentClass} shadow-2xl transition-all hover:scale-[1.01] group`}>
-                        <div className="flex flex-col md:flex-row justify-between gap-8 mb-10 pb-8 border-b border-slate-50">
-                            <div className="space-y-4">
-                                <div className="flex flex-wrap items-center gap-3">
+                        <div key={a.id} className={`bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-8 border border-slate-50 border-l-[12px] md:border-l-[16px] ${accentClass} shadow-xl transition-all hover:scale-[1.01] group`}>
+                        <div className="flex flex-col md:flex-row justify-between gap-6 mb-8 pb-6 border-b border-slate-50">
+                            <div className="space-y-3">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <PriorityBadge priority={a.priority} config={priorityConfig} />
                                     <StatusBadge status={a.status} config={statusConfig} />
-                                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em] bg-slate-50 px-3 py-1 rounded-full border border-slate-100">ID: {a.id}</span>
+                                    <span className="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">ID: {a.id}</span>
                                 </div>
-                                <h3 className="text-3xl font-black text-slate-900 italic uppercase leading-tight tracking-tighter">{a.title}</h3>
-                                <div className="flex flex-wrap items-center gap-6">
+                                <h3 className="text-lg md:text-xl font-black text-slate-900 italic uppercase leading-tight tracking-tighter">{a.title}</h3>
+                                <div className="flex flex-wrap items-center gap-4">
                                     <div className="flex items-center gap-2">
                                         <Users size={14} className="text-indigo-400" />
                                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{a.assignee?.name || a.assignee?.username}</span>
@@ -959,15 +988,15 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-end gap-3">
-                                <div className="relative w-24 h-24 flex items-center justify-center">
+                            <div className="flex flex-col items-end gap-2">
+                                <div className="relative w-16 h-16 md:w-20 md:h-20 flex items-center justify-center">
                                     <svg className="w-full h-full -rotate-90">
                                         <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-50" />
                                         <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={251.2} strokeDashoffset={251.2 - (251.2 * a.progressPercentage) / 100} className="text-indigo-500 transition-all duration-1000 stroke-linecap-round" />
                                     </svg>
-                                    <span className="absolute text-xl font-black text-slate-900 tracking-tighter">{a.progressPercentage}%</span>
+                                    <span className="absolute text-sm md:text-base font-black text-slate-900 tracking-tighter">{a.progressPercentage}%</span>
                                 </div>
-                                <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mr-2">CAPAIAN TUGAS</p>
+                                <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mr-2">PROGRES</p>
                             </div>
                         </div>
 
@@ -1047,20 +1076,20 @@ const ReportTab = ({ reports, type }) => (
             </div>
         ) : (
             reports.map(r => (
-                <div key={r.id} className="group bg-white rounded-[40px] p-8 md:p-10 border border-slate-50 shadow-xl shadow-slate-100 hover:border-indigo-100 transition-all relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-2 h-full bg-indigo-500 transform translate-x-2 group-hover:translate-x-0 transition-transform" />
-                    <div className="flex flex-col md:flex-row justify-between gap-8 relative z-10">
-                        <div className="flex gap-6">
-                            <div className="w-16 h-16 rounded-[24px] bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-2xl shadow-inner group-hover:scale-110 transition-transform">
+                <div key={r.id} className="group bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-8 border border-slate-50 shadow-xl shadow-slate-100 hover:border-indigo-100 transition-all relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-1.5 h-full bg-indigo-500 transform translate-x-1.5 group-hover:translate-x-0 transition-transform" />
+                    <div className="flex flex-col md:flex-row justify-between gap-6 relative z-10">
+                        <div className="flex gap-4 md:gap-6">
+                            <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-[24px] bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-xl md:text-2xl shadow-inner group-hover:scale-110 transition-transform">
                                 {(r.user?.name || r.user?.username || 'S')[0].toUpperCase()}
                             </div>
                             <div>
-                                <div className="flex flex-wrap items-center gap-3 mb-2">
-                                    <span className="px-3 py-1 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest rounded-full">{r.category}</span>
-                                    <span className="text-[10px] font-black text-slate-300">#{r.id.toString().padStart(5, '0')}</span>
+                                <div className="flex flex-wrap items-center gap-2 mb-1 md:mb-2">
+                                    <span className="px-2 py-0.5 bg-slate-900 text-white text-[8px] font-black uppercase tracking-widest rounded-full">{r.category}</span>
+                                    <span className="text-[9px] font-black text-slate-300">#{r.id.toString().padStart(5, '0')}</span>
                                 </div>
-                                <h4 className="text-2xl font-black text-slate-900 italic uppercase italic tracking-tighter leading-tight">{r.user?.name || r.user?.username}</h4>
-                                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mt-1 flex items-center gap-2">
+                                <h4 className="text-lg md:text-xl font-black text-slate-900 italic uppercase italic tracking-tighter leading-tight">{r.user?.name || r.user?.username}</h4>
+                                <p className="text-[9px] font-black text-indigo-500 uppercase tracking-widest mt-1 flex items-center gap-2">
                                     <Calendar size={12} strokeWidth={3} /> {new Date(r.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                                 </p>
                             </div>
