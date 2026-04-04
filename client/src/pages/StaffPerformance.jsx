@@ -899,6 +899,15 @@ const KPITab = ({ leaderboard }) => (
 );
 
 const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate, userId, isAdmin, fetchData }) => {
+    const [newItemTexts, setNewItemTexts] = useState({});
+    const [expandedIds, setExpandedIds] = useState([]);
+
+    const toggleExpand = (id) => {
+        setExpandedIds(prev => 
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAssigneeFor = (a) => a.assigneeId === userId;
     const canAssign = user.role === 'SUPER_ADMIN';
@@ -956,10 +965,28 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
         });
     };
 
-    const [newItemTexts, setNewItemTexts] = useState({});
-
     return (
         <div className="bg-white rounded-[24px] md:rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
+            {!isAdmin && (
+                <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 md:px-8 py-3 bg-slate-50/80 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                    <div className="md:col-span-6 flex gap-4">
+                        <div className="w-8 shrink-0" />
+                        <span>Detail Tugas & Lokasi</span>
+                    </div>
+                    <div className="md:col-span-4 text-right">Target Penyelesaian</div>
+                    <div className="md:col-span-2 text-right">Status</div>
+                </div>
+            )}
+            {isAdmin && (
+                <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 md:px-8 py-3 bg-slate-50/80 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                    <div className="md:col-span-6 flex gap-4">
+                        <div className="w-8 shrink-0" />
+                        <span>Monitoring Penugasan</span>
+                    </div>
+                    <div className="md:col-span-4 text-center">Pelaksana & Deadline</div>
+                    <div className="md:col-span-2 text-right">Status Kerja</div>
+                </div>
+            )}
             {assignments.length === 0 ? (
                 <div className="py-24 text-center opacity-40">
                     <ClipboardCheck size={48} className="mx-auto text-slate-200 mb-4" />
@@ -975,93 +1002,113 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
                     };
                     const accentClass = statusColors[a.status] || 'border-l-slate-200';
                     const isEven = idx % 2 === 0;
+                    const isExpanded = expandedIds.includes(a.id);
 
                     return (
-                        <div key={a.id} className={`p-6 md:p-8 border-b border-slate-50 border-l-[8px] md:border-l-[12px] ${accentClass} ${isEven ? 'bg-white' : 'bg-slate-50/50'} hover:bg-indigo-50/30 transition-all group relative`}>
-                            <div className="flex flex-col md:flex-row justify-between gap-6">
-                                <div className="space-y-3 flex-1 min-w-0">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <PriorityBadge priority={a.priority} config={priorityConfig} />
-                                        <StatusBadge status={a.status} config={statusConfig} />
-                                        <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest bg-white/50 px-2 py-0.5 rounded-full border border-slate-100">ID: {a.id}</span>
-                                    </div>
-                                    <h3 className="text-lg md:text-xl font-black text-slate-900 italic uppercase leading-tight tracking-tight group-hover:text-indigo-600 transition-colors">{a.title}</h3>
-                                    
-                                    <div className="flex flex-wrap items-center gap-4">
-                                        <div className="flex items-center gap-2">
-                                            <Users size={14} className="text-indigo-400" />
-                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{a.assignee?.name || a.assignee?.username}</span>
+                        <div key={a.id} className={`border-b border-slate-50 border-l-[8px] md:border-l-[12px] ${accentClass} ${isEven ? 'bg-white' : 'bg-slate-50/50'} hover:bg-indigo-50/30 transition-all group relative`}>
+                            <div className="p-4 md:p-6 flex flex-col md:flex-row justify-between gap-4 items-center">
+                                <div className="flex items-center gap-4 flex-1 min-w-0 w-full md:w-auto">
+                                    <button 
+                                        onClick={() => toggleExpand(a.id)}
+                                        className={`p-2 rounded-xl transition-all ${isExpanded ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600'}`}
+                                    >
+                                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                                    </button>
+                                    <div className="space-y-1 flex-1 min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <PriorityBadge priority={a.priority} config={priorityConfig} />
+                                            <StatusBadge status={a.status} config={statusConfig} />
+                                            <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest bg-white/50 px-2 py-0.5 rounded-full border border-slate-100">ID: {a.id}</span>
                                         </div>
-                                        <div className="flex items-center gap-2 text-slate-400">
-                                            <MapPin size={14} />
-                                            <span className="text-[10px] font-bold uppercase tracking-widest">{a.location || 'SARPRAS ZONE'}</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="pt-4 max-w-2xl">
-                                        <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-3 flex items-center gap-2 italic">📌 Deskripsi & Checklist</h4>
-                                        <div className="bg-white/40 p-4 rounded-2xl border border-slate-100/50 text-xs text-slate-600 italic leading-relaxed mb-4">
-                                            {a.description || 'Tidak ada deskripsi tambahan.'}
-                                        </div>
-                                        
-                                        <div className="space-y-3">
-                                            {(Array.isArray(a.items) ? a.items : []).map((item, iIdx) => (
-                                                <SubTaskItem 
-                                                    key={iIdx} 
-                                                    item={item} 
-                                                    idx={iIdx} 
-                                                    progressVal={item.percentage || 0}
-                                                    isDone={item.isDone}
-                                                    isAssignee={isAssigneeFor(a)}
-                                                    canAssign={canAssign}
-                                                    toggleItemStatus={() => toggleItemStatus(a.id, iIdx)}
-                                                    updateItemProgress={(i, v) => updateItemProgress(a.id, i, v)}
-                                                    appendItemNote={(i, n) => appendItemNote(a.id, i, n)}
-                                                />
-                                            ))}
-
-                                            {(isAssigneeFor(a) || canAssign) && (
-                                                <div className="flex gap-2 p-3 bg-white/60 rounded-xl border border-dashed border-slate-200 mt-4">
-                                                    <input 
-                                                        type="text" 
-                                                        value={newItemTexts[a.id] || ''}
-                                                        onChange={(e) => setNewItemTexts({...newItemTexts, [a.id]: e.target.value})}
-                                                        placeholder="Tambah tahapan pekerjaan..."
-                                                        className="flex-1 bg-transparent border-none text-[10px] font-bold text-slate-700 outline-none placeholder:text-slate-300"
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter' && newItemTexts[a.id]) {
-                                                                addNewTaskItem(a.id, newItemTexts[a.id]);
-                                                                setNewItemTexts({...newItemTexts, [a.id]: ''});
-                                                            }
-                                                        }}
-                                                    />
-                                                    <button 
-                                                        onClick={() => {
-                                                            addNewTaskItem(a.id, newItemTexts[a.id]);
-                                                            setNewItemTexts({...newItemTexts, [a.id]: ''});
-                                                        }}
-                                                        disabled={!newItemTexts[a.id]?.trim()}
-                                                        className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black rounded-lg hover:bg-indigo-700 transition-all uppercase tracking-widest disabled:opacity-30"
-                                                    >
-                                                        TAMBAH
-                                                    </button>
-                                                </div>
-                                            )}
+                                        <h3 className="text-sm md:text-base font-black text-slate-800 italic uppercase leading-tight tracking-tight truncate group-hover:text-indigo-600 transition-colors">{a.title}</h3>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <Users size={12} className="text-indigo-400" />
+                                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest truncate">{a.assignee?.name || a.assignee?.username}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-slate-400">
+                                                <MapPin size={12} />
+                                                <span className="text-[9px] font-bold uppercase tracking-widest truncate">{a.location || 'SARPRAS ZONE'}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col items-center md:items-end gap-3 self-start">
-                                    <div className="relative w-16 h-16 md:w-20 md:h-20 flex items-center justify-center bg-white rounded-full shadow-sm border border-slate-100">
-                                        <svg className="w-full h-full -rotate-90">
-                                            <circle cx="40" cy="40" r="34" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-slate-50" />
-                                            <circle cx="40" cy="40" r="34" stroke="currentColor" strokeWidth="6" fill="transparent" strokeDasharray={213.5} strokeDashoffset={213.5 - (213.5 * a.progressPercentage) / 100} className="text-indigo-600 transition-all duration-1000 stroke-linecap-round" />
-                                        </svg>
-                                        <span className="absolute text-sm md:text-base font-black text-slate-900 italic tracking-tighter">{a.progressPercentage}%</span>
+                                <div className="flex items-center gap-6 self-end md:self-center">
+                                    <div className="flex flex-col items-center md:items-end gap-1">
+                                        <div className="relative w-12 h-12 flex items-center justify-center bg-white rounded-full shadow-sm border border-slate-100">
+                                            <svg className="w-full h-full -rotate-90">
+                                                <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-50" />
+                                                <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={125.6} strokeDashoffset={125.6 - (125.6 * a.progressPercentage) / 100} className="text-indigo-600 transition-all duration-1000 stroke-linecap-round" />
+                                            </svg>
+                                            <span className="absolute text-[10px] font-black text-slate-900 italic tracking-tighter">{a.progressPercentage}%</span>
+                                        </div>
+                                        <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest">Penyelesaian</p>
                                     </div>
-                                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Penyelesaian</p>
                                 </div>
                             </div>
+
+                            {/* Collapsible Content */}
+                            {isExpanded && (
+                                <div className="p-8 pt-0 md:pl-20 border-t border-slate-50/50 bg-slate-50/30 animate-in slide-in-from-top-2 duration-300">
+                                    <div className="pt-6 max-w-4xl space-y-8">
+                                        <div className="space-y-3">
+                                            <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2 italic">📌 Deskripsi Tugas</h4>
+                                            <div className="bg-white p-6 rounded-[24px] border border-slate-100 italic text-sm text-slate-600 leading-relaxed shadow-sm">
+                                                {a.description || 'Tidak ada deskripsi tambahan.'}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="space-y-4">
+                                            <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2 italic">✅ Checklist Pekerjaan</h4>
+                                            <div className="space-y-3">
+                                                {(Array.isArray(a.items) ? a.items : []).map((item, iIdx) => (
+                                                    <SubTaskItem 
+                                                        key={iIdx} 
+                                                        item={item} 
+                                                        idx={iIdx} 
+                                                        progressVal={item.percentage || 0}
+                                                        isDone={item.isDone}
+                                                        isAssignee={isAssigneeFor(a)}
+                                                        canAssign={canAssign}
+                                                        toggleItemStatus={() => toggleItemStatus(a.id, iIdx)}
+                                                        updateItemProgress={(i, v) => updateItemProgress(a.id, i, v)}
+                                                        appendItemNote={(i, n) => appendItemNote(a.id, i, n)}
+                                                    />
+                                                ))}
+
+                                                {(isAssigneeFor(a) || canAssign) && (
+                                                    <div className="flex gap-2 p-3 bg-white/60 rounded-xl border border-dashed border-slate-200 mt-4">
+                                                        <input 
+                                                            type="text" 
+                                                            value={newItemTexts[a.id] || ''}
+                                                            onChange={(e) => setNewItemTexts({...newItemTexts, [a.id]: e.target.value})}
+                                                            placeholder="Tambah tahapan pekerjaan..."
+                                                            className="flex-1 bg-transparent border-none text-[10px] font-bold text-slate-700 outline-none placeholder:text-slate-300"
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter' && newItemTexts[a.id]) {
+                                                                    addNewTaskItem(a.id, newItemTexts[a.id]);
+                                                                    setNewItemTexts({...newItemTexts, [a.id]: ''});
+                                                                }
+                                                            }}
+                                                        />
+                                                        <button 
+                                                            onClick={() => {
+                                                                addNewTaskItem(a.id, newItemTexts[a.id]);
+                                                                setNewItemTexts({...newItemTexts, [a.id]: ''});
+                                                            }}
+                                                            disabled={!newItemTexts[a.id]?.trim()}
+                                                            className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black rounded-lg hover:bg-indigo-700 transition-all uppercase tracking-widest disabled:opacity-30"
+                                                        >
+                                                            TAMBAH
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     );
                 })
@@ -1070,83 +1117,129 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
     );
 };
 
-const ReportTab = ({ reports, type }) => (
-    <div className="grid grid-cols-1 gap-8">
-        {reports.length === 0 ? (
-            <div className="py-40 bg-white rounded-[48px] text-center opacity-40">
-                <FileText size={64} className="mx-auto text-slate-200 mb-6" />
-                <p className="text-sm font-black text-slate-400 uppercase tracking-[0.4em]">Belum ada {type === 'RENCANA' ? 'rencana kerja' : 'laporan harian'}</p>
-            </div>
-        ) : (
-            reports.map(r => (
-                <div key={r.id} className="group bg-white rounded-[32px] md:rounded-[40px] p-6 md:p-8 border border-slate-50 shadow-xl shadow-slate-100 hover:border-indigo-100 transition-all relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-1.5 h-full bg-indigo-500 transform translate-x-1.5 group-hover:translate-x-0 transition-transform" />
-                    <div className="flex flex-col md:flex-row justify-between gap-6 relative z-10">
-                        <div className="flex gap-4 md:gap-6">
-                            <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-[24px] bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-xl md:text-2xl shadow-inner group-hover:scale-110 transition-transform">
-                                {(r.user?.name || r.user?.username || 'S')[0].toUpperCase()}
-                            </div>
-                            <div>
-                                <div className="flex flex-wrap items-center gap-2 mb-1 md:mb-2">
-                                    <span className="px-2 py-0.5 bg-slate-900 text-white text-[8px] font-black uppercase tracking-widest rounded-full">{r.category}</span>
-                                    <span className="text-[9px] font-black text-slate-300">#{r.id.toString().padStart(5, '0')}</span>
-                                </div>
-                                <h4 className="text-lg md:text-xl font-black text-slate-900 italic uppercase italic tracking-tighter leading-tight">{r.user?.name || r.user?.username}</h4>
-                                <p className="text-[9px] font-black text-indigo-500 uppercase tracking-widest mt-1 flex items-center gap-2">
-                                    <Calendar size={12} strokeWidth={3} /> {new Date(r.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2 text-right">
-                             <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100">
-                                <CheckCircle2 size={16} />
-                                <span className="text-[10px] font-black uppercase tracking-widest">Tervalidasi</span>
-                             </div>
-                             {r.metadata?.isPlan ? (
-                                 <span className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em]">{new Date(r.metadata.startDate).toLocaleDateString()} - {new Date(r.metadata.endDate).toLocaleDateString()}</span>
-                             ) : (
-                                 <span className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">{r.metadata?.startTime} - {r.metadata?.endTime} WIB</span>
-                             )}
-                        </div>
-                    </div>
+const ReportTab = ({ reports, type }) => {
+    const [expandedReportIds, setExpandedReportIds] = useState([]);
 
-                    {r.metadata?.title && r.metadata?.isPlan && (
-                        <div className="mt-6 p-4 bg-indigo-50/50 border border-indigo-100 rounded-3xl">
-                            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Judul Rencana</p>
-                            <h5 className="text-sm font-bold text-slate-700 uppercase">{r.metadata.title}</h5>
-                        </div>
-                    )}
+    const toggleExpand = (id) => {
+        setExpandedReportIds(prev => 
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
 
-                    <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <div className="space-y-6">
-                            <h5 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2">
-                                <ListChecks size={14} /> Item Pekerjaan
-                            </h5>
-                            <div className="space-y-3">
-                                {(Array.isArray(r.metadata?.items) ? r.metadata.items : []).map((item, i) => (
-                                    <div key={i} className="p-4 bg-slate-50/50 border border-slate-100 rounded-2xl flex items-center justify-between group/item hover:bg-white hover:border-indigo-100 transition-all">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-2 h-2 rounded-full ${item.status === 'SELESAI' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                                            <span className="text-xs font-bold text-slate-700">{item.activity || item.name || item.text}</span>
-                                        </div>
-                                        <span className="text-[10px] font-black text-indigo-600 bg-white px-2 py-1 rounded-lg border border-slate-100">{item.percentage}%</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="space-y-6">
-                            <h5 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2">
-                                <AlertCircle size={14} /> Catatan & Ringkasan
-                            </h5>
-                            <div className="p-6 bg-slate-50/50 border border-slate-100 border-dashed rounded-[32px] italic text-sm text-slate-500 leading-relaxed">
-                                {r.content || 'Tidak ada catatan tambahan untuk laporan ini.'}
-                            </div>
-                        </div>
-                    </div>
+    return (
+        <div className="bg-white rounded-[24px] md:rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 md:px-8 py-3 bg-slate-50/80 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                <div className="md:col-span-6 flex gap-4">
+                    <div className="w-8 shrink-0" />
+                    <span>Aktivitas Utama & Personil</span>
                 </div>
-            ))
-        )}
-    </div>
-);
+                <div className="md:col-span-4 text-center">{type === 'RENCANA' ? 'Periode Rencana' : 'Waktu Laporan'}</div>
+                <div className="md:col-span-2 text-right">Label</div>
+            </div>
+            
+            {reports.length === 0 ? (
+                <div className="py-24 text-center opacity-40">
+                    <FileText size={48} className="mx-auto text-slate-200 mb-4" />
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Belum ada {type.toLowerCase()} yang dikirim</p>
+                </div>
+            ) : (
+                reports.map((r, idx) => {
+                    const isEven = idx % 2 === 0;
+                    const isExpanded = expandedReportIds.includes(r.id);
+                    const isPlan = r.metadata?.isPlan;
+
+                    return (
+                        <div key={r.id} className={`border-b border-slate-50 border-l-[8px] ${isPlan ? 'border-l-indigo-500' : 'border-l-emerald-500'} ${isEven ? 'bg-white' : 'bg-slate-50/50'} hover:bg-slate-100/50 transition-all group relative`}>
+                            <div className="p-4 md:p-6 flex flex-col md:flex-row justify-between gap-4 items-center">
+                                <div className="flex items-center gap-4 flex-1 min-w-0 w-full md:w-auto">
+                                    <button 
+                                        onClick={() => toggleExpand(r.id)}
+                                        className={`p-2 rounded-xl transition-all ${isExpanded ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600'}`}
+                                    >
+                                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                                    </button>
+                                    <div className="space-y-1 flex-1 min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                                            <span className="px-2 py-0.5 bg-slate-900 text-white text-[8px] font-black uppercase tracking-widest rounded-full">{r.category || (isPlan ? 'PLN' : 'RPT')}</span>
+                                            <span className="text-[9px] font-black text-slate-300">#{r.id.toString().padStart(5, '0')}</span>
+                                        </div>
+                                        <h3 className="text-sm md:text-base font-black text-slate-800 uppercase italic leading-tight tracking-tight truncate group-hover:text-indigo-600 transition-colors">
+                                            {r.user?.name || r.user?.username}
+                                        </h3>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <Calendar size={12} className="text-indigo-400" />
+                                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest truncate">
+                                                    {new Date(r.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-6 self-end md:self-center">
+                                    <div className="text-center md:text-right min-w-[140px]">
+                                        <p className="text-[10px] font-black text-slate-900 tracking-tighter uppercase whitespace-nowrap">
+                                            {isPlan ? `${new Date(r.metadata?.startDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} - ${new Date(r.metadata?.endDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}` : `${r.metadata?.startTime || '08:00'} - ${r.metadata?.endTime || '17:00'} WIB`}
+                                        </p>
+                                        <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest">{isPlan ? 'PERIODE TARGET' : 'JAM AKTIVITAS'}</p>
+                                    </div>
+                                    <div className="px-3 py-1 rounded-full bg-slate-50 border border-slate-100 shadow-sm hidden md:block">
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">{isPlan ? 'RENCANA' : 'HARIAN'}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {isExpanded && (
+                                <div className="p-8 pt-0 md:pl-20 border-t border-slate-50/50 bg-slate-50/30 animate-in slide-in-from-top-2 duration-300">
+                                    <div className="pt-6 max-w-4xl space-y-6">
+                                        {r.metadata?.title && isPlan && (
+                                            <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-3xl">
+                                                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Judul Rencana</p>
+                                                <h5 className="text-sm font-bold text-slate-700 uppercase">{r.metadata.title}</h5>
+                                            </div>
+                                        )}
+
+                                        <div className="space-y-4">
+                                            <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2 italic">📝 Rincian Aktivitas</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {(r.metadata?.items || []).map((it, iIdx) => (
+                                                    <div key={iIdx} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-start justify-between gap-4 shadow-sm">
+                                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                            <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${it.status === 'SELESAI' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]'}`} />
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-xs font-bold text-slate-700 leading-tight">{it.activity || it.name || it.text}</p>
+                                                                {it.note && isNaN(it.note) && <p className="text-[10px] font-medium text-slate-400 italic mt-1.5 leading-relaxed">"{it.note}"</p>}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <p className={`text-[10px] font-black tracking-tighter ${it.status === 'SELESAI' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                                                {it.percentage || 0}% {it.status}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        
+                                        {(r.content || r.details) && (
+                                            <div className="space-y-3">
+                                                <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2 italic">📌 Memo Eksekutif</h4>
+                                                <div className="bg-white/60 p-5 rounded-2xl border border-slate-100 text-xs text-slate-600 italic leading-relaxed whitespace-pre-wrap">
+                                                    {r.content || (r.details?.split('📋')[1]?.split('📝 Catatan')[1]?.substring(1) || r.details)}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })
+            )}
+        </div>
+    );
+};
 
 export default StaffPerformance;
+
