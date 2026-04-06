@@ -501,6 +501,7 @@ const completeBusBooking = async (req, res) => {
             const msg = `📢 *TAGIHAN PERJALANAN BUS* 🚌\n\n` +
                 `Bismillah Ustadz/Ustadzah *${(booking.requesterName || '').toUpperCase()}*,\n` +
                 `Berikut adalah rincian tagihan perjalanan bus Anda:\n\n` +
+                `🏢 *Unit*: ${booking.unit || '-'}\n` +
                 `📍 *Tujuan*: ${booking.destination}\n` +
                 `📅 *Tanggal*: ${new Date(booking.startDate).toLocaleDateString('id-ID')}\n` +
                 `🛣️ *Jarak Tempuh*: ${kmVal} KM\n` +
@@ -513,6 +514,35 @@ const completeBusBooking = async (req, res) => {
                 await whatsappService.sendMessage(booking.requesterPhone, msg);
             } catch (e) {
                 console.error('[Bus Billing] WA Failed:', e.message);
+            }
+
+            // --- Notify Finance Staff ---
+            try {
+                const finStaffs = await prisma.user.findMany({
+                    where: {
+                        position: 'Staff Keuangan dan Administrasi (Sarpras)',
+                        phone: { not: null, not: '' }
+                    }
+                });
+
+                if (finStaffs.length > 0) {
+                    const finMsg = `📢 *PELAPORAN TAGIHAN BUS (KEUANGAN)* 🚌\n\n` +
+                        `Bismillah, pemberitahuan tagihan baru untuk penggunaan bus:\n\n` +
+                        `👤 *Pemesan*: ${booking.requesterName}\n` +
+                        `🏢 *Unit*: ${booking.unit || '-'}\n` +
+                        `📍 *Tujuan*: ${booking.destination}\n` +
+                        `📅 *Tanggal*: ${new Date(booking.startDate).toLocaleDateString('id-ID')}\n` +
+                        `🛣️ *Jarak*: ${kmVal} KM\n` +
+                        `---------------------------\n` +
+                        `💰 *TAGIHAN: Rp ${billAmount.toLocaleString('id-ID')}*\n\n` +
+                        `_Mohon dipantau pengadministrasiannya. Syukron._`;
+
+                    for (const staff of finStaffs) {
+                        await whatsappService.sendMessage(staff.phone, finMsg);
+                    }
+                }
+            } catch (e) {
+                console.error('[Bus Finance Notif] Failed:', e.message);
             }
         }
 
