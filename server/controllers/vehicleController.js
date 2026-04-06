@@ -435,6 +435,72 @@ exports.deleteVehicle = async (req, res) => {
     }
 };
 
+// Mark Tax/KIR as paid and extend the date
+exports.markVehicleAsPaid = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { type } = req.body; // 'TAX', 'STNK', 'KIR'
+        
+        const vehicle = await prisma.vehicle.findUnique({ where: { id: parseInt(id) } });
+        if (!vehicle) return res.status(404).json({ error: 'Kendaraan tidak ditemukan' });
+
+        let updateData = {};
+        let label = "";
+        let serviceType = "PAJAK";
+        let nextDate = null;
+
+        if (type === 'TAX') {
+            const current = vehicle.taxDueDate || new Date();
+            nextDate = new Date(current);
+            nextDate.setFullYear(nextDate.getFullYear() + 1);
+            updateData.taxDueDate = nextDate;
+            label = "Pajak Tahunan";
+            serviceType = "PAJAK";
+        } else if (type === 'STNK') {
+            const current = vehicle.stnkDueDate || new Date();
+            nextDate = new Date(current);
+            nextDate.setFullYear(nextDate.getFullYear() + 5);
+            updateData.stnkDueDate = nextDate;
+            label = "Pajak 5 Tahunan (STNK)";
+            serviceType = "PAJAK";
+        } else if (type === 'KIR') {
+            const current = vehicle.kirDueDate || new Date();
+            nextDate = new Date(current);
+            nextDate.setMonth(nextDate.getMonth() + 6);
+            updateData.kirDueDate = nextDate;
+            label = "Uji KIR";
+            serviceType = "OTHER"; 
+        } else {
+            return res.status(400).json({ error: 'Tipe pembayaran tidak valid' });
+        }
+
+        // 1. Update Vehicle Date
+        await prisma.vehicle.update({
+            where: { id: parseInt(id) },
+            data: updateData
+        });
+
+        // 2. Create Service Log for history
+        await prisma.vehicleService.create({
+            data: {
+                vehicleId: parseInt(id),
+                date: new Date(),
+                type: serviceType,
+                category: 'ROUTINE',
+                description: `Konfirmasi: ${label} telah dibayar. Jadwal berikutnya diperbarui ke ${nextDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`,
+                cost: 0
+            }
+        });
+
+        res.json({ 
+            message: `Konfirmasi ${label} berhasil. Jadwal diperbarui ke ${nextDate.toLocaleDateString('id-ID')}`,
+            nextDate 
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.getVehicleDashboard = async (req, res) => {
     try {
         const { month, year } = req.query;
@@ -475,11 +541,11 @@ exports.getVehicleDashboard = async (req, res) => {
         // 3. Urgent Actions (Real-time - Always showing upcoming)
         const urgentActions = [];
         allVehicles.forEach(v => {
-            if (v.taxDueDate && v.taxDueDate <= thirtyDaysFromNow) urgentActions.push({ vehicle: v.name, plate: v.plateNumber, action: 'Perpanjang Pajak', type: 'TAX', date: v.taxDueDate });
-            if (v.stnkDueDate && v.stnkDueDate <= thirtyDaysFromNow) urgentActions.push({ vehicle: v.name, plate: v.plateNumber, action: 'Ganti Plat/STNK', type: 'STNK', date: v.stnkDueDate });
-            if (v.kirDueDate && v.kirDueDate <= thirtyDaysFromNow) urgentActions.push({ vehicle: v.name, plate: v.plateNumber, action: 'Uji KIR', type: 'KIR', date: v.kirDueDate });
+            if (v.taxDueDate && v.taxDueDate <= thirtyDaysFromNow) urgentActions.push({ id: v.id, vehicle: v.name, plate: v.plateNumber, action: 'Perpanjang Pajak', type: 'TAX', date: v.taxDueDate });
+            if (v.stnkDueDate && v.stnkDueDate <= thirtyDaysFromNow) urgentActions.push({ id: v.id, vehicle: v.name, plate: v.plateNumber, action: 'Ganti Plat/STNK', type: 'STNK', date: v.stnkDueDate });
+            if (v.kirDueDate && v.kirDueDate <= thirtyDaysFromNow) urgentActions.push({ id: v.id, vehicle: v.name, plate: v.plateNumber, action: 'Uji KIR', type: 'KIR', date: v.kirDueDate });
             const lastRoutine = v.services?.[0];
-            if (lastRoutine && v.odometer >= lastRoutine.nextServiceOdometer) urgentActions.push({ vehicle: v.name, plate: v.plateNumber, action: 'Servis Rutin (Overdue)', type: 'SERVICE', km: lastRoutine.nextServiceOdometer });
+            if (lastRoutine && v.odometer >= lastRoutine.nextServiceOdometer) urgentActions.push({ id: v.id, vehicle: v.name, plate: v.plateNumber, action: 'Servis Rutin (Overdue)', type: 'SERVICE', km: lastRoutine.nextServiceOdometer });
         });
         urgentActions.sort((a, b) => (a.date || 0) - (b.date || 0));
 

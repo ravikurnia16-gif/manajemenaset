@@ -13,6 +13,7 @@ router.get('/dashboard', verifyToken, vehicleController.getVehicleDashboard);
 router.get('/:id', verifyToken, vehicleController.getVehicleById);
 router.post('/', verifyToken, handleUpload('photo', 'vehicles'), vehicleController.createVehicle);
 router.put('/:id', verifyToken, handleUpload('photo', 'vehicles'), vehicleController.updateVehicle);
+router.put('/:id/mark-paid', verifyToken, vehicleController.markVehicleAsPaid);
 router.delete('/:id', verifyToken, vehicleController.deleteVehicle);
 
 // Test Routes (Tanpa Token untuk kemudahan testing di browser)

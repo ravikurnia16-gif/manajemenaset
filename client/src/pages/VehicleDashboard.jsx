@@ -208,6 +208,32 @@ const VehicleDashboard = () => {
         }
     };
 
+    const handleMarkPaid = async (vId, type) => {
+        if (!window.confirm('Ingin menandai sebagai telah dibayar? Tanggal jatuh tempo akan diperpanjang otomatis.')) return;
+        
+        try {
+            const res = await api.put(`/vehicles/${vId}/mark-paid`, { type });
+            // Custom alert or reload
+            const fetchData = async () => {
+                setLoading(true);
+                try {
+                    const query = filter.month && filter.year ? `?month=${filter.month}&year=${filter.year}` : '';
+                    const res = await api.get(`/vehicles/dashboard${query}`);
+                    setData(res.data);
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+            await fetchData();
+            alert(res.data.message);
+        } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.error || 'Gagal memperbarui data');
+        }
+    };
+
     if (loading && !data) return (
         <div className="flex h-96 items-center justify-center">
             <Loader2 className="animate-spin text-indigo-600" size={40} />
@@ -312,7 +338,15 @@ const VehicleDashboard = () => {
                                                 {alert.date ? new Date(alert.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : `Odometer > ${alert.km} KM`}
                                             </span>
                                         </td>
-                                        <td className="px-8 py-6 text-right">
+                                        <td className="px-8 py-6 text-right flex items-center justify-end gap-2">
+                                            {['TAX', 'STNK', 'KIR'].includes(alert.type) && (
+                                                <button 
+                                                    onClick={() => handleMarkPaid(alert.id, alert.type)}
+                                                    className="text-xs font-black text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-4 py-1.5 rounded-xl transition-all flex items-center gap-1"
+                                                >
+                                                    <CheckCircle2 size={14} /> TELAH BAYAR
+                                                </button>
+                                            )}
                                             <button className="text-xs font-black text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-4 py-1.5 rounded-xl transition-all">PROSES</button>
                                         </td>
                                     </tr>
