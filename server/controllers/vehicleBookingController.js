@@ -16,6 +16,25 @@ const formatWAWaktu = (date) => {
     return `${day} ${month} ${year} ${hh}.${mm}`;
 };
 
+// Helper for Overlap Detection
+const findOverlappingBooking = async (vehicleId, start, end, excludeId = null) => {
+    return await prisma.vehicleBooking.findFirst({
+        where: {
+            vehicleId: parseInt(vehicleId),
+            id: excludeId ? { not: parseInt(excludeId) } : undefined,
+            status: { in: ['APPROVED', 'BERLANGSUNG'] },
+            OR: [
+                // Standard overlapping logic: (Start1 < End2) AND (Start2 < End1)
+                {
+                    startDate: { lt: end },
+                    endDate: { gt: start }
+                }
+            ]
+        },
+        include: { user: { select: { name: true } } }
+    });
+};
+
 // 1. Request Booking
 exports.requestBooking = async (req, res) => {
     try {
@@ -42,7 +61,15 @@ exports.requestBooking = async (req, res) => {
         const end = new Date(endDate);
         const now = new Date();
 
-        // Check if vehicle is currently in use
+        // 1. Check for strict overlaps with APPROVED or BERLANGSUNG bookings
+        const conflict = await findOverlappingBooking(vehicleId, start, end);
+        if (conflict) {
+            return res.status(400).json({ 
+                error: `Jadwal bentrok! Kendaraan sudah dipesan oleh ${conflict.user.name} pada: ${formatWAWaktu(conflict.startDate)} - ${formatWAWaktu(conflict.endDate)}.` 
+            });
+        }
+
+        // 2. Fallback check for any active trip in progress (status BERLANGSUNG)
         const activeTrip = await prisma.vehicleBooking.findFirst({
             where: {
                 vehicleId: parseInt(vehicleId),
@@ -50,7 +77,7 @@ exports.requestBooking = async (req, res) => {
             }
         });
 
-        if (activeTrip) {
+        if (activeTrip && activeTrip.id !== conflict?.id) {
             return res.status(400).json({ error: 'Kendaraan sedang digunakan dalam perjalanan. Silakan pilih armada lain atau tunggu hingga selesai.' });
         }
 
@@ -242,6 +269,16 @@ exports.reviewBooking = async (req, res) => {
 
         const admin = await prisma.user.findUnique({ where: { id: req.user.id } });
         const adminName = admin?.name || req.user.username || 'Admin';
+
+        // Check for overlaps before approving
+        if (status === 'APPROVED') {
+            const conflict = await findOverlappingBooking(booking.vehicleId, booking.startDate, booking.endDate, id);
+            if (conflict) {
+                return res.status(400).json({ 
+                    error: `Gagal menyetujui! Sudah ada jadwal yang disetujui untuk ${conflict.user.name} pada jam tersebut.` 
+                });
+            }
+        }
 
         const updated = await prisma.vehicleBooking.update({
             where: { id: parseInt(id) },

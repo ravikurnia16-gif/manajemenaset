@@ -31,6 +31,39 @@ exports.createReport = async (req, res) => {
             }
         });
 
+        // --- AUTOMATIC SYNC TO PLAN (IF APPLICABLE) ---
+        if (metadata?.items && Array.isArray(metadata.items)) {
+            for (const item of metadata.items) {
+                if (item.planId && item.planItemIndex !== undefined) {
+                    try {
+                        const originalPlan = await prisma.personnelReport.findUnique({
+                            where: { id: parseInt(item.planId) }
+                        });
+
+                        if (originalPlan && originalPlan.metadata) {
+                            const updatedPlanMetadata = { ...originalPlan.metadata };
+                            if (updatedPlanMetadata.items && Array.isArray(updatedPlanMetadata.items)) {
+                                const idx = parseInt(item.planItemIndex);
+                                if (updatedPlanMetadata.items[idx]) {
+                                    // Update the item in the original plan
+                                    updatedPlanMetadata.items[idx].status = item.status || 'PROSES';
+                                    updatedPlanMetadata.items[idx].percentage = parseInt(item.percentage) || 0;
+                                    
+                                    await prisma.personnelReport.update({
+                                        where: { id: originalPlan.id },
+                                        data: { metadata: updatedPlanMetadata }
+                                    });
+                                    console.log(`[Sync] Updated plan ${originalPlan.id} item ${idx}`);
+                                }
+                            }
+                        }
+                    } catch (syncErr) {
+                        console.error('[Sync Error] Failed to update plan:', syncErr.message);
+                    }
+                }
+            }
+        }
+
         res.json({ message: 'Laporan berhasil disimpan', data: report });
 
         // --- WhatsApp Notification to Leads (Async) ---
@@ -252,7 +285,7 @@ exports.getAssignments = async (req, res) => {
         }
 
         const where = {};
-        
+
         // Role-based visibility
         if (!['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role)) {
             where.OR = [

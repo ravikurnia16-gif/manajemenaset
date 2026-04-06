@@ -299,8 +299,8 @@ const StaffPerformance = () => {
     // --- SUBMIT LOGIC ---
 
     const addGeneralItem = (activity = '', note = '', status = null, percentage = null) => {
-        const defaultStatus = status || (activeTab === 'RENCANA' ? 'PENDING' : 'SELESAI');
-        const defaultPercentage = percentage !== null ? percentage : (activeTab === 'RENCANA' ? 0 : 100);
+        const defaultStatus = status || 'PENDING';
+        const defaultPercentage = percentage !== null ? percentage : 0;
         
         setForm({
             ...form,
@@ -348,12 +348,14 @@ const StaffPerformance = () => {
             
             if (!lastPlan || !lastPlan.metadata?.items) return alert('Tidak ditemukan Rencana Kerja aktif untuk Anda.');
 
-            const newItems = lastPlan.metadata.items.map(i => ({
+            const newItems = lastPlan.metadata.items.map((i, idx) => ({
                 ...i,
                 activity: `[RENCANA] ${i.activity}`,
-                status: 'SELESAI',
-                percentage: 100,
-                note: 'Realisasi dari rencana kerja'
+                status: i.status || 'PENDING',
+                percentage: i.percentage || 0,
+                note: `Realisasi dari rencana kerja`,
+                planId: lastPlan.id,
+                planItemIndex: idx
             }));
 
             setForm(prev => ({
@@ -447,7 +449,7 @@ const StaffPerformance = () => {
             assigneeId: '',
             priority: 'MEDIUM',
             location: '',
-            generalItems: activeTab === 'RENCANA' ? [{ activity: '', status: 'PENDING', percentage: 0, note: '' }] : [{ activity: '', status: 'SELESAI', percentage: 100, note: '' }],
+            generalItems: [{ activity: '', status: 'PENDING', percentage: 0, note: '' }],
             isPlan: activeTab === 'RENCANA'
         });
     };
@@ -695,7 +697,7 @@ const StaffPerformance = () => {
                                                         />
                                                     </div>
                                                     <div className="flex gap-4">
-                                                        {(activeTab === 'LAPORAN' || (activeTab === 'RENCANA' && false)) && (
+                                                                                        <div className="flex flex-col gap-2">
                                                             <select 
                                                                 value={item.status}
                                                                 onChange={e => handleGeneralItemChange(idx, 'status', e.target.value)}
@@ -705,9 +707,20 @@ const StaffPerformance = () => {
                                                                 <option value="PROSES">PROSES</option>
                                                                 <option value="PENDING">PENDING</option>
                                                             </select>
-                                                        )}
+                                                            {item.status !== 'PENDING' && (
+                                                                <div className="flex items-center gap-2 px-2">
+                                                                    <input 
+                                                                        type="range" min="0" max="100" step="10"
+                                                                        value={item.percentage}
+                                                                        onChange={e => handleGeneralItemChange(idx, 'percentage', e.target.value)}
+                                                                        className="w-20 h-1 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600"
+                                                                    />
+                                                                    <span className="text-[9px] font-black text-indigo-600 w-6">{item.percentage}%</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                         {form.generalItems.length > 1 && (
-                                                            <button type="button" onClick={() => removeGeneralItem(idx)} className="p-2 text-rose-300 hover:text-rose-500 transition-colors">
+                                                            <button type="button" onClick={() => removeGeneralItem(idx)} className="p-2 text-rose-300 hover:text-rose-500 transition-colors self-start">
                                                                 <Trash2 size={18} />
                                                             </button>
                                                         )}
