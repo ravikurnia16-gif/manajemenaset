@@ -420,7 +420,8 @@ const VehicleBooking = () => {
                                     const matchSearch = (v.name || '').toLowerCase().includes(vSearch.toLowerCase()) || 
                                                        (v.plateNumber || '').toLowerCase().includes(vSearch.toLowerCase());
                                     const matchType = vTypeFilter === 'ALL' || v.type === vTypeFilter;
-                                    return matchSearch && matchType;
+                                    const isActive = v.status === 'ACTIVE';
+                                    return matchSearch && matchType && isActive;
                                 }).sort((a, b) => {
                                     const typeA = (a.type || '').toLowerCase();
                                     const typeB = (b.type || '').toLowerCase();
@@ -537,9 +538,9 @@ const VehicleBooking = () => {
                                                 )}
                                             </div>
 
-                                            {v.status === 'ACTIVE' && (
+                                            {v.status === 'ACTIVE' || v.status === 'INACTIVE' ? (
                                                 <button
-                                                    disabled={submitting || v.isBorrowed}
+                                                    disabled={submitting || v.isBorrowed || v.status !== 'ACTIVE'}
                                                     onClick={() => {
                                                         setSelectedVehicle(v);
                                                         const now = new Date();
@@ -553,13 +554,20 @@ const VehicleBooking = () => {
                                                     }}
                                                     className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all group/btn active:scale-[0.98] disabled:opacity-70 ${v.isBorrowed
                                                         ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300'
-                                                        : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200'
+                                                        : v.status !== 'ACTIVE'
+                                                            ? 'bg-red-50 text-red-400 cursor-not-allowed border border-red-100'
+                                                            : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200'
                                                         }`}
                                                 >
                                                     {v.isBorrowed ? (
                                                         <>
                                                             <Lock size={16} />
                                                             Sedang Digunakan
+                                                        </>
+                                                    ) : v.status !== 'ACTIVE' ? (
+                                                        <>
+                                                            <XCircle size={16} />
+                                                            NON-AKTIF
                                                         </>
                                                     ) : (
                                                         <>
@@ -568,7 +576,7 @@ const VehicleBooking = () => {
                                                         </>
                                                     )}
                                                 </button>
-                                            )}
+                                            ) : null}
                                         </div>
                                     </div>
                                 ));

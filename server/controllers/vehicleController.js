@@ -222,7 +222,6 @@ exports.checkTaxNotifications = async () => {
 
         const vehicles = await prisma.vehicle.findMany({
             where: {
-                status: 'ACTIVE',
                 OR: [
                     { taxDueDate: { gte: startOfTarget, lte: endOfTarget } },
                     { stnkDueDate: { gte: startOfTarget, lte: endOfTarget } }
@@ -296,7 +295,6 @@ exports.checkKirNotifications = async () => {
 
         const vehicles = await prisma.vehicle.findMany({
             where: {
-                status: 'ACTIVE',
                 kirDueDate: { not: null }
             }
         });
@@ -457,9 +455,9 @@ exports.getVehicleDashboard = async (req, res) => {
 
         const thirtyDaysPast = new Date(new Date().setDate(now.getDate() - 30));
 
-        // 2. Fetch ALL Active Vehicles
+        // 2. Fetch ALL Vehicles
         const allVehicles = await prisma.vehicle.findMany({
-            where: { status: 'ACTIVE' },
+            where: { }, // Include all, even if inactive
             include: {
                 services: {
                     where: { category: 'ROUTINE', nextServiceOdometer: { not: null } },
