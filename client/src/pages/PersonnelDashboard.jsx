@@ -211,14 +211,14 @@ const PersonnelDashboard = () => {
                     <p className="text-slate-400 text-sm font-medium">Beri penugasan baru kepada staf atau reviu laporan yang masuk.</p>
                 </div>
                 <div className="flex flex-wrap gap-4 z-10 w-full md:w-auto">
-                    <button onClick={() => navigate('/personalia/penugasan')} className="flex-1 md:flex-none px-6 py-3 bg-white text-slate-900 rounded-2xl font-bold hover:bg-slate-50 transition-all shadow-lg text-xs tracking-widest uppercase">
+                    <button onClick={() => navigate('/personalia/kinerja?tab=PENUGASAN')} className="flex-1 md:flex-none px-6 py-3 bg-white text-slate-900 rounded-2xl font-bold hover:bg-slate-50 transition-all shadow-lg text-xs tracking-widest uppercase">
                         Beri Penugasan
                     </button>
                     <button onClick={() => navigate('/personalia/rutin')} className="flex-1 md:flex-none px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg text-xs tracking-widest uppercase border border-indigo-400/30">
                         Atur Rutinitas
                     </button>
                     {canSeeKPI && (
-                        <button onClick={() => navigate('/personalia/kpi')} className="flex-1 md:flex-none px-6 py-3 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-all text-xs tracking-widest uppercase border border-slate-700">
+                        <button onClick={() => navigate('/personalia/kinerja?tab=KPI')} className="flex-1 md:flex-none px-6 py-3 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-all text-xs tracking-widest uppercase border border-slate-700">
                             Papan KPI
                         </button>
                     )}

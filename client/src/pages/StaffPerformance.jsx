@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
     Calendar, FileText, FileCheck, Trophy, Plus, Search, 
     Filter, LayoutDashboard, TrendingUp, Users, Activity, 
@@ -157,7 +158,12 @@ const SubTaskItem = ({ item, idx, progressVal, isDone, updating, isAssignee, can
 // --- MAIN HUB ---
 
 const StaffPerformance = () => {
-    const [activeTab, setActiveTab] = useState('LAPORAN'); // RENCANA, LAPORAN, PENUGASAN, KPI
+    const [searchParams, setSearchParams] = useSearchParams();
+    const urlTab = searchParams.get('tab')?.toUpperCase();
+    const validTabs = ['RENCANA', 'LAPORAN', 'PENUGASAN', 'KPI'];
+    const initialTab = validTabs.includes(urlTab) ? urlTab : 'LAPORAN';
+
+    const [activeTab, setActiveTab] = useState(initialTab);
     const [loading, setLoading] = useState(true);
     const [reports, setReports] = useState([]);
     const [assignments, setAssignments] = useState([]);
@@ -203,15 +209,31 @@ const StaffPerformance = () => {
 
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
+    const changeTab = (tab) => {
+        setActiveTab(tab);
+        setSearchParams({ tab });
+        setShowForm(false);
+    };
+
+    useEffect(() => {
+        if (urlTab && urlTab !== activeTab && validTabs.includes(urlTab)) {
+            setActiveTab(urlTab);
+        }
+    }, [urlTab]);
+
     useEffect(() => {
         fetchInitialData();
     }, []);
 
     useEffect(() => {
-        if (activeTab === 'LAPORAN' || activeTab === 'RENCANA') fetchReports();
-        if (activeTab === 'PENUGASAN') fetchAssignments();
-        if (activeTab === 'KPI') fetchKPI();
+        fetchData();
     }, [activeTab, filterStaff, filterStatus, filterPeriod]);
+
+    const fetchData = async () => {
+        if (activeTab === 'LAPORAN' || activeTab === 'RENCANA') await fetchReports();
+        if (activeTab === 'PENUGASAN') await fetchAssignments();
+        if (activeTab === 'KPI') await fetchKPI();
+    };
 
     const fetchInitialData = async () => {
         try {
@@ -466,7 +488,7 @@ const StaffPerformance = () => {
                             {['RENCANA', 'LAPORAN', 'PENUGASAN', 'KPI'].filter(t => t !== 'KPI' || user.role === 'SUPER_ADMIN').map((tab) => (
                                 <button
                                     key={tab}
-                                    onClick={() => { setActiveTab(tab); setShowForm(false); }}
+                                    onClick={() => changeTab(tab)}
                                     className={`px-4 md:px-7 py-2.5 md:py-3.5 rounded-xl md:rounded-[24px] text-[10px] md:text-[11px] font-black tracking-widest transition-all duration-300 relative group overflow-hidden ${activeTab === tab ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                                 >
                                     <span className="relative z-10">{tab === 'RENCANA' ? 'RENCANA' : tab === 'LAPORAN' ? 'LAPORAN' : tab === 'PENUGASAN' ? 'TUGAS' : 'KPI'}</span>
