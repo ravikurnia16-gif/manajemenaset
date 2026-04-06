@@ -146,6 +146,7 @@ const MaintenanceForm = () => {
             formData.append('urgency', form.urgency);
             formData.append('description', form.description);
             formData.append('location', form.location || '');
+            if (form.isDirectOrder) formData.append('isDirectOrder', 'true');
             
             if (form.type === 'ASSET') {
                 const assetIds = form.selectedAssets.map(a => a.id);
@@ -234,6 +235,29 @@ const MaintenanceForm = () => {
                             </button>
                         ))}
                     </div>
+
+                    {/* Direct Order Toggle (Super Admin Only) */}
+                    {user.role === 'SUPER_ADMIN' && (
+                        <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                            <label className="flex items-center justify-between cursor-pointer">
+                                <div className="space-y-0.5">
+                                    <span className="text-sm font-bold text-amber-900 flex items-center gap-2">
+                                        👑 Instruksi Langsung Kabid
+                                    </span>
+                                    <p className="text-[10px] text-amber-700 font-medium leading-tight">
+                                        Otomatis disetujui & ditugaskan ke Staff Manajemen Aset.
+                                    </p>
+                                </div>
+                                <input 
+                                    type="checkbox" 
+                                    className="w-5 h-5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                                    checked={form.isDirectOrder || false}
+                                    onChange={e => setForm(prev => ({ ...prev, isDirectOrder: e.target.checked }))}
+                                />
+                            </label>
+                        </div>
+                    )}
+
                     <p className="text-[10px] text-slate-400 mt-2 px-1 flex items-center gap-1.5">
                         <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                         {form.urgency === 'NORMAL' && "Gunakan untuk pemeliharaan rutin atau kerusakan kecil."}

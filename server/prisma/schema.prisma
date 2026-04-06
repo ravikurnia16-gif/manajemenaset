@@ -308,7 +308,8 @@ model Maintenance {
   cost            Float     @default(0)
 
   aiDiagnosis Json? // AI Diagnosis Results (Diagnosis, Severity, Actions)
-  quickToken  String? @unique // Token for quick update via WA
+  isDirectOrder Boolean @default(false)
+  quickToken     String? @unique // Token for quick update via WA
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

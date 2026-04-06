@@ -102,6 +102,24 @@ exports.createReport = async (req, res) => {
 
         // AI Analysis removed for stability
 
+        const isDirect = (req.body.isDirectOrder === 'true' || req.body.isDirectOrder === true) && user.role === 'SUPER_ADMIN';
+        let initialStatus = 'SUBMITTED';
+        let technician = null;
+        let quickToken = null;
+
+        // Auto-assign for Direct Orders
+        if (isDirect) {
+            initialStatus = 'ASSIGNED';
+            // Find Staff Manajemen Aset
+            const staffAset = await prisma.user.findFirst({
+                where: { position: 'Staff Manajemen Aset' }
+            });
+            if (staffAset) {
+                technician = staffAset.name || staffAset.username;
+                quickToken = crypto.randomBytes(16).toString('hex');
+            }
+        }
+
         const report = await prisma.maintenance.create({
             data: {
                 code,
@@ -110,15 +128,18 @@ exports.createReport = async (req, res) => {
                 type: type || 'NON_ASSET',
                 category: category || 'INCIDENTAL',
                 urgency: urgency || 'NORMAL',
+                isDirectOrder: isDirect,
+                technician,
+                quickToken,
                 assets: type === 'ASSET' && assetIds && assetIds.length > 0 ? {
                     connect: assetIds.map(id => ({ id: parseInt(id) }))
                 } : undefined,
-                title,
+                title: isDirect ? `[INSTRUKSI KABID] ${title}` : title,
                 description,
                 location: location || null,
                 photo: firstImagePath,
                 media: media.length > 0 ? media : undefined,
-                status: 'SUBMITTED'
+                status: initialStatus
             },
             include: {
                 unit: true,
@@ -169,15 +190,16 @@ exports.createReport = async (req, res) => {
                 if (submitter?.phone) {
                     const msgSubmitter = `*Info Laporan Pemeliharaan*\n\n` +
                         `Ustadz/Ustadzah *${submitter.name || submitter.username}*, laporan pemeliharaan Anda telah kami terima.\n\n` +
-                        `\u{1F4CB} *Judul* : ${title}\n` +
+                        `\u{1F4CB} *Judul* : ${isDirect ? `[INSTRUKSI KABID] ${title}` : title}\n` +
                         `\u{1F4C4} *Kode* : ${code}\n` +
-                        `\u{1F527} *Tipe* : ${type === 'ASSET' ? 'Aset Terdata' : 'Non-Aset / Umum'}\n\n` +
-                        `Mohon menunggu proses persetujuan.`;
+                        `\u{1F527} *Tipe* : ${type === 'ASSET' ? 'Aset Terdata' : 'Non-Aset / Umum'}\n` +
+                        `${isDirect ? `*Status* : Langsung Ditugaskan (Pimpinan) \u2705\n\n` : `\n`}` +
+                        `Mohon menunggu proses pengerjaan.`;
 
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
 
-                // 2. Notify Leads: Kepala Bidang Sarana dan Prasarana and Eldo
+                // 2. Notify Leads
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
@@ -199,34 +221,59 @@ exports.createReport = async (req, res) => {
                         'EMERGENCY': '🔴 DARURAT'
                     };
 
-                    const msgAdmin = `🔧 *LAPORAN PEMELIHARAAN BARU*\n\n` +
+                    const msgAdmin = `${isDirect ? `👑 *INSTRUKSI LANGSUNG KABID*` : `🔧 *LAPORAN PEMELIHARAAN BARU*`}\n\n` +
                         `👤 *Pelapor* : ${submitter?.name || submitter?.username || '-'}\n` +
                         `📞 *Kontak* : wa.me/${submitter?.phone?.replace(/^0/, '62') || '-'}\n` +
-                        `⚡ *Urgensi* : ${urgencyLabels[report.urgency] || report.urgency}\n` +
+                        `⚡ *Urgensi* : ${isDirect ? 'PENGERJAAN PRIORITAS' : (urgencyLabels[report.urgency] || report.urgency)}\n` +
                         `📂 *Kategori* : ${report.category === 'ROUTINE' ? 'Pemeliharaan Rutin' : 'Pemeliharaan Insidentil'}\n` +
                         `📜 *Kode* : ${code}\n` +
                         `📋 *Judul* : ${title}\n` +
                         `📝 *Masalah* : ${description}\n\n` +
                         `📦 *Aset Terkait* :\n${assetListStr}\n\n` +
-                        `Mohon segera ditindaklanjuti.`;
+                        `${isDirect ? `*Status*: Otomatis Ditugaskan ke Staff Aset.` : `Mohon segera ditindaklanjuti.`}`;
 
-                    // Send to all found admins with 30s delay
+                    // Send to all found admins with delay
                     setTimeout(async () => {
                         let cumulativeDelay = 0;
                         for (const admin of admins) {
-                            const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
+                            const randomGap = Math.floor(Math.random() * (15000 - 5000 + 1)) + 5000;
                             cumulativeDelay += randomGap;
 
                             setTimeout(async () => {
                                 try {
                                     await whatsappService.sendMessage(admin.phone, msgAdmin);
-                                    console.log(`[WA] Maintenance admin notif sent to ${admin.username}`);
                                 } catch (e) {
                                     console.error(`[WA] Failed admin notif to ${admin.username}:`, e);
                                 }
                             }, cumulativeDelay);
                         }
-                    }, 30000);
+                    }, isDirect ? 2000 : 30000); // Faster for direct orders
+                }
+
+                // 3. Notify Technician (If Direct Order)
+                if (isDirect && report.status === 'ASSIGNED' && report.technician) {
+                    const techUser = await prisma.user.findFirst({
+                        where: { position: 'Staff Manajemen Aset' }
+                    });
+
+                    if (techUser && techUser.phone && report.quickToken) {
+                        const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
+                        const quickLink = `${baseUrl}/q/${report.quickToken}`;
+
+                        const msgTech = `🛠 *PENUGASAN MANDAT KABID*\n\n` +
+                            `Halo *${techUser.name || techUser.username}*,\n` +
+                            `Anda mendapatkan instruksi langsung untuk memperbaiki: *${title}*.\n\n` +
+                            `📜 *Kode* : ${code}\n` +
+                            `👤 *Pemberi Tugas* : Super Admin (Atas Perintah Kabid)\n` +
+                            `📝 *Masalah* : ${description}\n\n` +
+                            `Buka link pengerjaan jika sudah selesai:\n` +
+                            `👉 ${quickLink}\n\n` +
+                            `Mohon segera ditindaklanjuti. Syukron.`;
+
+                        setTimeout(async () => {
+                            await whatsappService.sendMessage(techUser.phone, msgTech);
+                        }, 5000);
+                    }
                 }
             } catch (err) {
                 console.error('WA Maintenance Create Error:', err);
