@@ -14,6 +14,8 @@ const BusBooking = () => {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [assigning, setAssigning] = useState(false);
+    const [completing, setCompleting] = useState(false);
+    const [paying, setPaying] = useState(false);
     const [drivers, setDrivers] = useState([]);
     const [toasts, setToasts] = useState([]);
     const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
@@ -168,16 +170,47 @@ const BusBooking = () => {
             await api.put(`/bus-bookings/${bookingId}/assign-driver`, { driverId });
             showToast('Supir berhasil ditugaskan');
             fetchBookings();
-            // Update selected booking to show the change immediately
-            const updated = bookings.find(b => b.id === bookingId);
-            if (updated) {
-                const driver = drivers.find(d => d.id === parseInt(driverId));
-                setSelectedBooking({ ...updated, driverId: parseInt(driverId), driver });
-            }
+            // Update selected booking with new driver data
+            const res = await api.get('/bus-bookings');
+            const updated = res.data.find(b => b.id === bookingId);
+            if (updated) setSelectedBooking(updated);
         } catch (err) {
             showToast('Gagal menugaskan supir: ' + (err.response?.data?.error || err.message), 'error');
         } finally {
             setAssigning(false);
+        }
+    };
+
+    const handleCompleteTrip = async (bookingId, totalKm) => {
+        if (!totalKm || totalKm <= 0) {
+            showToast('Input KM perjalanan yang valid', 'error');
+            return;
+        }
+        try {
+            setCompleting(true);
+            const res = await api.put(`/bus-bookings/${bookingId}/complete`, { totalKm });
+            showToast('Perjalanan selesai & Tagihan terkirim!');
+            fetchBookings();
+            setSelectedBooking(res.data);
+        } catch (err) {
+            showToast('Gagal menyelesaikan: ' + (err.response?.data?.error || err.message), 'error');
+        } finally {
+            setCompleting(false);
+        }
+    };
+
+    const handleMarkAsPaid = async (bookingId) => {
+        if (!confirm('Tandai tagihan ini sebagai Lunas?')) return;
+        try {
+            setPaying(true);
+            const res = await api.put(`/bus-bookings/${bookingId}/pay`);
+            showToast('Pembayaran berhasil dikonfirmasi (Lunas)');
+            fetchBookings();
+            setSelectedBooking(res.data);
+        } catch (err) {
+            showToast('Gagal konfirmasi: ' + (err.response?.data?.error || err.message), 'error');
+        } finally {
+            setPaying(false);
         }
     };
 
@@ -310,7 +343,18 @@ const BusBooking = () => {
                                                 </div>
                                             </div>
                                             <div className="flex items-center justify-between md:justify-end gap-3 border-t md:border-0 pt-3 md:pt-0" >
-                                                <div className="text-[10px] text-slate-400 italic" >Pesanan: {b.requesterName || b.user?.name}</div>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <div className="text-[10px] text-slate-400 italic" >Pesanan: {b.requesterName || b.user?.name}</div>
+                                                    <div className="flex items-center gap-2">
+                                                        {b.isPaid ? (
+                                                            <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full uppercase tracking-tighter">LUNAS</span>
+                                                        ) : b.status === 'COMPLETED' ? (
+                                                            <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase tracking-tighter">MENUNGGU BAYAR</span>
+                                                        ) : (
+                                                            <span className="text-[9px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-tighter">BOOKING</span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                                 <ArrowRight size={18} className="text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
                                             </div>
                                         </div>
@@ -586,6 +630,72 @@ const BusBooking = () => {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Billing & Administration (Admin Only) */}
+                            {isSarpras && (
+                                <div className="bg-slate-900 text-white p-5 rounded-3xl space-y-4 shadow-xl">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Clock size={16} className="text-blue-400" />
+                                            <h4 className="text-xs font-black uppercase tracking-widest text-blue-200">Administrasi Perjalanan</h4>
+                                        </div>
+                                        {selectedBooking.isPaid && <span className="text-[10px] font-black text-emerald-400 border border-emerald-400/30 px-2 py-0.5 rounded-full">LUNAS</span>}
+                                    </div>
+
+                                    {selectedBooking.status !== 'COMPLETED' ? (
+                                        <div className="space-y-3">
+                                            <p className="text-[10px] text-slate-400 font-bold leading-relaxed">Masukkan total KM perjalanan (termasuk jemput/pool) untuk mengirim tagihan otomatis ke Pemesan.</p>
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    type="number" 
+                                                    placeholder="Total KM"
+                                                    className="flex-1 bg-slate-800 border-none rounded-xl px-4 py-2.5 text-sm font-black focus:ring-2 focus:ring-blue-500 outline-none text-white"
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            handleCompleteTrip(selectedBooking.id, e.target.value);
+                                                        }
+                                                    }}
+                                                    id="km-input"
+                                                />
+                                                <button 
+                                                    onClick={() => handleCompleteTrip(selectedBooking.id, document.getElementById('km-input').value)}
+                                                    disabled={completing}
+                                                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2"
+                                                >
+                                                    {completing ? '...' : 'TAGIH'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div className="grid grid-cols-2 gap-4 pb-4 border-b border-white/10">
+                                                <div>
+                                                    <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Total Jarak</label>
+                                                    <div className="text-base font-black">{selectedBooking.totalKm} KM</div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Total Tagihan</label>
+                                                    <div className="text-base font-black text-emerald-400">Rp {selectedBooking.totalBill?.toLocaleString('id-ID')}</div>
+                                                </div>
+                                            </div>
+                                            {!selectedBooking.isPaid ? (
+                                                <button 
+                                                    onClick={() => handleMarkAsPaid(selectedBooking.id)}
+                                                    disabled={paying}
+                                                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all flex justify-center items-center gap-2"
+                                                >
+                                                    {paying ? 'Memproses...' : 'TANDAI TELAH BAYAR (LUNAS)'}
+                                                </button>
+                                            ) : (
+                                                <div className="flex items-center gap-2 text-emerald-400 py-1 font-bold text-xs">
+                                                    <CheckCircle2 size={16} /> Pembayaran telah diterima pada {new Date(selectedBooking.paidAt).toLocaleDateString('id-ID')}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <div className="space-y-3 pt-2">
                                 {isAuthorizedForWA && selectedBooking.requesterPhone && (
                                     <a

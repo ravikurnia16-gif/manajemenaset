@@ -170,7 +170,7 @@ exports.requestBooking = async (req, res) => {
             if (initialStatus === 'BERLANGSUNG') statusText = `*Status*: BERLANGSUNG (Perjalanan sudah dimulai)`;
 
             const msg = `${msgHeader}\n\n` +
-                `Pemohon: ${booking.user.name} (${booking.user.position || 'User'})\n` +
+                `Pemohon: ${booking.user.name}\n` +
                 `Armada: ${vehicle.name} (${vehicle.plateNumber})\n` +
                 `Driver: ${driverName}\n` +
                 `Jadwal: ${startStr} - ${endStr}\n` +
@@ -187,7 +187,7 @@ exports.requestBooking = async (req, res) => {
                     pic.id,
                     (isMotor || isYayasan) ? 'Penggunaan Kendaraan' : `Permintaan ${termTitle} Kendaraan`,
                     (isMotor || isYayasan)
-                        ? `${booking.user.name} (${booking.user.position}) menggunakan ${vehicle.name}.`
+                        ? `${booking.user.name} menggunakan ${vehicle.name}.`
                         : `${booking.user.name} mengajukan ${termAction} ${vehicle.name}.`,
                     (isMotor || isYayasan) ? 'URGENT' : 'INFO',
                     isRental ? '/kendaraan/sewa' : '/kendaraan/peminjaman'
@@ -205,7 +205,7 @@ exports.requestBooking = async (req, res) => {
                 const startStr = formatWAWaktu(startDate);
                 const endStr = formatWAWaktu(endDate);
                 const msgHead = `📢 *INFO PRIORITAS PIMPINAN YAYASAN*\n\n` +
-                    `Ustadz *${booking.user.name}* (${booking.user.position}) akan menggunakan kendaraan:\n\n` +
+                    `Ustadz *${booking.user.name}* akan menggunakan kendaraan:\n\n` +
                     `Armada: ${vehicle.name} (${vehicle.plateNumber})\n` +
                     `Jadwal: ${startStr} - ${endStr}\n` +
                     `Tujuan: ${destination}\n\n` +
@@ -215,7 +215,7 @@ exports.requestBooking = async (req, res) => {
                 await createNotification(
                     headSarpras.id,
                     'Prioritas Pimpinan Yayasan',
-                    `${booking.user.name} (${booking.user.position}) menggunakan ${vehicle.name}.`,
+                    `${booking.user.name} menggunakan ${vehicle.name}.`,
                     'URGENT',
                     '/kendaraan/peminjaman'
                 );

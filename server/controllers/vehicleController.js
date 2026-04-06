@@ -11,7 +11,7 @@ exports.getAllVehicles = async (req, res) => {
 
         // Filter by PIC if requested for maintenance and not a global admin/Sarpras staff
         const isSarpras = role === 'KEPALA_BIDANG' || req.user?.position?.includes('Sarana dan Prasarana') || req.user?.position?.includes('Manajemen Aset');
-        
+
         if (forMaintenance === 'true' && userId && !['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role) && !isSarpras) {
             where = {
                 pics: {
@@ -25,10 +25,10 @@ exports.getAllVehicles = async (req, res) => {
             include: {
                 pics: { select: { id: true, name: true } },
                 bookings: {
-                    where: { 
-                        status: { in: ['APPROVED', 'BERLANGSUNG'] }, 
-                        tripStartTime: { not: null }, 
-                        tripEndTime: null 
+                    where: {
+                        status: { in: ['APPROVED', 'BERLANGSUNG'] },
+                        tripStartTime: { not: null },
+                        tripEndTime: null
                     },
                     take: 1,
                     include: { user: { select: { name: true } } }
@@ -236,7 +236,7 @@ exports.checkTaxNotifications = async () => {
             where: {
                 OR: [
                     { position: 'Kepala Bidang Sarana dan Prasarana' },
-                    { position: 'Staff Manajemen Aset' }
+                    { position: 'Staff Gudang dan Logistik' }
                     // Eldo replaced by position
                 ],
                 phone: { not: null, not: '' }
@@ -307,7 +307,7 @@ exports.checkKirNotifications = async () => {
         // Find recipients: Leads and Finance Staff
         const recipients = await prisma.user.findMany({
             where: {
-                position: { in: ['Kepala Bidang Sarana dan Prasarana', 'Staff Keuangan dan Administrasi (Sarpras)'] },
+                position: { in: ['Kepala Bidang Sarana dan Prasarana', 'Staff Kendaraan'] },
                 phone: { not: null, not: '' }
             }
         });
@@ -440,7 +440,7 @@ exports.markVehicleAsPaid = async (req, res) => {
     try {
         const { id } = req.params;
         const { type } = req.body; // 'TAX', 'STNK', 'KIR'
-        
+
         const vehicle = await prisma.vehicle.findUnique({ where: { id: parseInt(id) } });
         if (!vehicle) return res.status(404).json({ error: 'Kendaraan tidak ditemukan' });
 
@@ -469,7 +469,7 @@ exports.markVehicleAsPaid = async (req, res) => {
             nextDate.setMonth(nextDate.getMonth() + 6);
             updateData.kirDueDate = nextDate;
             label = "Uji KIR";
-            serviceType = "OTHER"; 
+            serviceType = "OTHER";
         } else {
             return res.status(400).json({ error: 'Tipe pembayaran tidak valid' });
         }
@@ -492,9 +492,9 @@ exports.markVehicleAsPaid = async (req, res) => {
             }
         });
 
-        res.json({ 
+        res.json({
             message: `Konfirmasi ${label} berhasil. Jadwal diperbarui ke ${nextDate.toLocaleDateString('id-ID')}`,
-            nextDate 
+            nextDate
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -523,7 +523,7 @@ exports.getVehicleDashboard = async (req, res) => {
 
         // 2. Fetch ALL Vehicles
         const allVehicles = await prisma.vehicle.findMany({
-            where: { }, // Include all, even if inactive
+            where: {}, // Include all, even if inactive
             include: {
                 services: {
                     where: { category: 'ROUTINE', nextServiceOdometer: { not: null } },
@@ -546,7 +546,7 @@ exports.getVehicleDashboard = async (req, res) => {
             } else if (v.taxDueDate && v.taxDueDate <= thirtyDaysFromNow) {
                 urgentActions.push({ id: v.id, vehicle: v.name, plate: v.plateNumber, action: 'Perpanjang Pajak', type: 'TAX', date: v.taxDueDate });
             }
-            
+
             if (v.kirDueDate && v.kirDueDate <= thirtyDaysFromNow) urgentActions.push({ id: v.id, vehicle: v.name, plate: v.plateNumber, action: 'Uji KIR', type: 'KIR', date: v.kirDueDate });
             const lastRoutine = v.services?.[0];
             if (lastRoutine && v.odometer >= lastRoutine.nextServiceOdometer) urgentActions.push({ id: v.id, vehicle: v.name, plate: v.plateNumber, action: 'Servis Rutin (Overdue)', type: 'SERVICE', km: lastRoutine.nextServiceOdometer });

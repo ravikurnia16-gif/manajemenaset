@@ -39,53 +39,53 @@ enum LoanStatus {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  name      String?  // Nama Lengkap
-  email     String?  @unique
-  nip       String?  @unique
-  password  String
-  role      Role     @default(USER)
-  unitId    Int?
-  phone     String?
-  position  String?
-  unit      Unit?    @relation(fields: [unitId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  logs      Log[]
-  procurements Procurement[]
-  validatedAssets Asset[] @relation("AssetValidator")
-  vehicleBookings VehicleBooking[]
-  busBookings     BusBooking[]
-  maintenances    Maintenance[]
-  inspections     VehicleInspection[]
-  warehouseTransactions WarehouseTransaction[]
-  requestedMovements Movement[]    @relation("RequestedMovements")
-  approvedMovements  Movement[]    @relation("ApprovedMovements")
-  personnelReports   PersonnelReport[]
-  assignedAssignments PersonnelAssignment[] @relation("Assignee")
-  createdAssignments  PersonnelAssignment[] @relation("Assigner")
-  assignedProcurementItems ProcurementItem[] @relation("ItemAssignee")
-  vehicleWeeklyReports VehicleWeeklyReport[]
-  authorizedDisposals AssetDisposal[] @relation("Reviewer")
-  proposedDisposals   AssetDisposal[] @relation("Proposer")
-  sarprasRules        SarprasRule[]
-  assetsPIC           Asset[]         @relation("AssetPIC")
-  calendarEventsCreated SarprasCalendarEvent[] @relation("CalendarCreator")
-  calendarEventsPIC     SarprasCalendarEvent[] @relation("CalendarPICs")
-  notifications       Notification[]
-  
-  loans               AssetLoan[]     @relation("Borrower")
-  reviewedLoans       AssetLoan[]     @relation("LoanReviewer")
+  id                       Int                    @id @default(autoincrement())
+  username                 String                 @unique
+  name                     String? // Nama Lengkap
+  email                    String?                @unique
+  nip                      String?                @unique
+  password                 String
+  role                     Role                   @default(USER)
+  unitId                   Int?
+  phone                    String?
+  position                 String?
+  unit                     Unit?                  @relation(fields: [unitId], references: [id])
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  logs                     Log[]
+  procurements             Procurement[]
+  validatedAssets          Asset[]                @relation("AssetValidator")
+  vehicleBookings          VehicleBooking[]
+  busBookings              BusBooking[]
+  maintenances             Maintenance[]
+  inspections              VehicleInspection[]
+  warehouseTransactions    WarehouseTransaction[]
+  requestedMovements       Movement[]             @relation("RequestedMovements")
+  approvedMovements        Movement[]             @relation("ApprovedMovements")
+  personnelReports         PersonnelReport[]
+  assignedAssignments      PersonnelAssignment[]  @relation("Assignee")
+  createdAssignments       PersonnelAssignment[]  @relation("Assigner")
+  assignedProcurementItems ProcurementItem[]      @relation("ItemAssignee")
+  vehicleWeeklyReports     VehicleWeeklyReport[]
+  authorizedDisposals      AssetDisposal[]        @relation("Reviewer")
+  proposedDisposals        AssetDisposal[]        @relation("Proposer")
+  sarprasRules             SarprasRule[]
+  assetsPIC                Asset[]                @relation("AssetPIC")
+  calendarEventsCreated    SarprasCalendarEvent[] @relation("CalendarCreator")
+  calendarEventsPIC        SarprasCalendarEvent[] @relation("CalendarPICs")
+  notifications            Notification[]
 
-  vehiclesPIC         Vehicle[]       @relation("VehiclePICs")
+  loans         AssetLoan[] @relation("Borrower")
+  reviewedLoans AssetLoan[] @relation("LoanReviewer")
+
+  vehiclesPIC           Vehicle[]        @relation("VehiclePICs")
   vehicleDriverBookings VehicleBooking[] @relation("VehicleDriver")
   busDriverBookings     BusBooking[]     @relation("BusDriver")
 
   // Personnel Module Extensions
-  assignedRoutines    PersonnelRoutine[] @relation("RoutineAssignee")
-  createdRoutines     PersonnelRoutine[] @relation("RoutineAssigner")
-  personnelKPIs       PersonnelKPI[]
+  assignedRoutines PersonnelRoutine[] @relation("RoutineAssignee")
+  createdRoutines  PersonnelRoutine[] @relation("RoutineAssigner")
+  personnelKPIs    PersonnelKPI[]
 }
 
 model Notification {
@@ -94,139 +94,139 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id])
   title     String
   message   String   @db.Text
-  type      String   // INFO, WARNING, SUCCESS, URGENT
+  type      String // INFO, WARNING, SUCCESS, URGENT
   isRead    Boolean  @default(false)
-  link      String?  // URL to redirect when clicked
+  link      String? // URL to redirect when clicked
   createdAt DateTime @default(now())
 }
 
 model Unit {
-  id          Int       @id @default(autoincrement())
-  code        String    @unique
+  id          Int     @id @default(autoincrement())
+  code        String  @unique
   name        String
   description String?
   phone       String?
   email       String?
-  address     String?   @db.Text
-  headName    String?   // Nama Kepala Unit
-  headNip     String?   // NIP Kepala Unit
-  logo        String?   @db.LongText // Logo Unit (Base64)
-  
+  address     String? @db.Text
+  headName    String? // Nama Kepala Unit
+  headNip     String? // NIP Kepala Unit
+  logo        String? @db.LongText // Logo Unit (Base64)
+
   assets      Asset[]
-  rooms         Room[]
-  targetLoans   AssetLoan[] @relation("TargetUnit")
-  
-  loans         AssetLoan[] @relation("UnitLoans")
-  users       User[]
-  requests    Request[]
-  rkbs        RKB[]
+  rooms       Room[]
+  targetLoans AssetLoan[] @relation("TargetUnit")
+
+  loans        AssetLoan[]   @relation("UnitLoans")
+  users        User[]
+  requests     Request[]
+  rkbs         RKB[]
   procurements Procurement[]
   maintenances Maintenance[]
 }
 
 model Room {
-  id        Int      @id @default(autoincrement())
-  code      String   @unique
-  name      String
-  floor     String
-  building  String
-  pic       String?
-  unitId    Int?
-  unit      Unit?    @relation(fields: [unitId], references: [id])
-  assets    Asset[]
+  id       Int     @id @default(autoincrement())
+  code     String  @unique
+  name     String
+  floor    String
+  building String
+  pic      String?
+  unitId   Int?
+  unit     Unit?   @relation(fields: [unitId], references: [id])
+  assets   Asset[]
 }
 
 model Category {
-  id                 Int      @id @default(autoincrement())
-  code               String   @unique
+  id                 Int     @id @default(autoincrement())
+  code               String  @unique
   name               String
-  usefulLife         Int      // In years
-  depreciationMethod String   // e.g. STRAIGHT_LINE
+  usefulLife         Int // In years
+  depreciationMethod String // e.g. STRAIGHT_LINE
   assets             Asset[]
 }
 
 model Vendor {
-  id               Int               @id @default(autoincrement())
-  name             String
-  address          String?           @db.Text
-  phone            String?
-  email            String?
-  website          String?
-  description      String?           @db.Text
-  photo            String?           @db.LongText
-  category         String?           // e.g., IT, Alat Tulis, Meubel
-  isVerified       Boolean           @default(false)
+  id          Int     @id @default(autoincrement())
+  name        String
+  address     String? @db.Text
+  phone       String?
+  email       String?
+  website     String?
+  description String? @db.Text
+  photo       String? @db.LongText
+  category    String? // e.g., IT, Alat Tulis, Meubel
+  isVerified  Boolean @default(false)
 
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @default(now()) @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   procurementItems ProcurementItem[]
   products         VendorProduct[]
 }
 
 model VendorProduct {
-  id             Int      @id @default(autoincrement())
-  vendorId       Int
-  vendor         Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  name           String
-  price          Float?
-  specification  String?  @db.Text
-  image          String?  @db.LongText
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @default(now()) @updatedAt
+  id            Int     @id @default(autoincrement())
+  vendorId      Int
+  vendor        Vendor  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  name          String
+  price         Float?
+  specification String? @db.Text
+  image         String? @db.LongText
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model Asset {
-  id              Int      @id @default(autoincrement())
-  code            String   @unique // Format: KB-KT-TH-URUT
-  name            String
-  categoryId      Int
-  category        Category @relation(fields: [categoryId], references: [id])
-  roomId          Int?
-  room            Room?    @relation(fields: [roomId], references: [id])
-  unitId          Int?
-  unit            Unit?    @relation(fields: [unitId], references: [id])
-  vendorName      String?  // Standalone vendor name (not linked to Vendor table)
-  
-  brand           String?
-  specification   String?  @db.Text
-  purchaseDate    DateTime
-  price           Float
-  quantity        Int      @default(1)
-  usefulLife      Int      @default(5)
-  condition       Condition
-  sourceOfFunds   String?  @default("Mandiri")
-  acquisitionStatus String? @default("Pembelian")
-  isLendable      Boolean  @default(false)
-  
-  image           String?  @db.LongText
-  invoice         String?  @db.LongText
-  
-  // PIC (Person In Charge)
-  picId           Int?
-  pic             User?    @relation("AssetPIC", fields: [picId], references: [id])
-  picName         String?  // For custom PIC names not in system
-  
-  // Prediction Fields
-  nextMaintenanceEst DateTime?
-  maintenanceInterval Int?       @default(180) // Default 180 days
+  id         Int      @id @default(autoincrement())
+  code       String   @unique // Format: KB-KT-TH-URUT
+  name       String
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id])
+  roomId     Int?
+  room       Room?    @relation(fields: [roomId], references: [id])
+  unitId     Int?
+  unit       Unit?    @relation(fields: [unitId], references: [id])
+  vendorName String? // Standalone vendor name (not linked to Vendor table)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  movements       Movement[]
-  maintenances    Maintenance[]
-  disposal        AssetDisposal?
-  loans           AssetLoan[]
-  
+  brand             String?
+  specification     String?   @db.Text
+  purchaseDate      DateTime
+  price             Float
+  quantity          Int       @default(1)
+  usefulLife        Int       @default(5)
+  condition         Condition
+  sourceOfFunds     String?   @default("Mandiri")
+  acquisitionStatus String?   @default("Pembelian")
+  isLendable        Boolean   @default(false)
+
+  image   String? @db.LongText
+  invoice String? @db.LongText
+
+  // PIC (Person In Charge)
+  picId   Int?
+  pic     User?   @relation("AssetPIC", fields: [picId], references: [id])
+  picName String? // For custom PIC names not in system
+
+  // Prediction Fields
+  nextMaintenanceEst  DateTime?
+  maintenanceInterval Int?      @default(180) // Default 180 days
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  movements    Movement[]
+  maintenances Maintenance[]
+  disposal     AssetDisposal?
+  loans        AssetLoan[]
+
   // Validation Fields
   validationStatus ValidationStatus @default(UNVERIFIED)
   validatedAt      DateTime?
   validatedById    Int?
-  validatedBy      User?    @relation("AssetValidator", fields: [validatedById], references: [id])
+  validatedBy      User?            @relation("AssetValidator", fields: [validatedById], references: [id])
   validationNote   String?
-  notificationSent Boolean @default(false)
+  notificationSent Boolean          @default(false)
 }
 
 enum ValidationStatus {
@@ -237,17 +237,17 @@ enum ValidationStatus {
 }
 
 model Request {
-  id          Int      @id @default(autoincrement())
-  itemName    String
-  spec        String?
-  qty         Int
-  priceEst    Float
-  urgency     String
-  status      String   // e.g. DRAFT, PENDING, APPROVED, PURCHASED
-  unitId      Int
-  unit        Unit     @relation(fields: [unitId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  itemName  String
+  spec      String?
+  qty       Int
+  priceEst  Float
+  urgency   String
+  status    String // e.g. DRAFT, PENDING, APPROVED, PURCHASED
+  unitId    Int
+  unit      Unit     @relation(fields: [unitId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Movement {
@@ -257,7 +257,7 @@ model Movement {
   fromLocation String
   toLocation   String
   toRoomId     Int?
-  toUnitId     Int?      // New: For Inter-Unit Mutation
+  toUnitId     Int? // New: For Inter-Unit Mutation
   date         DateTime  @default(now())
   reason       String?
   type         String    @default("MUTATION") // MUTATION, DISPOSAL
@@ -276,42 +276,42 @@ enum MaintenanceCategory {
 }
 
 model Maintenance {
-  id            Int      @id @default(autoincrement())
-  code          String   @unique // e.g. MT/2026/001
-  userId        Int
-  user          User     @relation(fields: [userId], references: [id])
-  unitId        Int
-  unit          Unit     @relation(fields: [unitId], references: [id])
-  
-  type          String   // "ASSET" or "NON_ASSET"
-  category      MaintenanceCategory @default(INCIDENTAL)
-  urgency       String   @default("NORMAL") // e.g. NORMAL, URGENT, EMERGENCY
-  assets        Asset[]
-  
-  title         String   // Judul Ringkas
-  description   String   @db.Text // Keluhan / Masalah
-  location      String?  // Lokasi (for non-asset)
-  photo         String?  @db.LongText // Foto bukti kerusakan (Base64)
-  media         Json?    // Array of { type: 'IMAGE' | 'VIDEO', url: '...' }
-  
-  status        String   @default("SUBMITTED")
+  id     Int    @id @default(autoincrement())
+  code   String @unique // e.g. MT/2026/001
+  userId Int
+  user   User   @relation(fields: [userId], references: [id])
+  unitId Int
+  unit   Unit   @relation(fields: [unitId], references: [id])
+
+  type     String // "ASSET" or "NON_ASSET"
+  category MaintenanceCategory @default(INCIDENTAL)
+  urgency  String              @default("NORMAL") // e.g. NORMAL, URGENT, EMERGENCY
+  assets   Asset[]
+
+  title       String // Judul Ringkas
+  description String  @db.Text // Keluhan / Masalah
+  location    String? // Lokasi (for non-asset)
+  photo       String? @db.LongText // Foto bukti kerusakan (Base64)
+  media       Json? // Array of { type: 'IMAGE' | 'VIDEO', url: '...' }
+
+  status String @default("SUBMITTED")
   // SUBMITTED -> APPROVED -> VALIDATED -> ASSIGNED -> IN_PROGRESS -> COMPLETED / REJECTED
-  
+
   // Workflow Fields
   approvalNote    String?
   validationNote  String?
   rejectionReason String?
-  technician      String?  // Nama Teknisi / Vendor
-  actionTaken     String?  @db.Text // Tindakan Perbaikan
-  completionNote  String?  @db.Text
+  technician      String? // Nama Teknisi / Vendor
+  actionTaken     String?   @db.Text // Tindakan Perbaikan
+  completionNote  String?   @db.Text
   completionDate  DateTime?
-  cost            Float    @default(0)
-  
-  aiDiagnosis     Json?    // AI Diagnosis Results (Diagnosis, Severity, Actions)
-  quickToken      String?  @unique // Token for quick update via WA
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  cost            Float     @default(0)
+
+  aiDiagnosis Json? // AI Diagnosis Results (Diagnosis, Severity, Actions)
+  quickToken  String? @unique // Token for quick update via WA
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Log {
@@ -324,16 +324,16 @@ model Log {
 }
 
 model Setting {
-  id                Int      @id @default(1)
-  orgName           String   @default("Manajemen Aset")
-  orgAddress        String?  @db.Text
-  orgPhone          String?
-  orgEmail          String?
-  orgLogo           String?  @db.LongText
-  orgHeadName       String?
-  orgHeadNip        String?
-  assetCodePrefix   String   @default("AST")
-  updatedAt         DateTime @updatedAt
+  id              Int      @id @default(1)
+  orgName         String   @default("Manajemen Aset")
+  orgAddress      String?  @db.Text
+  orgPhone        String?
+  orgEmail        String?
+  orgLogo         String?  @db.LongText
+  orgHeadName     String?
+  orgHeadNip      String?
+  assetCodePrefix String   @default("AST")
+  updatedAt       DateTime @updatedAt
 }
 
 // --- MODULE PENGADAAN (PROCUREMENT) ---
@@ -355,58 +355,58 @@ enum ProcurementType {
 }
 
 model RKB {
-  id          Int       @id @default(autoincrement())
-  fiscalYear  Int
-  unitId      Int
-  unit        Unit      @relation(fields: [unitId], references: [id])
-  status      String    @default("DRAFT") // DRAFT, SUBMITTED, APPROVED
-  totalBudget Float     @default(0)
-  items       RKBItem[]
+  id           Int           @id @default(autoincrement())
+  fiscalYear   Int
+  unitId       Int
+  unit         Unit          @relation(fields: [unitId], references: [id])
+  status       String        @default("DRAFT") // DRAFT, SUBMITTED, APPROVED
+  totalBudget  Float         @default(0)
+  items        RKBItem[]
   procurements Procurement[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 }
 
 model RKBItem {
-  id          Int      @id @default(autoincrement())
-  rkbId       Int
-  rkb         RKB      @relation(fields: [rkbId], references: [id])
-  name        String
-  spec        String?  // Spesifikasi
-  qty         Int
-  unit        String   // Satuan (Unit, Pcs, Box)
-  estPrice    Float
-  category    String   // ASSET / NON_ASSET
-  priority    String   // HIGH, MEDIUM, LOW
-  month       Int?     // 1-12
+  id       Int     @id @default(autoincrement())
+  rkbId    Int
+  rkb      RKB     @relation(fields: [rkbId], references: [id])
+  name     String
+  spec     String? // Spesifikasi
+  qty      Int
+  unit     String // Satuan (Unit, Pcs, Box)
+  estPrice Float
+  category String // ASSET / NON_ASSET
+  priority String // HIGH, MEDIUM, LOW
+  month    Int? // 1-12
 }
 
 model Procurement {
-  id          Int       @id @default(autoincrement())
-  code        String    @unique // e.g. REQ/2024/001
-  title       String?   // Judul Pengajuan (e.g. Pengadaan Laptop Divisi IT)
-  userId      Int
-  user        User      @relation(fields: [userId], references: [id])
-  unitId      Int
-  unit        Unit      @relation(fields: [unitId], references: [id])
-  
-  type        ProcurementType
-  status      ProcurementStatus @default(DRAFT)
-  
-  rkbId       Int?
-  rkb         RKB?      @relation(fields: [rkbId], references: [id])
-  
-  validationNote String?
+  id     Int     @id @default(autoincrement())
+  code   String  @unique // e.g. REQ/2024/001
+  title  String? // Judul Pengajuan (e.g. Pengadaan Laptop Divisi IT)
+  userId Int
+  user   User    @relation(fields: [userId], references: [id])
+  unitId Int
+  unit   Unit    @relation(fields: [unitId], references: [id])
+
+  type   ProcurementType
+  status ProcurementStatus @default(DRAFT)
+
+  rkbId Int?
+  rkb   RKB? @relation(fields: [rkbId], references: [id])
+
+  validationNote  String?
   rejectionReason String?
-  
-  bastDate    DateTime?
-  bastFile    String?   @db.LongText
-  
-  items       ProcurementItem[]
-  offers      VendorOffer[]
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+
+  bastDate DateTime?
+  bastFile String?   @db.LongText
+
+  items  ProcurementItem[]
+  offers VendorOffer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ProcurementItem {
@@ -416,123 +416,124 @@ model ProcurementItem {
   name          String
   spec          String?     @db.Text
   qty           Int
-  unit          String      // pcs, set, unit
+  unit          String // pcs, set, unit
   estPrice      Float       @default(0)
-  
+
   // New Fields for Detailed Processing
-  fundingSource String?     // Sumber Dana per item
+  fundingSource     String? // Sumber Dana per item
   comparisonVendors String? @db.Text // JSON String: [{ name, price, notes }, ...]
-  needComparison Boolean @default(true) // Perlu perbandingan harga?
-  
+  needComparison    Boolean @default(true) // Perlu perbandingan harga?
+
   // Post-Approval Fields
-  vendorId      Int?
-  vendor        Vendor?     @relation(fields: [vendorId], references: [id])
-  brand         String?     // Merk/Type
-  usefulLife    Int?        // Umur Manfaat (Tahun)
-  finalPrice    Float?      // Harga Akhir / Realisasi
-  
+  vendorId   Int?
+  vendor     Vendor? @relation(fields: [vendorId], references: [id])
+  brand      String? // Merk/Type
+  usefulLife Int? // Umur Manfaat (Tahun)
+  finalPrice Float? // Harga Akhir / Realisasi
+
   // Assignment Fields
-  assignedTo    String?     // Nama (Internal/Manual)
-  assignedToId  Int?
-  assignedToUser User?      @relation("ItemAssignee", fields: [assignedToId], references: [id])
-  assignmentNote String?    @db.Text
+  assignedTo     String? // Nama (Internal/Manual)
+  assignedToId   Int?
+  assignedToUser User?   @relation("ItemAssignee", fields: [assignedToId], references: [id])
+  assignmentNote String? @db.Text
 }
 
 model VendorOffer {
   id            Int         @id @default(autoincrement())
   procurementId Int
   procurement   Procurement @relation(fields: [procurementId], references: [id])
-  vendorId      Int?        // Optional hyperlink to master Vendor
-  vendorName    String      // Manual name if vendor not in master
+  vendorId      Int? // Optional hyperlink to master Vendor
+  vendorName    String // Manual name if vendor not in master
   price         Float
   isWinner      Boolean     @default(false)
   quoteFile     String?
   createdAt     DateTime    @default(now())
 }
+
 // --- MANAJEMEN KENDARAAN ---
 
 model Vehicle {
-  id            Int       @id @default(autoincrement())
-  name          String    // Nama
-  brand         String    // Merk
-  model         String?   // Model
-  type          String    // Tipe Kendaraan (e.g. Minibus, Pickup, Motor)
-  plateNumber   String    @unique // Plat Nomor
-  fuelType      String?   // Bahan Bakar
-  capacity      String?   // Kapasitas (e.g. 1500cc)
-  color         String?   // Warna
-  odometer      Int       @default(0) // Kilometer saat ini
-  photo         String?   @db.LongText // Foto Kendaraan (Base64 support)
-  status        String    @default("ACTIVE") // ACTIVE / INACTIVE
-  isRentable    Boolean   @default(false) // Bisa disewa atau tidak
+  id                 Int     @id @default(autoincrement())
+  name               String // Nama
+  brand              String // Merk
+  model              String? // Model
+  type               String // Tipe Kendaraan (e.g. Minibus, Pickup, Motor)
+  plateNumber        String  @unique // Plat Nomor
+  fuelType           String? // Bahan Bakar
+  capacity           String? // Kapasitas (e.g. 1500cc)
+  color              String? // Warna
+  odometer           Int     @default(0) // Kilometer saat ini
+  photo              String? @db.LongText // Foto Kendaraan (Base64 support)
+  status             String  @default("ACTIVE") // ACTIVE / INACTIVE
+  isRentable         Boolean @default(false) // Bisa disewa atau tidak
   defaultRentalPrice Float? // Biaya Sewa Default per hari
 
   // Additional fields (kept from previous version)
   year          Int?
-  chassisNumber String?   // No Rangka
-  engineNumber  String?   // No Mesin
+  chassisNumber String? // No Rangka
+  engineNumber  String? // No Mesin
   taxDueDate    DateTime? // Pajak Tahunan
   stnkDueDate   DateTime? // Pajak 5 Tahunan
   kirDueDate    DateTime? // Jadwal KIR (Optional)
-  
+
   // Relations
-  assetId       Int?      @unique // Optional link to Asset table
+  assetId       Int?                  @unique // Optional link to Asset table
   bookings      VehicleBooking[]
   busBookings   BusBooking[]
-  pics          User[]    @relation("VehiclePICs")
+  pics          User[]                @relation("VehiclePICs")
   services      VehicleService[]
   fuelLogs      VehicleFuelLog[]
   weeklyReports VehicleWeeklyReport[]
   inspections   VehicleInspection[]
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Notification Tracking
   lastKmNotifiedAt DateTime? // Track last time KM service warning was sent
 }
 
 model VehicleWeeklyReport {
-  id              Int      @id @default(autoincrement())
-  vehicleId       Int
-  vehicle         Vehicle  @relation(fields: [vehicleId], references: [id])
-  userId          Int
-  user            User     @relation(fields: [userId], references: [id])
-  
-  weekStartDate   DateTime
-  weekEndDate     DateTime
-  
-  startOdometer   Int
-  endOdometer     Int
-  
-  conditionEngine   String  // e.g. BAIK, PERLU PERBAIKAN
+  id        Int     @id @default(autoincrement())
+  vehicleId Int
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id])
+  userId    Int
+  user      User    @relation(fields: [userId], references: [id])
+
+  weekStartDate DateTime
+  weekEndDate   DateTime
+
+  startOdometer Int
+  endOdometer   Int
+
+  conditionEngine   String // e.g. BAIK, PERLU PERBAIKAN
   conditionBody     String
   conditionInterior String
   isClean           Boolean @default(true)
-  
-  notes             String? @db.Text
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model VehicleInspection {
-  id              Int      @id @default(autoincrement())
-  vehicleId       Int
-  vehicle         Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  userId          Int
-  user            User     @relation(fields: [userId], references: [id])
-  
-  frontPhoto      String?  @db.LongText
-  rightPhoto      String?  @db.LongText
-  leftPhoto       String?  @db.LongText
-  backPhoto       String?  @db.LongText
-  
-  scratches       Json?    // Array of { side, x, y, severity }
-  
-  notes           String?  @db.Text
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id        Int     @id @default(autoincrement())
+  vehicleId Int
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User    @relation(fields: [userId], references: [id])
+
+  frontPhoto String? @db.LongText
+  rightPhoto String? @db.LongText
+  leftPhoto  String? @db.LongText
+  backPhoto  String? @db.LongText
+
+  scratches Json? // Array of { side, x, y, severity }
+
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([vehicleId])
 }
@@ -543,7 +544,7 @@ model VehicleBooking {
   vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
-  driverName  String?  // If driver is external or specific
+  driverName  String? // If driver is external or specific
   destination String
   purpose     String?
   startDate   DateTime
@@ -551,147 +552,147 @@ model VehicleBooking {
   status      String   @default("PENDING") // PENDING, APPROVED, REJECTED, COMPLETED, CANCELLED
   adminNote   String?
 
-  isRented    Boolean  @default(false) // Whether this booking is a rental
-  rentalPrice Float?   // Price for rental if applicable
+  isRented    Boolean @default(false) // Whether this booking is a rental
+  rentalPrice Float? // Price for rental if applicable
 
-  passengerCount Int @default(0)
-  driverId    Int?
-  driver      User?    @relation("VehicleDriver", fields: [driverId], references: [id])
-  
-  startKm     Int?
-  endKm       Int?
-  tripNotes   String?  @db.Text
-  fuelRefill  Boolean  @default(false)
-  fuelPrice   Float    @default(0)
-  fuelLiters  Float?   // Amount in liters if refilled during trip
+  passengerCount Int   @default(0)
+  driverId       Int?
+  driver         User? @relation("VehicleDriver", fields: [driverId], references: [id])
+
+  startKm       Int?
+  endKm         Int?
+  tripNotes     String?   @db.Text
+  fuelRefill    Boolean   @default(false)
+  fuelPrice     Float     @default(0)
+  fuelLiters    Float? // Amount in liters if refilled during trip
   tripStartTime DateTime?
   tripEndTime   DateTime?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model VehicleService {
-  id          Int      @id @default(autoincrement())
-  vehicleId   Int
-  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
-  date        DateTime
-  category    String   @default("ROUTINE") // ROUTINE, NON_ROUTINE
-  type        String   // SERVICE_RUTIN, GANTI_OLI, PAJAK, PERBAIKAN, OTHER
-  description String   @db.Text
-  cost        Float
-  odometer    Int?
+  id                  Int      @id @default(autoincrement())
+  vehicleId           Int
+  vehicle             Vehicle  @relation(fields: [vehicleId], references: [id])
+  date                DateTime
+  category            String   @default("ROUTINE") // ROUTINE, NON_ROUTINE
+  type                String // SERVICE_RUTIN, GANTI_OLI, PAJAK, PERBAIKAN, OTHER
+  description         String   @db.Text
+  cost                Float
+  odometer            Int?
   nextServiceOdometer Int? // KM service berikutnya (Routine only)
-  workshop    String?  // Bengkel
-  proofFile   String?  // Foto Nota
-  
-  createdAt   DateTime @default(now())
+  workshop            String? // Bengkel
+  proofFile           String? // Foto Nota
+
+  createdAt DateTime @default(now())
 }
 
 model VehicleFuelLog {
-  id          Int      @id @default(autoincrement())
-  vehicleId   Int
-  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
-  date        DateTime
-  liters      Float
-  cost        Float
-  odometer    Int
-  proofFile   String?
-  
-  createdAt   DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  vehicleId Int
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
+  date      DateTime
+  liters    Float
+  cost      Float
+  odometer  Int
+  proofFile String?
+
+  createdAt DateTime @default(now())
 }
 
 // --- MANAJEMEN GUDANG & LOGISTIK ---
 
 model WarehouseCategory {
-  id    Int    @id @default(autoincrement())
-  name  String @unique // "Seragam", "Perlengkapan Sekolah"
+  id    Int             @id @default(autoincrement())
+  name  String          @unique // "Seragam", "Perlengkapan Sekolah"
   items WarehouseItem[]
 }
 
 model WarehouseItem {
-  id            Int      @id @default(autoincrement())
-  code          String   @unique // GD/SRG/001
-  name          String   // "Baju Putih", "Buku Tulis"
-  categoryId    Int
-  category      WarehouseCategory @relation(fields: [categoryId], references: [id])
-  
-  type          String?  // BAJU, CELANA, JILBAB (seragam only)
-  gender        String?  // L, P (seragam only)
-  size          String?  // S, M, L, XL, XXL (seragam only)
-  purchaseYear  Int?     // Tahun pembuatan/pembelian batch (wajib utk seragam)
-  itemUnit      String?  // Unit seragam: TK, TAUD, SD, SMP, SMA, dll
-  uniformGroup  String?  // Nasional, Batik, Muslim, Pramuka, Olahraga, Jubah Hitam, Jubah Putih
-  
-  stock         Int      @default(0)
-  minStock      Int      @default(5)
-  purchasePrice Float?   // Harga beli per unit
-  supplier      String?  // Pemasok
-  location      String?  // Rak / lokasi gudang
-  image         String?  @db.LongText
-  
+  id         Int               @id @default(autoincrement())
+  code       String            @unique // GD/SRG/001
+  name       String // "Baju Putih", "Buku Tulis"
+  categoryId Int
+  category   WarehouseCategory @relation(fields: [categoryId], references: [id])
+
+  type         String? // BAJU, CELANA, JILBAB (seragam only)
+  gender       String? // L, P (seragam only)
+  size         String? // S, M, L, XL, XXL (seragam only)
+  purchaseYear Int? // Tahun pembuatan/pembelian batch (wajib utk seragam)
+  itemUnit     String? // Unit seragam: TK, TAUD, SD, SMP, SMA, dll
+  uniformGroup String? // Nasional, Batik, Muslim, Pramuka, Olahraga, Jubah Hitam, Jubah Putih
+
+  stock         Int     @default(0)
+  minStock      Int     @default(5)
+  purchasePrice Float? // Harga beli per unit
+  supplier      String? // Pemasok
+  location      String? // Rak / lokasi gudang
+  image         String? @db.LongText
+
   transactionItems WarehouseTransactionItem[]
   orderItems       UniformOrderItem[]
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model WarehouseTransaction {
   id          Int      @id @default(autoincrement())
   code        String   @unique // TRX/2026/001
-  type        String   // "IN" or "OUT"
+  type        String // "IN" or "OUT"
   date        DateTime
   note        String?
   createdById Int
   createdBy   User     @relation(fields: [createdById], references: [id])
-  
-  items       WarehouseTransactionItem[]
-  
-  createdAt   DateTime @default(now())
+
+  items WarehouseTransactionItem[]
+
+  createdAt DateTime @default(now())
 }
 
 model WarehouseTransactionItem {
-  id              Int      @id @default(autoincrement())
-  transactionId   Int
-  transaction     WarehouseTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  itemId          Int
-  item            WarehouseItem @relation(fields: [itemId], references: [id])
-  quantity        Int
-  recipientName   String?  // Penerima (for OUT)
-  recipientUnit   String?  // Unit penerima
+  id            Int                  @id @default(autoincrement())
+  transactionId Int
+  transaction   WarehouseTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  itemId        Int
+  item          WarehouseItem        @relation(fields: [itemId], references: [id])
+  quantity      Int
+  recipientName String? // Penerima (for OUT)
+  recipientUnit String? // Unit penerima
 }
 
 // --- PESANAN SERAGAM PUBLIK ---
 
 model UniformOrder {
-  id            Int      @id @default(autoincrement())
-  code          String   @unique  // ORD/2026/001
-  customerName  String             // Nama pemesan (ortu/wali)
-  customerPhone String             // No HP pemesan
-  customerUnit  String             // Unit: TK, SD, SMP, dll
-  studentName   String             // Nama siswa
-  studentClass  String?            // Kelas
-  note          String? @db.Text
-  status        String   @default("PENDING") // PENDING, CONFIRMED, READY, PICKED_UP, CANCELLED
-  totalAmount   Float    @default(0)
+  id            Int                @id @default(autoincrement())
+  code          String             @unique // ORD/2026/001
+  customerName  String // Nama pemesan (ortu/wali)
+  customerPhone String // No HP pemesan
+  customerUnit  String // Unit: TK, SD, SMP, dll
+  studentName   String // Nama siswa
+  studentClass  String? // Kelas
+  note          String?            @db.Text
+  status        String             @default("PENDING") // PENDING, CONFIRMED, READY, PICKED_UP, CANCELLED
+  totalAmount   Float              @default(0)
   items         UniformOrderItem[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 }
 
 model UniformOrderItem {
-  id            Int      @id @default(autoincrement())
+  id            Int            @id @default(autoincrement())
   orderId       Int
-  order         UniformOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  itemId        Int?     // Made optional for decoupled orders
+  order         UniformOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemId        Int? // Made optional for decoupled orders
   item          WarehouseItem? @relation(fields: [itemId], references: [id])
-  itemName      String?  // For decoupled orders
-  size          String?  // For decoupled orders
+  itemName      String? // For decoupled orders
+  size          String? // For decoupled orders
   quantity      Int
-  price         Float    @default(0)
-  status        String   @default("PENDING") // PENDING, READY, NO_STOCK, DONE
-  pickupDetails String? @db.Text
+  price         Float          @default(0)
+  status        String         @default("PENDING") // PENDING, READY, NO_STOCK, DONE
+  pickupDetails String?        @db.Text
 }
 
 enum ReportType {
@@ -709,16 +710,16 @@ enum PersonnelReportCategory {
 }
 
 model PersonnelReport {
-  id        Int      @id @default(autoincrement())
+  id        Int                     @id @default(autoincrement())
   userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  user      User                    @relation(fields: [userId], references: [id])
   type      ReportType
   category  PersonnelReportCategory @default(UMUM)
-  content   String   @db.Text
-  metadata  Json?    // Structured data for specific categories
-  date      DateTime @default(now())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  content   String                  @db.Text
+  metadata  Json? // Structured data for specific categories
+  date      DateTime                @default(now())
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
 }
 
 enum AssignmentStatus {
@@ -729,82 +730,82 @@ enum AssignmentStatus {
 }
 
 model PersonnelAssignment {
-  id          Int      @id @default(autoincrement())
-  assignerId  Int
-  assigner    User     @relation("Assigner", fields: [assignerId], references: [id])
-  assigneeId  Int
-  assignee    User     @relation("Assignee", fields: [assigneeId], references: [id])
-  title       String
-  description String   @db.Text
-  category    String   @default("UMUM")
-  priority    String   @default("MEDIUM")
-  location    String?
-  startDate   DateTime?
-  dueDate     DateTime?
-  status      AssignmentStatus @default(PENDING)
-  actualStartDate DateTime?
+  id                   Int              @id @default(autoincrement())
+  assignerId           Int
+  assigner             User             @relation("Assigner", fields: [assignerId], references: [id])
+  assigneeId           Int
+  assignee             User             @relation("Assignee", fields: [assigneeId], references: [id])
+  title                String
+  description          String           @db.Text
+  category             String           @default("UMUM")
+  priority             String           @default("MEDIUM")
+  location             String?
+  startDate            DateTime?
+  dueDate              DateTime?
+  status               AssignmentStatus @default(PENDING)
+  actualStartDate      DateTime?
   actualCompletionDate DateTime?
-  progressPercentage Int       @default(0)
-  notes       String?          @db.Text
-  items       Json?            @default("[]")
-  lastReminderSent DateTime?
-  
+  progressPercentage   Int              @default(0)
+  notes                String?          @db.Text
+  items                Json?            @default("[]")
+  lastReminderSent     DateTime?
+
   // Extension Request
   requestedExtensionDate DateTime?
-  extensionReason       String?          @db.Text
-  extensionStatus       String?          // PENDING, APPROVED, REJECTED
-  
+  extensionReason        String?   @db.Text
+  extensionStatus        String? // PENDING, APPROVED, REJECTED
+
   calendarEventId Int?
   calendarEvent   SarprasCalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
 
-  routineId   Int?
-  routine     PersonnelRoutine? @relation(fields: [routineId], references: [id])
+  routineId Int?
+  routine   PersonnelRoutine? @relation(fields: [routineId], references: [id])
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AssetDisposal {
-  id           Int      @id @default(autoincrement())
-  assetId      Int      @unique
-  asset        Asset    @relation(fields: [assetId], references: [id])
-  disposalDate DateTime?
-  reason       String   
-  method       String?  
-  notes        String?  @db.Text
-  status       DisposalStatus @default(PENDING)
-  proposedById Int
-  proposedBy   User   @relation("Proposer", fields: [proposedById], references: [id])
-  reviewedById Int?
-  reviewedBy   User?  @relation("Reviewer", fields: [reviewedById], references: [id])
-  reviewedAt   DateTime?
-  rejectionReason String? @db.Text
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              Int            @id @default(autoincrement())
+  assetId         Int            @unique
+  asset           Asset          @relation(fields: [assetId], references: [id])
+  disposalDate    DateTime?
+  reason          String
+  method          String?
+  notes           String?        @db.Text
+  status          DisposalStatus @default(PENDING)
+  proposedById    Int
+  proposedBy      User           @relation("Proposer", fields: [proposedById], references: [id])
+  reviewedById    Int?
+  reviewedBy      User?          @relation("Reviewer", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  rejectionReason String?        @db.Text
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
 
 model SarprasRule {
-  id            Int           @id @default(autoincrement())
-  title         String
-  category      String        @default("Umum")
-  folderId      Int?
-  folder        SarprasFolder? @relation(fields: [folderId], references: [id])
-  description   String?       @db.Text
-  
+  id          Int            @id @default(autoincrement())
+  title       String
+  category    String         @default("Umum")
+  folderId    Int?
+  folder      SarprasFolder? @relation(fields: [folderId], references: [id])
+  description String?        @db.Text
+
   // New Metadata Fields
-  documentNumber String?       // Nomor Surat/Dokumen
-  status        String        @default("Berlaku") // Berlaku, Arsip, Draft
-  expiryDate    DateTime?     // Tanggal Kadaluarsa
-  isPublic      Boolean       @default(true)
-  
-  fileUrl       String        @db.LongText
-  fileName      String
-  fileType      String?
-  fileSize      Int?
-  uploadedById  Int
-  uploadedBy    User          @relation(fields: [uploadedById], references: [id])
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  documentNumber String? // Nomor Surat/Dokumen
+  status         String    @default("Berlaku") // Berlaku, Arsip, Draft
+  expiryDate     DateTime? // Tanggal Kadaluarsa
+  isPublic       Boolean   @default(true)
+
+  fileUrl      String   @db.LongText
+  fileName     String
+  fileType     String?
+  fileSize     Int?
+  uploadedById Int
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model SarprasFolder {
@@ -816,63 +817,63 @@ model SarprasFolder {
 }
 
 model SarprasCalendarEvent {
-  id              Int      @id @default(autoincrement())
-  title           String
-  description     String?  @db.Text
-  category        String   @default("Lainnya")
-  date            DateTime
-  endDate         DateTime?
-  isPinned        Boolean  @default(false)
-  location        String?
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String?   @db.Text
+  category    String    @default("Lainnya")
+  date        DateTime
+  endDate     DateTime?
+  isPinned    Boolean   @default(false)
+  location    String?
 
   // PIC (Person In Charge)
-  pics            User[]   @relation("CalendarPICs")
+  pics User[] @relation("CalendarPICs")
 
   // Recurring fields
-  isRecurring     Boolean  @default(false)
-  recurringType   String?  // DAILY, WEEKLY, MONTHLY, YEARLY
-  recurringInterval Int     @default(1)
-  recurringDays   String?  // e.g. "1,3,5" for Mon, Wed, Fri
-  recurringEndDate DateTime?
+  isRecurring       Boolean   @default(false)
+  recurringType     String? // DAILY, WEEKLY, MONTHLY, YEARLY
+  recurringInterval Int       @default(1)
+  recurringDays     String? // e.g. "1,3,5" for Mon, Wed, Fri
+  recurringEndDate  DateTime?
 
   // Assignments linked to this event
-  assignments     PersonnelAssignment[]
+  assignments PersonnelAssignment[]
 
   // Audit
-  createdById     Int
-  createdBy       User     @relation("CalendarCreator", fields: [createdById], references: [id])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdById Int
+  createdBy   User     @relation("CalendarCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model AssetLoan {
-  id              Int        @id @default(autoincrement())
-  assetId         Int
-  asset           Asset      @relation(fields: [assetId], references: [id])
-  borrowerId      Int
-  borrower        User       @relation("Borrower", fields: [borrowerId], references: [id])
-  
-  unitId          Int        // Unit of the asset at the time of loan
-  unit            Unit       @relation("UnitLoans", fields: [unitId], references: [id])
-  targetUnitId    Int?       // Destination unit
-  targetUnit      Unit?      @relation("TargetUnit", fields: [targetUnitId], references: [id])
-  
-  requestId       String?    // UUID to group multiple assets in one request
-  
-  borrowDate      DateTime?
+  id         Int   @id @default(autoincrement())
+  assetId    Int
+  asset      Asset @relation(fields: [assetId], references: [id])
+  borrowerId Int
+  borrower   User  @relation("Borrower", fields: [borrowerId], references: [id])
+
+  unitId       Int // Unit of the asset at the time of loan
+  unit         Unit  @relation("UnitLoans", fields: [unitId], references: [id])
+  targetUnitId Int? // Destination unit
+  targetUnit   Unit? @relation("TargetUnit", fields: [targetUnitId], references: [id])
+
+  requestId String? // UUID to group multiple assets in one request
+
+  borrowDate         DateTime?
   expectedReturnDate DateTime
-  actualReturnDate DateTime?
-  
-  purpose         String     @db.Text
-  status          LoanStatus @default(PENDING)
-  
+  actualReturnDate   DateTime?
+
+  purpose String     @db.Text
+  status  LoanStatus @default(PENDING)
+
   reviewedById    Int?
-  reviewedBy      User?      @relation("LoanReviewer", fields: [reviewedById], references: [id])
+  reviewedBy      User?     @relation("LoanReviewer", fields: [reviewedById], references: [id])
   reviewedAt      DateTime?
-  rejectionReason String?    @db.Text
-  
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  rejectionReason String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model BusBooking {
@@ -893,119 +894,127 @@ model BusBooking {
   driverId       Int?
   driver         User?    @relation("BusDriver", fields: [driverId], references: [id])
   token          String?
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+
+  // Tracking & Billing
+  status      String    @default("APPROVED") // APPROVED, COMPLETED, CANCELLED
+  totalKm     Int?
+  totalBill   Float?
+  isPaid      Boolean   @default(false)
+  paidAt      DateTime?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // --- MANAJEMEN RUMAH DINAS (OFFICIAL RESIDENCE) ---
 
 model OfficialResidenceUnit {
-  id            Int      @id @default(autoincrement())
-  code          String   @unique // RD-001
-  blok          String?  // A, B, etc.
-  name          String?  // Unit A-1
-  luas          Float?   // in m2
-  lantai        Int?     @default(1)
-  status        String   @default("KOSONG") // DITEMPATI, KOSONG, MAINTENANCE
-  facilities    String?  @db.Text // JSON string or comma separated list
+  id         Int     @id @default(autoincrement())
+  code       String  @unique // RD-001
+  blok       String? // A, B, etc.
+  name       String? // Unit A-1
+  luas       Float? // in m2
+  lantai     Int?    @default(1)
+  status     String  @default("KOSONG") // DITEMPATI, KOSONG, MAINTENANCE
+  facilities String? @db.Text // JSON string or comma separated list
 
-  residents     OfficialResidenceResident[]
-  maintenances  OfficialResidenceMaintenance[]
-  mous          OfficialResidenceMOU[]
+  residents    OfficialResidenceResident[]
+  maintenances OfficialResidenceMaintenance[]
+  mous         OfficialResidenceMOU[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model OfficialResidenceResident {
-  id            Int      @id @default(autoincrement())
-  nik           String?  @unique
-  name          String
-  position      String?  // Jabatan
-  unitId        Int
-  unit          OfficialResidenceUnit @relation(fields: [unitId], references: [id])
-  startDate     DateTime? // Tanggal Masuk
-  phone         String?
-  status        String   @default("AKTIF") // AKTIF, NON_AKTIF
+  id        Int                   @id @default(autoincrement())
+  nik       String?               @unique
+  name      String
+  position  String? // Jabatan
+  unitId    Int
+  unit      OfficialResidenceUnit @relation(fields: [unitId], references: [id])
+  startDate DateTime? // Tanggal Masuk
+  phone     String?
+  status    String                @default("AKTIF") // AKTIF, NON_AKTIF
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model OfficialResidenceMaintenance {
-  id            Int      @id @default(autoincrement())
-  unitId        Int
-  unit          OfficialResidenceUnit @relation(fields: [unitId], references: [id])
-  title         String
-  description   String   @db.Text
-  priority      String   @default("SEDANG") // TINGGI, SEDANG, RENDAH
-  status        String   @default("MENUNGGU") // MENUNGGU, DALAM_PENGERJAAN, SELESAI
-  reportedDate  DateTime @default(now())
-  resolvedDate  DateTime?
-  technician    String?
+  id           Int                   @id @default(autoincrement())
+  unitId       Int
+  unit         OfficialResidenceUnit @relation(fields: [unitId], references: [id])
+  title        String
+  description  String                @db.Text
+  priority     String                @default("SEDANG") // TINGGI, SEDANG, RENDAH
+  status       String                @default("MENUNGGU") // MENUNGGU, DALAM_PENGERJAAN, SELESAI
+  reportedDate DateTime              @default(now())
+  resolvedDate DateTime?
+  technician   String?
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model OfficialResidenceMOU {
-  id              Int      @id @default(autoincrement())
-  mouNumber       String   @unique // MOU/DEI/001/2026
-  unitId          Int
-  unit            OfficialResidenceUnit @relation(fields: [unitId], references: [id])
-  residentName    String
+  id               Int                   @id @default(autoincrement())
+  mouNumber        String                @unique // MOU/DEI/001/2026
+  unitId           Int
+  unit             OfficialResidenceUnit @relation(fields: [unitId], references: [id])
+  residentName     String
   residentPosition String
-  startDate       DateTime
-  endDate         DateTime
-  durationYears   Int
-  status          String   @default("AKTIF") // AKTIF, DIPERPANJANG, KADALUARSA
-  rights          String?  @db.Text
-  obligations     String?  @db.Text
-  notes           String?  @db.Text
-  signedDate      DateTime?
-  
-  // Signatures stored as Base64 strings
-  signatureParty1 String?  @db.LongText // Pihak Pertama (Yayasan)
-  signatureParty2 String?  @db.LongText // Pihak Kedua (Penghuni)
+  startDate        DateTime
+  endDate          DateTime
+  durationYears    Int
+  status           String                @default("AKTIF") // AKTIF, DIPERPANJANG, KADALUARSA
+  rights           String?               @db.Text
+  obligations      String?               @db.Text
+  notes            String?               @db.Text
+  signedDate       DateTime?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  // Signatures stored as Base64 strings
+  signatureParty1 String? @db.LongText // Pihak Pertama (Yayasan)
+  signatureParty2 String? @db.LongText // Pihak Kedua (Penghuni)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model PersonnelRoutine {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String   @db.Text
-  assignerId  Int
-  assigner    User     @relation("RoutineAssigner", fields: [assignerId], references: [id])
-  assigneeId  Int
-  assignee    User     @relation("RoutineAssignee", fields: [assigneeId], references: [id])
-  category    String   @default("UMUM")
-  priority    String   @default("MEDIUM")
-  location    String?
-  items       Json?    @default("[]") // Checklist items template
-  frequency   String   // DAILY, WEEKLY, MONTHLY
-  dayOfWeek   Int?     // 0-6 (0=Sun) for WEEKLY
-  dayOfMonth  Int?     // 1-31 for MONTHLY
-  isActive    Boolean  @default(true)
+  id            Int                   @id @default(autoincrement())
+  title         String
+  description   String                @db.Text
+  assignerId    Int
+  assigner      User                  @relation("RoutineAssigner", fields: [assignerId], references: [id])
+  assigneeId    Int
+  assignee      User                  @relation("RoutineAssignee", fields: [assigneeId], references: [id])
+  category      String                @default("UMUM")
+  priority      String                @default("MEDIUM")
+  location      String?
+  items         Json?                 @default("[]") // Checklist items template
+  frequency     String // DAILY, WEEKLY, MONTHLY
+  dayOfWeek     Int? // 0-6 (0=Sun) for WEEKLY
+  dayOfMonth    Int? // 1-31 for MONTHLY
+  isActive      Boolean               @default(true)
   lastGenerated DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  assignments PersonnelAssignment[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  assignments   PersonnelAssignment[]
 }
 
 model PersonnelKPI {
   id              Int      @id @default(autoincrement())
   userId          Int
   user            User     @relation(fields: [userId], references: [id])
-  month           Int      // 1-12
+  month           Int // 1-12
   year            Int
   completionRate  Float    @default(0) // 0-100
   punctualityRate Float    @default(0) // 0-100
   reportRate      Float    @default(0) // 0-100
   averageScore    Float    @default(0)
-  grade           String?  // A, B, C, D
+  grade           String? // A, B, C, D
   updatedAt       DateTime @updatedAt
 
   @@unique([userId, month, year])

@@ -457,6 +457,83 @@ const checkBusBookingNotifications = async () => {
     }
 };
 
+// 7. Complete Trip & Generate Bill
+const completeBusBooking = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { totalKm } = req.body;
+
+        const booking = await prisma.busBooking.findUnique({
+            where: { id: parseInt(id) },
+            include: { vehicle: true }
+        });
+
+        if (!booking) return res.status(404).json({ error: 'Booking tidak ditemukan' });
+
+        const kmVal = parseInt(totalKm);
+        const billAmount = kmVal * 2000;
+
+        const updated = await prisma.busBooking.update({
+            where: { id: parseInt(id) },
+            data: {
+                totalKm: kmVal,
+                totalBill: billAmount,
+                status: 'COMPLETED',
+                completedAt: new Date()
+            }
+        });
+
+        // Update Vehicle Odometer (Incremental)
+        if (booking.vehicleId) {
+            await prisma.vehicle.update({
+                where: { id: booking.vehicleId },
+                data: { odometer: { increment: kmVal } }
+            });
+        }
+
+        // Send WA Notification to Requester
+        if (booking.requesterPhone) {
+            const msg = `📢 *TAGIHAN PERJALANAN BUS* 🚌\n\n` +
+                `Bismillah Ustadz/Ustadzah *${(booking.requesterName || '').toUpperCase()}*,\n` +
+                `Berikut adalah rincian tagihan perjalanan bus Anda:\n\n` +
+                `📍 *Tujuan*: ${booking.destination}\n` +
+                `📅 *Tanggal*: ${new Date(booking.startDate).toLocaleDateString('id-ID')}\n` +
+                `🛣️ *Jarak Tempuh*: ${kmVal} KM\n` +
+                `---------------------------\n` +
+                `💰 *TOTAL TAGIHAN: Rp ${billAmount.toLocaleString('id-ID')}*\n\n` +
+                `Mohon untuk segera melakukan penyelesaian administrasi ke Bagian Keuangan Sarpras. Syukron.\n\n` +
+                `_Sistem Manajemen Aset_`;
+            
+            try {
+                await whatsappService.sendMessage(booking.requesterPhone, msg);
+            } catch (e) {
+                console.error('[Bus Billing] WA Failed:', e.message);
+            }
+        }
+
+        res.json(updated);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// 8. Mark as Paid
+const markBusAsPaid = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updated = await prisma.busBooking.update({
+            where: { id: parseInt(id) },
+            data: {
+                isPaid: true,
+                paidAt: new Date()
+            }
+        });
+        res.json(updated);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 module.exports = {
     getAllBusBookings,
     getPublicBusBookings,
@@ -464,5 +541,7 @@ module.exports = {
     deleteBusBooking,
     cancelByToken,
     assignDriver,
-    checkBusBookingNotifications
+    checkBusBookingNotifications,
+    completeBusBooking,
+    markBusAsPaid
 };
