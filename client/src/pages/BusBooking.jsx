@@ -53,6 +53,7 @@ const BusBooking = () => {
         user.role === 'SUPER_ADMIN';
 
     const isSarpras = user.position?.toLowerCase().includes('sarana dan prasarana') || user.role === 'SUPER_ADMIN';
+    const isAdminAset = user.role === 'ADMIN_ASET' || user.role === 'SUPER_ADMIN';
 
     const showToast = (message, type = 'success') => {
         const id = Date.now();
@@ -632,7 +633,7 @@ const BusBooking = () => {
                             </div>
 
                             {/* Billing & Administration (Admin Only) */}
-                            {isSarpras && (
+                            {isAdminAset && (
                                 <div className="bg-slate-900 text-white p-5 rounded-3xl space-y-4 shadow-xl">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">

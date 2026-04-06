@@ -463,6 +463,11 @@ const completeBusBooking = async (req, res) => {
         const { id } = req.params;
         const { totalKm } = req.body;
 
+        // Role Check
+        if (!['ADMIN_ASET', 'SUPER_ADMIN'].includes(req.user.role)) {
+            return res.status(403).json({ error: 'Akses ditolak. Hanya Admin Aset atau Super Admin yang diizinkan.' });
+        }
+
         const booking = await prisma.busBooking.findUnique({
             where: { id: parseInt(id) },
             include: { vehicle: true }
@@ -521,6 +526,12 @@ const completeBusBooking = async (req, res) => {
 const markBusAsPaid = async (req, res) => {
     try {
         const { id } = req.params;
+
+        // Role Check
+        if (!['ADMIN_ASET', 'SUPER_ADMIN'].includes(req.user.role)) {
+            return res.status(403).json({ error: 'Akses ditolak. Hanya Admin Aset atau Super Admin yang diizinkan.' });
+        }
+
         const updated = await prisma.busBooking.update({
             where: { id: parseInt(id) },
             data: {
