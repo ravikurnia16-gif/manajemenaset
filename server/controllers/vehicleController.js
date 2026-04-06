@@ -541,8 +541,12 @@ exports.getVehicleDashboard = async (req, res) => {
         // 3. Urgent Actions (Real-time - Always showing upcoming)
         const urgentActions = [];
         allVehicles.forEach(v => {
-            if (v.taxDueDate && v.taxDueDate <= thirtyDaysFromNow) urgentActions.push({ id: v.id, vehicle: v.name, plate: v.plateNumber, action: 'Perpanjang Pajak', type: 'TAX', date: v.taxDueDate });
-            if (v.stnkDueDate && v.stnkDueDate <= thirtyDaysFromNow) urgentActions.push({ id: v.id, vehicle: v.name, plate: v.plateNumber, action: 'Ganti Plat/STNK', type: 'STNK', date: v.stnkDueDate });
+            if (v.stnkDueDate && v.stnkDueDate <= thirtyDaysFromNow) {
+                urgentActions.push({ id: v.id, vehicle: v.name, plate: v.plateNumber, action: 'Ganti Plat/STNK', type: 'STNK', date: v.stnkDueDate });
+            } else if (v.taxDueDate && v.taxDueDate <= thirtyDaysFromNow) {
+                urgentActions.push({ id: v.id, vehicle: v.name, plate: v.plateNumber, action: 'Perpanjang Pajak', type: 'TAX', date: v.taxDueDate });
+            }
+            
             if (v.kirDueDate && v.kirDueDate <= thirtyDaysFromNow) urgentActions.push({ id: v.id, vehicle: v.name, plate: v.plateNumber, action: 'Uji KIR', type: 'KIR', date: v.kirDueDate });
             const lastRoutine = v.services?.[0];
             if (lastRoutine && v.odometer >= lastRoutine.nextServiceOdometer) urgentActions.push({ id: v.id, vehicle: v.name, plate: v.plateNumber, action: 'Servis Rutin (Overdue)', type: 'SERVICE', km: lastRoutine.nextServiceOdometer });
