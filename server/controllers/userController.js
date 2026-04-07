@@ -165,14 +165,16 @@ exports.getSarprasStaff = async (req, res) => {
         const staff = await prisma.user.findMany({
             where: {
                 OR: [
-                    { position: 'Staff Manajemen Aset' },
-                    { position: 'Staff Keuangan dan Administrasi (Sarpras)' },
-                    { position: 'Staff Gudang dan Logistik' },
-                    { position: 'Staff Teknisi Aset' },
-                    { position: 'Staff Kendaraan' }
+                    { position: { contains: 'Manajemen Aset' } },
+                    { position: { contains: 'Keuangan dan Administrasi' } },
+                    { position: { contains: 'Gudang' } },
+                    { position: { contains: 'Logistik' } },
+                    { position: { contains: 'Kendaraan' } },
+                    { position: { contains: 'Teknisi' } }
                 ]
             },
-            select: { id: true, name: true, username: true, position: true }
+            select: { id: true, name: true, username: true, position: true },
+            orderBy: { position: 'asc' }
         });
         res.json(staff);
     } catch (error) {
