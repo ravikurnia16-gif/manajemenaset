@@ -167,7 +167,9 @@ exports.getSarprasStaff = async (req, res) => {
                 OR: [
                     { position: 'Staff Manajemen Aset' },
                     { position: 'Staff Keuangan dan Administrasi (Sarpras)' },
-                    { position: 'Staff Keuangan' }
+                    { position: 'Staff Gudang dan Logistik' },
+                    { position: 'Staff Teknisi Aset' },
+                    { position: 'Staff Kendaraan' }
                 ]
             },
             select: { id: true, name: true, username: true, position: true }
