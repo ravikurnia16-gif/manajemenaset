@@ -81,7 +81,7 @@ exports.createAsset = async (req, res) => {
                             nextSeq = lastSeq + 1;
                         }
                     }
-                    
+
                     finalRoomCode = `${unit.code}-${nextSeq.toString().padStart(2, '0')}`;
                 }
 
@@ -434,7 +434,7 @@ exports.deleteAsset = async (req, res) => {
     try {
         const { id } = req.params;
         const asset = await prisma.asset.findUnique({ where: { id: parseInt(id) } });
-        
+
         if (asset?.image) {
             await deleteFile(asset.image);
         }
