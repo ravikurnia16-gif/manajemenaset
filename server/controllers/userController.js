@@ -159,3 +159,21 @@ exports.updateProfile = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.getSarprasStaff = async (req, res) => {
+    try {
+        const staff = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { position: 'Staff Manajemen Aset' },
+                    { position: 'Staff Keuangan dan Administrasi (Sarpras)' },
+                    { position: 'Staff Keuangan' }
+                ]
+            },
+            select: { id: true, name: true, username: true, position: true }
+        });
+        res.json(staff);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

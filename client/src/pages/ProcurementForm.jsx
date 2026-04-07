@@ -7,13 +7,17 @@ import api from '../lib/axios';
 
 const ProcurementForm = () => {
     const navigate = useNavigate();
-    const [header, setHeader] = useState({ title: '', rkbId: '' });
+    const [header, setHeader] = useState({ title: '', rkbId: '', isDirectOrder: false, assignedStaffId: '', type: 'ASSET' });
     const [fundingSources, setFundingSources] = useState(['Yayasan', 'Hibah', 'Wakaf', 'Mandiri']);
+    const [staffList, setStaffList] = useState([]);
     const [items, setItems] = useState([
         { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan', type: 'ASSET' }
     ]);
     const [loading, setLoading] = useState(false);
     const fileInputRef = useRef(null);
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const isAuthorizedForDirectOrder = user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana dan Prasarana';
 
     useEffect(() => {
         api.get('/assets/funding-sources')
@@ -31,7 +35,15 @@ const ProcurementForm = () => {
                 console.error("Failed to fetch funding sources:", err);
                 setFundingSources(['Mandiri']);
             });
-    }, []);
+
+        if (isAuthorizedForDirectOrder) {
+            api.get('/users/staff')
+                .then(res => {
+                    setStaffList(res.data || []);
+                })
+                .catch(err => console.error("Failed to fetch staff:", err));
+        }
+    }, [isAuthorizedForDirectOrder]);
 
     const handleItemChange = (index, field, value) => {
         setItems(prevItems => prevItems.map((item, i) =>
@@ -181,6 +193,68 @@ const ProcurementForm = () => {
                             required
                         />
                     </div>
+
+                    {/* Direct Order Panel (Super Admin / Kabid Only) */}
+                    {isAuthorizedForDirectOrder && (
+                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 shadow-sm animate-in fade-in duration-300">
+                            <label className="flex items-center justify-between cursor-pointer mb-3">
+                                <div>
+                                    <span className="text-sm font-bold text-amber-900 flex items-center gap-2">
+                                        👑 Instruksi Langsung Kepala Bidang
+                                    </span>
+                                    <p className="text-[10px] text-amber-700 font-medium">Bypass persetujuan. Langsung status APPROVED & Tugaskan Staf.</p>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    className="w-5 h-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                    checked={header.isDirectOrder}
+                                    onChange={e => setHeader({ ...header, isDirectOrder: e.target.checked })}
+                                />
+                            </label>
+
+                            {header.isDirectOrder && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-amber-200/60">
+                                    {/* Kategori Pengadaan */}
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-amber-900 uppercase mb-2">Kategori Pengadaan</label>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setHeader({ ...header, type: 'ASSET' })}
+                                                className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors border ${header.type === 'ASSET' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'}`}
+                                            >
+                                                📦 Aset Terdata
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setHeader({ ...header, type: 'NON_ASSET' })}
+                                                className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors border ${header.type === 'NON_ASSET' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'}`}
+                                            >
+                                                🛒 Non-Aset (Umum)
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Pilih Staff */}
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-amber-900 uppercase mb-2">Tugaskan Kepada (Opsional)</label>
+                                        <select
+                                            className="w-full border border-amber-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none bg-white text-slate-700"
+                                            value={header.assignedStaffId}
+                                            onChange={e => setHeader({ ...header, assignedStaffId: e.target.value })}
+                                        >
+                                            <option value="">-- Pilih Staf Pelaksana --</option>
+                                            {staffList.map(staff => (
+                                                <option key={staff.id} value={staff.id}>
+                                                    {staff.name || staff.username} - {staff.position}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Items Section */}
                     <div>

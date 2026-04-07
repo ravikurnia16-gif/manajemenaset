@@ -4,6 +4,7 @@ const userController = require('../controllers/userController');
 const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 
 router.get('/', verifyToken, userController.getAllUsers);
+router.get('/staff', verifyToken, authorizeRole(['SUPER_ADMIN', 'KEPALA_BIDANG']), userController.getSarprasStaff);
 router.get('/profile', verifyToken, userController.getProfile);
 router.put('/profile', verifyToken, userController.updateProfile);
 router.post('/', verifyToken, authorizeRole(['SUPER_ADMIN']), userController.createUser);

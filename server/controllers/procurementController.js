@@ -133,7 +133,7 @@ exports.getProcurementById = async (req, res) => {
 
 // Create Request
 exports.createProcurement = async (req, res) => {
-    const { title, type, items, rkbId } = req.body;
+    const { title, type, items, rkbId, isDirectOrder, assignedStaffId } = req.body;
     const user = req.user;
 
     try {
@@ -147,6 +147,9 @@ exports.createProcurement = async (req, res) => {
             }
         }
 
+        const isDirect = (isDirectOrder === true || isDirectOrder === 'true') && (user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana dan Prasarana');
+        const initialStatus = isDirect ? 'APPROVED' : 'SUBMITTED';
+
         const results = [];
 
         for (const item of items) {
@@ -156,31 +159,68 @@ exports.createProcurement = async (req, res) => {
                 const procurement = await prisma.procurement.create({
                     data: {
                         code,
-                        title: title ? `${title} - ${item.name}` : `Permintaan: ${item.name}`,
+                        title: title ? (isDirect ? `[PERINTAH KABID] ${title} - ${item.name}` : `${title} - ${item.name}`) : `Permintaan: ${item.name}`,
                         userId: user.id,
                         unitId: user.unitId,
                         type: item.type || type || 'ASSET',
-                        status: 'SUBMITTED',
-                        rkbId: rkbId ? parseInt(rkbId) : null
+                        status: initialStatus,
+                        rkbId: rkbId ? parseInt(rkbId) : null,
+                        isDirectOrder: isDirect
                     }
                 });
 
                 // Create Item (single)
+                const itemData = {
+                    procurementId: procurement.id,
+                    name: item.name,
+                    spec: item.spec,
+                    qty: parseInt(item.qty),
+                    unit: item.unit,
+                    estPrice: parseFloat(item.estPrice || 0),
+                    fundingSource: item.fundingSource || 'Yayasan'
+                };
+
+                let assignedUser = null;
+                if (isDirect && assignedStaffId) {
+                    itemData.assignedToId = parseInt(assignedStaffId);
+                    assignedUser = await prisma.user.findUnique({ where: { id: parseInt(assignedStaffId) } });
+                    itemData.assignedTo = assignedUser ? (assignedUser.name || assignedUser.username) : null;
+                }
+
                 await prisma.procurementItem.create({
-                    data: {
-                        procurementId: procurement.id,
-                        name: item.name,
-                        spec: item.spec,
-                        qty: parseInt(item.qty),
-                        unit: item.unit,
-                        estPrice: parseFloat(item.estPrice || 0),
-                        fundingSource: item.fundingSource || 'Yayasan'
-                    }
+                    data: itemData
                 });
 
-                return procurement;
+                return { ...procurement, assignedUser };
             });
             results.push(result);
+        }
+
+        // Notify chosen staff if Direct Order
+        if (isDirect && assignedStaffId) {
+             const assignedUser = await prisma.user.findUnique({ where: { id: parseInt(assignedStaffId) } });
+             if (assignedUser && assignedUser.phone) {
+                 const itemListMsg = items.map((it, idx) =>
+                     `${idx + 1}. *${it.name}*` + (it.spec && it.spec !== '-' ? ` (${it.spec})` : '')
+                 ).join('\n');
+
+                 const msg = `*Bismillah*\n\n` +
+                     `*Info Penugasan Pengadaan (MANDAT KABID)*\n\n` +
+                     `Halo *${assignedUser.name || assignedUser.username}*,\n\n` +
+                     `Anda menerima perintah langsung pengadaan *"${title}"* dari Kepala Bidang.\n\n` +
+                     `*Rincian Barang:*\n` +
+                     `${itemListMsg}\n\n` +
+                     `Mohon segera diproses. Syukron.`;
+
+                 setTimeout(async () => {
+                     try {
+                         await whatsappService.sendMessage(assignedUser.phone, msg);
+                         console.log(`[WA] Instant direct procurement mandate sent to ${assignedUser.username}`);
+                     } catch (e) {
+                         console.error('WA Mandate Notification Error:', e);
+                     }
+                 }, 5000);
+             }
         }
 
         res.json({ message: `${results.length} Request(s) submitted`, data: results });
@@ -204,9 +244,9 @@ exports.createProcurement = async (req, res) => {
                 for (const admin of admins) {
                     await createNotification(
                         admin.id,
-                        'Permintaan Pengadaan Baru',
-                        `${submitterName} mengajukan ${results.length} permintaan pengadaan baru.`,
-                        'URGENT',
+                        isDirect ? 'Perintah Pengadaan Auto-Approve' : 'Permintaan Pengadaan Baru',
+                        `${submitterName} ${isDirect ? 'memerintahkan' : 'mengajukan'} ${results.length} permintaan pengadaan.`,
+                        isDirect ? 'SUCCESS' : 'URGENT',
                         '/procurement'
                     );
                 }
@@ -225,8 +265,6 @@ exports.createProcurement = async (req, res) => {
 
                 if (!submitter) return;
 
-                // For split Requests, we send a summary to Submitter or individual?
-                // Grouping them for the notification is better to avoid spamming the requester.
                 const itemList = (items || []).map((item, index) =>
                     `${index + 1}. ${item.name} (${item.qty} ${item.unit})`
                 ).join('\n');
@@ -235,49 +273,51 @@ exports.createProcurement = async (req, res) => {
                     const msgSubmitter = `*Info Request Pengadaan*\n\n` +
                         `Ustadz/Ustadzah *${submitter.name || submitter.username}*, ${results.length} permintaan anda telah kami terima dengan rincian:\n\n` +
                         `${itemList}\n\n` +
-                        `Pesanan Ustadz/Ustadzah akan segera kami proses.`;
+                        `${isDirect ? `*Status* : Langsung Disetujui (Instruksi Kabid) \u2705\n` : `Pesanan Ustadz/Ustadzah akan segera kami proses.`}`;
 
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
 
-                // 3. Notify Admins
-                const admins = await prisma.user.findMany({
-                    where: {
-                        OR: [
-                            { position: 'Kepala Bidang Sarana dan Prasarana' }, // Ravi Kurnia
-                            { position: 'Staff Manajemen Aset' }, // Eldo
-                            { position: 'Staff Keuangan' }  // Syafrian
-                        ],
-                        phone: { not: null, not: '' }
-                    }
-                });
-
-                if (admins.length > 0) {
-                    const msgAdm = `*Info Request Pengadaan*\n\n` +
-                        `Ada ${results.length} pesanan baru dari:\n` +
-                        `\u{1F464} *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
-                        `\u{1F194} *NIY* : ${submitter.username || '-'}\n` +
-                        `\u{1F3E2} *Unit* : ${submitter.unit?.name || '-'}\n\n` +
-                        `*Rincian Permintaan:*\n` +
-                        `${itemList}\n\n` +
-                        `Mohon segera di proses.`;
-
-                    // Simple delay then staggering
-                    setTimeout(async () => {
-                        let cumulativeDelay = 0;
-                        for (const admin of admins) {
-                            const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
-                            cumulativeDelay += randomGap;
-
-                            setTimeout(async () => {
-                                try {
-                                    await whatsappService.sendMessage(admin.phone, msgAdm);
-                                } catch (e) {
-                                    console.error(`Failed sending to ${admin.username}:`, e);
-                                }
-                            }, cumulativeDelay);
+                if (!isDirect) {
+                    // 3. Notify Admins (Only if NOT direct, since direct already notifies the chosen admin)
+                    const admins = await prisma.user.findMany({
+                        where: {
+                            OR: [
+                                { position: 'Kepala Bidang Sarana dan Prasarana' },
+                                { position: 'Staff Manajemen Aset' },
+                                { position: 'Staff Keuangan' }
+                            ],
+                            phone: { not: null, not: '' }
                         }
-                    }, 30000);
+                    });
+
+                    if (admins.length > 0) {
+                        const msgAdm = `*Info Request Pengadaan*\n\n` +
+                            `Ada ${results.length} pesanan baru dari:\n` +
+                            `\u{1F464} *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
+                            `\u{1F194} *NIY* : ${submitter.username || '-'}\n` +
+                            `\u{1F3E2} *Unit* : ${submitter.unit?.name || '-'}\n\n` +
+                            `*Rincian Permintaan:*\n` +
+                            `${itemList}\n\n` +
+                            `Mohon segera di proses.`;
+
+                        // Simple delay then staggering
+                        setTimeout(async () => {
+                            let cumulativeDelay = 0;
+                            for (const admin of admins) {
+                                const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
+                                cumulativeDelay += randomGap;
+
+                                setTimeout(async () => {
+                                    try {
+                                        await whatsappService.sendMessage(admin.phone, msgAdm);
+                                    } catch (e) {
+                                        console.error(`Failed sending to ${admin.username}:`, e);
+                                    }
+                                }, cumulativeDelay);
+                            }
+                        }, 30000);
+                    }
                 }
             } catch (err) {
                 console.error("WA Notification Error:", err);

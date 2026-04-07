@@ -256,18 +256,13 @@ exports.createReport = async (req, res) => {
                         where: { position: 'Staff Manajemen Aset' }
                     });
 
-                    if (techUser && techUser.phone && report.quickToken) {
-                        const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
-                        const quickLink = `${baseUrl}/q/${report.quickToken}`;
-
+                    if (techUser && techUser.phone) {
                         const msgTech = `🛠 *PENUGASAN MANDAT KABID*\n\n` +
                             `Halo *${techUser.name || techUser.username}*,\n` +
                             `Anda mendapatkan instruksi langsung untuk memperbaiki: *${title}*.\n\n` +
                             `📜 *Kode* : ${code}\n` +
                             `👤 *Pemberi Tugas* : Super Admin (Atas Perintah Kabid)\n` +
                             `📝 *Masalah* : ${description}\n\n` +
-                            `Buka link pengerjaan jika sudah selesai:\n` +
-                            `👉 ${quickLink}\n\n` +
                             `Mohon segera ditindaklanjuti. Syukron.`;
 
                         setTimeout(async () => {
@@ -364,18 +359,13 @@ exports.updateStatus = async (req, res) => {
                             where: { OR: [{ name: technician }, { username: technician }] }
                         });
                         
-                        if (techUser && techUser.phone && report.quickToken) {
-                            const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
-                            const quickLink = `${baseUrl}/q/${report.quickToken}`;
-                            
+                        if (techUser && techUser.phone) {
                             const msgTech = `🛠 *PENUGASAN PEMELIHARAAN*\n\n` +
                                 `Halo *${techUser.name || techUser.username}*,\n` +
                                 `Anda ditugaskan untuk memperbaiki: *${report.title}*.\n\n` +
                                 `📜 *Kode* : ${report.code}\n` +
                                 `📋 *Judul* : ${report.title}\n` +
                                 `📝 *Masalah* : ${report.description}\n\n` +
-                                `Jika sudah selesai, klik link di bawah untuk konfirmasi:\n` +
-                                `👉 ${quickLink}\n\n` +
                                 `Terima kasih!`;
                                 
                             setTimeout(async () => {
