@@ -10,8 +10,24 @@ const { authMiddleware } = require('../middleware/authMiddleware');
 
 const generateOrderCode = async () => {
     const year = new Date().getFullYear();
-    const count = await prisma.uniformOrder.count();
-    return `ORD/${year}/${(count + 1).toString().padStart(3, '0')}`;
+    const lastOrder = await prisma.uniformOrder.findFirst({
+        where: { code: { startsWith: `ORD/${year}/` } },
+        orderBy: { code: 'desc' },
+        select: { code: true }
+    });
+
+    let nextSequence = 1;
+    if (lastOrder) {
+        const parts = lastOrder.code.split('/');
+        if (parts.length === 3) {
+            const lastSeq = parseInt(parts[2]);
+            if (!isNaN(lastSeq)) {
+                nextSequence = lastSeq + 1;
+            }
+        }
+    }
+
+    return `ORD/${year}/${nextSequence.toString().padStart(3, '0')}`;
 };
 
 // ======================== CONTROLLER LOGIC ========================
