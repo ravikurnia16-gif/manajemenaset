@@ -180,6 +180,7 @@ const StaffPerformance = () => {
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) || 
                     (user.position?.toLowerCase().includes('kepala bidang') && user.unit?.name?.toLowerCase().includes('sarana dan prasarana'));
+    const isKabid = user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana dan Prasarana';
 
     // Form State (Consolidated)
     const [form, setForm] = useState({
@@ -509,7 +510,7 @@ const StaffPerformance = () => {
                     {!showForm && (
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/50 backdrop-blur-xl p-3 md:p-4 rounded-[28px] md:rounded-[32px] border border-slate-200/40 shadow-sm overflow-x-auto no-scrollbar">
                             <div className="flex items-center gap-3 md:gap-4 flex-nowrap md:flex-1">
-                                {isAdmin && (
+                                {isKabid && (
                                     <div className="flex items-center gap-2 bg-white px-3 md:px-4 py-2 md:py-2.5 rounded-xl md:rounded-2xl border border-slate-100 shadow-sm min-w-[180px] md:min-w-[240px] shrink-0">
                                         <Users size={14} className="text-indigo-400" />
                                         <select 
