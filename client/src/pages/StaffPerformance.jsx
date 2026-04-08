@@ -349,7 +349,7 @@ const StaffPerformance = () => {
             titles = userPlans.map(p => ({ 
                 id: p.id, 
                 title: p.metadata?.title || `Rencana ${new Date(p.date).toLocaleDateString()}`,
-                items: p.metadata?.items || [] 
+                items: (p.metadata?.items || []).map((it, idx) => ({ ...it, originalIdx: idx }))
             }));
         } else if (category === 'ROUTINE') {
             titles = userRoutines.filter(r => r.isActive).map(r => ({ 
@@ -377,7 +377,9 @@ const StaffPerformance = () => {
             activity: `${prefix} ${item.activity || item.text || 'Aktivitas'}`,
             status: item.status || 'PROSES',
             percentage: item.percentage || 0,
-            note: `Diambil dari ${prefix} ${source.title}`
+            note: `Diambil dari ${prefix} ${source.title}`,
+            planId: activeSourceCategory === 'PLAN' ? source.id : undefined,
+            planItemIndex: activeSourceCategory === 'PLAN' ? item.originalIdx : undefined
         }));
 
         setForm(prev => ({
