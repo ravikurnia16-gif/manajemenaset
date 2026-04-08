@@ -829,7 +829,7 @@ const Settings = () => {
 
                                                 // BIDANG SARANA & PRASARANA
                                                 { label: 'Kepala Bidang Sarana dan Prasarana', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
-                                                { label: 'Staff Keuangan dan Administrasi (Sarpras)', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                                { label: 'Staff Keuangan dan Administrasi (Sarpras)', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                                 { label: 'Staff Manajemen Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                                 { label: 'Staff Gudang dan Logistik', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                                 { label: 'Staff Kendaraan', role: 'ADMIN_ASET', scope: 'GLOBAL' },
@@ -889,13 +889,13 @@ const Settings = () => {
                                         <optgroup label="Kantor Yayasan">
                                             <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG SARPRAS & IT --</option>
                                             <option value="Kepala Bidang Sarana dan Prasarana">Kepala Bidang Sarana dan Prasarana (Super Admin)</option>
-                                            <option value="Staff Keuangan dan Administrasi (Sarpras)">Staff Keuangan & Adm (Super Admin)</option>
-                                            <option value="Staff Manajemen Aset">Staff Manajemen Aset (Admin Unit)</option>
-                                            <option value="Staff Gudang dan Logistik">Staff Gudang dan Logistik (Admin Unit)</option>
-                                            <option value="Staff Kendaraan">Staff Kendaraan (Admin Unit)</option>
+                                            <option value="Staff Keuangan dan Administrasi (Sarpras)">Staff Keuangan & Adm (Admin Aset)</option>
+                                            <option value="Staff Manajemen Aset">Staff Manajemen Aset (Admin Aset)</option>
+                                            <option value="Staff Gudang dan Logistik">Staff Gudang dan Logistik (Admin Aset)</option>
+                                            <option value="Staff Kendaraan">Staff Kendaraan (Admin Aset)</option>
                                             <option value="Kepala Bidang IT">Kepala Bidang IT (Super Admin)</option>
                                             <option value="Staff Programming">Staff Programming (Super Admin)</option>
-                                            <option value="Staff IT">Staff IT (Admin Unit)</option>
+                                            <option value="Staff IT">Staff IT (Admin Aset)</option>
 
                                             <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG SDM & KEUANGAN --</option>
                                             <option value="Kepala Bidang SDM">Kepala Bidang SDM (Global Terbatas)</option>
