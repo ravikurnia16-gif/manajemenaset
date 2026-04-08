@@ -167,7 +167,6 @@ const StaffPerformance = () => {
     const [loading, setLoading] = useState(true);
     const [reports, setReports] = useState([]);
     const [assignments, setAssignments] = useState([]);
-    const [routines, setRoutines] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
     const [staffList, setStaffList] = useState([]);
     const [showForm, setShowForm] = useState(false);
@@ -176,6 +175,12 @@ const StaffPerformance = () => {
     // UI State for Source Selection
     const [activeSourceCategory, setActiveSourceCategory] = useState(null); // 'PLAN', 'ROUTINE', 'TASK'
     const [availableSourceTitles, setAvailableSourceTitles] = useState([]);
+
+    // Data for Import Hub (User specific)
+    const [userPlans, setUserPlans] = useState([]);
+    const [userAssignments, setUserAssignments] = useState([]);
+    const [userRoutines, setUserRoutines] = useState([]);
+
 
     // Filters
     const [filterStaff, setFilterStaff] = useState('ALL');
@@ -243,12 +248,16 @@ const StaffPerformance = () => {
 
     const fetchInitialData = async () => {
         try {
-            const [staffRes, routineRes] = await Promise.all([
+            const [staffRes, routineRes, assignmentRes, planRes] = await Promise.all([
                 api.get('/personnel/staff'),
-                api.get('/personnel/routines')
+                api.get('/personnel/routines'),
+                api.get('/personnel/assignments', { params: { userId: user.id } }),
+                api.get('/personnel/reports', { params: { userId: user.id, type: 'WEEKLY' } })
             ]);
             setStaffList(staffRes.data || []);
-            setRoutines(routineRes.data || []);
+            setUserRoutines(routineRes.data?.filter(r => r.assigneeId === user.id) || []);
+            setUserAssignments(assignmentRes.data || []);
+            setUserPlans(Array.isArray(planRes.data) ? planRes.data : (planRes.data?.data || []));
         } catch (err) {
             console.error('Failed to fetch initial data:', err);
         }
@@ -337,22 +346,19 @@ const StaffPerformance = () => {
         let titles = [];
 
         if (category === 'PLAN') {
-            const activePlans = reports.filter(r => r.metadata?.isPlan && r.userId === user.id);
-            titles = activePlans.map(p => ({ 
+            titles = userPlans.map(p => ({ 
                 id: p.id, 
-                title: p.metadata.title || `Rencana ${new Date(p.date).toLocaleDateString()}`,
-                items: p.metadata.items 
+                title: p.metadata?.title || `Rencana ${new Date(p.date).toLocaleDateString()}`,
+                items: p.metadata?.items || [] 
             }));
         } else if (category === 'ROUTINE') {
-            const activeRoutines = routines.filter(r => r.assigneeId === user.id && r.isActive);
-            titles = activeRoutines.map(r => ({ 
+            titles = userRoutines.filter(r => r.isActive).map(r => ({ 
                 id: r.id, 
                 title: r.title,
                 items: Array.isArray(r.items) ? r.items : [] 
             }));
         } else if (category === 'TASK') {
-            const activeTasks = assignments.filter(a => a.assigneeId === user.id && (a.status === 'IN_PROGRESS' || a.status === 'PENDING'));
-            titles = activeTasks.map(t => ({ 
+            titles = userAssignments.filter(a => a.status === 'IN_PROGRESS' || a.status === 'PENDING').map(t => ({ 
                 id: t.id, 
                 title: t.title,
                 items: Array.isArray(t.items) ? t.items.map(i => ({ activity: i.text, percentage: i.percentage || 0, status: i.isDone ? 'SELESAI' : 'PROSES' })) : []
