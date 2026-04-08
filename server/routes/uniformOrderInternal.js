@@ -85,26 +85,56 @@ const createOrder = async (req, res) => {
             include: { items: { include: { item: true } } }
         });
 
-        // Send WhatsApp notification
+        // Send WhatsApp notifications
         try {
             const { sendMessage } = require('../services/whatsappService');
             const settings = await prisma.setting.findFirst();
-            if (settings?.waGroupId) {
-                const itemList = order.items.map((oi, i) =>
-                    `${i + 1}. ${oi.item.name} (${oi.item.size || '-'}) x${oi.quantity}`
-                ).join('\n');
 
-                const msg = `🛒 *PESANAN SERAGAM BARU*\n\n` +
+            const itemList = order.items.map((oi, i) =>
+                `${i + 1}. ${oi.item.name} (${oi.item.size || '-'}) x${oi.quantity}`
+            ).join('\n');
+
+            // 1. Notify WA Group (Admin)
+            if (settings?.waGroupId) {
+                const msg = `🛒 *PESANAN UNIT BARU*\n\n` +
                     `📋 Kode: *${order.code}*\n` +
                     `👤 Pemesan: ${order.customerName}\n` +
                     `📱 HP: ${order.customerPhone}\n` +
                     `🏫 Unit: ${order.customerUnit}\n` +
-                    `👨‍🎓 Siswa: ${order.studentName}${order.studentClass ? ` (${order.studentClass})` : ''}\n\n` +
+                    `👨‍🎓 Atas Nama: ${order.studentName}${order.studentClass ? ` (${order.studentClass})` : ''}\n\n` +
                     `📦 *Item:*\n${itemList}\n\n` +
                     `💰 Total: Rp ${order.totalAmount.toLocaleString('id-ID')}\n` +
                     `📝 Catatan: ${order.note || '-'}`;
 
                 await sendMessage(settings.waGroupId, msg);
+            }
+
+            // 2. Notify the ordering user directly (Unit Order confirmation)
+            if (order.customerPhone) {
+                // Detect if studentName is a real name or just a generic unit order label
+                const isGenericName = !order.studentName ||
+                    order.studentName.toUpperCase().includes('PESANAN UNIT') ||
+                    order.studentName.toUpperCase().includes('INTERNAL');
+
+                const subjectLine = isGenericName
+                    ? `Pesanan dari unit *${order.customerUnit}* telah kami terima.`
+                    : `Pesanan atas nama *${order.studentName}* dari unit *${order.customerUnit}* telah kami terima.`;
+
+                const confirmMsg = `Assalamu'alaikum Warahmatullahi Wabarakatuh\n\n` +
+                    `*${order.customerName || 'Ustadz/Ustadzah'}*,\n\n` +
+                    `${subjectLine}\n\n` +
+                    `📋 *Kode Pesanan* : *${order.code}*\n\n` +
+                    `*Rincian Pesanan:*\n${itemList}\n\n` +
+                    `InsyaaAllah akan segera kami proses.\n` +
+                    `Jazaakumullahu khairan.`;
+
+                setTimeout(async () => {
+                    try {
+                        await sendMessage(order.customerPhone, confirmMsg);
+                    } catch (e) {
+                        console.error('[WA] Unit order confirmation failed:', e.message);
+                    }
+                }, 5000);
             }
         } catch (waError) {
             console.error('WA notification failed:', waError.message);
