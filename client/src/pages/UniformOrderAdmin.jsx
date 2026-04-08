@@ -255,18 +255,22 @@ const UniformOrderAdmin = () => {
                                                                 <div className="flex gap-1 ml-2">
                                                                     {activeTab === 'UNIT' ? (
                                                                         <>
-                                                                            <button
-                                                                                onClick={() => handleEditItem(item.id, 'READY')}
-                                                                                className="text-[10px] bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-600 hover:text-white font-bold shadow-sm transition"
-                                                                            >
-                                                                                TERIMA (APPROVE)
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => handleEditItem(item.id, 'CANCEL_ITEM')}
-                                                                                className="text-[10px] bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-600 hover:text-white font-bold shadow-sm transition"
-                                                                            >
-                                                                                TOLAK
-                                                                            </button>
+                                                                            {currentStatus === 'PENDING' && (
+                                                                                <>
+                                                                                    <button
+                                                                                        onClick={() => handleEditItem(item.id, 'READY')}
+                                                                                        className="text-[10px] bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-600 hover:text-white font-bold shadow-sm transition"
+                                                                                    >
+                                                                                        TERIMA (APPROVE)
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => handleEditItem(item.id, 'CANCEL_ITEM')}
+                                                                                        className="text-[10px] bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-600 hover:text-white font-bold shadow-sm transition"
+                                                                                    >
+                                                                                        TOLAK
+                                                                                    </button>
+                                                                                </>
+                                                                            )}
                                                                         </>
                                                                     ) : (
                                                                         <>
@@ -322,18 +326,18 @@ const UniformOrderAdmin = () => {
                                                                                     BATAL
                                                                                 </button>
                                                                             )}
-
-                                                                            {/* Selesai Button */}
-                                                                            {currentStatus === 'READY' && (
-                                                                                <button
-                                                                                    onClick={() => handleItemStatusNoNotify(item.id, 'DONE')}
-                                                                                    className="text-[10px] bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 font-bold shadow-sm transition border border-indigo-700"
-                                                                                    title="Selesaikan pesanan dan kurangi stok tanpa pemberitahuan WA"
-                                                                                >
-                                                                                    SELESAI
-                                                                                </button>
-                                                                            )}
                                                                         </>
+                                                                    )}
+
+                                                                    {/* Selesai Button - Shared for both UNIT and WARID when READY */}
+                                                                    {currentStatus === 'READY' && (
+                                                                        <button
+                                                                            onClick={() => handleItemStatusNoNotify(item.id, 'DONE')}
+                                                                            className="text-[10px] bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 font-bold shadow-sm transition border border-indigo-700"
+                                                                            title="Selesaikan pesanan dan kurangi stok tanpa pemberitahuan WA"
+                                                                        >
+                                                                            SELESAI
+                                                                        </button>
                                                                     )}
                                                                 </div>
                                                             )}
