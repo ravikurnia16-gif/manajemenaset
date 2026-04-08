@@ -22,6 +22,8 @@ const UniformOrderAdmin = () => {
     const [filter, setFilter] = useState({ status: '', unit: '' });
     const [activeTab, setActiveTab] = useState('WARID');
     const [expandedId, setExpandedId] = useState(null);
+    const [itemEdits, setItemEdits] = useState({});
+    const [savingBulk, setSavingBulk] = useState(false);
 
     useEffect(() => { fetchOrders(); }, [filter]);
 
@@ -69,20 +71,46 @@ const UniformOrderAdmin = () => {
         // 3. Fallback: Raw Note
         return order.note || '-';
     };
-
-    const handleItemStatus = async (itemId, newStatus, pickupDetails = null) => {
-        try {
-            await api.put(`/uniform-order/admin/items/${itemId}/status`, { status: newStatus, pickupDetails });
-            fetchOrders();
-        } catch (e) { alert(e.response?.data?.error || 'Gagal'); }
+    const handleEditItem = (itemId, newStatus, pickupDetails = null) => {
+        setItemEdits(prev => ({
+            ...prev,
+            [itemId]: { status: newStatus, pickupDetails }
+        }));
     };
 
-    const handleItemNotify = async (itemId, type, day = '') => {
+    const handleBulkSave = async (orderId) => {
+        const order = orders.find(o => o.id === orderId);
+        if (!order) return;
+        
+        const updates = order.items
+            .map(item => {
+                if (itemEdits[item.id]) {
+                    return { id: item.id, ...itemEdits[item.id] };
+                }
+                return null;
+            })
+            .filter(u => u !== null);
+
+        if (updates.length === 0) return;
+
+        if (!confirm('Simpan perubahan dan otomatis kirim 1 pesan WA rekapan ke pemesan?')) return;
+
+        setSavingBulk(true);
         try {
-            await api.post(`/uniform-order/admin/items/${itemId}/notify`, { type, day });
-            alert('Notifikasi WhatsApp telah dikirim ke pemesan');
+            await api.put(`/uniform-order/admin/orders/${orderId}/bulk-items`, { updates });
+            
+            // Remove saved edits from local state
+            const newEdits = { ...itemEdits };
+            updates.forEach(u => delete newEdits[u.id]);
+            setItemEdits(newEdits);
+            
+            alert('Sukses menyimpan dan WA rekap terkirim!');
             fetchOrders();
-        } catch (e) { alert(e.response?.data?.error || 'Gagal mengirim notifikasi'); }
+        } catch (e) {
+            alert(e.response?.data?.error || 'Gagal menyimpan data');
+        } finally {
+            setSavingBulk(false);
+        }
     };
 
     const displayedOrders = orders.filter(order => {
@@ -180,128 +208,147 @@ const UniformOrderAdmin = () => {
 
                                 <div className="space-y-3">
                                     {(order.items || []).length > 0 ? (
-                                        order.items.map(item => (
-                                            <div key={item.id} className="flex flex-wrap items-center gap-4 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                                <div className="flex-1">
-                                                    <div className="font-bold text-slate-700 text-sm">{item.itemName || 'Item'}</div>
-                                                    <div className="text-xs text-slate-500">Ukuran: <span className="font-bold">{item.size || '-'}</span> • Qty: <span className="font-bold">{item.quantity}</span></div>
-                                                    {item.pickupDetails && <div className="text-[10px] text-green-600 mt-1 font-medium bg-green-50 px-2 py-0.5 rounded inline-block">Siap Diambil: {item.pickupDetails}</div>}
-                                                </div>
+                                        <>
+                                            {order.items.map(item => {
+                                                const currentStatus = itemEdits[item.id]?.status || item.status;
+                                                const currentPickup = itemEdits[item.id]?.pickupDetails || item.pickupDetails;
 
-                                                <div className="flex items-center gap-2">
-                                                    {/* Status Item */}
-                                                    <span className={`text-[10px] font-bold px-2 py-1 rounded inline-block
-                                                        ${item.status === 'READY' ? 'bg-green-100 text-green-700' :
-                                                            item.status === 'NO_STOCK' ? 'bg-red-100 text-red-700' :
-                                                                item.status === 'CANCEL_ITEM' ? 'bg-slate-100 text-slate-500' :
-                                                                    item.status === 'INDENT' ? 'bg-orange-100 text-orange-700' :
-                                                                        item.status === 'DONE' ? 'bg-indigo-100 text-indigo-700' : 'bg-yellow-100 text-yellow-700'}
-                                                    `}>
-                                                        {item.status === 'PENDING' ? 'Menunggu' :
-                                                            item.status === 'READY' ? 'Sedia' :
-                                                                item.status === 'NO_STOCK' ? 'Kosong' :
-                                                                    item.status === 'INDENT' ? 'Indent' :
-                                                                        item.status === 'CANCEL_ITEM' ? 'Batal' : 'Selesai'}
-                                                    </span>
+                                                return (
+                                                    <div key={item.id} className={`flex flex-wrap items-center gap-4 p-3 rounded-lg border transition-all ${itemEdits[item.id] ? 'bg-indigo-50/50 border-indigo-200 shadow-sm' : 'bg-slate-50 border-slate-100'}`}>
+                                                        <div className="flex-1">
+                                                            <div className="font-bold text-slate-700 text-sm">{item.itemName || 'Item'}</div>
+                                                            <div className="text-xs text-slate-500 flex gap-2 mt-0.5">
+                                                                <span>Ukuran: <b className="text-slate-700">{item.size || '-'}</b></span>
+                                                                <span>•</span>
+                                                                <span>Qty: <b className="text-slate-700">{item.quantity}</b></span>
+                                                            </div>
+                                                            {currentPickup && <div className="text-[10px] text-green-600 mt-1.5 font-medium bg-green-100/50 px-2 py-0.5 rounded inline-block border border-green-200">Siap Diambil: {currentPickup}</div>}
+                                                        </div>
 
-                                                    {/* Processing Options */}
-                                                    {item.status !== 'DONE' && item.status !== 'CANCEL_ITEM' && (
-                                                        <div className="flex gap-1">
-                                                            {activeTab === 'UNIT' ? (
-                                                                <button
-                                                                    onClick={() => handleItemStatus(item.id, 'DONE')}
-                                                                    className="text-[10px] bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 font-bold shadow-sm transition"
-                                                                >
-                                                                    TANDAI SELESAI
-                                                                </button>
-                                                            ) : (
-                                                                <>
-                                                                    {/* Sedia Button (Visible for Pending, No Stock, and Indent) */}
-                                                                    {(item.status === 'PENDING' || item.status === 'NO_STOCK' || item.status === 'INDENT') && (
-                                                                        <div className="relative group">
-                                                                            <button className="text-[10px] bg-white border border-green-200 text-green-600 px-2 py-1 rounded hover:bg-green-600 hover:text-white font-bold transition">
-                                                                                SEDIA
+                                                        <div className="flex items-center gap-2">
+                                                            {/* Status Item */}
+                                                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-md inline-block uppercase tracking-wider
+                                                                ${currentStatus === 'READY' ? 'bg-green-100 text-green-700 border border-green-200' :
+                                                                    currentStatus === 'NO_STOCK' ? 'bg-red-100 text-red-700 border border-red-200' :
+                                                                        currentStatus === 'CANCEL_ITEM' ? 'bg-slate-100 text-slate-500 border border-slate-200' :
+                                                                            currentStatus === 'INDENT' ? 'bg-orange-100 text-orange-700 border border-orange-200' :
+                                                                                currentStatus === 'DONE' ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' : 'bg-yellow-100 text-yellow-700 border border-yellow-200'}
+                                                            `}>
+                                                                {currentStatus === 'PENDING' ? 'Menunggu' :
+                                                                    currentStatus === 'READY' ? 'Sedia' :
+                                                                        currentStatus === 'NO_STOCK' ? 'Kosong' :
+                                                                            currentStatus === 'INDENT' ? 'Indent' :
+                                                                                currentStatus === 'CANCEL_ITEM' ? (activeTab === 'UNIT' ? 'Ditolak' : 'Batal') : 'Selesai'}
+                                                            </span>
+
+                                                            {/* Processing Options */}
+                                                            {currentStatus !== 'DONE' && currentStatus !== 'CANCEL_ITEM' && (
+                                                                <div className="flex gap-1 ml-2">
+                                                                    {activeTab === 'UNIT' ? (
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => handleEditItem(item.id, 'DONE')}
+                                                                                className="text-[10px] bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-600 hover:text-white font-bold shadow-sm transition"
+                                                                            >
+                                                                                TERIMA (APPROVE)
                                                                             </button>
-                                                                            <div className="absolute right-0 bottom-full mb-1 bg-white border shadow-xl rounded-lg p-2 invisible group-hover:visible z-50 w-48">
-                                                                                <div className="text-[10px] font-bold text-slate-400 uppercase mb-2 border-b pb-1">PIlih Hari Jemput</div>
-                                                                                <div className="grid grid-cols-1 gap-1">
-                                                                                    {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'].map(day => (
-                                                                                        <button
-                                                                                            key={day}
-                                                                                            onClick={() => {
-                                                                                                handleItemStatus(item.id, 'READY', day);
-                                                                                                handleItemNotify(item.id, 'READY', day);
-                                                                                            }}
-                                                                                            className="text-left py-1.5 px-2 hover:bg-indigo-50 rounded text-[10px] font-medium"
-                                                                                        >
-                                                                                            {day} (07.30 - 16.00)
-                                                                                        </button>
-                                                                                    ))}
+                                                                            <button
+                                                                                onClick={() => handleEditItem(item.id, 'CANCEL_ITEM')}
+                                                                                className="text-[10px] bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-600 hover:text-white font-bold shadow-sm transition"
+                                                                            >
+                                                                                TOLAK
+                                                                            </button>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            {/* Sedia Button (Visible for Pending, No Stock, and Indent) */}
+                                                                            {(currentStatus === 'PENDING' || currentStatus === 'NO_STOCK' || currentStatus === 'INDENT') && (
+                                                                                <div className="relative group">
+                                                                                    <button className="text-[10px] bg-white border border-green-200 text-green-600 px-2 py-1 rounded hover:bg-green-600 hover:text-white font-bold transition">
+                                                                                        SEDIA
+                                                                                    </button>
+                                                                                    <div className="absolute right-0 bottom-full mb-1 bg-white border shadow-xl rounded-lg p-2 invisible group-hover:visible z-50 w-48">
+                                                                                        <div className="text-[10px] font-bold text-slate-400 uppercase mb-2 border-b pb-1">Pilih Hari Jemput</div>
+                                                                                        <div className="grid grid-cols-1 gap-1">
+                                                                                            {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'].map(day => (
+                                                                                                <button
+                                                                                                    key={day}
+                                                                                                    onClick={() => handleEditItem(item.id, 'READY', day)}
+                                                                                                    className="text-left py-1.5 px-2 hover:bg-indigo-50 rounded text-[10px] font-medium"
+                                                                                                >
+                                                                                                    {day} (07.30 - 16.00)
+                                                                                                </button>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    </div>
                                                                                 </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
+                                                                            )}
 
-                                                                    {/* Kosong Button */}
-                                                                    {item.status === 'PENDING' && (
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                if (confirm('Kirim notifikasi stok kosong ke pemesan?')) {
-                                                                                    handleItemStatus(item.id, 'NO_STOCK');
-                                                                                    handleItemNotify(item.id, 'NO_STOCK');
-                                                                                }
-                                                                            }}
-                                                                            className="text-[10px] bg-white border border-red-200 text-red-600 px-2 py-1 rounded hover:bg-red-600 hover:text-white font-bold transition"
-                                                                        >
-                                                                            KOSONG
-                                                                        </button>
-                                                                    )}
+                                                                            {/* Kosong Button */}
+                                                                            {currentStatus === 'PENDING' && (
+                                                                                <button
+                                                                                    onClick={() => handleEditItem(item.id, 'NO_STOCK')}
+                                                                                    className="text-[10px] bg-white border border-red-200 text-red-600 px-2 py-1 rounded hover:bg-red-600 hover:text-white font-bold transition"
+                                                                                >
+                                                                                    KOSONG
+                                                                                </button>
+                                                                            )}
 
-                                                                    {/* Indent (PESAN) Button - Visible when NO_STOCK */}
-                                                                    {item.status === 'NO_STOCK' && (
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                if (confirm('Tandai sebagai INDENT dan kirim notifikasi?')) {
-                                                                                    handleItemStatus(item.id, 'INDENT');
-                                                                                    handleItemNotify(item.id, 'INDENT');
-                                                                                }
-                                                                            }}
-                                                                            className="text-[10px] bg-white border border-orange-200 text-orange-600 px-2 py-1 rounded hover:bg-orange-600 hover:text-white font-bold transition"
-                                                                        >
-                                                                            PESAN (INDENT)
-                                                                        </button>
-                                                                    )}
+                                                                            {/* Indent (PESAN) Button - Visible when NO_STOCK */}
+                                                                            {currentStatus === 'NO_STOCK' && (
+                                                                                <button
+                                                                                    onClick={() => handleEditItem(item.id, 'INDENT')}
+                                                                                    className="text-[10px] bg-white border border-orange-200 text-orange-600 px-2 py-1 rounded hover:bg-orange-600 hover:text-white font-bold transition"
+                                                                                >
+                                                                                    PESAN (INDENT)
+                                                                                </button>
+                                                                            )}
 
-                                                                    {/* Batal Button - Visible when NO_STOCK or INDENT */}
-                                                                    {(item.status === 'NO_STOCK' || item.status === 'INDENT') && (
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                if (confirm('Batalkan pesanan item ini? (Tanpa notifikasi WA)')) {
-                                                                                    handleItemStatus(item.id, 'CANCEL_ITEM');
-                                                                                }
-                                                                            }}
-                                                                            className="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-1 rounded hover:bg-slate-500 hover:text-white font-bold transition"
-                                                                        >
-                                                                            BATAL
-                                                                        </button>
-                                                                    )}
+                                                                            {/* Batal Button - Visible when NO_STOCK or INDENT */}
+                                                                            {(currentStatus === 'NO_STOCK' || currentStatus === 'INDENT') && (
+                                                                                <button
+                                                                                    onClick={() => handleEditItem(item.id, 'CANCEL_ITEM')}
+                                                                                    className="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-1 rounded hover:bg-slate-500 hover:text-white font-bold transition"
+                                                                                >
+                                                                                    BATAL
+                                                                                </button>
+                                                                            )}
 
-                                                                    {/* Selesai Button */}
-                                                                    {item.status === 'READY' && (
-                                                                        <button
-                                                                            onClick={() => handleItemStatus(item.id, 'DONE')}
-                                                                            className="text-[10px] bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 font-bold shadow-sm transition"
-                                                                        >
-                                                                            SELESAI
-                                                                        </button>
+                                                                            {/* Selesai Button */}
+                                                                            {currentStatus === 'READY' && (
+                                                                                <button
+                                                                                    onClick={() => handleEditItem(item.id, 'DONE')}
+                                                                                    className="text-[10px] bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 font-bold shadow-sm transition"
+                                                                                >
+                                                                                    SELESAI
+                                                                                </button>
+                                                                            )}
+                                                                        </>
                                                                     )}
-                                                                </>
+                                                                </div>
                                                             )}
                                                         </div>
-                                                    )}
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {/* Bulk Save Section */}
+                                            {order.items.some(i => itemEdits[i.id]) && (
+                                                <div className="mt-4 flex flex-col sm:flex-row items-center justify-between bg-indigo-50/80 p-4 rounded-xl shadow-sm border border-indigo-200 animate-in slide-in-from-bottom-2">
+                                                    <div className="mb-3 sm:mb-0 text-center sm:text-left">
+                                                        <h5 className="font-bold text-indigo-800 text-sm">Belum Disimpan</h5>
+                                                        <p className="text-xs text-indigo-600 mt-0.5">Ada perubahan status. Klik simpan untuk merekam ke database & mengirim <b>1 WA Rekap.</b></p>
+                                                    </div>
+                                                    <button 
+                                                        disabled={savingBulk}
+                                                        onClick={() => handleBulkSave(order.id)}
+                                                        className="bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-bold shadow-md hover:bg-indigo-700 transition flex items-center gap-2 text-sm disabled:opacity-50"
+                                                    >
+                                                        {savingBulk ? 'Menyimpan...' : 'Simpan & Kirim Pesan WA'}
+                                                    </button>
                                                 </div>
-                                            </div>
-                                        ))
+                                            )}
+                                        </>
                                     ) : (
                                         <div className="text-xs text-slate-400 italic bg-slate-50 p-4 rounded-lg border border-dashed text-center">
                                             Pesanan dibuat dalam mode lawas (Raw Note). <br />

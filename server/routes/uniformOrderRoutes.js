@@ -278,6 +278,122 @@ const notifyItemStatus = async (req, res) => {
     }
 };
 
+// --- BULK UPDATE & NOTIFY ---
+
+const bulkUpdateItems = async (req, res) => {
+    try {
+        const { id } = req.params; // Order ID
+        const { updates } = req.body; // Array of { id, status, pickupDetails }
+
+        // Fetch order to get customer details
+        const order = await prisma.uniformOrder.findUnique({
+            where: { id: parseInt(id) },
+            include: { items: true }
+        });
+
+        if (!order) return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
+
+        // Update items in database
+        for (const update of updates) {
+            await prisma.uniformOrderItem.update({
+                where: { id: parseInt(update.id) },
+                data: { 
+                    status: update.status, 
+                    pickupDetails: update.pickupDetails || null 
+                }
+            });
+        }
+
+        // Re-fetch updated items to build WA message
+        const updatedItems = await prisma.uniformOrderItem.findMany({
+            where: { orderId: parseInt(id) }
+        });
+
+        if (order.customerPhone) {
+            const waService = require('../services/whatsappService');
+            let message = '';
+
+            const isUnit = (order.note && order.note.includes('PESANAN UNIT INTERNAL')) || 
+                           (order.studentName && order.studentName.toUpperCase().includes('PESANAN UNIT'));
+
+            if (isUnit) {
+                // Unit Order Formatting
+                const isGenericName = !order.studentName ||
+                    order.studentName.toUpperCase().includes('PESANAN UNIT') ||
+                    order.studentName.toUpperCase().includes('INTERNAL');
+
+                const subjectLine = isGenericName
+                    ? `Berikut adalah rincian status pesanan unit *${order.customerUnit}*:`
+                    : `Berikut adalah rincian status pesanan atas nama *${order.studentName}* dari unit *${order.customerUnit}*:`;
+
+                message = `Assalamu'alaikum Warahmatullahi Wabarakatuh\n\n` +
+                    `*${order.customerName || 'Ustadz/Ustadzah'}*,\n\n` +
+                    `${subjectLine}\n\n`;
+
+                for (const item of updatedItems) {
+                    const itemName = item.itemName || 'Item';
+                    const qty = item.quantity;
+                    const size = item.size ? ` (${item.size})` : '';
+                    let statusTxt = item.status === 'DONE' ? 'DISINCHRONIZE / DISETUJUI' : 
+                                    item.status === 'CANCEL_ITEM' ? 'DITOLAK' : 
+                                    item.status === 'PENDING' ? 'MENUNGGU' : item.status;
+                    
+                    message += `- ${itemName}${size} x${qty} : *${statusTxt}*\n`;
+                }
+
+                message += `\nJazaakumullahu khairan.`;
+
+            } else {
+                // Warid Formatting
+                message = `*Bismillah*\n\n` +
+                          `Kami informasikan kepada Abu/Ummu *${order.studentName}*, berikut adalah rincian status pesanan Anda:\n\n`;
+
+                let anyReady = false;
+                for (const item of updatedItems) {
+                    const itemName = item.itemName || 'Item';
+                    const qty = item.quantity;
+                    const size = item.size ? ` (${item.size})` : '';
+                    let statusTxt = '';
+                    
+                    if (item.status === 'READY') {
+                        statusTxt = `*SEDIA* (${item.pickupDetails || 'Bisa dijemput'})`;
+                        anyReady = true;
+                    } else if (item.status === 'NO_STOCK') {
+                        statusTxt = `*KOSONG*`;
+                    } else if (item.status === 'INDENT') {
+                        statusTxt = `*INDENT* (Dipesankan)`;
+                    } else if (item.status === 'CANCEL_ITEM') {
+                        statusTxt = `*DIBATALKAN*`;
+                    } else if (item.status === 'DONE') {
+                        statusTxt = `*SELESAI*`;
+                    } else {
+                        statusTxt = `*MENUNGGU*`;
+                    }
+
+                    message += `- ${itemName}${size} x${qty} : ${statusTxt}\n`;
+                }
+
+                if (anyReady) {
+                    message += `\nPelayanan pengambilan seragam buka di Kantor Sarpras (Gunung Juaro, Naggolo, KOTA PADANG) pada jam kerja (07.30 - 16.00 WIB).\n`;
+                }
+                message += `\nSyukron, Jazakumullah khairan.`;
+            }
+
+            if (message) {
+                try {
+                    await waService.sendMessage(order.customerPhone, message);
+                } catch(err) {
+                    console.error('[Bulk Update WA] Error:', err.message);
+                }
+            }
+        }
+
+        res.json({ message: 'Update berhasil dan notifikasi terkirim' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+};
+
 // ======================== ROUTES ========================
 
 // Public routes
@@ -289,6 +405,7 @@ router.get('/check/:code', checkOrder);
 router.get('/admin/orders', authMiddleware, getAllOrders);
 router.put('/admin/:id', authMiddleware, updateOrderStatus);
 router.delete('/admin/:id', authMiddleware, deleteOrder);
+router.put('/admin/orders/:id/bulk-items', authMiddleware, bulkUpdateItems);
 
 // New Processing Routes
 router.put('/admin/items/:id/status', authMiddleware, updateItemStatus);
