@@ -224,13 +224,66 @@ const updateItemStatus = async (req, res) => {
         const { id } = req.params;
         const { status, pickupDetails } = req.body;
 
-        const item = await prisma.uniformOrderItem.update({
+        const currentItem = await prisma.uniformOrderItem.findUnique({
             where: { id: parseInt(id) },
-            data: { status, pickupDetails },
             include: { order: true }
         });
 
-        res.json(item);
+        if (!currentItem) return res.status(404).json({ error: 'Item tidak ditemukan' });
+
+        const updatedItem = await prisma.uniformOrderItem.update({
+            where: { id: parseInt(id) },
+            data: { status, pickupDetails }
+        });
+
+        // Stock deduction for single item update bypass WA
+        if (currentItem.status !== 'DONE' && status === 'DONE' && currentItem.itemId) {
+            const now = new Date();
+            const year = now.getFullYear();
+            const isUnit = (currentItem.order.note && currentItem.order.note.includes('PESANAN UNIT INTERNAL')) || 
+                           (currentItem.order.studentName && currentItem.order.studentName.toUpperCase().includes('PESANAN UNIT'));
+
+            const lastTx = await prisma.warehouseTransaction.findFirst({
+                where: { code: { startsWith: `TRX/${year}/` } },
+                orderBy: { code: 'desc' }
+            });
+            
+            let nextSequence = 1;
+            if (lastTx) {
+                const parts = lastTx.code.split('/');
+                if (parts.length === 3 && !isNaN(parseInt(parts[2]))) {
+                    nextSequence = parseInt(parts[2]) + 1;
+                }
+            }
+            const txCode = `TRX/${year}/${nextSequence.toString().padStart(3, '0')}`;
+
+            await prisma.$transaction(async (tx) => {
+                const transaction = await tx.warehouseTransaction.create({
+                    data: {
+                        code: txCode, type: 'OUT', date: now,
+                        note: `Otomatis dari Pesanan ${isUnit ? 'Unit' : 'Wali Murid'} [${currentItem.order.code}]`,
+                        createdById: req.user.id
+                    }
+                });
+
+                await tx.warehouseTransactionItem.create({
+                    data: {
+                        transactionId: transaction.id,
+                        itemId: currentItem.itemId,
+                        quantity: currentItem.quantity,
+                        recipientName: currentItem.order.customerName || currentItem.order.studentName,
+                        recipientUnit: currentItem.order.customerUnit
+                    }
+                });
+
+                await tx.warehouseItem.update({
+                    where: { id: currentItem.itemId },
+                    data: { stock: { decrement: currentItem.quantity } }
+                });
+            });
+        }
+
+        res.json(updatedItem);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -388,7 +441,8 @@ const bulkUpdateItems = async (req, res) => {
                     const itemName = item.itemName || 'Item';
                     const qty = item.quantity;
                     const size = item.size ? ` (${item.size})` : '';
-                    let statusTxt = item.status === 'DONE' ? 'DISINCHRONIZE / DISETUJUI' : 
+                    let statusTxt = item.status === 'DONE' ? 'DISETUJUI & SELESAI (SUDAH DIAMBIL)' : 
+                                    item.status === 'READY' ? 'DISETUJUI' :
                                     item.status === 'CANCEL_ITEM' ? 'DITOLAK' : 
                                     item.status === 'PENDING' ? 'MENUNGGU' : item.status;
                     

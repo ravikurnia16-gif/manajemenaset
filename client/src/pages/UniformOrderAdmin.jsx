@@ -113,6 +113,15 @@ const UniformOrderAdmin = () => {
         }
     };
 
+    const handleItemStatusNoNotify = async (itemId, newStatus) => {
+        if (!confirm(`Tandai sebagai selesai tanpa kirim WA? (Stok gudang akan berkurang otomatis)`)) return;
+        try {
+            await api.put(`/uniform-order/admin/items/${itemId}/status`, { status: newStatus });
+            alert('Status berhasil diubah dan stok terpotong!');
+            fetchOrders();
+        } catch (e) { alert(e.response?.data?.error || 'Gagal'); }
+    };
+
     const displayedOrders = orders.filter(order => {
         const isUnit = (order.note && order.note.includes('PESANAN UNIT INTERNAL')) || 
                        (order.studentName && order.studentName.toUpperCase().includes('PESANAN UNIT'));
@@ -247,7 +256,7 @@ const UniformOrderAdmin = () => {
                                                                     {activeTab === 'UNIT' ? (
                                                                         <>
                                                                             <button
-                                                                                onClick={() => handleEditItem(item.id, 'DONE')}
+                                                                                onClick={() => handleEditItem(item.id, 'READY')}
                                                                                 className="text-[10px] bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-600 hover:text-white font-bold shadow-sm transition"
                                                                             >
                                                                                 TERIMA (APPROVE)
@@ -317,8 +326,9 @@ const UniformOrderAdmin = () => {
                                                                             {/* Selesai Button */}
                                                                             {currentStatus === 'READY' && (
                                                                                 <button
-                                                                                    onClick={() => handleEditItem(item.id, 'DONE')}
-                                                                                    className="text-[10px] bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 font-bold shadow-sm transition"
+                                                                                    onClick={() => handleItemStatusNoNotify(item.id, 'DONE')}
+                                                                                    className="text-[10px] bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 font-bold shadow-sm transition border border-indigo-700"
+                                                                                    title="Selesaikan pesanan dan kurangi stok tanpa pemberitahuan WA"
                                                                                 >
                                                                                     SELESAI
                                                                                 </button>
