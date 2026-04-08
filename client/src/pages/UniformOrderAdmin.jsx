@@ -20,6 +20,7 @@ const UniformOrderAdmin = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState({ status: '', unit: '' });
+    const [activeTab, setActiveTab] = useState('WARID');
     const [expandedId, setExpandedId] = useState(null);
 
     useEffect(() => { fetchOrders(); }, [filter]);
@@ -84,6 +85,12 @@ const UniformOrderAdmin = () => {
         } catch (e) { alert(e.response?.data?.error || 'Gagal mengirim notifikasi'); }
     };
 
+    const displayedOrders = orders.filter(order => {
+        const isUnit = (order.note && order.note.includes('PESANAN UNIT INTERNAL')) || 
+                       (order.studentName && order.studentName.toUpperCase().includes('PESANAN UNIT'));
+        return activeTab === 'WARID' ? !isUnit : isUnit;
+    });
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
             <div className="flex justify-between items-center">
@@ -100,6 +107,18 @@ const UniformOrderAdmin = () => {
                 </div>
             </div>
 
+            {/* Tabs */}
+            <div className="flex bg-slate-100 p-1 rounded-xl w-max">
+                <button 
+                    onClick={() => setActiveTab('WARID')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'WARID' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                >Pesanan Warid (Wali Murid)</button>
+                <button 
+                    onClick={() => setActiveTab('UNIT')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'UNIT' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                >Pesanan Unit (Internal)</button>
+            </div>
+
             {/* Filter */}
             <div className="flex flex-wrap gap-3 items-center bg-white p-4 rounded-xl shadow-sm border border-slate-100">
                 <Filter size={16} className="text-slate-400" />
@@ -111,16 +130,18 @@ const UniformOrderAdmin = () => {
                     <option value="">Semua Unit</option>
                     {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
-                <span className="ml-auto text-xs text-slate-400">{orders.length} pesanan</span>
+                <span className="ml-auto text-xs text-slate-400">
+                    {displayedOrders.length} pesanan
+                </span>
             </div>
 
             {/* Table */}
             <div className="space-y-4">
                 {loading ? (
                     <div className="p-8 text-center text-slate-400 bg-white rounded-xl border">Loading...</div>
-                ) : orders.length === 0 ? (
+                ) : displayedOrders.length === 0 ? (
                     <div className="p-8 text-center text-slate-400 bg-white rounded-xl border">Belum ada pesanan.</div>
-                ) : orders.map(order => (
+                ) : displayedOrders.map(order => (
                     <div key={order.id} className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden transition-all duration-300">
                         {/* Header Order */}
                         <div className="p-4 flex flex-wrap items-center gap-4 bg-slate-50/50">
