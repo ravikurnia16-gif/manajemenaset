@@ -167,10 +167,15 @@ const StaffPerformance = () => {
     const [loading, setLoading] = useState(true);
     const [reports, setReports] = useState([]);
     const [assignments, setAssignments] = useState([]);
+    const [routines, setRoutines] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
     const [staffList, setStaffList] = useState([]);
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    
+    // UI State for Source Selection
+    const [activeSourceCategory, setActiveSourceCategory] = useState(null); // 'PLAN', 'ROUTINE', 'TASK'
+    const [availableSourceTitles, setAvailableSourceTitles] = useState([]);
 
     // Filters
     const [filterStaff, setFilterStaff] = useState('ALL');
@@ -238,10 +243,14 @@ const StaffPerformance = () => {
 
     const fetchInitialData = async () => {
         try {
-            const res = await api.get('/personnel/staff');
-            setStaffList(res.data || []);
+            const [staffRes, routineRes] = await Promise.all([
+                api.get('/personnel/staff'),
+                api.get('/personnel/routines')
+            ]);
+            setStaffList(staffRes.data || []);
+            setRoutines(routineRes.data || []);
         } catch (err) {
-            console.error('Failed to fetch staff:', err);
+            console.error('Failed to fetch initial data:', err);
         }
     };
 
@@ -323,49 +332,56 @@ const StaffPerformance = () => {
         setForm({ ...form, generalItems: newItems });
     };
 
-    const importFromAssignments = () => {
-        const activeAssignments = assignments.filter(a => a.assigneeId === user.id && (a.status === 'IN_PROGRESS' || a.status === 'PENDING'));
-        if (activeAssignments.length === 0) return alert('Tidak ada penugasan aktif yang ditemukan.');
+    const handleSourceCategorySelect = (category) => {
+        setActiveSourceCategory(category);
+        let titles = [];
+
+        if (category === 'PLAN') {
+            const activePlans = reports.filter(r => r.metadata?.isPlan && r.userId === user.id);
+            titles = activePlans.map(p => ({ 
+                id: p.id, 
+                title: p.metadata.title || `Rencana ${new Date(p.date).toLocaleDateString()}`,
+                items: p.metadata.items 
+            }));
+        } else if (category === 'ROUTINE') {
+            const activeRoutines = routines.filter(r => r.assigneeId === user.id && r.isActive);
+            titles = activeRoutines.map(r => ({ 
+                id: r.id, 
+                title: r.title,
+                items: Array.isArray(r.items) ? r.items : [] 
+            }));
+        } else if (category === 'TASK') {
+            const activeTasks = assignments.filter(a => a.assigneeId === user.id && (a.status === 'IN_PROGRESS' || a.status === 'PENDING'));
+            titles = activeTasks.map(t => ({ 
+                id: t.id, 
+                title: t.title,
+                items: Array.isArray(t.items) ? t.items.map(i => ({ activity: i.text, percentage: i.percentage || 0, status: i.isDone ? 'SELESAI' : 'PROSES' })) : []
+            }));
+        }
+
+        setAvailableSourceTitles(titles);
+    };
+
+    const importFromSelectedSource = (source) => {
+        if (!source || !source.items) return;
+
+        const prefix = activeSourceCategory === 'PLAN' ? '[RENCANA]' : activeSourceCategory === 'ROUTINE' ? '[RUTIN]' : '[TUGAS]';
         
-        const newItems = activeAssignments.map(a => ({
-            activity: `[TUGAS] ${a.title}`,
-            status: a.status === 'COMPLETED' ? 'SELESAI' : 'PROSES',
-            percentage: a.progressPercentage || 0,
-            note: a.id // Keep ID for reference
+        const newItems = source.items.map(item => ({
+            activity: `${prefix} ${item.activity || item.text || 'Aktivitas'}`,
+            status: item.status || 'PROSES',
+            percentage: item.percentage || 0,
+            note: `Diambil dari ${prefix} ${source.title}`
         }));
 
         setForm(prev => ({
             ...prev,
             generalItems: [...prev.generalItems.filter(i => i.activity), ...newItems]
         }));
-    };
 
-    const importFromPlan = async () => {
-        try {
-            // Fetch recent Plans
-            const res = await api.get('/personnel/reports', { params: { type: 'WEEKLY' } });
-            const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
-            const lastPlan = data.find(r => r.metadata?.isPlan && r.userId === user.id);
-            
-            if (!lastPlan || !lastPlan.metadata?.items) return alert('Tidak ditemukan Rencana Kerja aktif untuk Anda.');
-
-            const newItems = lastPlan.metadata.items.map((i, idx) => ({
-                ...i,
-                activity: `[RENCANA] ${i.activity}`,
-                status: i.status || 'PENDING',
-                percentage: i.percentage || 0,
-                note: `Realisasi dari rencana kerja`,
-                planId: lastPlan.id,
-                planItemIndex: idx
-            }));
-
-            setForm(prev => ({
-                ...prev,
-                generalItems: [...prev.generalItems.filter(i => i.activity), ...newItems]
-            }));
-        } catch (err) {
-            alert('Gagal mengambil rencana kerja.');
-        }
+        // Reset Selection
+        setActiveSourceCategory(null);
+        setAvailableSourceTitles([]);
     };
 
     const handleSubmit = async (e) => {
@@ -692,14 +708,63 @@ const StaffPerformance = () => {
                                         </h3>
                                         <div className="flex flex-wrap gap-2">
                                             {activeTab === 'LAPORAN' && (
-                                                <>
-                                                    <button type="button" onClick={importFromPlan} className="px-5 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all flex items-center gap-2">
-                                                        <Sparkles size={14} /> Ambil dari Rencana
-                                                    </button>
-                                                    <button type="button" onClick={importFromAssignments} className="px-5 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-all flex items-center gap-2">
-                                                        <ClipboardCheck size={14} /> Ambil dari Penugasan
-                                                    </button>
-                                                </>
+                                                <div className="flex flex-col gap-4 w-full">
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => handleSourceCategorySelect('PLAN')} 
+                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeSourceCategory === 'PLAN' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                                                        >
+                                                            <Sparkles size={14} /> Ambil dari Rencana Kerja
+                                                        </button>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => handleSourceCategorySelect('ROUTINE')} 
+                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeSourceCategory === 'ROUTINE' ? 'bg-amber-600 text-white shadow-lg' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'}`}
+                                                        >
+                                                            <Timer size={14} /> Ambil dari Rutinitas
+                                                        </button>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => handleSourceCategorySelect('TASK')} 
+                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeSourceCategory === 'TASK' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
+                                                        >
+                                                            <ClipboardCheck size={14} /> Ambil dari Penugasan
+                                                        </button>
+                                                    </div>
+
+                                                    {activeSourceCategory && (
+                                                        <div className="bg-slate-50 p-6 rounded-[32px] border border-slate-200 animate-in zoom-in-95 duration-200">
+                                                            <div className="flex items-center justify-between mb-4">
+                                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                                    <LayoutDashboard size={14} className="text-slate-400" />
+                                                                    Pilih Judul {activeSourceCategory === 'PLAN' ? 'Rencana Kerja' : activeSourceCategory === 'ROUTINE' ? 'Rutinitas' : 'Penugasan'}
+                                                                </h4>
+                                                                <button onClick={() => setActiveSourceCategory(null)} className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Batal</button>
+                                                            </div>
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                {availableSourceTitles.length === 0 ? (
+                                                                    <div className="col-span-2 py-4 text-center text-[10px] font-black text-slate-300 uppercase italic">Tidak ada data ditemukan</div>
+                                                                ) : (
+                                                                    availableSourceTitles.map(src => (
+                                                                        <button
+                                                                            key={src.id}
+                                                                            type="button"
+                                                                            onClick={() => importFromSelectedSource(src)}
+                                                                            className="flex items-center justify-between p-4 bg-white border border-slate-100 hover:border-indigo-400 rounded-2xl text-left transition-all group"
+                                                                        >
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <p className="text-xs font-bold text-slate-700 uppercase truncate">{src.title}</p>
+                                                                                <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mt-1">{src.items?.length || 0} ITEM AKTIVITAS</p>
+                                                                            </div>
+                                                                            <ArrowRight size={14} className="text-slate-200 group-hover:text-indigo-500 transition-colors" />
+                                                                        </button>
+                                                                    ))
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     </div>
