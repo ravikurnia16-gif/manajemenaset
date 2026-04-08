@@ -293,8 +293,17 @@ const bulkUpdateItems = async (req, res) => {
 
         if (!order) return res.status(404).json({ error: 'Pesanan tidak ditemukan' });
 
+        const isUnitLog = (order.note && order.note.includes('PESANAN UNIT INTERNAL')) || 
+                       (order.studentName && order.studentName.toUpperCase().includes('PESANAN UNIT'));
+        const now = new Date();
+        const year = now.getFullYear();
+
         // Update items in database
         for (const update of updates) {
+            const currentItem = await prisma.uniformOrderItem.findUnique({
+                where: { id: parseInt(update.id) }
+            });
+
             await prisma.uniformOrderItem.update({
                 where: { id: parseInt(update.id) },
                 data: { 
@@ -302,6 +311,51 @@ const bulkUpdateItems = async (req, res) => {
                     pickupDetails: update.pickupDetails || null 
                 }
             });
+
+            // Automatically deduct stock and create transaction if it just became DONE
+            if (currentItem && currentItem.status !== 'DONE' && update.status === 'DONE' && currentItem.itemId) {
+                // Generate transaction code manually to ensure sequential isolation
+                const lastTx = await prisma.warehouseTransaction.findFirst({
+                    where: { code: { startsWith: `TRX/${year}/` } },
+                    orderBy: { code: 'desc' }
+                });
+                
+                let nextSequence = 1;
+                if (lastTx) {
+                    const parts = lastTx.code.split('/');
+                    if (parts.length === 3 && !isNaN(parseInt(parts[2]))) {
+                        nextSequence = parseInt(parts[2]) + 1;
+                    }
+                }
+                const txCode = `TRX/${year}/${nextSequence.toString().padStart(3, '0')}`;
+
+                await prisma.$transaction(async (tx) => {
+                    const transaction = await tx.warehouseTransaction.create({
+                        data: {
+                            code: txCode,
+                            type: 'OUT',
+                            date: now,
+                            note: `Otomatis dari Pesanan ${isUnitLog ? 'Unit' : 'Wali Murid'} [${order.code}]`,
+                            createdById: req.user.id
+                        }
+                    });
+
+                    await tx.warehouseTransactionItem.create({
+                        data: {
+                            transactionId: transaction.id,
+                            itemId: currentItem.itemId,
+                            quantity: currentItem.quantity,
+                            recipientName: order.customerName || order.studentName,
+                            recipientUnit: order.customerUnit
+                        }
+                    });
+
+                    await tx.warehouseItem.update({
+                        where: { id: currentItem.itemId },
+                        data: { stock: { decrement: currentItem.quantity } }
+                    });
+                });
+            }
         }
 
         // Re-fetch updated items to build WA message
