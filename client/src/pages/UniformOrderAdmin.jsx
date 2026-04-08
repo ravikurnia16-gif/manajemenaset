@@ -207,84 +207,95 @@ const UniformOrderAdmin = () => {
                                                     {/* Processing Options */}
                                                     {item.status !== 'DONE' && item.status !== 'CANCEL_ITEM' && (
                                                         <div className="flex gap-1">
-                                                            {/* Sedia Button (Visible for Pending, No Stock, and Indent) */}
-                                                            {(item.status === 'PENDING' || item.status === 'NO_STOCK' || item.status === 'INDENT') && (
-                                                                <div className="relative group">
-                                                                    <button className="text-[10px] bg-white border border-green-200 text-green-600 px-2 py-1 rounded hover:bg-green-600 hover:text-white font-bold transition">
-                                                                        SEDIA
-                                                                    </button>
-                                                                    <div className="absolute right-0 bottom-full mb-1 bg-white border shadow-xl rounded-lg p-2 invisible group-hover:visible z-50 w-48">
-                                                                        <div className="text-[10px] font-bold text-slate-400 uppercase mb-2 border-b pb-1">PIlih Hari Jemput</div>
-                                                                        <div className="grid grid-cols-1 gap-1">
-                                                                            {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'].map(day => (
-                                                                                <button
-                                                                                    key={day}
-                                                                                    onClick={() => {
-                                                                                        handleItemStatus(item.id, 'READY', day);
-                                                                                        handleItemNotify(item.id, 'READY', day);
-                                                                                    }}
-                                                                                    className="text-left py-1.5 px-2 hover:bg-indigo-50 rounded text-[10px] font-medium"
-                                                                                >
-                                                                                    {day} (07.30 - 16.00)
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-
-                                                            {/* Kosong Button */}
-                                                            {item.status === 'PENDING' && (
-                                                                <button
-                                                                    onClick={() => {
-                                                                        if (confirm('Kirim notifikasi stok kosong ke pemesan?')) {
-                                                                            handleItemStatus(item.id, 'NO_STOCK');
-                                                                            handleItemNotify(item.id, 'NO_STOCK');
-                                                                        }
-                                                                    }}
-                                                                    className="text-[10px] bg-white border border-red-200 text-red-600 px-2 py-1 rounded hover:bg-red-600 hover:text-white font-bold transition"
-                                                                >
-                                                                    KOSONG
-                                                                </button>
-                                                            )}
-
-                                                            {/* Indent (PESAN) Button - Visible when NO_STOCK */}
-                                                            {item.status === 'NO_STOCK' && (
-                                                                <button
-                                                                    onClick={() => {
-                                                                        if (confirm('Tandai sebagai INDENT dan kirim notifikasi?')) {
-                                                                            handleItemStatus(item.id, 'INDENT');
-                                                                            handleItemNotify(item.id, 'INDENT');
-                                                                        }
-                                                                    }}
-                                                                    className="text-[10px] bg-white border border-orange-200 text-orange-600 px-2 py-1 rounded hover:bg-orange-600 hover:text-white font-bold transition"
-                                                                >
-                                                                    PESAN (INDENT)
-                                                                </button>
-                                                            )}
-
-                                                            {/* Batal Button - Visible when NO_STOCK or INDENT */}
-                                                            {(item.status === 'NO_STOCK' || item.status === 'INDENT') && (
-                                                                <button
-                                                                    onClick={() => {
-                                                                        if (confirm('Batalkan pesanan item ini? (Tanpa notifikasi WA)')) {
-                                                                            handleItemStatus(item.id, 'CANCEL_ITEM');
-                                                                        }
-                                                                    }}
-                                                                    className="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-1 rounded hover:bg-slate-500 hover:text-white font-bold transition"
-                                                                >
-                                                                    BATAL
-                                                                </button>
-                                                            )}
-
-                                                            {/* Selesai Button */}
-                                                            {item.status === 'READY' && (
+                                                            {activeTab === 'UNIT' ? (
                                                                 <button
                                                                     onClick={() => handleItemStatus(item.id, 'DONE')}
-                                                                    className="text-[10px] bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 font-bold shadow-sm transition"
+                                                                    className="text-[10px] bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 font-bold shadow-sm transition"
                                                                 >
-                                                                    SELESAI
+                                                                    TANDAI SELESAI
                                                                 </button>
+                                                            ) : (
+                                                                <>
+                                                                    {/* Sedia Button (Visible for Pending, No Stock, and Indent) */}
+                                                                    {(item.status === 'PENDING' || item.status === 'NO_STOCK' || item.status === 'INDENT') && (
+                                                                        <div className="relative group">
+                                                                            <button className="text-[10px] bg-white border border-green-200 text-green-600 px-2 py-1 rounded hover:bg-green-600 hover:text-white font-bold transition">
+                                                                                SEDIA
+                                                                            </button>
+                                                                            <div className="absolute right-0 bottom-full mb-1 bg-white border shadow-xl rounded-lg p-2 invisible group-hover:visible z-50 w-48">
+                                                                                <div className="text-[10px] font-bold text-slate-400 uppercase mb-2 border-b pb-1">PIlih Hari Jemput</div>
+                                                                                <div className="grid grid-cols-1 gap-1">
+                                                                                    {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'].map(day => (
+                                                                                        <button
+                                                                                            key={day}
+                                                                                            onClick={() => {
+                                                                                                handleItemStatus(item.id, 'READY', day);
+                                                                                                handleItemNotify(item.id, 'READY', day);
+                                                                                            }}
+                                                                                            className="text-left py-1.5 px-2 hover:bg-indigo-50 rounded text-[10px] font-medium"
+                                                                                        >
+                                                                                            {day} (07.30 - 16.00)
+                                                                                        </button>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Kosong Button */}
+                                                                    {item.status === 'PENDING' && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                if (confirm('Kirim notifikasi stok kosong ke pemesan?')) {
+                                                                                    handleItemStatus(item.id, 'NO_STOCK');
+                                                                                    handleItemNotify(item.id, 'NO_STOCK');
+                                                                                }
+                                                                            }}
+                                                                            className="text-[10px] bg-white border border-red-200 text-red-600 px-2 py-1 rounded hover:bg-red-600 hover:text-white font-bold transition"
+                                                                        >
+                                                                            KOSONG
+                                                                        </button>
+                                                                    )}
+
+                                                                    {/* Indent (PESAN) Button - Visible when NO_STOCK */}
+                                                                    {item.status === 'NO_STOCK' && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                if (confirm('Tandai sebagai INDENT dan kirim notifikasi?')) {
+                                                                                    handleItemStatus(item.id, 'INDENT');
+                                                                                    handleItemNotify(item.id, 'INDENT');
+                                                                                }
+                                                                            }}
+                                                                            className="text-[10px] bg-white border border-orange-200 text-orange-600 px-2 py-1 rounded hover:bg-orange-600 hover:text-white font-bold transition"
+                                                                        >
+                                                                            PESAN (INDENT)
+                                                                        </button>
+                                                                    )}
+
+                                                                    {/* Batal Button - Visible when NO_STOCK or INDENT */}
+                                                                    {(item.status === 'NO_STOCK' || item.status === 'INDENT') && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                if (confirm('Batalkan pesanan item ini? (Tanpa notifikasi WA)')) {
+                                                                                    handleItemStatus(item.id, 'CANCEL_ITEM');
+                                                                                }
+                                                                            }}
+                                                                            className="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-1 rounded hover:bg-slate-500 hover:text-white font-bold transition"
+                                                                        >
+                                                                            BATAL
+                                                                        </button>
+                                                                    )}
+
+                                                                    {/* Selesai Button */}
+                                                                    {item.status === 'READY' && (
+                                                                        <button
+                                                                            onClick={() => handleItemStatus(item.id, 'DONE')}
+                                                                            className="text-[10px] bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 font-bold shadow-sm transition"
+                                                                        >
+                                                                            SELESAI
+                                                                        </button>
+                                                                    )}
+                                                                </>
                                                             )}
                                                         </div>
                                                     )}
