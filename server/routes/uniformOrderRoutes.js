@@ -278,12 +278,12 @@ const updateItemStatus = async (req, res) => {
                             recipientUnit: currentItem.order.customerUnit
                         }
                     });
-                }
 
-                await tx.warehouseItem.update({
-                    where: { id: currentItem.itemId },
-                    data: { stock: { decrement: currentItem.quantity } }
-                });
+                    await tx.warehouseItem.update({
+                        where: { id: currentItem.itemId },
+                        data: { stock: { decrement: currentItem.quantity } }
+                    });
+                }
             });
         }
 
@@ -410,12 +410,12 @@ const bulkUpdateItems = async (req, res) => {
                                 recipientUnit: order.customerUnit
                             }
                         });
-                    }
 
-                    await tx.warehouseItem.update({
-                        where: { id: currentItem.itemId },
-                        data: { stock: { decrement: currentItem.quantity } }
-                    });
+                        await tx.warehouseItem.update({
+                            where: { id: currentItem.itemId },
+                            data: { stock: { decrement: currentItem.quantity } }
+                        });
+                    }
                 });
             }
         }
