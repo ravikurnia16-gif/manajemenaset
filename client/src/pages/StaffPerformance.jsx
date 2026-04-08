@@ -393,6 +393,8 @@ const StaffPerformance = () => {
                     category: form.category,
                     priority: form.priority,
                     location: form.location,
+                    startDate: form.startDate,
+                    dueDate: form.dueDate,
                     items: validItems.map(it => ({ text: it.activity, isDone: false, percentage: 0 }))
                 };
                 if (!taskData.assigneeId) return alert('Pilih staf penerima tugas');
@@ -443,6 +445,7 @@ const StaffPerformance = () => {
             date: new Date().toISOString().split('T')[0],
             startDate: new Date().toISOString().split('T')[0],
             endDate: new Date().toISOString().split('T')[0],
+            dueDate: '',
             startTime: '08:00',
             endTime: '17:00',
             title: '',
@@ -640,6 +643,22 @@ const StaffPerformance = () => {
                                                 <option value="HIGH">TINGGI</option>
                                                 <option value="URGENT">URGENT</option>
                                             </select>
+                                        </FormGroup>
+                                        <FormGroup label="📅 Tanggal Mulai">
+                                            <input 
+                                                type="date" 
+                                                value={form.startDate} 
+                                                onChange={e => setForm({...form, startDate: e.target.value})} 
+                                                className="form-input" 
+                                            />
+                                        </FormGroup>
+                                        <FormGroup label="📅 Tanggal Akhir (Deadline)">
+                                            <input 
+                                                type="date" 
+                                                value={form.dueDate} 
+                                                onChange={e => setForm({...form, dueDate: e.target.value})} 
+                                                className="form-input" 
+                                            />
                                         </FormGroup>
                                         <FormGroup label="📍 Lokasi">
                                             <input 
