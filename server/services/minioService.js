@@ -15,6 +15,8 @@ const bucketName = process.env.MINIO_BUCKET || 'sarpras-media';
 exports.minioClient = minioClient;
 exports.bucketName = bucketName;
 
+const sharp = require('sharp');
+
 /**
  * Upload file to MinIO
  * @param {Buffer} fileBuffer 
@@ -25,14 +27,36 @@ exports.bucketName = bucketName;
  */
 exports.uploadFile = async (fileBuffer, fileName, mimeType, folder = '') => {
     try {
+        let finalBuffer = fileBuffer;
+
+        // Auto Image Compression & Optimization
+        if (mimeType.startsWith('image/') && mimeType !== 'image/svg+xml') {
+            try {
+                finalBuffer = await sharp(fileBuffer)
+                    .resize(1200, 1200, {
+                        fit: 'inside',
+                        withoutEnlargement: true
+                    })
+                    .rotate() // Auto-rotate based on EXIF
+                    .jpeg({ quality: 80, progressive: true, force: false })
+                    .png({ quality: 80, palette: true, force: false })
+                    .webp({ quality: 80, force: false })
+                    .toBuffer();
+                
+                console.log(`[OPTIMIZER] Image compressed: ${(fileBuffer.length / 1024).toFixed(1)}KB -> ${(finalBuffer.length / 1024).toFixed(1)}KB`);
+            } catch (sharpError) {
+                console.error('[OPTIMIZER] Sharp compression failed, using original:', sharpError);
+            }
+        }
+
         const uniqueFileName = `${Date.now()}-${fileName.replace(/\s/g, '_')}`;
         const objectName = folder ? `${folder}/${uniqueFileName}` : uniqueFileName;
         
         await minioClient.putObject(
             bucketName,
             objectName,
-            fileBuffer,
-            fileBuffer.length,
+            finalBuffer,
+            finalBuffer.length,
             { 'Content-Type': mimeType }
         );
 
