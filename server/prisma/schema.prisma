@@ -85,7 +85,8 @@ model User {
   // Personnel Module Extensions
   assignedRoutines PersonnelRoutine[] @relation("RoutineAssignee")
   createdRoutines  PersonnelRoutine[] @relation("RoutineAssigner")
-  personnelKPIs    PersonnelKPI[]
+  personnelKPIs      PersonnelKPI[]
+  pushSubscriptions  PushSubscription[]
 }
 
 model Notification {
@@ -98,6 +99,17 @@ model Notification {
   isRead    Boolean  @default(false)
   link      String? // URL to redirect when clicked
   createdAt DateTime @default(now())
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  endpoint  String   @db.Text
+  keys      Json
+  createdAt DateTime @default(now())
+
+  @@unique([userId, endpoint(length: 500)])
 }
 
 model Unit {

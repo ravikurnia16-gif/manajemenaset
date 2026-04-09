@@ -37,6 +37,52 @@ const Layout = () => {
         return () => clearInterval(interval);
     }, []);
 
+    // --- PUSH NOTIFICATION REGISTRATION ---
+    useEffect(() => {
+        const registerPush = async () => {
+            try {
+                if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+                // Register Service Worker
+                const registration = await navigator.serviceWorker.register('/sw.js');
+                console.log('[Push] SW registered');
+
+                // Check permission
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') return;
+
+                // Get VAPID public key from server
+                const vapidRes = await api.get('/push/vapid-public-key');
+                const vapidKey = vapidRes.data.publicKey;
+                if (!vapidKey) return;
+
+                // Convert VAPID key to Uint8Array
+                const urlBase64ToUint8Array = (base64String) => {
+                    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+                    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+                    const rawData = window.atob(base64);
+                    return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+                };
+
+                // Subscribe
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vapidKey)
+                });
+
+                // Send subscription to server
+                await api.post('/push/subscribe', { subscription: subscription.toJSON() });
+                console.log('[Push] Subscribed successfully');
+            } catch (err) {
+                console.error('[Push] Registration failed:', err);
+            }
+        };
+
+        // Delay registration slightly to not block initial render
+        const timer = setTimeout(registerPush, 3000);
+        return () => clearTimeout(timer);
+    }, []);
+
     // Close sidebar/notif on mobile route change
     useEffect(() => {
         if (window.innerWidth < 1024) {

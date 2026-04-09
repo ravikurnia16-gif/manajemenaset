@@ -1,6 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
+const { sendPushToUser, sendPushToKabid } = require('../services/pushService');
+const { createNotification } = require('./notificationController');
 
 // Helper to check if user belongs to 'Sarana dan Prasarana' unit
 const isSarprasUnit = async (unitId) => {
@@ -211,6 +213,23 @@ exports.createAssignment = async (req, res) => {
 
                     await whatsappService.sendMessage(assignee.phone, msg);
                 }
+
+                // Push Notification to Assignee
+                await sendPushToUser(
+                    parseInt(assigneeId),
+                    '📌 Tugas Baru Masuk',
+                    `${title} — Deadline: ${dueDate ? new Date(dueDate).toLocaleDateString('id-ID') : 'Belum ditentukan'}`,
+                    '/personalia'
+                );
+
+                // In-App Notification
+                await createNotification(
+                    parseInt(assigneeId),
+                    'Penugasan Baru',
+                    `${assigner?.name || 'Admin'} memberikan tugas: ${title}`,
+                    'INFO',
+                    '/personalia'
+                );
             } catch (err) {
                 console.error('WA Personnel Assignment Error:', err);
             }
@@ -634,12 +653,15 @@ exports.checkAssignmentDeadlines = async () => {
                 try {
                     await whatsappService.sendMessage(a.assignee.phone, msg);
 
-                    // Update last reminder sent to now (preventing duplicate sends today)
                     await prisma.personnelAssignment.update({
                         where: { id: a.id },
                         data: { lastReminderSent: now }
                     });
                     console.log(`[Personnel Assignment] SUCCESS: Reminder (${type}) sent to ${a.assignee.name} for: ${a.title}`);
+
+                    // Push Notification
+                    const pushTitle = type === 'OVERDUE' ? '⚠️ Tugas Terlambat' : type === 'TODAY' ? '🔔 Deadline Hari Ini' : '🗓️ Deadline Besok';
+                    await sendPushToUser(a.assigneeId, pushTitle, `${a.title} — Progres: ${a.progressPercentage}%`, '/personalia');
                 } catch (waErr) {
                     console.error(`[Personnel Assignment] ERROR: Failed to send ${type} reminder to ${a.assignee.name}:`, waErr.message);
                 }
@@ -1071,6 +1093,24 @@ exports.sendDailyPersonnelSummary = async () => {
 
         await whatsappService.sendMessage(kabid.phone, msg);
         console.log('[Personnel] Daily Summary sent to Kabid.');
+
+        // Push Notification to Kabid
+        await sendPushToKabid(
+            '📊 Rangkuman Harian Staf',
+            `${Object.keys(summary).length} staf mengirim laporan hari ini. Klik untuk melihat detail.`,
+            '/personalia'
+        );
+
+        // In-App Notification
+        if (kabid?.id) {
+            await createNotification(
+                kabid.id,
+                'Rangkuman Harian',
+                `${Object.keys(summary).length} staf mengirim ${reports.length} laporan hari ini`,
+                'INFO',
+                '/personalia'
+            );
+        }
     } catch (err) {
         console.error('[Personnel] Daily Summary Error:', err.message);
     }
@@ -1138,16 +1178,32 @@ exports.checkPlanDeadlines = async () => {
             }
 
             if (msg) {
-                // Send to Staff
+                // Send to Staff via WA
                 if (p.user?.phone) {
                     try { await whatsappService.sendMessage(p.user.phone, msg); } catch (e) { }
                 }
-                // Send to Kabid
+                // Send to Kabid via WA
                 if (kabid?.phone) {
                     const kabidMsg = `*LAPORAN PENGINGAT RENCANA KERJA*\n\n` +
                         `*Kepada*: ${p.user.name || p.user.username}\n` +
                         msg;
                     try { await whatsappService.sendMessage(kabid.phone, kabidMsg); } catch (e) { }
+                }
+
+                // Push Notification to Staff
+                const pushTitle = type === 'KICKOFF' ? '🗓️ Rencana Kerja Dimulai' : '⚠️ Rencana Kerja Terlambat';
+                const pushBody = type === 'KICKOFF'
+                    ? `Hari ini jadwal dimulainya: ${meta.title || 'Rencana Kerja'}`
+                    : `Batas waktu ${meta.title || 'Rencana Kerja'} telah lewat!`;
+                await sendPushToUser(p.userId, pushTitle, pushBody, '/personalia');
+
+                // Push Notification to Kabid
+                await sendPushToKabid(pushTitle, `${p.user.name}: ${pushBody}`, '/personalia');
+
+                // In-App Notifications
+                await createNotification(p.userId, pushTitle, pushBody, type === 'OVERDUE' ? 'WARNING' : 'INFO', '/personalia');
+                if (kabid?.id) {
+                    await createNotification(kabid.id, pushTitle, `${p.user.name}: ${pushBody}`, type === 'OVERDUE' ? 'WARNING' : 'INFO', '/personalia');
                 }
             }
         }
@@ -1222,6 +1278,24 @@ exports.checkMissingReportsWeekly = async () => {
 
                 await whatsappService.sendMessage(kabid.phone, msg);
                 console.log('[Personnel] Missing report audit sent to Kabid.');
+
+                // Push Notification
+                await sendPushToKabid(
+                    '⚠️ Audit Laporan Mingguan',
+                    `${missingStaff.length} staf tidak mengirim laporan minggu ini.`,
+                    '/personalia'
+                );
+
+                // In-App Notification
+                if (kabid?.id) {
+                    await createNotification(
+                        kabid.id,
+                        'Audit Laporan Mingguan',
+                        `${missingStaff.length} staf tidak mengirim laporan harian pada periode Senin-Kamis`,
+                        'WARNING',
+                        '/personalia'
+                    );
+                }
             }
         }
     } catch (err) {
