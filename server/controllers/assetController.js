@@ -30,6 +30,7 @@ exports.createAsset = async (req, res) => {
             picId, picName,
             vendorName, usefulLife, specification, sourceOfFunds,
             isLendable,
+            needsRoutineMaintenance, maintenanceInterval,
             // Additional fields for "Other" options
             newCategoryName, newCategoryCode,
             newRoomName, newRoomCode, newRoomFloor, newRoomBuilding
@@ -153,7 +154,9 @@ exports.createAsset = async (req, res) => {
                         quantity: 1,
                         picId: picId ? parseInt(picId) : null,
                         picName: picName || null,
-                        image: req.fileUrl || null
+                        image: req.fileUrl || null,
+                        needsRoutineMaintenance: needsRoutineMaintenance === true || needsRoutineMaintenance === 'true',
+                        maintenanceInterval: maintenanceInterval ? parseInt(maintenanceInterval) : 180
                     }
                 }));
             }
@@ -183,6 +186,7 @@ exports.getAllAssets = async (req, res) => {
             startDate,
             endDate,
             isLendable,
+            needsRoutine,
             condition
         } = req.query;
 
@@ -228,7 +232,12 @@ exports.getAllAssets = async (req, res) => {
             where.condition = condition;
         }
 
-        // 4. Search (Name, Code, Unit, or Room)
+        // 4. Routine Maintenance Filter
+        if (needsRoutine === 'true' || needsRoutine === true) {
+            where.needsRoutineMaintenance = true;
+        }
+
+        // 5. Search (Name, Code, Unit, or Room)
         if (search) {
             where.OR = [
                 { name: { contains: search } },
@@ -390,7 +399,9 @@ exports.updateAsset = async (req, res) => {
             usefulLife, vendorName, specification, sourceOfFunds,
             acquisitionStatus,
             picId, picName,
-            isLendable
+            isLendable,
+            needsRoutineMaintenance,
+            maintenanceInterval
         } = req.body;
 
         const oldAsset = await prisma.asset.findUnique({ where: { id: parseInt(id) } });
@@ -415,6 +426,8 @@ exports.updateAsset = async (req, res) => {
                 picId: picId ? parseInt(picId) : null,
                 picName: picName || null,
                 isLendable: isLendable === true || isLendable === 'true',
+                needsRoutineMaintenance: needsRoutineMaintenance !== undefined ? (needsRoutineMaintenance === true || needsRoutineMaintenance === 'true') : undefined,
+                maintenanceInterval: maintenanceInterval !== undefined ? parseInt(maintenanceInterval) : undefined,
                 image: req.fileUrl || undefined
             }
         });

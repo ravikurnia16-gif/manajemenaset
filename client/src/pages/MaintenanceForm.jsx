@@ -41,7 +41,7 @@ const MaintenanceForm = () => {
         if (form.type === 'ASSET') {
             fetchAssets();
         }
-    }, [form.type]);
+    }, [form.type, form.category]);
 
     const fetchAssets = async () => {
         try {
@@ -50,6 +50,9 @@ const MaintenanceForm = () => {
             const params = { limit: 9999 };
             if (!isGlobalAdmin && user.unitId) {
                 params.unitId = user.unitId;
+            }
+            if (form.category === 'ROUTINE') {
+                params.needsRoutine = true;
             }
 
             const res = await api.get('/assets', { params });
@@ -415,6 +418,17 @@ const MaintenanceForm = () => {
                                 )}
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Routine Info Badge */}
+                {form.type === 'ASSET' && form.category === 'ROUTINE' && form.selectedAssets.length > 0 && (
+                    <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs ring-4 ring-blue-100">!</div>
+                        <div className="text-[11px]">
+                            <p className="font-bold text-blue-900 uppercase">Mode Pemeliharaan Rutin</p>
+                            <p className="text-blue-600 font-medium tracking-tight">Menampilkan hanya aset dengan saklar rutin aktif. Jadwal berikutnya akan otomatis diperbarui.</p>
+                        </div>
                     </div>
                 )}
 

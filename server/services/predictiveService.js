@@ -9,6 +9,13 @@ const prisma = new PrismaClient();
  */
 exports.predictNextMaintenance = async (assetId) => {
     try {
+        // 0. Fetch Asset Config
+        const asset = await prisma.asset.findUnique({
+            where: { id: assetId }
+        });
+
+        if (!asset) return null;
+
         // 1. Fetch historical maintenance data for this asset
         const history = await prisma.maintenance.findMany({
             where: {
@@ -20,54 +27,49 @@ exports.predictNextMaintenance = async (assetId) => {
             take: 10 // Analyze last 10 records
         });
 
-        if (history.length < 2) {
-            // Need at least 2 records to calculate interval
-            return {
-                nextDate: null,
-                interval: 180, // Default to 6 months
-                confidence: "LOW",
-                reason: "Insufficient historical data"
-            };
-        }
+        let maintenanceInterval = asset.maintenanceInterval || 180;
+        let lastCompletion = history.length > 0 ? new Date(history[0].completionDate) : new Date();
 
-        // 2. Calculate average interval (in days)
-        let totalDays = 0;
-        let count = 0;
+        if (asset.needsRoutineMaintenance) {
+            // Priority 1: Use Manual Interval if policy is set
+            maintenanceInterval = asset.maintenanceInterval || 180;
+        } else if (history.length >= 2) {
+            // Priority 2: Use AI Calculation (Average from history)
+            let totalDays = 0;
+            let count = 0;
 
-        for (let i = 0; i < history.length - 1; i++) {
-            const current = new Date(history[i].completionDate);
-            const prev = new Date(history[i + 1].completionDate);
-            const diffTime = Math.abs(current - prev);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
-            // Avoid outliers (very small or very large intervals)
-            if (diffDays > 7 && diffDays < 730) {
-                totalDays += diffDays;
-                count++;
+            for (let i = 0; i < history.length - 1; i++) {
+                const current = new Date(history[i].completionDate);
+                const prev = new Date(history[i + 1].completionDate);
+                const diffTime = Math.abs(current - prev);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays > 7 && diffDays < 730) {
+                    totalDays += diffDays;
+                    count++;
+                }
             }
+            if (count > 0) maintenanceInterval = Math.round(totalDays / count);
         }
 
-        const avgInterval = count > 0 ? Math.round(totalDays / count) : 180;
-        
-        // 3. Estimate next date from the last completion
-        const lastCompletion = new Date(history[0].completionDate);
+        // 3. Estimate next date
         const nextDate = new Date(lastCompletion);
-        nextDate.setDate(lastCompletion.getDate() + avgInterval);
+        nextDate.setDate(lastCompletion.getDate() + maintenanceInterval);
 
         // 4. Update the Asset record
         await prisma.asset.update({
             where: { id: assetId },
             data: {
                 nextMaintenanceEst: nextDate,
-                maintenanceInterval: avgInterval
+                maintenanceInterval: maintenanceInterval
             }
         });
 
         return {
             nextDate,
-            interval: avgInterval,
-            confidence: history.length > 5 ? "HIGH" : "MEDIUM",
-            lastMaintenance: history[0].completionDate
+            interval: maintenanceInterval,
+            confidence: asset.needsRoutineMaintenance ? "HIGH (MANUAL)" : (history.length > 5 ? "HIGH" : "MEDIUM"),
+            lastMaintenance: history.length > 0 ? history[0].completionDate : null
         };
     } catch (error) {
         console.error("Predictive Service Error:", error);

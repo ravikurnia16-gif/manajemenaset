@@ -233,12 +233,15 @@ model Asset {
   loans        AssetLoan[]
 
   // Validation Fields
-  validationStatus ValidationStatus @default(UNVERIFIED)
-  validatedAt      DateTime?
-  validatedById    Int?
-  validatedBy      User?            @relation("AssetValidator", fields: [validatedById], references: [id])
-  validationNote   String?
-  notificationSent Boolean          @default(false)
+  validationStatus   ValidationStatus @default(UNVERIFIED)
+  validatedAt        DateTime?
+  validatedById      Int?
+  validatedBy        User?            @relation("AssetValidator", fields: [validatedById], references: [id])
+  validationNote     String?
+  notificationSent   Boolean          @default(false)
+
+  // Maintenance Planning
+  needsRoutineMaintenance Boolean @default(false)
 }
 
 enum ValidationStatus {

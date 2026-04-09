@@ -18,9 +18,13 @@ const AssetForm = () => {
             acquisitionStatus: 'Pembelian',
             purchaseDate: new Date().toISOString().split('T')[0],
             isLendable: false,
+            needsRoutineMaintenance: false,
+            maintenanceInterval: 3, // Default 3 months
             vendorName: ''
         }
     });
+
+    const [intervalUnit, setIntervalUnit] = useState('MONTHS');
 
     const [masterData, setMasterData] = useState({
         units: [],
@@ -69,8 +73,11 @@ const AssetForm = () => {
                     setIsAutoCode(false); // Manual if editing old asset
                     reset({
                         ...asset,
-                        purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split('T')[0] : ''
+                        purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split('T')[0] : '',
+                        maintenanceInterval: asset.maintenanceInterval >= 30 ? Math.round(asset.maintenanceInterval / 30) : asset.maintenanceInterval
                     });
+                    if (asset.maintenanceInterval < 30) setIntervalUnit('DAYS');
+                    else setIntervalUnit('MONTHS');
 
                     if (asset.image) {
                         setImagePreview(getMediaUrl(asset.image));
@@ -163,10 +170,17 @@ const AssetForm = () => {
 
             const formData = new FormData();
             
+            // Convert interval to days if unit is months
+            const intervalVal = parseInt(data.maintenanceInterval || 0);
+            const intervalInDays = intervalUnit === 'MONTHS' ? intervalVal * 30 : intervalVal;
+            formData.set('maintenanceInterval', intervalInDays.toString());
+
             // Append all data fields to FormData
             Object.keys(data).forEach(key => {
                 if (key === 'imageFile') {
                     if (data[key]) formData.append('image', data[key]);
+                } else if (key === 'maintenanceInterval') {
+                    // Already set above
                 } else if (key !== 'image') { // Don't append the old base64 if it exists
                     formData.append(key, data[key]);
                 }
@@ -415,6 +429,54 @@ const AssetForm = () => {
                                 />
                                 <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
                             </label>
+                        </div>
+
+                        {/* Routine Maintenance Toggle */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${watch('needsRoutineMaintenance') ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
+                                        <Save size={20} />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-800">Pemeliharaan Rutin?</p>
+                                        <p className="text-[10px] text-slate-500">Aktifkan jika aset butuh servis berkala.</p>
+                                    </div>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        {...register('needsRoutineMaintenance')}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+
+                            {watch('needsRoutineMaintenance') && (
+                                <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
+                                    <label className="block text-[10px] font-bold text-blue-600 uppercase">Interval Pemeliharaan</label>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            type="number" 
+                                            {...register('maintenanceInterval')}
+                                            className="flex-1 border border-blue-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            placeholder="Misal: 3"
+                                        />
+                                        <select 
+                                            value={intervalUnit}
+                                            onChange={(e) => setIntervalUnit(e.target.value)}
+                                            className="w-24 border border-blue-200 rounded-lg px-2 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                                        >
+                                            <option value="MONTHS">Bulan</option>
+                                            <option value="DAYS">Hari</option>
+                                        </select>
+                                    </div>
+                                    <p className="text-[10px] text-blue-500 italic">
+                                        * Aset akan muncul di pengingat setiap {watch('maintenanceInterval')} {intervalUnit === 'MONTHS' ? 'Bulan' : 'Hari'}.
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         <div>
