@@ -361,6 +361,17 @@ exports.startTrip = async (req, res) => {
 
         // 2. Discrepancy Notification (> 1 km)
         if (inputKm - currentOdometer > 1) {
+            const diff = inputKm - currentOdometer;
+            const discMsg = `⚠️ *PERINGATAN DISKREPANSI ODOMETER*\n\n` +
+                `Terdapat selisih kilometer saat mulai perjalanan:\n` +
+                `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
+                `Pengguna: ${booking.user.name}\n` +
+                `KM Terakhir Sistem: ${currentOdometer}\n` +
+                `KM Awal Input: ${inputKm}\n` +
+                `Selisih: *${diff} KM*\n\n` +
+                `_Mohon tindak lanjuti jika terdapat indikasi penggunaan armada di luar sistem._`;
+
+            // A. Notify Kepala Bidang Sarpras
             const leads = await prisma.user.findMany({
                 where: {
                     position: 'Kepala Bidang Sarana dan Prasarana',
@@ -368,29 +379,42 @@ exports.startTrip = async (req, res) => {
                 }
             });
 
-            if (leads.length > 0) {
-                const diff = inputKm - currentOdometer;
-                const msg = `⚠️ *PERINGATAN DISKREPANSI ODOMETER*\n\n` +
-                    `Terdapat selisih kilometer saat mulai perjalanan:\n` +
-                    `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
-                    `Pengguna: ${booking.user.name}\n` +
-                    `KM Terakhir Sistem: ${currentOdometer}\n` +
-                    `KM Awal Input: ${inputKm}\n` +
-                    `Selisih: *${diff} KM*\n\n` +
-                    `_Mohon tindak lanjuti jika terdapat indikasi penggunaan armada di luar sistem._`;
+            for (const lead of leads) {
+                try {
+                    await sendMessage(lead.phone, discMsg);
+                    await createNotification(
+                        lead.id,
+                        'Peringatan Diskrepansi Odometer',
+                        `Selisih ${diff} KM pada kendaraan ${booking.vehicle.plateNumber} oleh ${booking.user.name}.`,
+                        'WARNING',
+                        '/kendaraan/laporan'
+                    );
+                } catch (err) {
+                    console.error('Failed to notify lead:', err.message);
+                }
+            }
 
-                for (const lead of leads) {
+            // B. Notify Staff Kendaraan (PIC armada ini)
+            const vehicleWithPics = await prisma.vehicle.findUnique({
+                where: { id: booking.vehicleId },
+                include: { pics: true }
+            });
+
+            if (vehicleWithPics?.pics) {
+                for (const pic of vehicleWithPics.pics) {
                     try {
-                        await sendMessage(lead.phone, msg);
+                        if (pic.phone) {
+                            await sendMessage(pic.phone, discMsg);
+                        }
                         await createNotification(
-                            lead.id,
+                            pic.id,
                             'Peringatan Diskrepansi Odometer',
-                            `Selisih ${diff} KM pada kendaraan ${booking.vehicle.plateNumber} oleh ${booking.user.name}.`,
+                            `Selisih ${diff} KM pada ${booking.vehicle.name} (${booking.vehicle.plateNumber}) oleh ${booking.user.name}.`,
                             'WARNING',
                             '/kendaraan/laporan'
                         );
                     } catch (err) {
-                        console.error('Failed to notify lead:', err.message);
+                        console.error('Failed to notify PIC:', err.message);
                     }
                 }
             }
