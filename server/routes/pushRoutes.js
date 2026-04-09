@@ -3,7 +3,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendPushToUser, vapidPublicKey } = require('../services/pushService');
-const auth = require('../middleware/auth');
+const { verifyToken } = require('../middleware/authMiddleware');
 
 // Get VAPID public key (no auth needed for service worker registration)
 router.get('/vapid-public-key', (req, res) => {
@@ -11,7 +11,7 @@ router.get('/vapid-public-key', (req, res) => {
 });
 
 // Subscribe to push notifications
-router.post('/subscribe', auth, async (req, res) => {
+router.post('/subscribe', verifyToken, async (req, res) => {
     try {
         const { subscription } = req.body;
         const userId = req.user.id;
@@ -46,7 +46,7 @@ router.post('/subscribe', auth, async (req, res) => {
 });
 
 // Unsubscribe from push notifications
-router.post('/unsubscribe', auth, async (req, res) => {
+router.post('/unsubscribe', verifyToken, async (req, res) => {
     try {
         const { endpoint } = req.body;
         const userId = req.user.id;
@@ -69,7 +69,7 @@ router.post('/unsubscribe', auth, async (req, res) => {
 });
 
 // Test push notification (send to yourself)
-router.post('/test', auth, async (req, res) => {
+router.post('/test', verifyToken, async (req, res) => {
     try {
         await sendPushToUser(
             req.user.id,
