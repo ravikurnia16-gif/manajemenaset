@@ -251,7 +251,7 @@ const Sidebar = ({ isOpen = true }) => {
             </nav>
 
             <div className={cn(
-                "border-t border-slate-800 bg-slate-900/50 transition-all duration-300 overflow-hidden whitespace-nowrap",
+                "border-t border-slate-800 bg-slate-900/50 transition-all duration-300 overflow-hidden whitespace-nowrap pb-16 sm:pb-0",
                 isOpen ? "p-4 opacity-100" : "p-0 h-0 opacity-0"
             )}>
                 <button
