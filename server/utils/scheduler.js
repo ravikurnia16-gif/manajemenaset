@@ -4,7 +4,13 @@ const { checkTaxNotifications, checkKirNotifications } = require('../controllers
 const { checkOverdueLoans } = require('../controllers/loanController');
 const { checkOverdueVehicleBookings, checkUpcomingVehicleBookings } = require('../controllers/vehicleBookingController');
 const { checkMissingWeeklyReports } = require('../controllers/vehicleReportController');
-const { checkAssignmentDeadlines, generateRoutineTasks, checkPlanDeadlines, sendDailyPersonnelSummary, sendGroupReportReminder } = require('../controllers/personnelController');
+const { 
+    checkAssignmentDeadlines, 
+    generateRoutineTasks, 
+    sendDailyPersonnelSummary, 
+    checkPlanDeadlines, 
+    checkMissingReportsWeekly 
+} = require('../controllers/personnelController');
 const { sendWeeklyAssetSummary } = require('./summaryNotification');
 const { checkBusBookingNotifications } = require('../controllers/busBookingController');
 
@@ -72,8 +78,13 @@ const initScheduler = () => {
                 await checkKirNotifications();
                 await checkOverdueLoans();
                 await checkBusBookingNotifications();
+                
+                // Weekly Friday Audit at 09:00
+                if (day === 5) {
+                    await checkMissingReportsWeekly();
+                }
             } catch (err) {
-                console.error('[Scheduler] Error in Vehicle Checks:', err);
+                console.error('[Scheduler] Error in Vehicle Checks or Personnel Audit:', err);
             }
         }
 
@@ -87,6 +98,10 @@ const initScheduler = () => {
                 await checkOverdueVehicleBookings();
                 await checkUpcomingVehicleBookings();
                 await checkAssignmentDeadlines();
+
+                // Specific Personnel Reminders
+                if (hour === 8) await checkPlanDeadlines();
+                if (hour === 20) await sendDailyPersonnelSummary();
             } catch (err) {
                 console.error('[Scheduler] Error in Overdue Reminders:', err);
             }
@@ -113,39 +128,6 @@ const initScheduler = () => {
                 await sendWeeklyAssetSummary();
             } catch (err) {
                 console.error('[Scheduler] Error in Weekly Asset Summary:', err);
-            }
-        }
-
-        // ----------------------------------------------------
-        // 7. PERSONNEL SCHEDULES (Plan Deadlines, Group Reminder, Daily Summary)
-        // ----------------------------------------------------
-        // Morning at 08:00
-        if (hour === 8 && minute === 0) {
-            console.log('[Scheduler] Executing Plan Deadlines Check...');
-            try {
-                await checkPlanDeadlines();
-            } catch (err) {
-                console.error('[Scheduler] Error in Plan Deadlines Check:', err);
-            }
-        }
-
-        // Afternoon/Evening at 16:30 (Reminder to Group)
-        if (hour === 16 && minute === 30) {
-            console.log('[Scheduler] Executing Group Report Reminder...');
-            try {
-                await sendGroupReportReminder();
-            } catch (err) {
-                console.error('[Scheduler] Error in Group Reminder:', err);
-            }
-        }
-
-        // Night at 20:00 (Daily Personnel Summary)
-        if (hour === 20 && minute === 0) {
-            console.log('[Scheduler] Executing Daily Personnel Summary...');
-            try {
-                await sendDailyPersonnelSummary();
-            } catch (err) {
-                console.error('[Scheduler] Error in Daily Personnel Summary:', err);
             }
         }
 
