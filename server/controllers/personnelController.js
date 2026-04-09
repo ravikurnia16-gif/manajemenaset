@@ -66,60 +66,6 @@ exports.createReport = async (req, res) => {
 
         res.json({ message: 'Laporan berhasil disimpan', data: report });
 
-        // --- WhatsApp Notification to Leads (Async) ---
-        (async () => {
-            try {
-                // Find recipients: Kepala Bidang Sarana dan Prasarana
-                const leads = await prisma.user.findMany({
-                    where: {
-                        position: 'Kepala Bidang Sarana dan Prasarana',
-                        phone: { not: null, not: '' }
-                    }
-                });
-
-                if (leads.length > 0) {
-                    const reporter = await prisma.user.findUnique({
-                        where: { id: user.id }
-                    });
-
-                    const isPlan = metadata?.isPlan;
-                    const typeLabel = isPlan ? 'Rencana Kerja' : (type === 'DAILY' ? 'Harian' : 'Mingguan');
-                    const emoji = isPlan ? '📅' : '📋';
-                    const catLabel = {
-                        'KEUANGAN': '💰 Keuangan',
-                        'ASET': '📦 Manajemen Aset',
-                        'GUDANG': '🏠 Gudang & Logistik',
-                        'KENDARAAN': '🚗 Kendaraan',
-                        'UMUM': '📝 Umum'
-                    }[category] || '📝 Umum';
-
-                    let msg = `${emoji} *${isPlan ? 'RENCANA KERJA MINGGUAN' : 'LAPORAN PERSONALIA'} BARU*\n\n` +
-                        `👤 *Staf* : ${reporter?.name || reporter?.username || 'Staf'}\n` +
-                        `📅 *Tanggal* : ${new Date(date || new Date()).toLocaleDateString('id-ID')}\n` +
-                        `📑 *Tipe* : ${typeLabel}\n` +
-                        `📂 *Kategori* : ${catLabel}\n\n`;
-
-                    if (details) {
-                        msg += `📊 *Detail Aktivitas*:\n${details}\n\n`;
-                    }
-
-                    if (content && content.trim()) {
-                        msg += `📝 *Isi Laporan*:\n${content}`;
-                    }
-
-                    for (const lead of leads) {
-                        try {
-                            await whatsappService.sendMessage(lead.phone, msg);
-                            console.log(`[Personnel Report] Notification sent to ${lead.name}`);
-                        } catch (waError) {
-                            console.error(`[Personnel Report] Failed to send WA to ${lead.name}:`, waError);
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error('WA Personnel Report Error:', err);
-            }
-        })();
     } catch (error) {
         console.error("Create Report Error:", error);
         res.status(500).json({ error: error.message });
@@ -1104,5 +1050,181 @@ exports.getKPILeaderboard = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+// --- AUTOMATED NOTIFICATIONS & SUMMARIES ---
+
+exports.checkPlanDeadlines = async () => {
+    try {
+        const today = new Date();
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        
+        // Find active WEEKLY reports (which operate as Plans)
+        const plans = await prisma.personnelReport.findMany({
+            where: {
+                type: 'WEEKLY'
+            },
+            include: { user: true }
+        });
+
+        const activePlans = plans.filter(p => p.metadata?.isPlan);
+
+        const leads = await prisma.user.findMany({
+            where: {
+                position: 'Kepala Bidang Sarana dan Prasarana',
+                phone: { not: null, not: '' }
+            }
+        });
+
+        for (const plan of activePlans) {
+            const startDate = new Date(plan.metadata.startDate);
+            const endDate = new Date(plan.metadata.endDate);
+            const startOnlyDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+            const endOnlyDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+            
+            // Check overall progress
+            const items = plan.metadata.items || [];
+            const totalItems = items.length;
+            const completedItems = items.filter(i => (i.percentage || 0) === 100).length;
+            const isCompleted = totalItems > 0 && completedItems === totalItems;
+
+            if (isCompleted) continue; // Skip if 100% completed
+
+            let msgType = null;
+            let msgContent = "";
+
+            if (startOnlyDate.getTime() === startOfDay.getTime()) {
+                msgType = 'STARTING';
+                msgContent = `Assalamu'alaikum, jadwal dimulainya Rencana Kerja *[ ${plan.metadata.title || 'Mingguan'} ]* adalah *HARI INI*.\nMohon dapat dilaksanakan sesuai target.`;
+            } else if (endOnlyDate.getTime() < startOfDay.getTime()) {
+                msgType = 'OVERDUE';
+                msgContent = `Assalamu'alaikum, batas waktu pelaksanaan Rencana Kerja *[ ${plan.metadata.title || 'Mingguan'} ]* telah *LEWAT BATAS WAKTU*.\n\nProgres saat ini: ${completedItems}/${totalItems} aktivitas selesai.\nMohon segera diselesaikan atau di-update laporannya di sistem.`;
+            }
+
+            if (msgType && plan.user?.phone) {
+                const fullMsg = `🔔 *PENGINGAT RENCANA KERJA* 🔔\n\n👤 *Staf*: ${plan.user.name}\n${msgContent}\n\n_Auto-Reminder by Sarpras Hub_`;
+
+                // Send to Staff
+                try {
+                    await whatsappService.sendMessage(plan.user.phone, fullMsg);
+                    console.log(`[Plan Reminder] Sent ${msgType} to Staf ${plan.user.name}`);
+                } catch (e) {
+                    console.error('Failed to send plan reminder to staff:', e.message);
+                }
+
+                // Send to Kabid (Leads)
+                for (const lead of leads) {
+                    try {
+                        const leadMsg = `📋 *TEMBUSAN PENGINGAT*\n\nSistem telah mengingatkan staf:\n\n` + fullMsg;
+                        await whatsappService.sendMessage(lead.phone, leadMsg);
+                    } catch (e) {
+                        console.error('Failed to send plan reminder CC to Kabid');
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.error('[Scheduler] Error checking Plan deadlines:', err);
+    }
+};
+
+exports.sendDailyPersonnelSummary = async () => {
+    try {
+        const today = new Date();
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+
+        // Fetch reports created today
+        const reports = await prisma.personnelReport.findMany({
+            where: {
+                type: 'DAILY',
+                date: {
+                    gte: startOfDay,
+                    lte: endOfDay
+                }
+            },
+            include: { user: true }
+        });
+
+        if (reports.length === 0) {
+            console.log('[Daily Summary] No reports found today. Skipping WA notification.');
+            return;
+        }
+
+        const leads = await prisma.user.findMany({
+            where: {
+                position: 'Kepala Bidang Sarana dan Prasarana',
+                phone: { not: null, not: '' }
+            }
+        });
+
+        if (leads.length === 0) return;
+
+        // Group by user
+        const grouped = reports.reduce((acc, rep) => {
+            const userName = rep.user?.name || rep.user?.username || 'Unknown';
+            if (!acc[userName]) acc[userName] = { count: 0, actions: [], category: rep.category };
+            acc[userName].count += 1;
+            
+            // Try to extract summarized action info from items
+            if (rep.metadata?.items && Array.isArray(rep.metadata.items)) {
+                const dones = rep.metadata.items.filter(i => i.status === 'SELESAI').length;
+                const proses = rep.metadata.items.filter(i => i.status !== 'SELESAI').length;
+                acc[userName].actions.push(`${dones} selesai, ${proses} proses`);
+            }
+            return acc;
+        }, {});
+
+        let msg = `📊 *RANGKUMAN LAPORAN KINERJA HARIAN*\n📅 Tanggal: ${today.toLocaleDateString('id-ID')}\n\n`;
+
+        Object.entries(grouped).forEach(([staffName, data], index) => {
+            msg += `*${index + 1}. ${staffName}*\n`;
+            msg += `   Kategori: ${data.category}\n`;
+            msg += `   Laporan: ${data.count} diajukan\n`;
+            if (data.actions.length > 0) {
+                // aggregate
+                let totalSelesai = 0; let totalProses = 0;
+                data.actions.forEach(a => {
+                    const matchS = a.match(/(\d+) selesai/);
+                    const matchP = a.match(/(\d+) proses/);
+                    if (matchS) totalSelesai += parseInt(matchS[1]);
+                    if (matchP) totalProses += parseInt(matchP[1]);
+                });
+                msg += `   Aktivitas: ${totalSelesai} selesai, ${totalProses} diproses\n`;
+            }
+            msg += `\n`;
+        });
+
+        msg += `_Laporan selengkapnya dapat dicek melalui aplikasi SARPRAS HUB._`;
+
+        for (const lead of leads) {
+            try {
+                await whatsappService.sendMessage(lead.phone, msg);
+                console.log(`[Daily Summary] Summary sent to Kabid: ${lead.name}`);
+            } catch (err) {
+                console.error(`[Daily Summary] Failed to send summary to Kabid ${lead.name}`, err.message);
+            }
+        }
+    } catch (err) {
+        console.error('[Scheduler] Error compiling daily personnel summary:', err);
+    }
+};
+
+exports.sendGroupReportReminder = async () => {
+    try {
+        const groupId = process.env.SARPRAS_GROUP_WA_ID;
+        if (!groupId || groupId === '120363000000000000@g.us' || !groupId.includes('@g.us')) {
+            console.log('[Group Reminder] Group WA ID not configured properly in .env. Skipping.');
+            return;
+        }
+
+        const msg = `🔔 *REMINDER PENGISIAN LAPORAN* 🔔\n\nAssalamu'alaikum ustadz/ustadzah staf Sarpras.\n\nSudah saatnya untuk merekap pekerjaan hari ini.\nMohon luangkan waktu untuk mengupdate *Laporan Harian* maupun progress pada *Rencana Kerja/Penugasan* di sistem SARPRAS HUB sebelum beristirahat.\n\nJazakumullahu Khairan atas dedikasi antum semua hari ini! 🙏🏼`;
+
+        await whatsappService.sendMessage(groupId, msg);
+        console.log(`[Group Reminder] Reminder sent to group ${groupId}`);
+
+    } catch (err) {
+        console.error('[Scheduler] Error sending group report reminder:', err);
     }
 };
