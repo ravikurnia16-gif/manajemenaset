@@ -152,7 +152,7 @@ exports.fixExistingGenderData = async (req, res) => {
         for (const mapping of genderMap) {
             for (const val of mapping.values) {
                 const result = await prisma.warehouseItem.updateMany({
-                    where: { gender: { equals: val, mode: 'insensitive' } },
+                    where: { gender: val },
                     data: { gender: mapping.normalized }
                 });
                 if (result.count > 0) {
