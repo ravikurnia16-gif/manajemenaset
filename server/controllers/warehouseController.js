@@ -231,86 +231,147 @@ exports.deleteItem = async (req, res) => {
 // ======================== IMPORT / EXPORT ========================
 exports.importItems = async (req, res) => {
     const { items } = req.body; // Array of item objects
+    if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Data import kosong' });
+    }
+
+    // Helper for normalization
+    const normalizeGender = (val) => {
+        if (!val) return null;
+        const v = String(val).trim().toLowerCase();
+        if (['p', 'perempuan', 'akhwat', 'akhowat', 'wanita'].includes(v)) return 'P';
+        if (['l', 'laki-laki', 'ikhwan', 'pria', 'ikhwan'].includes(v)) return 'L';
+        return null; // Invalid or other
+    };
+
     try {
-        let created = 0;
-        const sequenceMap = {}; // Cache for prefixes: { 'GD/SRG': 15, 'GD/PLK': 5 }
+        // --- STEP 1: STRICT VALIDATION (Pre-check) ---
+        for (let i = 0; i < items.length; i++) {
+            const row = items[i];
+            const rowNum = i + 1;
 
-        for (const row of items) {
-            if (!row.name || !row.categoryId) continue;
-
-            const category = await prisma.warehouseCategory.findUnique({ where: { id: parseInt(row.categoryId) } });
-            if (!category) continue;
-
-            const prefix = category.name.toLowerCase().includes('seragam') ? 'GD/SRG' : 'GD/PLK';
-
-            // Initialize sequence for this prefix if not already in cache
-            if (sequenceMap[prefix] === undefined) {
-                const lastItem = await prisma.warehouseItem.findFirst({
-                    where: { code: { startsWith: `${prefix}/` } },
-                    orderBy: { code: 'desc' }
-                });
-
-                let startSeq = 1;
-                if (lastItem) {
-                    const parts = lastItem.code.split('/');
-                    if (parts.length === 3) {
-                        const lastSeq = parseInt(parts[2]);
-                        if (!isNaN(lastSeq)) startSeq = lastSeq + 1;
-                    }
-                }
-                sequenceMap[prefix] = startSeq;
+            if (!row.name || !row.categoryId) {
+                return res.status(400).json({ error: `Baris ${rowNum}: Nama dan Kategori ID harus diisi.` });
             }
 
-            let success = false;
-            let retryCount = 0;
-            const maxRetries = 20;
+            const catId = parseInt(row.categoryId);
+            const genderNormalized = normalizeGender(row.gender);
 
-            while (!success && retryCount < maxRetries) {
-                try {
-                    const currentSeq = sequenceMap[prefix];
-                    const code = await generateItemCode(category.name, currentSeq);
-
-                    await prisma.warehouseItem.create({
-                        data: {
-                            code, name: row.name,
-                            categoryId: parseInt(row.categoryId),
-                            type: row.type || null,
-                            gender: row.gender || null,
-                            size: row.size || null,
-                            purchaseYear: row.purchaseYear ? parseInt(row.purchaseYear) : null,
-                            itemUnit: row.itemUnit || null,
-                            stock: parseInt(row.stock) || 0,
-                            minStock: parseInt(row.minStock) || 5,
-                            purchasePrice: row.purchasePrice ? parseFloat(row.purchasePrice) : null,
-                            supplier: row.supplier || null,
-                            location: row.location || null,
-                            image: row.image || null
-                        }
+            // Perintah Ustadz: CategoryId 1 (Seragam) wajib Gender L/P
+            if (catId === 1) {
+                if (!genderNormalized) {
+                    return res.status(400).json({
+                        error: `Baris ${rowNum}: Barang Kategori Seragam wajib mencantumkan Gender yang valid (L atau P). Isian Anda: "${row.gender || '-'}"`
                     });
-
-                    sequenceMap[prefix]++; // Increment for next successful item
-                    success = true;
-                } catch (err) {
-                    if (err.code === 'P2002' && err.meta?.target?.includes('code')) {
-                        console.warn(`Collision detected for prefix ${prefix}, retrying with next sequence...`);
-                        sequenceMap[prefix]++; // Try next number
-                        retryCount++;
-                    } else {
-                        throw err; // Re-throw other errors
-                    }
                 }
-            }
-
-            if (!success) {
-                console.error(`Failed to import item "${row.name}" after ${maxRetries} attempts due to code collisions.`);
-            } else {
-                created++;
             }
         }
-        res.json({ message: `${created} item berhasil diimport` });
+
+        // --- STEP 2: EXECUTION (Atomic Transaction) ---
+        const result = await prisma.$transaction(async (tx) => {
+            let created = 0;
+            let updated = 0;
+            const sequenceMap = {}; // Cache for prefixes
+
+            for (const row of items) {
+                const catId = parseInt(row.categoryId);
+                const gender = normalizeGender(row.gender);
+                const name = String(row.name).trim();
+                const size = row.size ? String(row.size).trim() : null;
+                const type = row.type ? String(row.type).trim() : null;
+                const itemUnit = row.itemUnit ? String(row.itemUnit).trim() : null;
+
+                // SMART MATCHING: Check if item already exists
+                const existingItem = await tx.warehouseItem.findFirst({
+                    where: {
+                        name: { equals: name },
+                        categoryId: catId,
+                        gender: gender,
+                        size: size,
+                        type: type,
+                        itemUnit: itemUnit
+                    }
+                });
+
+                if (existingItem) {
+                    // UPSERT: Increment stock if exists
+                    await tx.warehouseItem.update({
+                        where: { id: existingItem.id },
+                        data: {
+                            stock: { increment: parseInt(row.stock) || 0 },
+                            purchasePrice: row.purchasePrice ? parseFloat(row.purchasePrice) : undefined,
+                            supplier: row.supplier || undefined,
+                            location: row.location || undefined
+                        }
+                    });
+                    updated++;
+                } else {
+                    // CREATE NEW
+                    const category = await tx.warehouseCategory.findUnique({ where: { id: catId } });
+                    const prefix = category.name.toLowerCase().includes('seragam') ? 'GD/SRG' : 'GD/PLK';
+
+                    if (sequenceMap[prefix] === undefined) {
+                        const lastItem = await tx.warehouseItem.findFirst({
+                            where: { code: { startsWith: `${prefix}/` } },
+                            orderBy: { code: 'desc' }
+                        });
+                        let startSeq = 1;
+                        if (lastItem) {
+                            const parts = lastItem.code.split('/');
+                            if (parts.length === 3) {
+                                const lastSeq = parseInt(parts[2]);
+                                if (!isNaN(lastSeq)) startSeq = lastSeq + 1;
+                            }
+                        }
+                        sequenceMap[prefix] = startSeq;
+                    }
+
+                    let itemSuccess = false;
+                    let retryCount = 0;
+                    while (!itemSuccess && retryCount < 20) {
+                        try {
+                            const currentSeq = sequenceMap[prefix];
+                            const code = await generateItemCode(category.name, currentSeq);
+
+                            await tx.warehouseItem.create({
+                                data: {
+                                    code, name,
+                                    categoryId: catId,
+                                    type, gender, size,
+                                    purchaseYear: row.purchaseYear ? parseInt(row.purchaseYear) : null,
+                                    itemUnit,
+                                    stock: parseInt(row.stock) || 0,
+                                    minStock: parseInt(row.minStock) || 5,
+                                    purchasePrice: row.purchasePrice ? parseFloat(row.purchasePrice) : null,
+                                    supplier: row.supplier || null,
+                                    location: row.location || null,
+                                    image: row.image || null
+                                }
+                            });
+                            sequenceMap[prefix]++;
+                            itemSuccess = true;
+                            created++;
+                        } catch (err) {
+                            if (err.code === 'P2002') {
+                                sequenceMap[prefix]++;
+                                retryCount++;
+                            } else { throw err; }
+                        }
+                    }
+                }
+            }
+            return { created, updated };
+        }, {
+            timeout: 30000 // 30s for large imports
+        });
+
+        res.json({
+            success: true,
+            message: `Import selesai. ${result.created} barang baru dibuat, ${result.updated} barang lama ditargetkan untuk update stok.`
+        });
     } catch (e) {
-        console.error("Import Error:", e);
-        res.status(500).json({ error: e.message });
+        console.error("Smart Import Error:", e);
+        res.status(500).json({ error: 'Gagal Import: ' + e.message });
     }
 };
 
