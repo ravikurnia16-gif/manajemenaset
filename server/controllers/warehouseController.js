@@ -133,6 +133,47 @@ exports.getItemById = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
+// ======================== MAINTENANCE ========================
+exports.fixExistingGenderData = async (req, res) => {
+    try {
+        // Only Super Admin / BIDANG_IT can run this
+        if (!['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role)) {
+            return res.status(403).json({ error: 'Akses ditolak. Hanya Super Admin yang bisa menjalankan maintenance ini.' });
+        }
+
+        const genderMap = [
+            { values: ['akhowat', 'akhwat', 'perempuan', 'wanita'], normalized: 'P' },
+            { values: ['ikhwan', 'laki-laki', 'pria'], normalized: 'L' }
+        ];
+
+        let totalFixed = 0;
+        const detail = [];
+
+        for (const mapping of genderMap) {
+            for (const val of mapping.values) {
+                const result = await prisma.warehouseItem.updateMany({
+                    where: { gender: { equals: val, mode: 'insensitive' } },
+                    data: { gender: mapping.normalized }
+                });
+                if (result.count > 0) {
+                    detail.push(`"${val}" -> "${mapping.normalized}": ${result.count} item diperbaiki`);
+                    totalFixed += result.count;
+                }
+            }
+        }
+
+        console.log(`[Maintenance] Gender fix complete. ${totalFixed} records updated.`, detail);
+        res.json({
+            success: true,
+            message: `Pembersihan selesai. Total ${totalFixed} data gender berhasil diperbaiki.`,
+            detail
+        });
+    } catch (e) {
+        console.error('Gender fix error:', e);
+        res.status(500).json({ error: e.message });
+    }
+};
+
 // Generate warehouse item code
 const generateItemCode = async (categoryName, knownSequence = null) => {
     const prefix = categoryName?.toLowerCase().includes('seragam') ? 'GD/SRG' : 'GD/PLK';

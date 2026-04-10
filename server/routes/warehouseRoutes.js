@@ -23,6 +23,9 @@ router.put('/items/:id', handleUpload('image', 'warehouse'), wh.updateItem);
 
 router.delete('/items/:id', wh.deleteItem);
 
+// Maintenance (Super Admin only)
+router.get('/maintenance/fix-gender', wh.fixExistingGenderData);
+
 // Transactions
 router.get('/transactions', wh.getAllTransactions);
 router.post('/transactions', wh.createTransaction);

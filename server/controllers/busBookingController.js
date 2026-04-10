@@ -128,7 +128,8 @@ const createBusBooking = async (req, res) => {
                     where: {
                         OR: [
                             { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } },
-                            { position: { contains: 'Staff Manajemen Aset' } }
+                            { position: { contains: 'Staff Manajemen Aset' } },
+                            { position: { contains: 'Staff Kendaraan' } }
                         ],
                         phone: { not: null, not: '' }
                     }
@@ -318,7 +319,7 @@ const assignDriver = async (req, res) => {
 
         // Fetch current user with position
         const currentUser = await prisma.user.findUnique({ where: { id: user.id } });
-        
+
         const isSarpras = currentUser?.position?.toLowerCase().includes('sarana dan prasarana');
         const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role);
 
@@ -329,7 +330,7 @@ const assignDriver = async (req, res) => {
         const booking = await prisma.busBooking.update({
             where: { id: parseInt(id) },
             data: { driverId: driverId ? parseInt(driverId) : null },
-            include: { 
+            include: {
                 driver: { select: { name: true, phone: true } },
                 vehicle: true
             }
@@ -337,7 +338,7 @@ const assignDriver = async (req, res) => {
 
         // --- MANAGE VEHICLE BOOKING SYNCHRONIZATION ---
         const tag = `[BUS_BOOKING]-${booking.id}`;
-        
+
         const existingVBooking = await prisma.vehicleBooking.findFirst({
             where: { adminNote: tag }
         });
@@ -387,7 +388,7 @@ const assignDriver = async (req, res) => {
                     `📍 *Tujuan*: ${booking.destination}\n` +
                     `📅 *Jadwal*: ${new Date(booking.startDate).toLocaleString('id-ID')} s/d ${new Date(booking.endDate).toLocaleString('id-ID')}\n\n` +
                     `Tugas ini sudah masuk secara otomatis ke menu *Permohonan Saya*. Silakan klik *Mulai Perjalanan* saat Anda berangkat.\n\nSyukron.`;
-                try { await whatsappService.sendMessage(booking.driver.phone, msg); } catch (e) {}
+                try { await whatsappService.sendMessage(booking.driver.phone, msg); } catch (e) { }
             })();
         }
 
@@ -449,7 +450,7 @@ const checkBusBookingNotifications = async () => {
                 try {
                     await whatsappService.sendMessage(person.phone, msg);
                     console.log(`[Bus Booking] H-2 Notif sent to ${person.name} for trip to ${booking.destination}`);
-                } catch (e) {}
+                } catch (e) { }
             }
         }
     } catch (err) {
@@ -509,7 +510,7 @@ const completeBusBooking = async (req, res) => {
                 `💰 *TOTAL TAGIHAN: Rp ${billAmount.toLocaleString('id-ID')}*\n\n` +
                 `Mohon untuk segera melakukan penyelesaian administrasi ke Bagian Keuangan Sarpras. Syukron.\n\n` +
                 `_Sistem Manajemen Aset_`;
-            
+
             try {
                 await whatsappService.sendMessage(booking.requesterPhone, msg);
             } catch (e) {
