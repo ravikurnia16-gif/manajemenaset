@@ -312,8 +312,7 @@ const AssetList = ({ validationMode = false }) => {
             'Jenis Transaksi Masuk', 'Bukti Transaksi Masuk', 'Harga Perolehan', 'PIC (Nama Manual)', 'NIK/NIY Pihak Kedua', 'Apakah Pihak Kedua Karyawan? (ya/tidak)',
             'Nama Pihak Kedua (hanya digunakan kalau pihak kedua baru)', 'Alamat Pihak Kedua (hanya digunakan kalau pihak kedua baru)',
             'Tanggal Transaksi Keluar (yyyy-mm-dd)', 'Jenis Transaksi Keluar', 'Bukti Transaksi Keluar', 'Harga Jual',
-            'Nama Pihak Kedua (hanya digunakan kalau pihak kedua baru)', 'Alamat Pihak Kedua (hanya digunakan kalau pihak kedua baru)',
-            'Butuh Pemeliharaan Rutin? (ya/tidak)', 'Interval Pemeliharaan (hari)'
+            'Nama Pihak Kedua (hanya digunakan kalau pihak kedua baru)', 'Alamat Pihak Kedua (hanya digunakan kalau pihak kedua baru)'
         ]];
         const ws = XLSX.utils.aoa_to_sheet(headers);
         const wscols = headers[0].map(() => ({ wch: 25 }));

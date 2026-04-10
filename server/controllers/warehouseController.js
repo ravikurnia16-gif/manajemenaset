@@ -261,27 +261,51 @@ exports.importItems = async (req, res) => {
                 sequenceMap[prefix] = startSeq;
             }
 
-            const currentSeq = sequenceMap[prefix]++;
-            const code = await generateItemCode(category.name, currentSeq);
+            let success = false;
+            let retryCount = 0;
+            const maxRetries = 20;
 
-            await prisma.warehouseItem.create({
-                data: {
-                    code, name: row.name,
-                    categoryId: parseInt(row.categoryId),
-                    type: row.type || null,
-                    gender: row.gender || null,
-                    size: row.size || null,
-                    purchaseYear: row.purchaseYear ? parseInt(row.purchaseYear) : null,
-                    itemUnit: row.itemUnit || null,
-                    stock: parseInt(row.stock) || 0,
-                    minStock: parseInt(row.minStock) || 5,
-                    purchasePrice: row.purchasePrice ? parseFloat(row.purchasePrice) : null,
-                    supplier: row.supplier || null,
-                    location: row.location || null,
-                    image: row.image || null
+            while (!success && retryCount < maxRetries) {
+                try {
+                    const currentSeq = sequenceMap[prefix];
+                    const code = await generateItemCode(category.name, currentSeq);
+
+                    await prisma.warehouseItem.create({
+                        data: {
+                            code, name: row.name,
+                            categoryId: parseInt(row.categoryId),
+                            type: row.type || null,
+                            gender: row.gender || null,
+                            size: row.size || null,
+                            purchaseYear: row.purchaseYear ? parseInt(row.purchaseYear) : null,
+                            itemUnit: row.itemUnit || null,
+                            stock: parseInt(row.stock) || 0,
+                            minStock: parseInt(row.minStock) || 5,
+                            purchasePrice: row.purchasePrice ? parseFloat(row.purchasePrice) : null,
+                            supplier: row.supplier || null,
+                            location: row.location || null,
+                            image: row.image || null
+                        }
+                    });
+
+                    sequenceMap[prefix]++; // Increment for next successful item
+                    success = true;
+                } catch (err) {
+                    if (err.code === 'P2002' && err.meta?.target?.includes('code')) {
+                        console.warn(`Collision detected for prefix ${prefix}, retrying with next sequence...`);
+                        sequenceMap[prefix]++; // Try next number
+                        retryCount++;
+                    } else {
+                        throw err; // Re-throw other errors
+                    }
                 }
-            });
-            created++;
+            }
+
+            if (!success) {
+                console.error(`Failed to import item "${row.name}" after ${maxRetries} attempts due to code collisions.`);
+            } else {
+                created++;
+            }
         }
         res.json({ message: `${created} item berhasil diimport` });
     } catch (e) {
