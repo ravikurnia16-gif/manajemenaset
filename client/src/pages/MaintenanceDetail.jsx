@@ -8,6 +8,7 @@ const statusSteps = [
     { key: 'SUBMITTED', label: 'Diajukan', icon: '📋', color: 'blue' },
     { key: 'APPROVED', label: 'Disetujui', icon: '✅', color: 'cyan' },
     { key: 'ASSIGNED', label: 'Ditugaskan', icon: '👷', color: 'yellow' },
+    { key: 'IN_PROGRESS', label: 'Sedang Dikerjakan', icon: '🛠️', color: 'orange' },
     { key: 'COMPLETED', label: 'Selesai', icon: '🎉', color: 'green' },
 ];
 
@@ -54,6 +55,12 @@ const MaintenanceDetail = () => {
         if (isAdmin) fetchUsers();
     }, [id]);
 
+    useEffect(() => {
+        if (report) {
+            setActionTaken(report.actionTaken || '');
+        }
+    }, [report]);
+
     const handleStatusUpdate = async () => {
         try {
             const payload = { status: actionModal.nextStatus };
@@ -62,10 +69,15 @@ const MaintenanceDetail = () => {
             if (actionModal.nextStatus === 'VALIDATED') payload.validationNote = actionNote;
             if (actionModal.nextStatus === 'REJECTED') payload.rejectionReason = actionNote;
             if (actionModal.nextStatus === 'ASSIGNED') payload.technician = technicianName;
-            if (actionModal.nextStatus === 'COMPLETED') {
+            
+            // Handle updates where actionTaken is provided (including partial updates)
+            if (actionModal.type === 'completion' || actionModal.type === 'progress') {
                 payload.actionTaken = actionTaken;
+                payload.cost = costInput || report.cost || 0;
+            }
+
+            if (actionModal.nextStatus === 'COMPLETED') {
                 payload.completionNote = actionNote;
-                payload.cost = costInput || 0;
             }
 
             await api.put(`/maintenance/${id}/status`, payload);
@@ -92,18 +104,33 @@ const MaintenanceDetail = () => {
     const getNextAction = () => {
         if (isRejected) return null;
 
-        // Assigned technician can only complete
-        if (!isAdmin && isAssignedTechnician && report.status === 'ASSIGNED') {
-            return { label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion' };
+        // Assigned technician actions
+        if (!isAdmin && isAssignedTechnician) {
+            if (report.status === 'ASSIGNED') {
+                return { label: 'Mulai Pengerjaan', nextStatus: 'IN_PROGRESS', type: 'start' };
+            }
+            if (report.status === 'IN_PROGRESS') {
+                return { 
+                    label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion',
+                    secondaryLabel: 'Update Progres', secondaryType: 'progress'
+                };
+            }
         }
 
         if (!isAdmin) return null;
         const transitions = {
             'SUBMITTED': { label: 'Setujui', nextStatus: 'APPROVED', type: 'approval', rejectLabel: 'Tolak' },
             'APPROVED': { label: 'Tugaskan Teknisi', nextStatus: 'ASSIGNED', type: 'assignment' },
-            'ASSIGNED': { label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion' },
+            'ASSIGNED': [
+                { label: 'Mulai Pengerjaan', nextStatus: 'IN_PROGRESS', type: 'start' },
+                { label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion' }
+            ],
+            'IN_PROGRESS': { label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion' },
         };
-        return transitions[report.status] || null;
+
+        const action = transitions[report.status];
+        if (Array.isArray(action)) return action[0]; // Simplified for now, or pick the primary
+        return action || null;
     };
 
     const nextAction = getNextAction();
@@ -251,13 +278,23 @@ const MaintenanceDetail = () => {
 
             {/* Action Buttons */}
             {nextAction && (
-                <div className="flex gap-3">
+                <div className="flex flex-col md:flex-row gap-3">
                     <button
                         onClick={() => setActionModal({ show: true, type: nextAction.type, nextStatus: nextAction.nextStatus })}
                         className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all"
                     >
                         <CheckCircle size={18} /> {nextAction.label}
                     </button>
+                    
+                    {nextAction.secondaryLabel && (
+                         <button
+                            onClick={() => setActionModal({ show: true, type: nextAction.secondaryType, nextStatus: report.status })}
+                            className="flex-1 flex items-center justify-center gap-2 bg-white border-2 border-orange-500 text-orange-600 py-3 rounded-xl font-semibold hover:bg-orange-50 transition-all"
+                        >
+                            <Sparkles size={18} /> {nextAction.secondaryLabel}
+                        </button>
+                    )}
+
                     {nextAction.rejectLabel && (
                         <button
                             onClick={() => setActionModal({ show: true, type: 'rejection', nextStatus: 'REJECTED' })}
@@ -278,6 +315,7 @@ const MaintenanceDetail = () => {
                             {actionModal.type === 'validation' && 'Validasi'}
                             {actionModal.type === 'assignment' && 'Penugasan Teknisi'}
                             {actionModal.type === 'start' && 'Mulai Pengerjaan'}
+                            {actionModal.type === 'progress' && 'Update Progres Pekerjaan'}
                             {actionModal.type === 'completion' && 'Selesaikan Pekerjaan'}
                             {actionModal.type === 'rejection' && 'Tolak Laporan'}
                         </h3>
@@ -329,29 +367,40 @@ const MaintenanceDetail = () => {
                             </div>
                         )}
 
-                        {actionModal.type === 'completion' && (
+                        {(actionModal.type === 'completion' || actionModal.type === 'progress') && (
                             <>
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 mb-1">Tindakan Perbaikan *</label>
                                     <textarea
                                         value={actionTaken}
                                         onChange={e => setActionTaken(e.target.value)}
-                                        placeholder="Jelaskan apa yang dikerjakan..."
-                                        rows={3}
-                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm resize-none"
+                                        placeholder="Jelaskan apa yang sudah/sedang dikerjakan..."
+                                        rows={4}
+                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-none"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-1">Biaya (Rp)</label>
-                                    <input
-                                        type="number"
-                                        value={costInput}
-                                        onChange={e => setCostInput(e.target.value)}
-                                        placeholder="0"
-                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                    />
-                                </div>
+                                {actionModal.type === 'completion' && (
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1">Biaya (Rp)</label>
+                                        <input
+                                            type="number"
+                                            value={costInput}
+                                            onChange={e => setCostInput(e.target.value)}
+                                            placeholder="0"
+                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                                        />
+                                    </div>
+                                )}
                             </>
+                        )}
+
+                        {actionModal.type === 'start' && (
+                             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
+                                <Info size={18} className="text-blue-600 mt-0.5" />
+                                <p className="text-xs text-blue-700 leading-relaxed">
+                                    Status akan berubah menjadi <strong>Sedang Dikerjakan</strong>. Pelapor akan mendapatkan notifikasi bahwa Anda telah memulai perbaikan.
+                                </p>
+                             </div>
                         )}
 
                         <div>

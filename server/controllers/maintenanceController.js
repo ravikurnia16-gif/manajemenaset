@@ -314,6 +314,9 @@ exports.updateStatus = async (req, res) => {
             }
         });
 
+        // Check if status changed
+        const statusDidUnchange = report.status === status; // New logic for detail updates
+
         // --- Predictive Maintenance Trigger (If Completed) ---
         if (status === 'COMPLETED' && report.type === 'ASSET' && report.assets.length > 0) {
             (async () => {
@@ -332,11 +335,15 @@ exports.updateStatus = async (req, res) => {
         const statusLabels = {
             'APPROVED': 'Disetujui',
             'ASSIGNED': `Ditugaskan kepada: ${technician || '-'}`,
+            'IN_PROGRESS': 'Sedang Dikerjakan',
             'COMPLETED': 'Selesai Dikerjakan',
             'REJECTED': 'Ditolak'
         };
 
-        const notifMsg = `Laporan pemeliharaan "${report.title}" statusnya kini: ${statusLabels[status] || status}.`;
+        const notifMsg = statusDidUnchange 
+            ? `Teknisi memperbarui detail pekerjaan pada laporan "${report.title}".`
+            : `Laporan pemeliharaan "${report.title}" statusnya kini: ${statusLabels[status] || status}.`;
+        
         const notifType = status === 'REJECTED' ? 'WARNING' : (status === 'COMPLETED' ? 'SUCCESS' : 'INFO');
 
         await createNotification(
@@ -349,9 +356,12 @@ exports.updateStatus = async (req, res) => {
 
         res.json(report);
 
-        // --- WhatsApp Notification to Submitter (Async) ---
+        // --- WhatsApp Notification (Async) ---
         (async () => {
             try {
+                // SKIP WA IF ONLY DETAIL UPDATE
+                if (statusDidUnchange && !rejectionReason) return; 
+
                 // --- WhatsApp Notification to Technician (Async) ---
                 if (status === 'ASSIGNED' && technician) {
                     try {
@@ -383,6 +393,7 @@ exports.updateStatus = async (req, res) => {
                 const statusLabels = {
                     'APPROVED': 'Disetujui \u2705',
                     'ASSIGNED': `Ditugaskan kepada: ${technician || '-'} \u{1F6E0}`,
+                    'IN_PROGRESS': 'Sedang Dikerjakan \u2699\ufe0f',
                     'COMPLETED': 'Selesai \u2705\u2705\u2705',
                     'REJECTED': 'Ditolak \u274C'
                 };
