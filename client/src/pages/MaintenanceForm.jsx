@@ -15,10 +15,12 @@ const MaintenanceForm = () => {
 
     const [user] = useState(JSON.parse(localStorage.getItem('user') || '{}'));
     const [showAllSelected, setShowAllSelected] = useState(false);
+    const [step, setStep] = useState(0); // 0: Choose Dept, 1: Fill Form
     const [form, setForm] = useState({
         title: '',
         type: 'NON_ASSET',
         category: 'INCIDENTAL',
+        targetDept: '', // SARPRAS or PEMBANGUNAN
         selectedAssets: [], // Array of {id, label}
         description: '',
         location: '',
@@ -151,6 +153,8 @@ const MaintenanceForm = () => {
             formData.append('location', form.location || '');
             if (form.isDirectOrder) formData.append('isDirectOrder', 'true');
             
+            formData.append('targetDept', form.targetDept);
+            
             if (form.type === 'ASSET') {
                 const assetIds = form.selectedAssets.map(a => a.id);
                 assetIds.forEach(id => formData.append('assetIds[]', id));
@@ -166,7 +170,10 @@ const MaintenanceForm = () => {
             });
 
             alert('Laporan berhasil dibuat!');
-            navigate(form.category === 'ROUTINE' ? '/pemeliharaan?category=ROUTINE' : '/pemeliharaan?category=INCIDENTAL');
+            const targetParams = new URLSearchParams();
+            if (form.targetDept) targetParams.set('targetDept', form.targetDept);
+            if (form.category) targetParams.set('category', form.category);
+            navigate(`/pemeliharaan?${targetParams.toString()}`);
         } catch (err) {
             alert(err.response?.data?.error || 'Gagal membuat laporan');
         } finally {
@@ -177,38 +184,116 @@ const MaintenanceForm = () => {
     return (
         <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-6">
             <div className="flex items-center gap-3">
-                <button onClick={() => navigate('/pemeliharaan')} className="p-2 hover:bg-slate-100 rounded-lg">
+                <button 
+                    onClick={() => step === 1 ? setStep(0) : navigate('/pemeliharaan')} 
+                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                >
                     <ArrowLeft size={20} />
                 </button>
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                        <Wrench className="text-blue-600" /> Buat Laporan Pemeliharaan
+                        <Wrench className="text-blue-600" /> 
+                        {step === 0 ? 'Pilih Tujuan Laporan' : 'Buat Laporan'}
                     </h1>
-                    <p className="text-sm text-slate-500 mt-1">Laporkan kerusakan atau permintaan pemeliharaan</p>
+                    <p className="text-sm text-slate-500 mt-1">
+                        {step === 0 ? 'Tentukan kemana laporan ini akan diteruskan' : 'Isi detail laporan Anda'}
+                    </p>
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
-                {/* Category Selection */}
-                <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Kategori Pemeliharaan</label>
-                    <div className="flex gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setForm(prev => ({ ...prev, category: 'ROUTINE' }))}
-                            className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${form.category === 'ROUTINE' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+            {step === 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in zoom-in duration-300">
+                    <button
+                        onClick={() => {
+                            setForm(prev => ({ ...prev, targetDept: 'SARPRAS' }));
+                            setStep(1);
+                        }}
+                        className="group bg-white p-8 rounded-2xl border-2 border-slate-100 hover:border-blue-500 transition-all text-left shadow-sm hover:shadow-xl"
+                    >
+                        <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                            <Wrench size={28} />
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">Request ke Sarpras</h3>
+                        <p className="text-sm text-slate-500 leading-relaxed">
+                            Laporan pemeliharaan aset (AC, Komputer, Kendaraan) atau kerusahan fasilitas umum (Lampu, Pintu, Air).
+                        </p>
+                        <div className="mt-6 flex items-center gap-2 text-blue-600 font-bold text-sm">
+                            Pilih Bidang Ini <span className="group-hover:translate-x-1 transition-transform">→</span>
+                        </div>
+                    </button>
+
+                    <button
+                        onClick={() => {
+                            setForm(prev => ({ 
+                                ...prev, 
+                                targetDept: 'PEMBANGUNAN',
+                                type: 'NON_ASSET',
+                                category: 'INCIDENTAL'
+                            }));
+                            setStep(1);
+                        }}
+                        className="group bg-white p-8 rounded-2xl border-2 border-slate-100 hover:border-orange-500 transition-all text-left shadow-sm hover:shadow-xl"
+                    >
+                        <div className="w-14 h-14 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                            <Save size={28} />
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">Request ke Pembangunan</h3>
+                        <p className="text-sm text-slate-500 leading-relaxed">
+                            Permintaan pembangunan baru, renovasi gedung, atau proyek infrastruktur jangka panjang.
+                        </p>
+                        <div className="mt-6 flex items-center gap-2 text-orange-600 font-bold text-sm">
+                            Pilih Bidang Ini <span className="group-hover:translate-x-1 transition-transform">→</span>
+                        </div>
+                    </button>
+                </div>
+            ) : (
+                <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5 animate-in slide-in-from-right-4 duration-300">
+                    {/* Header Info */}
+                    <div className={`p-4 rounded-xl border flex items-center justify-between ${form.targetDept === 'PEMBANGUNAN' ? 'bg-orange-50 border-orange-100' : 'bg-blue-50 border-blue-100'}`}>
+                        <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold ${form.targetDept === 'PEMBANGUNAN' ? 'bg-orange-500' : 'bg-blue-500'}`}>
+                                {form.targetDept === 'PEMBANGUNAN' ? 'PB' : 'SP'}
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Tujuan Laporan</p>
+                                <p className={`text-sm font-bold ${form.targetDept === 'PEMBANGUNAN' ? 'text-orange-900' : 'text-blue-900'}`}>
+                                    {form.targetDept === 'PEMBANGUNAN' ? 'Bidang Pembangunan' : 'Bidang Sarana & Prasarana'}
+                                </p>
+                            </div>
+                        </div>
+                        <button 
+                            type="button" 
+                            onClick={() => setStep(0)}
+                            className="text-xs font-bold text-slate-400 hover:text-slate-600 underline"
                         >
-                            📅 Rutin / Berkala
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setForm(prev => ({ ...prev, category: 'INCIDENTAL' }))}
-                            className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${form.category === 'INCIDENTAL' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                        >
-                            🚨 Insidentil / Perbaikan
+                            Ubah
                         </button>
                     </div>
-                </div>
+
+                    {form.targetDept === 'SARPRAS' && (
+                        <>
+                            {/* Category Selection */}
+                            <div className="animate-in fade-in duration-500">
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Kategori Pemeliharaan</label>
+                                <div className="flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setForm(prev => ({ ...prev, category: 'ROUTINE' }))}
+                                        className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${form.category === 'ROUTINE' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                                    >
+                                        📅 Rutin / Berkala
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setForm(prev => ({ ...prev, category: 'INCIDENTAL' }))}
+                                        className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${form.category === 'INCIDENTAL' ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                                    >
+                                        🚨 Insidentil / Perbaikan
+                                    </button>
+                                </div>
+                            </div>
+                        </>
+                    )}
 
                 {/* Urgency Selection */}
                 <div className="animate-in slide-in-from-top-2 duration-500">
@@ -269,26 +354,30 @@ const MaintenanceForm = () => {
                     </p>
                 </div>
 
-                {/* Type Toggle */}
-                <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Jenis Laporan</label>
-                    <div className="flex gap-3">
-                        <button
-                            type="button"
-                            onClick={() => { setForm(prev => ({ ...prev, type: 'ASSET' })); }}
-                            className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${form.type === 'ASSET' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                        >
-                            🏷️ Aset Terdata
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => { setForm(prev => ({ ...prev, type: 'NON_ASSET', selectedAssets: [] })); }}
-                            className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${form.type === 'NON_ASSET' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                        >
-                            📝 Non-Aset / Umum
-                        </button>
-                    </div>
-                </div>
+                    {form.targetDept === 'SARPRAS' && (
+                        <>
+                            {/* Type Toggle */}
+                            <div className="animate-in fade-in duration-500">
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Jenis Laporan</label>
+                                <div className="flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setForm(prev => ({ ...prev, type: 'ASSET' })); }}
+                                        className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${form.type === 'ASSET' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                                    >
+                                        🏷️ Aset Terdata
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setForm(prev => ({ ...prev, type: 'NON_ASSET', selectedAssets: [] })); }}
+                                        className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all ${form.type === 'NON_ASSET' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                                    >
+                                        📝 Non-Aset / Umum
+                                    </button>
+                                </div>
+                            </div>
+                        </>
+                    )}
 
                 {/* Asset Selector (if ASSET) */}
                 {form.type === 'ASSET' && (
@@ -421,30 +510,19 @@ const MaintenanceForm = () => {
                     </div>
                 )}
 
-                {/* Routine Info Badge */}
-                {form.type === 'ASSET' && form.category === 'ROUTINE' && form.selectedAssets.length > 0 && (
-                    <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs ring-4 ring-blue-100">!</div>
-                        <div className="text-[11px]">
-                            <p className="font-bold text-blue-900 uppercase">Mode Pemeliharaan Rutin</p>
-                            <p className="text-blue-600 font-medium tracking-tight">Menampilkan hanya aset dengan saklar rutin aktif. Jadwal berikutnya akan otomatis diperbarui.</p>
-                        </div>
-                    </div>
-                )}
-
-                {/* Location (if NON_ASSET) */}
-                {form.type === 'NON_ASSET' && (
-                    <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1">Lokasi / Objek</label>
-                        <input
-                            type="text"
-                            value={form.location}
-                            onChange={e => setForm(prev => ({ ...prev, location: e.target.value }))}
-                            placeholder="Misal: Atap Gedung A, Pipa Air Lantai 2..."
-                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
-                )}
+                {/* Location */}
+                 <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">
+                        {form.targetDept === 'PEMBANGUNAN' ? 'Lokasi Proyek / Gedung' : 'Lokasi / Objek'}
+                    </label>
+                    <input
+                        type="text"
+                        value={form.location}
+                        onChange={e => setForm(prev => ({ ...prev, location: e.target.value }))}
+                        placeholder={form.targetDept === 'PEMBANGUNAN' ? 'Misal: Asrama Putra Lt.3, Gerbang Utama...' : 'Misal: Atap Gedung A, Pipa Air Lantai 2...'}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    />
+                </div>
 
                 {/* Title */}
                 <div>
@@ -528,7 +606,8 @@ const MaintenanceForm = () => {
                     <Save size={18} />
                     {saving ? 'Mengirim Laporan...' : 'Kirim Laporan'}
                 </button>
-            </form>
+                </form>
+            )}
         </div>
     );
 };

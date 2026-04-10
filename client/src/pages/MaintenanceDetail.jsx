@@ -143,7 +143,12 @@ const MaintenanceDetail = () => {
                     <ArrowLeft size={20} />
                 </button>
                 <div>
-                    <h1 className="text-xl font-bold text-slate-800">Detail Laporan</h1>
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-xl font-bold text-slate-800">Detail Laporan</h1>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-sm ${report.targetDept === 'PEMBANGUNAN' ? 'bg-orange-500' : 'bg-blue-500'}`}>
+                            {report.targetDept === 'PEMBANGUNAN' ? 'PEMBANGUNAN' : 'SARPRAS'}
+                        </span>
+                    </div>
                     <p className="text-sm text-slate-500 font-mono">{report.code}</p>
                 </div>
             </div>
@@ -181,6 +186,12 @@ const MaintenanceDetail = () => {
                     <h3 className="text-sm font-semibold text-slate-600 border-b pb-2">Informasi Laporan</h3>
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between"><span className="text-slate-500">Judul</span><span className="font-medium text-right">{report.title}</span></div>
+                        <div className="flex justify-between text-xs items-center">
+                            <span className="text-slate-500">Bidang Tujuan</span>
+                            <span className={`px-2 py-0.5 rounded font-bold ${report.targetDept === 'PEMBANGUNAN' ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
+                                {report.targetDept === 'PEMBANGUNAN' ? 'Pembangunan' : 'Sarana & Prasarana'}
+                            </span>
+                        </div>
                         <div className="flex justify-between"><span className="text-slate-500">Tipe</span><span className={`font-semibold ${report.type === 'ASSET' ? 'text-purple-600' : 'text-gray-600'}`}>{report.type === 'ASSET' ? 'Aset Terdata' : 'Non-Aset'}</span></div>
 
                         {report.assets && report.assets.length > 0 && (

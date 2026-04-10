@@ -300,6 +300,7 @@ model Maintenance {
 
   type     String // "ASSET" or "NON_ASSET"
   category MaintenanceCategory @default(INCIDENTAL)
+  targetDept String              @default("SARPRAS") // SARPRAS or PEMBANGUNAN
   urgency  String              @default("NORMAL") // e.g. NORMAL, URGENT, EMERGENCY
   assets   Asset[]
 

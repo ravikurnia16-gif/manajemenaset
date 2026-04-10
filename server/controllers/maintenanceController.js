@@ -7,14 +7,15 @@ const predictiveService = require('../services/predictiveService');
 const crypto = require('crypto');
 
 // Helper to generate Maintenance Code
-const generateCode = async () => {
+const generateCode = async (targetDept = 'SARPRAS') => {
     const year = new Date().getFullYear();
+    const prefix = targetDept === 'PEMBANGUNAN' ? 'PBG' : 'MT';
     
-    // Find the latest record for this year to get the highest sequence
+    // Find the latest record for this year and specific prefix to get the highest sequence
     const lastRecord = await prisma.maintenance.findFirst({
         where: {
             code: {
-                startsWith: `MT/${year}/`
+                startsWith: `${prefix}/${year}/`
             }
         },
         orderBy: {
@@ -34,12 +35,12 @@ const generateCode = async () => {
     }
 
     const sequence = nextSequence.toString().padStart(3, '0');
-    return `MT/${year}/${sequence}`;
+    return `${prefix}/${year}/${sequence}`;
 };
 
 // Get all maintenance reports
 exports.getAllReports = async (req, res) => {
-    const { status, type, unitId, category } = req.query;
+    const { status, type, unitId, category, targetDept } = req.query;
     const user = req.user;
 
     try {
@@ -47,6 +48,7 @@ exports.getAllReports = async (req, res) => {
         if (status) whereClause.status = status;
         if (type) whereClause.type = type;
         if (category) whereClause.category = category;
+        if (targetDept) whereClause.targetDept = targetDept;
         if (unitId) whereClause.unitId = parseInt(unitId);
 
         // Non-admin users only see their own unit
@@ -90,11 +92,11 @@ exports.getReportById = async (req, res) => {
 
 // Create Report
 exports.createReport = async (req, res) => {
-    const { title, type, assetIds, description, location, photo, category, urgency } = req.body;
+    const { title, type, assetIds, description, location, photo, category, urgency, targetDept } = req.body;
     const user = req.user;
 
     try {
-        const code = await generateCode();
+        const code = await generateCode(targetDept || 'SARPRAS');
 
         // --- Process Media ---
         const media = req.uploadedMedia || [];
@@ -139,7 +141,8 @@ exports.createReport = async (req, res) => {
                 location: location || null,
                 photo: firstImagePath,
                 media: media.length > 0 ? media : undefined,
-                status: initialStatus
+                status: initialStatus,
+                targetDept: targetDept || 'SARPRAS'
             },
             include: {
                 unit: true,
@@ -157,7 +160,12 @@ exports.createReport = async (req, res) => {
 
                 const admins = await prisma.user.findMany({
                     where: {
-                        OR: [
+                        OR: targetDept === 'PEMBANGUNAN' 
+                        ? [
+                            { position: 'Kepala Bidang Pembangunan' },
+                            { position: 'Staff Pembangunan' }
+                        ]
+                        : [
                             { position: 'Kepala Bidang Sarana dan Prasarana' },
                             { position: 'Staff Manajemen Aset' }
                         ]
@@ -202,7 +210,12 @@ exports.createReport = async (req, res) => {
                 // 2. Notify Leads
                 const admins = await prisma.user.findMany({
                     where: {
-                        OR: [
+                        OR: targetDept === 'PEMBANGUNAN' 
+                        ? [
+                            { position: 'Kepala Bidang Pembangunan' },
+                            { position: 'Staff Pembangunan' }
+                        ]
+                        : [
                             { position: 'Kepala Bidang Sarana dan Prasarana' },
                             { position: 'Staff Manajemen Aset' }
                         ],
@@ -221,10 +234,11 @@ exports.createReport = async (req, res) => {
                         'EMERGENCY': '🔴 DARURAT'
                     };
 
-                    const msgAdmin = `${isDirect ? `👑 *INSTRUKSI LANGSUNG KABID*` : `🔧 *LAPORAN PEMELIHARAAN BARU*`}\n\n` +
+                    const msgAdmin = `${targetDept === 'PEMBANGUNAN' ? '🏗️ *LAPORAN PEMBANGUNAN BARU*' : (isDirect ? `👑 *INSTRUKSI LANGSUNG KABID*` : `🔧 *LAPORAN PEMELIHARAAN BARU*`)}\n\n` +
                         `👤 *Pelapor* : ${submitter?.name || submitter?.username || '-'}\n` +
                         `📞 *Kontak* : wa.me/${submitter?.phone?.replace(/^0/, '62') || '-'}\n` +
                         `⚡ *Urgensi* : ${isDirect ? 'PENGERJAAN PRIORITAS' : (urgencyLabels[report.urgency] || report.urgency)}\n` +
+                        `📂 *Bidang* : ${targetDept === 'PEMBANGUNAN' ? 'Pembangunan' : 'Sarana & Prasarana'}\n` +
                         `📂 *Kategori* : ${report.category === 'ROUTINE' ? 'Pemeliharaan Rutin' : 'Pemeliharaan Insidentil'}\n` +
                         `📜 *Kode* : ${code}\n` +
                         `📋 *Judul* : ${title}\n` +

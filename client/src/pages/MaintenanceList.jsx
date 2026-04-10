@@ -26,12 +26,14 @@ const MaintenanceList = () => {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [typeFilter, setTypeFilter] = useState('');
+    const [targetDeptFilter, setTargetDeptFilter] = useState('');
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Get category from query param
+    // Get category and targetDept from query param
     const queryParams = new URLSearchParams(location.search);
     const categoryFromUrl = queryParams.get('category');
+    const targetDeptFromUrl = queryParams.get('targetDept');
 
     const fetchReports = async () => {
         try {
@@ -39,6 +41,7 @@ const MaintenanceList = () => {
             const params = {};
             if (statusFilter) params.status = statusFilter;
             if (typeFilter) params.type = typeFilter;
+            if (targetDeptFilter) params.targetDept = targetDeptFilter;
             if (categoryFromUrl) params.category = categoryFromUrl;
             const res = await api.get('/maintenance', { params });
             setReports(res.data);
@@ -50,8 +53,12 @@ const MaintenanceList = () => {
     };
 
     useEffect(() => {
+        if (targetDeptFromUrl) setTargetDeptFilter(targetDeptFromUrl);
+    }, [targetDeptFromUrl]);
+
+    useEffect(() => {
         fetchReports();
-    }, [statusFilter, typeFilter, categoryFromUrl]);
+    }, [statusFilter, typeFilter, targetDeptFilter, categoryFromUrl]);
 
     const handleDelete = async (id) => {
         if (!confirm('Hapus laporan ini?')) return;
@@ -136,6 +143,23 @@ const MaintenanceList = () => {
                     ))}
                 </select>
                 <select
+                    value={targetDeptFilter}
+                    onChange={e => {
+                        const val = e.target.value;
+                        setTargetDeptFilter(val);
+                        // Update URL to preserve other filters
+                        const params = new URLSearchParams(location.search);
+                        if (val) params.set('targetDept', val);
+                        else params.delete('targetDept');
+                        navigate(`/pemeliharaan?${params.toString()}`);
+                    }}
+                    className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm min-w-[140px]"
+                >
+                    <option value="">Semua Bidang</option>
+                    <option value="SARPRAS">🔧 Sarpras</option>
+                    <option value="PEMBANGUNAN">🏗️ Pembangunan</option>
+                </select>
+                <select
                     value={typeFilter}
                     onChange={e => setTypeFilter(e.target.value)}
                     className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm min-w-[140px]"
@@ -174,8 +198,15 @@ const MaintenanceList = () => {
                                     <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                                         <td className="p-3 font-mono text-xs">{r.code}</td>
                                         <td className="p-3">
-                                            <div className="font-medium">{r.title}</div>
-                                            <div className="text-[10px] text-slate-400">{r.user?.username} ({r.unit?.name})</div>
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-[10px] shadow-sm ${r.targetDept === 'PEMBANGUNAN' ? 'bg-orange-500' : 'bg-blue-500'}`}>
+                                                    {r.targetDept === 'PEMBANGUNAN' ? 'PB' : 'SP'}
+                                                </div>
+                                                <div>
+                                                    <div className="font-medium">{r.title}</div>
+                                                    <div className="text-[10px] text-slate-400">{r.user?.username} ({r.unit?.name})</div>
+                                                </div>
+                                            </div>
                                         </td>
                                         <td className="p-3 text-center">
                                             {r.assets && r.assets.length > 0 ? (
