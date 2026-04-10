@@ -716,6 +716,8 @@ exports.batchImportAssets = async (req, res) => {
                         sourceOfFunds: String(item['Sumber Dana Aset']),
                         picName: item['PIC (Nama Manual)'] ? String(item['PIC (Nama Manual)']) : null,
                         specification: null, // Kosongkan saat import
+                        needsRoutineMaintenance: String(item['Butuh Pemeliharaan Rutin? (ya/tidak)'] || '').trim().toLowerCase() === 'ya',
+                        maintenanceInterval: parseInt(item['Interval Pemeliharaan (hari)']) || 180,
                         quantity: 1
                     }
                 });

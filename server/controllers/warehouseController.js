@@ -134,27 +134,31 @@ exports.getItemById = async (req, res) => {
 };
 
 // Generate warehouse item code
-const generateItemCode = async (categoryName) => {
+const generateItemCode = async (categoryName, knownSequence = null) => {
     const prefix = categoryName?.toLowerCase().includes('seragam') ? 'GD/SRG' : 'GD/PLK';
     
-    const lastItem = await prisma.warehouseItem.findFirst({
-        where: {
-            code: {
-                startsWith: `${prefix}/`
+    let nextSequence = knownSequence;
+    
+    if (nextSequence === null) {
+        const lastItem = await prisma.warehouseItem.findFirst({
+            where: {
+                code: {
+                    startsWith: `${prefix}/`
+                }
+            },
+            orderBy: {
+                code: 'desc'
             }
-        },
-        orderBy: {
-            code: 'desc'
-        }
-    });
+        });
 
-    let nextSequence = 1;
-    if (lastItem) {
-        const parts = lastItem.code.split('/');
-        if (parts.length === 3) {
-            const lastSeq = parseInt(parts[2]);
-            if (!isNaN(lastSeq)) {
-                nextSequence = lastSeq + 1;
+        nextSequence = 1;
+        if (lastItem) {
+            const parts = lastItem.code.split('/');
+            if (parts.length === 3) {
+                const lastSeq = parseInt(parts[2]);
+                if (!isNaN(lastSeq)) {
+                    nextSequence = lastSeq + 1;
+                }
             }
         }
     }
@@ -229,10 +233,37 @@ exports.importItems = async (req, res) => {
     const { items } = req.body; // Array of item objects
     try {
         let created = 0;
+        const sequenceMap = {}; // Cache for prefixes: { 'GD/SRG': 15, 'GD/PLK': 5 }
+
         for (const row of items) {
             if (!row.name || !row.categoryId) continue;
+
             const category = await prisma.warehouseCategory.findUnique({ where: { id: parseInt(row.categoryId) } });
-            const code = await generateItemCode(category?.name);
+            if (!category) continue;
+
+            const prefix = category.name.toLowerCase().includes('seragam') ? 'GD/SRG' : 'GD/PLK';
+
+            // Initialize sequence for this prefix if not already in cache
+            if (sequenceMap[prefix] === undefined) {
+                const lastItem = await prisma.warehouseItem.findFirst({
+                    where: { code: { startsWith: `${prefix}/` } },
+                    orderBy: { code: 'desc' }
+                });
+
+                let startSeq = 1;
+                if (lastItem) {
+                    const parts = lastItem.code.split('/');
+                    if (parts.length === 3) {
+                        const lastSeq = parseInt(parts[2]);
+                        if (!isNaN(lastSeq)) startSeq = lastSeq + 1;
+                    }
+                }
+                sequenceMap[prefix] = startSeq;
+            }
+
+            const currentSeq = sequenceMap[prefix]++;
+            const code = await generateItemCode(category.name, currentSeq);
+
             await prisma.warehouseItem.create({
                 data: {
                     code, name: row.name,
@@ -253,7 +284,10 @@ exports.importItems = async (req, res) => {
             created++;
         }
         res.json({ message: `${created} item berhasil diimport` });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) {
+        console.error("Import Error:", e);
+        res.status(500).json({ error: e.message });
+    }
 };
 
 exports.exportItems = async (req, res) => {
