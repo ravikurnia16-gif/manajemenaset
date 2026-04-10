@@ -325,7 +325,7 @@ const MaintenanceForm = () => {
                     </div>
 
                     {/* Direct Order Toggle (Super Admin Only) */}
-                    {user.role === 'SUPER_ADMIN' && (
+                    {user.role === 'SUPER_ADMIN' && form.targetDept === 'SARPRAS' && (
                         <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
                             <label className="flex items-center justify-between cursor-pointer">
                                 <div className="space-y-0.5">

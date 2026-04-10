@@ -116,7 +116,7 @@ exports.createReport = async (req, res) => {
 
         // AI Analysis removed for stability
 
-        const isDirect = (req.body.isDirectOrder === 'true' || req.body.isDirectOrder === true) && user.role === 'SUPER_ADMIN';
+        const isDirect = (req.body.isDirectOrder === 'true' || req.body.isDirectOrder === true) && user.role === 'SUPER_ADMIN' && targetDept !== 'PEMBANGUNAN';
         let initialStatus = 'SUBMITTED';
         let technician = null;
         let quickToken = null;
