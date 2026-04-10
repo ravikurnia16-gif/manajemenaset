@@ -854,6 +854,10 @@ const Settings = () => {
                                                 // BIDANG K3
                                                 { label: 'Kepala Bidang K3', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
                                                 { label: 'Staff K3', role: 'USER', scope: 'UNIT' },
+ 
+                                                // DIVISI PENDIDIKAN
+                                                { label: 'Wakil Divisi Pendidikan', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
+                                                { label: 'Staff Divisi Pendidikan', role: 'USER', scope: 'UNIT' },
 
                                                 { label: 'Kepala Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
                                                 { label: 'Sarpras Unit', role: 'ADMIN_UNIT', scope: 'UNIT' },
@@ -908,6 +912,10 @@ const Settings = () => {
                                             <option value="Staff Pembangunan">Staff Pembangunan (User)</option>
                                             <option value="Kepala Bidang K3">Kepala Bidang K3 (Global Terbatas)</option>
                                             <option value="Staff K3">Staff K3 (User)</option>
+ 
+                                            <option disabled className="bg-slate-100 font-bold text-slate-800">-- DIVISI PENDIDIKAN --</option>
+                                            <option value="Wakil Divisi Pendidikan">Wakil Divisi Pendidikan (Global Terbatas)</option>
+                                            <option value="Staff Divisi Pendidikan">Staff Divisi Pendidikan (User)</option>
                                         </optgroup>
                                         <optgroup label="Unit / Divisi / Bidang (Unit Access)">
                                             <option value="Kepala Unit">Kepala Unit</option>
