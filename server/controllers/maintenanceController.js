@@ -53,7 +53,19 @@ exports.getAllReports = async (req, res) => {
 
         // Non-admin users only see their own unit
         if (['ADMIN_UNIT', 'USER'].includes(user.role)) {
-            whereClause.unitId = user.unitId;
+            // Expansion: Pembangunan staff can see ALL Pembangunan reports globally
+            const isPembangunanTeam = ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user.position);
+            
+            if (isPembangunanTeam) {
+                whereClause.OR = [
+                    { targetDept: 'PEMBANGUNAN' },
+                    { unitId: user.unitId }
+                ];
+                // Remove the top-level unitId if it was set
+                delete whereClause.unitId;
+            } else {
+                whereClause.unitId = user.unitId;
+            }
         }
 
         const reports = await prisma.maintenance.findMany({
@@ -158,12 +170,14 @@ exports.createReport = async (req, res) => {
                 const submitterInfo = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true, username: true } });
                 const submitterName = submitterInfo?.name || submitterInfo?.username || 'Seseorang';
 
-                const admins = await prisma.user.findMany({
+                // 1. In-App Notification (Sent to Leads for Visibility)
+                const notifRecipients = await prisma.user.findMany({
                     where: {
                         OR: targetDept === 'PEMBANGUNAN' 
                         ? [
                             { position: 'Kepala Bidang Pembangunan' },
-                            { position: 'Staff Pembangunan' }
+                            { position: 'Staff Pembangunan' },
+                            { name: 'Muhammad Nur Siddiq Ardhi' }
                         ]
                         : [
                             { position: 'Kepala Bidang Sarana dan Prasarana' },
@@ -171,14 +185,14 @@ exports.createReport = async (req, res) => {
                         ]
                     }
                 });
-
-                for (const admin of admins) {
+ 
+                for (const admin of notifRecipients) {
                     await createNotification(
                         admin.id,
-                        'Laporan Pemeliharaan Baru',
+                        targetDept === 'PEMBANGUNAN' ? 'Laporan Pembangunan Baru' : 'Laporan Pemeliharaan Baru',
                         `${submitterName} melaporkan masalah: "${title}".`,
                         'URGENT',
-                        '/maintenance'
+                        `/maintenance/view/${report.id}`
                     );
                 }
             } catch (err) {
@@ -207,16 +221,15 @@ exports.createReport = async (req, res) => {
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
 
-                // 2. Notify Leads
-                const admins = await prisma.user.findMany({
+                // 2. WhatsApp Notification (Restricted Recipients)
+                const waRecipients = await prisma.user.findMany({
                     where: {
                         OR: targetDept === 'PEMBANGUNAN' 
                         ? [
-                            { position: 'Kepala Bidang Pembangunan' },
-                            { position: 'Staff Pembangunan' }
+                            { name: 'Muhammad Nur Siddiq Ardhi' }
                         ]
                         : [
-                            { position: 'Kepala Bidang Sarana dan Prasarana' },
+                            // Kabid Sarpras NO WA (Bell Only), so only Staff Manajemen Aset gets WA
                             { position: 'Staff Manajemen Aset' }
                         ],
                         phone: { not: null, not: '' }
@@ -246,13 +259,13 @@ exports.createReport = async (req, res) => {
                         `📦 *Aset Terkait* :\n${assetListStr}\n\n` +
                         `${isDirect ? `*Status*: Otomatis Ditugaskan ke Staff Aset.` : `Mohon segera ditindaklanjuti.`}`;
 
-                    // Send to all found admins with delay
+                    // Send to all found recipients with delay
                     setTimeout(async () => {
                         let cumulativeDelay = 0;
-                        for (const admin of admins) {
+                        for (const admin of waRecipients) {
                             const randomGap = Math.floor(Math.random() * (15000 - 5000 + 1)) + 5000;
                             cumulativeDelay += randomGap;
-
+ 
                             setTimeout(async () => {
                                 try {
                                     await whatsappService.sendMessage(admin.phone, msgAdmin);
