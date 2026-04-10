@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment } from 'react';
-import { Save, Building2, UserCheck, ShieldCheck, Globe, Mail, MapPin, Phone, Eye, EyeOff } from 'lucide-react';
+import { Save, Building2, UserCheck, ShieldCheck, Globe, Mail, MapPin, Phone, Eye, EyeOff, Wrench } from 'lucide-react';
 import api from '../lib/axios';
 
 const Settings = () => {
@@ -232,6 +232,19 @@ const Settings = () => {
     };
 
     const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(currentUser.role);
+ 
+    const handleFixGenders = async () => {
+        if (!window.confirm('Bersihkan data gender "Akhowat/Ikhwan" menjadi "P/L"? Proses ini tidak bisa dibatalkan.')) return;
+        setSaving(true);
+        try {
+            const res = await api.get('/warehouse/maintenance/fix-gender');
+            alert(res.data.message);
+        } catch (error) {
+            alert(error.response?.data?.error || 'Gagal menjalankan pembersihan data.');
+        } finally {
+            setSaving(false);
+        }
+    };
 
     if (loading) return <div className="p-8 text-center text-slate-500">Memuat pengaturan...</div>;
 
@@ -539,6 +552,26 @@ const Settings = () => {
                                 <span className="font-mono text-blue-600 font-bold">v1.2.6-Stable</span>
                             </div>
                         </div>
+
+                        {isSuperAdmin && (
+                            <div className="bg-orange-50 rounded-xl border border-orange-100 p-6 space-y-4">
+                                <div className="flex items-center gap-2 text-orange-700">
+                                    <Wrench size={18} />
+                                    <h3 className="font-bold text-sm uppercase tracking-wider">Pemeliharaan Data</h3>
+                                </div>
+                                <p className="text-[10px] text-orange-600 leading-relaxed italic">
+                                    Gunakan tombol di bawah untuk merapikan data gender gudang yang tidak seragam (Akhowat → P, Ikhwan → L).
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={handleFixGenders}
+                                    disabled={saving}
+                                    className="w-full bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold py-2 rounded-lg transition-all shadow-md shadow-orange-200 disabled:opacity-50"
+                                >
+                                    {saving ? 'Memproses...' : 'BERSIHKAN DATA GENDER'}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </form>
             ) : null}
