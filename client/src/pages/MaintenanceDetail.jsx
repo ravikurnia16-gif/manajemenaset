@@ -135,9 +135,11 @@ const MaintenanceDetail = () => {
                 { label: 'Mulai Pengerjaan', nextStatus: 'IN_PROGRESS', type: 'start' },
                 { label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion' }
             ],
-            'IN_PROGRESS': { label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion' },
+            'IN_PROGRESS': { 
+                label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion',
+                secondaryLabel: 'Update Progres', secondaryType: 'progress' 
+            }
         };
-
         const action = transitions[report.status];
         if (Array.isArray(action)) return action[0]; // Simplified for now, or pick the primary
         return action || null;
