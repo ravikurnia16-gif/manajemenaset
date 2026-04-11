@@ -524,6 +524,66 @@ const checkBusBookingNotifications = async () => {
     }
 };
 
+// 7. Overdue Payment Reminders (7 Days after bill appearance)
+const checkUnpaidBusInvoices = async () => {
+    try {
+        const now = new Date();
+        const aWeekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+        aWeekAgo.setHours(23, 59, 59, 999); // Anything completed on or before 7 days ago
+
+        console.log(`[Bus Revenue] Checking for unpaid invoices older than ${aWeekAgo.toLocaleDateString('id-ID')}...`);
+
+        const unpaidBookings = await prisma.busBooking.findMany({
+            where: {
+                isPaid: false,
+                status: 'COMPLETED',
+                completedAt: {
+                    lte: aWeekAgo
+                }
+            },
+            include: { vehicle: true }
+        });
+
+        if (unpaidBookings.length === 0) return;
+
+        // Find Recipients: Staff Keuangan & Administrasi (Sarpras)
+        const recipients = await prisma.user.findMany({
+            where: {
+                position: 'Staff Keuangan dan Administrasi (Sarpras)',
+                phone: { not: null, not: '' }
+            }
+        });
+
+        if (recipients.length === 0) return;
+
+        // Build summary message
+        let summaryMsg = `⚠️ *LAPORAN TAGIHAN BUS MENUNGGAK (>7 HARI)* ⚠️\n\n` +
+            `Bismillah, berikut daftar tagihan bus yang belum lunas setelah lebih dari 1 pekan:\n\n`;
+
+        unpaidBookings.forEach((b, index) => {
+            const ageDays = Math.floor((now - new Date(b.completedAt)) / (1000 * 60 * 60 * 24));
+            summaryMsg += `${index + 1}. *${b.requesterName}* (${b.unit || 'Umum'})\n` +
+                `   💰 Rp ${b.totalBill?.toLocaleString('id-ID')}\n` +
+                `   📅 Muncul: ${new Date(b.completedAt).toLocaleDateString('id-ID')}\n` +
+                `   ⏳ Tertunda: ${ageDays} hari\n` +
+                `   🚌 ${b.vehicle.name}\n\n`;
+        });
+
+        summaryMsg += `_Mohon segera dilakukan penagihan/koordinasi kepada pemesan terkait. Syukron._`;
+
+        for (const staff of recipients) {
+            try {
+                await whatsappService.sendMessage(staff.phone, summaryMsg);
+                console.log(`[Bus Revenue] Overdue reminder sent to ${staff.name}`);
+            } catch (e) {
+                console.error(`[Bus Revenue] Failed sending to ${staff.phone}:`, e.message);
+            }
+        }
+    } catch (err) {
+        console.error('[Bus Revenue] Overdue Check Error:', err);
+    }
+};
+
 // 7. Complete Trip & Generate Bill
 const completeBusBooking = async (req, res) => {
     try {
@@ -667,6 +727,7 @@ module.exports = {
     cancelByToken,
     assignDriver,
     checkBusBookingNotifications,
+    checkUnpaidBusInvoices,
     completeBusBooking,
     markBusAsPaid
 };

@@ -12,7 +12,7 @@ const {
     checkMissingReportsWeekly 
 } = require('../controllers/personnelController');
 const { sendWeeklyAssetSummary } = require('./summaryNotification');
-const { checkBusBookingNotifications } = require('../controllers/busBookingController');
+const { checkBusBookingNotifications, checkUnpaidBusInvoices } = require('../controllers/busBookingController');
 
 let schedulerInterval = null;
 
@@ -78,6 +78,7 @@ const initScheduler = () => {
                 await checkKirNotifications();
                 await checkOverdueLoans();
                 await checkBusBookingNotifications();
+                await checkUnpaidBusInvoices();
                 
                 // Weekly Friday Audit at 09:00
                 if (day === 5) {
