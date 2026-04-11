@@ -207,20 +207,64 @@ async function downloadMOUPdf(mou) {
   doc.text("Pihak Pertama,", margin, sigY);
   doc.text("Pihak Kedua,", W / 2 + 10, sigY);
 
-  // Draw signatures
-  const sigH = 22;
-  if (mou.signatureParty1) {
-    try { doc.addImage(mou.signatureParty1, "PNG", margin, sigY + 2, 55, sigH); } catch (e) {}
+  // QR Code for Pihak Pertama (Kabid Sarpras)
+  const sigH = 25;
+  try {
+    const qrData = `MOU: ${mou.mouNumber} | Penghuni: ${mou.residentName} | Unit: ${mou.unit?.code || mou.unitId} | Berlaku: ${new Date(mou.startDate).toLocaleDateString("id-ID")} s/d ${new Date(mou.endDate).toLocaleDateString("id-ID")} | Status: ${mou.status} | Ditandatangani secara digital oleh Kepala Bidang Sarana dan Prasarana, Yayasan Dar El Iman`;
+    // Create QR code using canvas
+    const qrCanvas = document.createElement('canvas');
+    const QRCodeLib = await import('react-qr-code');
+    const { createRoot } = await import('react-dom/client');
+    const qrContainer = document.createElement('div');
+    qrContainer.style.position = 'fixed';
+    qrContainer.style.left = '-9999px';
+    document.body.appendChild(qrContainer);
+    const root = createRoot(qrContainer);
+    await new Promise((resolve) => {
+      const { createElement } = require('react');
+      root.render(createElement(QRCodeLib.default, { value: qrData, size: 200, level: 'M' }));
+      setTimeout(resolve, 300);
+    });
+    const svgEl = qrContainer.querySelector('svg');
+    if (svgEl) {
+      const svgData = new XMLSerializer().serializeToString(svgEl);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = url;
+      });
+      const c = document.createElement('canvas');
+      c.width = 200; c.height = 200;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 200, 200);
+      ctx.drawImage(img, 0, 0, 200, 200);
+      const qrImgData = c.toDataURL('image/png');
+      doc.addImage(qrImgData, 'PNG', margin, sigY + 3, sigH, sigH);
+      URL.revokeObjectURL(url);
+    }
+    root.unmount();
+    document.body.removeChild(qrContainer);
+  } catch (e) {
+    console.warn('QR generation failed, skipping', e);
   }
+
+  // Draw Party 2 signature (handwritten)
   if (mou.signatureParty2) {
     try { doc.addImage(mou.signatureParty2, "PNG", W / 2 + 10, sigY + 2, 55, sigH); } catch (e) {}
   }
 
-  const nameY = sigY + sigH + 6;
+  const nameY = sigY + sigH + 8;
   doc.line(margin, nameY, margin + 65, nameY);
   doc.line(W / 2 + 10, nameY, W / 2 + 75, nameY);
   doc.setFontSize(9);
-  doc.text("Yayasan Dar El Iman", margin, nameY + 5);
+  doc.text("Kepala Bidang Sarpras", margin, nameY + 5);
+  doc.setFontSize(7); doc.setFont("helvetica", "italic");
+  doc.text("(Ditandatangani secara digital)", margin, nameY + 9);
+  doc.setFontSize(9); doc.setFont("helvetica", "normal");
   doc.text(mou.residentName, W / 2 + 10, nameY + 5);
 
   // Footer
@@ -950,7 +994,13 @@ export default function OfficialResidence() {
                   </div>
                   
                   <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-6">
-                    <SignaturePad label="Tanda Tangan Pihak Pertama (Yayasan)" value={form.signatureParty1} onChange={val => setForm({...form, signatureParty1: val})} />
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <div className="flex items-center gap-2 mb-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                        <span className="text-sm font-bold text-emerald-800">Tanda Tangan Digital Pihak Pertama</span>
+                      </div>
+                      <p className="text-xs text-emerald-600 ml-7">Tanda tangan Kepala Bidang Sarpras akan otomatis berupa QR Code verifikasi pada dokumen PDF.</p>
+                    </div>
                     <SignaturePad label="Tanda Tangan Pihak Kedua (Penghuni)" value={form.signatureParty2} onChange={val => setForm({...form, signatureParty2: val})} />
                   </div>
                 </>
