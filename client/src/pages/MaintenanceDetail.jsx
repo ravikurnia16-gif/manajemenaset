@@ -68,7 +68,10 @@ const MaintenanceDetail = () => {
             if (actionModal.nextStatus === 'APPROVED') payload.approvalNote = actionNote;
             if (actionModal.nextStatus === 'VALIDATED') payload.validationNote = actionNote;
             if (actionModal.nextStatus === 'REJECTED') payload.rejectionReason = actionNote;
-            if (actionModal.nextStatus === 'ASSIGNED') payload.technician = technicianName;
+            if (actionModal.nextStatus === 'ASSIGNED') {
+                payload.technician = technicianName;
+                payload.approvalNote = actionNote;
+            }
             
             // Handle updates where actionTaken is provided (including partial updates)
             if (actionModal.type === 'completion' || actionModal.type === 'progress') {
@@ -119,7 +122,7 @@ const MaintenanceDetail = () => {
 
         if (!isAdmin) return null;
         const transitions = {
-            'SUBMITTED': { label: 'Setujui', nextStatus: 'APPROVED', type: 'approval', rejectLabel: 'Tolak' },
+            'SUBMITTED': { label: 'Setujui & Tugaskan', nextStatus: 'ASSIGNED', type: 'assignment', rejectLabel: 'Tolak' },
             'APPROVED': { label: 'Tugaskan Teknisi', nextStatus: 'ASSIGNED', type: 'assignment' },
             'ASSIGNED': [
                 { label: 'Mulai Pengerjaan', nextStatus: 'IN_PROGRESS', type: 'start' },
