@@ -557,19 +557,25 @@ const checkUnpaidBusInvoices = async () => {
         if (recipients.length === 0) return;
 
         // Build summary message
-        let summaryMsg = `⚠️ *LAPORAN TAGIHAN BUS MENUNGGAK (>7 HARI)* ⚠️\n\n` +
-            `Bismillah, berikut daftar tagihan bus yang belum lunas setelah lebih dari 1 pekan:\n\n`;
+        let hasReminders = false;
+        let summaryMsg = `⚠️ *LAPORAN TAGIHAN BUS MENUNGGAK* ⚠️\n\n` +
+            `Bismillah, pengingat tagihan bus yang belum lunas (interval 3 hari):\n\n`;
 
-        unpaidBookings.forEach((b, index) => {
+        unpaidBookings.forEach((b) => {
             const ageDays = Math.floor((now - new Date(b.completedAt)) / (1000 * 60 * 60 * 24));
-            summaryMsg += `${index + 1}. *${b.requesterName}* (${b.unit || 'Umum'})\n` +
-                `   💰 Rp ${b.totalBill?.toLocaleString('id-ID')}\n` +
-                `   📅 Muncul: ${new Date(b.completedAt).toLocaleDateString('id-ID')}\n` +
-                `   ⏳ Tertunda: ${ageDays} hari\n` +
-                `   🚌 ${b.vehicle.name}\n\n`;
+            
+            // Only remind on day 7, 10, 13, 16, etc.
+            if (ageDays >= 7 && (ageDays - 7) % 3 === 0) {
+                hasReminders = true;
+                summaryMsg += `• *${b.requesterName}* (${b.unit || 'Umum'})\n` +
+                    `  💰 Rp ${b.totalBill?.toLocaleString('id-ID')}\n` +
+                    `  ⏳ Tertunda: ${ageDays} hari\n\n`;
+            }
         });
 
-        summaryMsg += `_Mohon segera dilakukan penagihan/koordinasi kepada pemesan terkait. Syukron._`;
+        if (!hasReminders) return;
+
+        summaryMsg += `_Mohon segera dilakukan penagihan/koordinasi. Syukron._`;
 
         for (const staff of recipients) {
             try {
