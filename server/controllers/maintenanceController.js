@@ -192,7 +192,7 @@ exports.createReport = async (req, res) => {
                         targetDept === 'PEMBANGUNAN' ? 'Laporan Pembangunan Baru' : 'Laporan Pemeliharaan Baru',
                         `${submitterName} melaporkan masalah: "${title}".`,
                         'URGENT',
-                        `/maintenance/view/${report.id}`
+                        `/pemeliharaan/${report.id}`
                     );
                 }
             } catch (err) {
@@ -236,7 +236,7 @@ exports.createReport = async (req, res) => {
                     }
                 });
 
-                if (admins.length > 0) {
+                if (waRecipients.length > 0) {
                     const assetListStr = report.assets?.length > 0
                         ? report.assets.map(a => `- ${a.name} (${a.code})`).join('\n')
                         : '- (Non-Aset)';
@@ -378,7 +378,7 @@ exports.updateStatus = async (req, res) => {
             'Update Pemeliharaan',
             notifMsg,
             notifType,
-            `/maintenance/view/${id}`
+            `/pemeliharaan/${id}`
         );
 
         res.json(report);

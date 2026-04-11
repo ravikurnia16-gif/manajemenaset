@@ -11,6 +11,7 @@ const Layout = () => {
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [loadingNotif, setLoadingNotif] = useState(false);
+    const [selectedNotif, setSelectedNotif] = useState(null);
     const location = useLocation();
     const navigate = useNavigate();
 
@@ -114,8 +115,13 @@ const Layout = () => {
 
     const handleNotifClick = (notif) => {
         if (!notif.isRead) handleMarkAsRead(notif.id);
-        if (notif.link) navigate(notif.link);
+        setSelectedNotif(notif);
         setIsNotifOpen(false);
+    };
+
+    const handleNotifNavigate = () => {
+        if (selectedNotif?.link) navigate(selectedNotif.link);
+        setSelectedNotif(null);
     };
 
     // Initial check for mobile
@@ -286,6 +292,54 @@ const Layout = () => {
                     })}
                 </nav>
             </div>
+
+            {/* Notification Detail Modal */}
+            {selectedNotif && (
+                <>
+                    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] animate-in fade-in duration-200" onClick={() => setSelectedNotif(null)} />
+                    <div className="fixed inset-0 flex items-center justify-center z-[70] p-4 pointer-events-none">
+                        <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md pointer-events-auto animate-in zoom-in-95 fade-in duration-300 overflow-hidden">
+                            {/* Modal Header */}
+                            <div className={`p-5 border-b border-slate-100 ${selectedNotif.type === 'WARNING' ? 'bg-amber-50' : selectedNotif.type === 'SUCCESS' ? 'bg-green-50' : selectedNotif.type === 'URGENT' ? 'bg-red-50' : 'bg-blue-50'}`}>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${selectedNotif.type === 'WARNING' ? 'bg-amber-200 text-amber-800' : selectedNotif.type === 'SUCCESS' ? 'bg-green-200 text-green-800' : selectedNotif.type === 'URGENT' ? 'bg-red-200 text-red-800' : 'bg-blue-200 text-blue-800'}`}>
+                                        {selectedNotif.type || 'INFO'}
+                                    </span>
+                                    <button onClick={() => setSelectedNotif(null)} className="p-1 hover:bg-white/50 rounded-lg transition-colors">
+                                        <X size={16} className="text-slate-500" />
+                                    </button>
+                                </div>
+                                <h3 className="text-lg font-black text-slate-800 leading-tight">{selectedNotif.title}</h3>
+                                <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                                    <Clock size={10} />
+                                    {new Date(selectedNotif.createdAt).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                            </div>
+                            {/* Modal Body */}
+                            <div className="p-5">
+                                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{selectedNotif.message}</p>
+                            </div>
+                            {/* Modal Footer */}
+                            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center gap-3">
+                                <button
+                                    onClick={() => setSelectedNotif(null)}
+                                    className="flex-1 py-2.5 px-4 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-white transition-colors"
+                                >
+                                    Tutup
+                                </button>
+                                {selectedNotif.link && (
+                                    <button
+                                        onClick={handleNotifNavigate}
+                                        className="flex-1 py-2.5 px-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <ExternalLink size={14} /> Lihat Data
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 };

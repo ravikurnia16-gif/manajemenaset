@@ -502,7 +502,7 @@ exports.updateStatus = async (req, res) => {
                 'Status Pengadaan Diperbarui',
                 notifMsg,
                 notifType,
-                `/procurement/view/${id}`
+                `/procurements/${id}`
             );
         }
 
