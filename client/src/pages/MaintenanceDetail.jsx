@@ -368,7 +368,14 @@ const MaintenanceDetail = () => {
                                         >
                                             <option value="">-- Pilih Pegawai --</option>
                                             {users
-                                                .filter(u => u.position?.includes('Pembangunan') || u.position?.includes('Manajemen Aset'))
+                                                .filter(u => {
+                                                    const pos = u.position || '';
+                                                    if (report.targetDept === 'PEMBANGUNAN') {
+                                                        return pos.includes('Manajemen Aset') || pos.includes('Teknisi') || pos.includes('Pembangunan');
+                                                    }
+                                                    // Untuk Sarpras
+                                                    return pos.includes('Manajemen Aset') || pos.includes('Teknisi');
+                                                })
                                                 .map(u => (
                                                     <option key={u.id} value={u.name || u.username}>{u.name || u.username}</option>
                                                 ))
