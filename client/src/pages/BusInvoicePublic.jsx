@@ -26,18 +26,21 @@ const BusInvoicePublic = () => {
     const qrData = `INVOICE RESMI YDI\nRef: BUS-${invoice.id}\nLunas: ${new Date(invoice.paidAt).toLocaleDateString('id-ID')}\nNominal: Rp ${invoice.totalBill?.toLocaleString('id-ID')}`;
 
     return (
-        <div className="min-h-screen bg-slate-100 p-4 font-sans print:bg-white print:p-0 flex flex-col">
+        <div className="min-h-screen bg-slate-100 p-4 font-sans print:bg-white print:p-0 print:min-h-0 print:block">
             <style type="text/css" media="print">
                 {`
                     @page { size: A5 landscape; margin: 5mm; }
                     body { 
                         -webkit-print-color-adjust: exact; 
                         print-color-adjust: exact;
+                        margin: 0;
+                        padding: 0;
                     }
                     @media print {
                         .invoice-container {
-                            zoom: 0.85; /* Skala dikecilkan agar muat */
+                            zoom: 0.75; /* Skala dikecilkan agar muat */
                             page-break-inside: avoid;
+                            page-break-after: avoid;
                         }
                         .print\\:shadow-none { box-shadow: none !important; }
                         .print\\:rounded-none { border-radius: 0 !important; }
@@ -45,7 +48,7 @@ const BusInvoicePublic = () => {
                     }
                 `}
             </style>
-            <div className="max-w-3xl w-full mx-auto flex-1">
+            <div className="max-w-3xl w-full mx-auto print:block">
                 {/* ActionBar - Hidden on Print */}
                 <div className="flex justify-end mb-4 print:hidden">
                     <button 
