@@ -29,6 +29,12 @@ const MaintenanceDetail = () => {
     const [technicianType, setTechnicianType] = useState('external'); // 'internal' or 'external'
     const [progressNote, setProgressNote] = useState('');
     const [costInput, setCostInput] = useState('');
+    const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+    const showToast = (message, type = 'success') => {
+        setToast({ show: true, message, type });
+        setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+    };
 
     const fetchReport = async () => {
         try {
@@ -97,8 +103,9 @@ const MaintenanceDetail = () => {
             setProgressNote('');
             setCostInput('');
             fetchReport();
+            showToast('Pembaruan status berhasil disimpan!');
         } catch (err) {
-            alert(err.response?.data?.error || 'Gagal mengubah status');
+            showToast(err.response?.data?.error || 'Gagal mengubah status', 'error');
         }
     };
 
@@ -148,7 +155,18 @@ const MaintenanceDetail = () => {
     const nextAction = getNextAction();
 
     return (
-        <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
+        <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6 relative">
+            {/* Global Toast Notification */}
+            {toast.show && (
+                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in-down">
+                    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl shadow-black/5 text-sm font-semibold border ${
+                        toast.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'
+                    }`}>
+                        {toast.type === 'error' ? '❌' : '✅'}
+                        {toast.message}
+                    </div>
+                </div>
+            )}
             {/* Header */}
             <div className="flex items-center gap-3">
                 <button onClick={() => navigate('/pemeliharaan')} className="p-2 hover:bg-slate-100 rounded-lg">
