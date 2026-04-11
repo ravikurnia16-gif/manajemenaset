@@ -270,10 +270,14 @@ const getBusExpenseSummary = async (req, res) => {
         const busVehicleIds = busVehicles.map(v => v.id);
         const busAssetIds = busVehicles.map(v => v.assetId).filter(Boolean);
 
-        // 2. Aggregate Fuel Costs for bus vehicles
-        const fuelLogs = await prisma.vehicleFuelLog.findMany({
-            where: { vehicleId: { in: busVehicleIds } },
-            select: { cost: true, date: true, vehicleId: true }
+        // 2. BBM: Hanya dari VehicleBooking.fuelPrice
+        const vehicleBookingFuel = await prisma.vehicleBooking.findMany({
+            where: { 
+                vehicleId: { in: busVehicleIds },
+                fuelRefill: true,
+                fuelPrice: { gt: 0 }
+            },
+            select: { fuelPrice: true, startDate: true, vehicleId: true }
         });
 
         // 3. Aggregate Maintenance Costs for bus vehicles (via asset link)
@@ -285,27 +289,15 @@ const getBusExpenseSummary = async (req, res) => {
             select: { cost: true, completionDate: true, createdAt: true, title: true }
         });
 
-        // 4. Also check VehicleBooking fuelPrice for bus vehicles
-        const vehicleBookingFuel = await prisma.vehicleBooking.findMany({
-            where: { 
-                vehicleId: { in: busVehicleIds },
-                fuelRefill: true,
-                fuelPrice: { gt: 0 }
-            },
-            select: { fuelPrice: true, startDate: true, vehicleId: true }
-        });
-
-        // 5. Summarize
-        const totalFuel = fuelLogs.reduce((s, f) => s + (f.cost || 0), 0) 
-                        + vehicleBookingFuel.reduce((s, f) => s + (f.fuelPrice || 0), 0);
+        // 4. Summarize
+        const totalFuel = vehicleBookingFuel.reduce((s, f) => s + (f.fuelPrice || 0), 0);
         const totalMaintenance = maintenanceRecords.reduce((s, m) => s + (m.cost || 0), 0);
 
         res.json({
             totalFuel,
             totalMaintenance,
             totalExpenses: totalFuel + totalMaintenance,
-            fuelLogs: fuelLogs.map(f => ({ cost: f.cost, date: f.date })),
-            bookingFuel: vehicleBookingFuel.map(f => ({ cost: f.fuelPrice, date: f.startDate })),
+            fuelRecords: vehicleBookingFuel.map(f => ({ cost: f.fuelPrice, date: f.startDate })),
             maintenanceRecords: maintenanceRecords.map(m => ({ 
                 cost: m.cost, 
                 date: m.completionDate || m.createdAt,

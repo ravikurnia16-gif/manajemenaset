@@ -830,7 +830,7 @@ const BusBooking = () => {
 
 // --- Sub-Component: Revenue Dashboard ---
 const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
-    const [expenses, setExpenses] = useState({ totalFuel: 0, totalMaintenance: 0, totalExpenses: 0, fuelLogs: [], bookingFuel: [], maintenanceRecords: [] });
+    const [expenses, setExpenses] = useState({ totalFuel: 0, totalMaintenance: 0, totalExpenses: 0, fuelRecords: [], maintenanceRecords: [] });
     const [loadingExpenses, setLoadingExpenses] = useState(true);
 
     useEffect(() => {
@@ -866,7 +866,7 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
         });
     };
 
-    const filteredFuel = filterByMonth([...(expenses.fuelLogs || []), ...(expenses.bookingFuel || [])]);
+    const filteredFuel = filterByMonth(expenses.fuelRecords || []);
     const filteredMaint = filterByMonth(expenses.maintenanceRecords || []);
 
     const totalFuelFiltered = filteredFuel.reduce((s, f) => s + (f.cost || 0), 0);
