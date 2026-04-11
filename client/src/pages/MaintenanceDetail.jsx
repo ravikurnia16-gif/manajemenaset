@@ -374,7 +374,12 @@ const MaintenanceDetail = () => {
                                                         return pos.includes('Manajemen Aset') || pos.includes('Teknisi') || pos.includes('Pembangunan');
                                                     }
                                                     // Untuk Sarpras
-                                                    return pos.includes('Manajemen Aset') || pos.includes('Teknisi');
+                                                    return pos.includes('Manajemen Aset') || 
+                                                           pos.includes('Teknisi') || 
+                                                           pos.includes('Sarpras Unit') || 
+                                                           pos.includes('Kendaraan') || 
+                                                           pos.includes('Gudang') || 
+                                                           pos.includes('Logistik');
                                                 })
                                                 .map(u => (
                                                     <option key={u.id} value={u.name || u.username}>{u.name || u.username}</option>
