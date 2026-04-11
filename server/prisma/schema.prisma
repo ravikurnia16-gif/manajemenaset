@@ -350,6 +350,7 @@ model Setting {
   orgHeadName     String?
   orgHeadNip      String?
   assetCodePrefix String   @default("AST")
+  busInitialFund  Float    @default(0) // Dana awal operasional Bus
   updatedAt       DateTime @updatedAt
 }
 

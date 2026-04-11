@@ -11,7 +11,9 @@ const {
     assignDriver,
     completeBusBooking,
     markBusAsPaid,
-    getBusExpenseSummary
+    getBusExpenseSummary,
+    getBusInitialFund,
+    setBusInitialFund
 } = require('../controllers/busBookingController');
 const { verifyToken } = require('../middleware/authMiddleware');
 
@@ -25,6 +27,8 @@ router.post('/cancel-by-token', cancelByToken);
 // Protected Routes
 router.get('/', verifyToken, getAllBusBookings);
 router.get('/expense-summary', verifyToken, getBusExpenseSummary);
+router.get('/initial-fund', verifyToken, getBusInitialFund);
+router.put('/initial-fund', verifyToken, setBusInitialFund);
 router.post('/', verifyToken, createBusBooking);
 router.delete('/:id', verifyToken, deleteBusBooking);
 router.put('/:id/assign-driver', verifyToken, assignDriver);

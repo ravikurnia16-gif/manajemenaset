@@ -264,11 +264,10 @@ const getBusExpenseSummary = async (req, res) => {
                     { name: { contains: 'Bus' } }
                 ]
             },
-            select: { id: true, name: true, assetId: true }
+            select: { id: true, name: true }
         });
 
         const busVehicleIds = busVehicles.map(v => v.id);
-        const busAssetIds = busVehicles.map(v => v.assetId).filter(Boolean);
 
         // 2. BBM: Hanya dari VehicleBooking.fuelPrice
         const vehicleBookingFuel = await prisma.vehicleBooking.findMany({
@@ -280,28 +279,28 @@ const getBusExpenseSummary = async (req, res) => {
             select: { fuelPrice: true, startDate: true, vehicleId: true }
         });
 
-        // 3. Aggregate Maintenance Costs for bus vehicles (via asset link)
-        const maintenanceRecords = await prisma.maintenance.findMany({
+        // 3. Perawatan: Dari VehicleService (Service Kendaraan)
+        const serviceRecords = await prisma.vehicleService.findMany({
             where: {
-                assets: { some: { id: { in: busAssetIds } } },
-                status: { in: ['COMPLETED', 'IN_PROGRESS'] }
+                vehicleId: { in: busVehicleIds },
+                cost: { gt: 0 }
             },
-            select: { cost: true, completionDate: true, createdAt: true, title: true }
+            select: { cost: true, date: true, description: true, type: true }
         });
 
         // 4. Summarize
         const totalFuel = vehicleBookingFuel.reduce((s, f) => s + (f.fuelPrice || 0), 0);
-        const totalMaintenance = maintenanceRecords.reduce((s, m) => s + (m.cost || 0), 0);
+        const totalMaintenance = serviceRecords.reduce((s, m) => s + (m.cost || 0), 0);
 
         res.json({
             totalFuel,
             totalMaintenance,
             totalExpenses: totalFuel + totalMaintenance,
             fuelRecords: vehicleBookingFuel.map(f => ({ cost: f.fuelPrice, date: f.startDate })),
-            maintenanceRecords: maintenanceRecords.map(m => ({ 
+            maintenanceRecords: serviceRecords.map(m => ({ 
                 cost: m.cost, 
-                date: m.completionDate || m.createdAt,
-                title: m.title 
+                date: m.date,
+                title: m.description || m.type 
             }))
         });
     } catch (err) {
@@ -779,12 +778,39 @@ const markBusAsPaid = async (req, res) => {
     }
 };
 
+// Get Bus Initial Fund from Settings
+const getBusInitialFund = async (req, res) => {
+    try {
+        const setting = await prisma.setting.findFirst({ where: { id: 1 } });
+        res.json({ busInitialFund: setting?.busInitialFund || 0 });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// Set Bus Initial Fund in Settings
+const setBusInitialFund = async (req, res) => {
+    try {
+        const { amount } = req.body;
+        const updated = await prisma.setting.upsert({
+            where: { id: 1 },
+            update: { busInitialFund: parseFloat(amount) || 0 },
+            create: { id: 1, busInitialFund: parseFloat(amount) || 0 }
+        });
+        res.json({ busInitialFund: updated.busInitialFund });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 module.exports = {
     getAllBusBookings,
     getPublicBusBookings,
     getPublicBusInvoice,
     getPublicBusInvoiceBatch,
     getBusExpenseSummary,
+    getBusInitialFund,
+    setBusInitialFund,
     createBusBooking,
     deleteBusBooking,
     cancelByToken,

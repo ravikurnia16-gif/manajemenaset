@@ -832,13 +832,27 @@ const BusBooking = () => {
 const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
     const [expenses, setExpenses] = useState({ totalFuel: 0, totalMaintenance: 0, totalExpenses: 0, fuelRecords: [], maintenanceRecords: [] });
     const [loadingExpenses, setLoadingExpenses] = useState(true);
+    const [initialFund, setInitialFund] = useState(0);
+    const [editingFund, setEditingFund] = useState(false);
+    const [fundInput, setFundInput] = useState('');
 
     useEffect(() => {
         api.get('/bus-bookings/expense-summary')
             .then(res => setExpenses(res.data))
             .catch(err => console.error('Failed to load expenses:', err))
             .finally(() => setLoadingExpenses(false));
+        api.get('/bus-bookings/initial-fund')
+            .then(res => setInitialFund(res.data.busInitialFund || 0))
+            .catch(() => {});
     }, []);
+
+    const saveInitialFund = async () => {
+        try {
+            const res = await api.put('/bus-bookings/initial-fund', { amount: parseFloat(fundInput) || 0 });
+            setInitialFund(res.data.busInitialFund);
+            setEditingFund(false);
+        } catch (err) { console.error(err); }
+    };
 
     // Hanya hitung yang sudah lunas
     const paidBookings = bookings.filter(b => b.isPaid);
@@ -878,6 +892,7 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
     const totalKm = filtered.reduce((sum, b) => sum + (Number(b.totalKm) || 0), 0);
     const totalTrips = filtered.length;
     const netProfit = totalRev - totalExpensesFiltered;
+    const sisaDana = initialFund + totalRev - totalExpensesFiltered;
 
     // Group By Unit
     const byUnit = filtered.reduce((acc, b) => {
@@ -922,6 +937,36 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
                 </select>
             </div>
 
+            {/* Dana Awal */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                    <div className="text-slate-500 text-xs font-bold uppercase tracking-widest">💼 Dana Awal Operasional Bus</div>
+                    {!editingFund ? (
+                        <div className="text-2xl font-black text-slate-800 mt-1">Rp {initialFund.toLocaleString('id-ID')}</div>
+                    ) : (
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-sm font-bold text-slate-500">Rp</span>
+                            <input
+                                type="number"
+                                value={fundInput}
+                                onChange={(e) => setFundInput(e.target.value)}
+                                className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-bold w-48 focus:ring-2 focus:ring-blue-500 outline-none"
+                                placeholder="Masukkan nominal"
+                                autoFocus
+                            />
+                        </div>
+                    )}
+                </div>
+                {!editingFund ? (
+                    <button onClick={() => { setFundInput(initialFund.toString()); setEditingFund(true); }} className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg transition-all">✏️ Ubah</button>
+                ) : (
+                    <div className="flex gap-2">
+                        <button onClick={saveInitialFund} className="text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-lg transition-all">💾 Simpan</button>
+                        <button onClick={() => setEditingFund(false)} className="text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg transition-all">Batal</button>
+                    </div>
+                )}
+            </div>
+
             {/* KPI Cards - Revenue */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white shadow-lg shadow-emerald-200 relative overflow-hidden">
@@ -936,11 +981,11 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
                     <div className="text-2xl font-black relative z-10">Rp {loadingExpenses ? '...' : totalExpensesFiltered.toLocaleString('id-ID')}</div>
                     <div className="text-red-200/80 text-[10px] mt-1 relative z-10">BBM: Rp {totalFuelFiltered.toLocaleString('id-ID')} | Perawatan: Rp {totalMaintFiltered.toLocaleString('id-ID')}</div>
                 </div>
-                <div className={`rounded-2xl p-5 text-white shadow-lg relative overflow-hidden ${netProfit >= 0 ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-200' : 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-200'}`}>
+                <div className={`rounded-2xl p-5 text-white shadow-lg relative overflow-hidden ${sisaDana >= 0 ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-200' : 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-200'}`}>
                     <div className="absolute top-0 right-0 p-4 opacity-20"><BarChart3 size={64} /></div>
-                    <div className="text-white/70 text-xs font-bold uppercase tracking-widest mb-1 relative z-10">Laba Bersih</div>
-                    <div className="text-3xl font-black relative z-10">{netProfit >= 0 ? '' : '-'}Rp {Math.abs(netProfit).toLocaleString('id-ID')}</div>
-                    <div className="text-white/60 text-[10px] mt-1 relative z-10">{netProfit >= 0 ? '📈 Surplus / Untung' : '📉 Defisit / Rugi'}</div>
+                    <div className="text-white/70 text-xs font-bold uppercase tracking-widest mb-1 relative z-10">Sisa Dana Operasional</div>
+                    <div className="text-3xl font-black relative z-10">{sisaDana >= 0 ? '' : '-'}Rp {Math.abs(sisaDana).toLocaleString('id-ID')}</div>
+                    <div className="text-white/60 text-[10px] mt-1 relative z-10">{sisaDana >= 0 ? '📈 Dana Tersisa' : '📉 Defisit'} | Laba: {netProfit >= 0 ? '+' : '-'}Rp {Math.abs(netProfit).toLocaleString('id-ID')}</div>
                 </div>
             </div>
 
