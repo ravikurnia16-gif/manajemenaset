@@ -10,7 +10,7 @@ const crypto = require('crypto');
 const generateCode = async (targetDept = 'SARPRAS') => {
     const year = new Date().getFullYear();
     const prefix = targetDept === 'PEMBANGUNAN' ? 'PBG' : 'MT';
-    
+
     // Find the latest record for this year and specific prefix to get the highest sequence
     const lastRecord = await prisma.maintenance.findFirst({
         where: {
@@ -55,7 +55,7 @@ exports.getAllReports = async (req, res) => {
         if (['ADMIN_UNIT', 'USER'].includes(user.role)) {
             // Expansion: Pembangunan staff can see ALL Pembangunan reports globally
             const isPembangunanTeam = ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user.position);
-            
+
             if (isPembangunanTeam) {
                 whereClause.OR = [
                     { targetDept: 'PEMBANGUNAN' },
@@ -173,10 +173,10 @@ exports.createReport = async (req, res) => {
                 // 1. In-App Notification (Only Staff Manajemen Aset for incoming requests)
                 const notifRecipients = await prisma.user.findMany({
                     where: {
-                        position: { contains: 'Manajemen Aset' }
+                        position: { contains: 'Staff Manajemen Aset' }
                     }
                 });
- 
+
                 for (const admin of notifRecipients) {
                     await createNotification(
                         admin.id,
@@ -250,7 +250,7 @@ exports.createReport = async (req, res) => {
                         for (const admin of waRecipients) {
                             const randomGap = Math.floor(Math.random() * (15000 - 5000 + 1)) + 5000;
                             cumulativeDelay += randomGap;
- 
+
                             setTimeout(async () => {
                                 try {
                                     await whatsappService.sendMessage(admin.phone, msgAdmin);
@@ -295,7 +295,7 @@ exports.createReport = async (req, res) => {
 // Update Status (Workflow Transitions)
 exports.updateStatus = async (req, res) => {
     const { id } = req.params;
-    const { status, approvalNote, validationNote, rejectionReason, technician, actionTaken, completionNote, cost } = req.body;
+    const { status, approvalNote, validationNote, rejectionReason, technician, technicianPhone, actionTaken, completionNote, cost } = req.body;
 
     try {
         const updateData = { status };
@@ -310,7 +310,7 @@ exports.updateStatus = async (req, res) => {
             updateData.completionDate = new Date();
             updateData.quickToken = null; // Clear token after use
         }
-        
+
         // Generate quickToken if assigned
         if (status === 'ASSIGNED') {
             updateData.quickToken = crypto.randomBytes(16).toString('hex');
@@ -352,10 +352,10 @@ exports.updateStatus = async (req, res) => {
             'REJECTED': 'Ditolak'
         };
 
-        const notifMsg = statusDidUnchange 
+        const notifMsg = statusDidUnchange
             ? `Teknisi memperbarui detail pekerjaan pada laporan "${report.title}".`
             : `Laporan pemeliharaan "${report.title}" statusnya kini: ${statusLabels[status] || status}.`;
-        
+
         const notifType = status === 'REJECTED' ? 'WARNING' : (status === 'COMPLETED' ? 'SUCCESS' : 'INFO');
 
         await createNotification(
@@ -392,7 +392,7 @@ exports.updateStatus = async (req, res) => {
         (async () => {
             try {
                 // SKIP WA IF ONLY DETAIL UPDATE
-                if (statusDidUnchange && !rejectionReason) return; 
+                if (statusDidUnchange && !rejectionReason) return;
 
                 // --- WhatsApp Notification to Technician (Async) ---
                 let techUser = null;
@@ -401,7 +401,7 @@ exports.updateStatus = async (req, res) => {
                         techUser = await prisma.user.findFirst({
                             where: { OR: [{ name: technician }, { username: technician }] }
                         });
-                        
+
                         if (techUser && techUser.phone) {
                             const msgTech = `🛠 *PENUGASAN PEMELIHARAAN*\n\n` +
                                 `Halo *${techUser.name || techUser.username}*,\n` +
@@ -410,7 +410,7 @@ exports.updateStatus = async (req, res) => {
                                 `📋 *Judul* : ${report.title}\n` +
                                 `📝 *Masalah* : ${report.description}\n\n` +
                                 `Syukron jazakumullahu khairan.`;
-                                
+
                             setTimeout(async () => {
                                 await whatsappService.sendMessage(techUser.phone, msgTech);
                             }, 45000); // Send slightly after submitter notif
@@ -419,7 +419,7 @@ exports.updateStatus = async (req, res) => {
                         console.error('WA Tech Notif Error:', e);
                     }
                 }
-                
+
                 const submitter = report.user;
                 if (!submitter?.phone) return;
 
@@ -437,9 +437,10 @@ exports.updateStatus = async (req, res) => {
                     `Laporan Anda *\"${report.title}\"* (${report.code})\n` +
                     `Status terbaru: *${statusLabel}*\n`;
 
-                if (status === 'ASSIGNED' && techUser?.phone) {
-                    const techPhone = techUser.phone.replace(/^0/, '62');
-                    msg += `\n📞 *Kontak Petugas* : wa.me/${techPhone}\n`;
+                const selectedTechPhone = techUser?.phone || technicianPhone;
+                if (status === 'ASSIGNED' && selectedTechPhone) {
+                    const techPhoneFormatted = selectedTechPhone.replace(/^0/, '62');
+                    msg += `\n📞 *Kontak Petugas* : wa.me/${techPhoneFormatted}\n`;
                 }
 
                 if (status === 'REJECTED' && rejectionReason) {

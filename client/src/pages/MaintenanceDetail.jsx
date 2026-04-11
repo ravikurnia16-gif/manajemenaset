@@ -25,6 +25,7 @@ const MaintenanceDetail = () => {
     const [actionModal, setActionModal] = useState({ show: false, type: '', nextStatus: '' });
     const [actionNote, setActionNote] = useState('');
     const [technicianName, setTechnicianName] = useState('');
+    const [technicianPhone, setTechnicianPhone] = useState('');
     const [technicianType, setTechnicianType] = useState('external'); // 'internal' or 'external'
     const [actionTaken, setActionTaken] = useState('');
     const [costInput, setCostInput] = useState('');
@@ -70,6 +71,7 @@ const MaintenanceDetail = () => {
             if (actionModal.nextStatus === 'REJECTED') payload.rejectionReason = actionNote;
             if (actionModal.nextStatus === 'ASSIGNED') {
                 payload.technician = technicianName;
+                payload.technicianPhone = technicianType === 'external' ? technicianPhone : undefined;
                 payload.approvalNote = actionNote;
             }
             
@@ -87,6 +89,7 @@ const MaintenanceDetail = () => {
             setActionModal({ show: false, type: '', nextStatus: '' });
             setActionNote('');
             setTechnicianName('');
+            setTechnicianPhone('');
             setActionTaken('');
             setCostInput('');
             fetchReport();
@@ -339,14 +342,14 @@ const MaintenanceDetail = () => {
                                 <div className="flex bg-slate-100 p-1 rounded-lg">
                                     <button
                                         type="button"
-                                        onClick={() => { setTechnicianType('external'); setTechnicianName(''); }}
+                                        onClick={() => { setTechnicianType('external'); setTechnicianName(''); setTechnicianPhone(''); }}
                                         className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${technicianType === 'external' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                     >
                                         Eksternal / Vendor
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => { setTechnicianType('internal'); setTechnicianName(''); }}
+                                        onClick={() => { setTechnicianType('internal'); setTechnicianName(''); setTechnicianPhone(''); }}
                                         className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${technicianType === 'internal' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                     >
                                         Pegawai (Internal)
@@ -372,13 +375,27 @@ const MaintenanceDetail = () => {
                                             }
                                         </select>
                                     ) : (
-                                        <input
-                                            type="text"
-                                            value={technicianName}
-                                            onChange={e => setTechnicianName(e.target.value)}
-                                            placeholder="Misal: Pak Ahmad / CV Maju Jaya"
-                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                        />
+                                        <div className="space-y-3">
+                                            <input
+                                                type="text"
+                                                value={technicianName}
+                                                onChange={e => setTechnicianName(e.target.value)}
+                                                placeholder="Misal: Pak Ahmad / CV Maju Jaya"
+                                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                                                    Nomor WA Vendor / Teknisi
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={technicianPhone}
+                                                    onChange={e => setTechnicianPhone(e.target.value)}
+                                                    placeholder="Misal: 08123456789 (Opsional)"
+                                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                />
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
                             </div>
