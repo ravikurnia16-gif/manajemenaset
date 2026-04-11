@@ -208,25 +208,28 @@ const VehicleDashboard = () => {
         }
     };
 
-    const handleMarkPaid = async (vId, type) => {
-        if (!window.confirm('Ingin menandai sebagai telah dibayar? Tanggal jatuh tempo akan diperpanjang otomatis.')) return;
-        
+    const [payModal, setPayModal] = useState(null); // { vId, type, label }
+    const [payCost, setPayCost] = useState('');
+
+    const openPayModal = (vId, type) => {
+        const labels = { TAX: 'Pajak Tahunan', STNK: 'Pajak 5 Tahunan (STNK)', KIR: 'Uji KIR' };
+        setPayModal({ vId, type, label: labels[type] || type });
+        setPayCost('');
+    };
+
+    const handleMarkPaid = async () => {
+        if (!payModal) return;
         try {
-            const res = await api.put(`/vehicles/${vId}/mark-paid`, { type });
-            // Custom alert or reload
-            const fetchData = async () => {
-                setLoading(true);
-                try {
-                    const query = filter.month && filter.year ? `?month=${filter.month}&year=${filter.year}` : '';
-                    const res = await api.get(`/vehicles/dashboard${query}`);
-                    setData(res.data);
-                } catch (err) {
-                    console.error(err);
-                } finally {
-                    setLoading(false);
-                }
-            };
-            await fetchData();
+            const res = await api.put(`/vehicles/${payModal.vId}/mark-paid`, { type: payModal.type, cost: parseFloat(payCost) || 0 });
+            setPayModal(null);
+            // Reload data
+            setLoading(true);
+            try {
+                const query = filter.month && filter.year ? `?month=${filter.month}&year=${filter.year}` : '';
+                const dashRes = await api.get(`/vehicles/dashboard${query}`);
+                setData(dashRes.data);
+            } catch (err) { console.error(err); }
+            finally { setLoading(false); }
             alert(res.data.message);
         } catch (err) {
             console.error(err);
@@ -341,7 +344,7 @@ const VehicleDashboard = () => {
                                         <td className="px-8 py-6 text-right flex items-center justify-end gap-2">
                                             {['TAX', 'STNK', 'KIR'].includes(alert.type) && (
                                                 <button 
-                                                    onClick={() => handleMarkPaid(alert.id, alert.type)}
+                                                    onClick={() => openPayModal(alert.id, alert.type)}
                                                     className="text-xs font-black text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-4 py-1.5 rounded-xl transition-all flex items-center gap-1"
                                                 >
                                                     <CheckCircle2 size={14} /> TELAH BAYAR
@@ -582,6 +585,52 @@ const VehicleDashboard = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Modal Konfirmasi Pembayaran Pajak */}
+            {payModal && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+                        <div className="bg-gradient-to-r from-emerald-500 to-teal-600 p-6 text-white">
+                            <h3 className="text-lg font-black flex items-center gap-2">
+                                <CheckCircle2 size={22} /> Konfirmasi Pembayaran
+                            </h3>
+                            <p className="text-emerald-100 text-sm mt-1">{payModal.label}</p>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Biaya yang Dibayarkan</label>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-bold text-slate-400">Rp</span>
+                                    <input
+                                        type="number"
+                                        value={payCost}
+                                        onChange={(e) => setPayCost(e.target.value)}
+                                        className="flex-1 border-2 border-slate-200 rounded-xl px-4 py-3 text-lg font-black text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                                        placeholder="Masukkan nominal biaya"
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
+                            {payModal.type === 'STNK' && (
+                                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                                    <p className="text-xs font-bold text-blue-700">ℹ️ Karena ini pembayaran STNK (5 Tahunan), tanggal <strong>Pajak Tahunan</strong> juga akan otomatis diperpanjang 1 tahun.</p>
+                                </div>
+                            )}
+                            <p className="text-[11px] text-slate-400">Tanggal jatuh tempo akan otomatis diperpanjang setelah dikonfirmasi.</p>
+                        </div>
+                        <div className="flex gap-3 p-6 pt-0">
+                            <button
+                                onClick={() => setPayModal(null)}
+                                className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-slate-600 font-black text-sm hover:bg-slate-50 transition-all"
+                            >Batal</button>
+                            <button
+                                onClick={handleMarkPaid}
+                                className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2"
+                            ><CheckCircle2 size={16} /> Konfirmasi Lunas</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

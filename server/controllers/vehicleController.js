@@ -439,7 +439,7 @@ exports.deleteVehicle = async (req, res) => {
 exports.markVehicleAsPaid = async (req, res) => {
     try {
         const { id } = req.params;
-        const { type } = req.body; // 'TAX', 'STNK', 'KIR'
+        const { type, cost } = req.body; // 'TAX', 'STNK', 'KIR' + cost
 
         const vehicle = await prisma.vehicle.findUnique({ where: { id: parseInt(id) } });
         if (!vehicle) return res.status(404).json({ error: 'Kendaraan tidak ditemukan' });
@@ -457,10 +457,18 @@ exports.markVehicleAsPaid = async (req, res) => {
             label = "Pajak Tahunan";
             serviceType = "PAJAK";
         } else if (type === 'STNK') {
-            const current = vehicle.stnkDueDate || new Date();
-            nextDate = new Date(current);
+            // Pajak 5 Tahunan: update STNK + sekaligus update Pajak Tahunan
+            const currentStnk = vehicle.stnkDueDate || new Date();
+            nextDate = new Date(currentStnk);
             nextDate.setFullYear(nextDate.getFullYear() + 5);
             updateData.stnkDueDate = nextDate;
+
+            // Also update annual tax date (+1 year from now)
+            const currentTax = vehicle.taxDueDate || new Date();
+            const nextTaxDate = new Date(currentTax);
+            nextTaxDate.setFullYear(nextTaxDate.getFullYear() + 1);
+            updateData.taxDueDate = nextTaxDate;
+
             label = "Pajak 5 Tahunan (STNK)";
             serviceType = "PAJAK";
         } else if (type === 'KIR') {
@@ -480,22 +488,28 @@ exports.markVehicleAsPaid = async (req, res) => {
             data: updateData
         });
 
-        // 2. Create Service Log for history
+        const parsedCost = parseFloat(cost) || 0;
+
+        // 2. Create Service Log for history (with cost)
         await prisma.vehicleService.create({
             data: {
                 vehicleId: parseInt(id),
                 date: new Date(),
                 type: serviceType,
                 category: 'ROUTINE',
-                description: `Konfirmasi: ${label} telah dibayar. Jadwal berikutnya diperbarui ke ${nextDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`,
-                cost: 0
+                description: `Konfirmasi: ${label} telah dibayar${parsedCost > 0 ? ` (Rp ${parsedCost.toLocaleString('id-ID')})` : ''}. Jadwal berikutnya diperbarui.`,
+                cost: parsedCost
             }
         });
 
-        res.json({
-            message: `Konfirmasi ${label} berhasil. Jadwal diperbarui ke ${nextDate.toLocaleDateString('id-ID')}`,
-            nextDate
-        });
+        let message = `Konfirmasi ${label} berhasil.`;
+        if (type === 'STNK') {
+            message += ` Pajak 5 Tahunan diperbarui ke ${nextDate.toLocaleDateString('id-ID')}. Pajak Tahunan juga diperbarui ke ${updateData.taxDueDate.toLocaleDateString('id-ID')}.`;
+        } else {
+            message += ` Jadwal diperbarui ke ${nextDate.toLocaleDateString('id-ID')}.`;
+        }
+
+        res.json({ message, nextDate });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
