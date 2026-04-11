@@ -27,7 +27,7 @@ const MaintenanceDetail = () => {
     const [technicianName, setTechnicianName] = useState('');
     const [technicianPhone, setTechnicianPhone] = useState('');
     const [technicianType, setTechnicianType] = useState('external'); // 'internal' or 'external'
-    const [actionTaken, setActionTaken] = useState('');
+    const [progressNote, setProgressNote] = useState('');
     const [costInput, setCostInput] = useState('');
 
     const fetchReport = async () => {
@@ -57,9 +57,7 @@ const MaintenanceDetail = () => {
     }, [id]);
 
     useEffect(() => {
-        if (report) {
-            setActionTaken(report.actionTaken || '');
-        }
+        // No longer pre-filling progressNote
     }, [report]);
 
     const handleStatusUpdate = async () => {
@@ -77,7 +75,13 @@ const MaintenanceDetail = () => {
 
             // Handle updates where actionTaken is provided (including partial updates)
             if (actionModal.type === 'completion' || actionModal.type === 'progress') {
-                payload.actionTaken = actionTaken;
+                if (progressNote.trim()) {
+                    const now = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+                    const newLog = `[${now}] ${progressNote.trim()}`;
+                    payload.actionTaken = report.actionTaken ? `${report.actionTaken}\n\n${newLog}` : newLog;
+                } else {
+                    payload.actionTaken = report.actionTaken || undefined;
+                }
                 payload.cost = costInput || report.cost || 0;
             }
 
@@ -90,7 +94,7 @@ const MaintenanceDetail = () => {
             setActionNote('');
             setTechnicianName('');
             setTechnicianPhone('');
-            setActionTaken('');
+            setProgressNote('');
             setCostInput('');
             fetchReport();
         } catch (err) {
@@ -288,8 +292,10 @@ const MaintenanceDetail = () => {
             {/* Action Taken */}
             {report.actionTaken && (
                 <div className="bg-green-50 rounded-xl border border-green-200 p-5">
-                    <h3 className="text-sm font-semibold text-green-700 mb-2">Tindakan Perbaikan</h3>
-                    <p className="text-sm text-green-800 whitespace-pre-wrap">{report.actionTaken}</p>
+                    <h3 className="text-sm font-semibold text-green-700 mb-2">Riwayat & Tindakan Perbaikan</h3>
+                    <div className="text-sm text-green-800 whitespace-pre-wrap font-mono relative">
+                        {report.actionTaken}
+                    </div>
                 </div>
             )}
 
@@ -414,14 +420,24 @@ const MaintenanceDetail = () => {
 
                         {(actionModal.type === 'completion' || actionModal.type === 'progress') && (
                             <>
+                                {report.actionTaken && (
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1">Riwayat Progres Sebelumnya</label>
+                                        <div className="bg-slate-100 p-3 rounded-lg text-xs text-slate-600 whitespace-pre-wrap font-mono max-h-32 overflow-y-auto border border-slate-200">
+                                            {report.actionTaken}
+                                        </div>
+                                    </div>
+                                )}
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-1">Tindakan Perbaikan *</label>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1">
+                                        {actionModal.type === 'completion' ? 'Tindakan Penyelesaian (Final) *' : 'Update Progres Baru *'}
+                                    </label>
                                     <textarea
-                                        value={actionTaken}
-                                        onChange={e => setActionTaken(e.target.value)}
-                                        placeholder="Jelaskan apa yang sudah/sedang dikerjakan..."
-                                        rows={4}
-                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={progressNote}
+                                        onChange={e => setProgressNote(e.target.value)}
+                                        placeholder="Ketik apa yang telah dikerjakan saat ini..."
+                                        rows={3}
+                                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-none"
                                     />
                                 </div>
                                 {actionModal.type === 'completion' && (
