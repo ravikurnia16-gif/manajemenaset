@@ -489,14 +489,6 @@ const completeBusBooking = async (req, res) => {
             }
         });
 
-        // Update Vehicle Odometer (Incremental)
-        if (booking.vehicleId) {
-            await prisma.vehicle.update({
-                where: { id: booking.vehicleId },
-                data: { odometer: { increment: kmVal } }
-            });
-        }
-
         // Send WA Notification to Requester
         if (booking.requesterPhone) {
             const msg = `📢 *TAGIHAN PERJALANAN BUS* 🚌\n\n` +
