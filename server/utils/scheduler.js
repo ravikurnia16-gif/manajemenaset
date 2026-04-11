@@ -79,13 +79,8 @@ const initScheduler = () => {
                 await checkOverdueLoans();
                 await checkBusBookingNotifications();
                 await checkUnpaidBusInvoices();
-                
-                // Weekly Friday Audit at 09:00
-                if (day === 5) {
-                    await checkMissingReportsWeekly();
-                }
             } catch (err) {
-                console.error('[Scheduler] Error in Vehicle Checks or Personnel Audit:', err);
+                console.error('[Scheduler] Error in Vehicle Checks:', err);
             }
         }
 
@@ -109,11 +104,12 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
-        // 5. MISSING WEEKLY REPORTS REMINDER (Friday at 14:00)
+        // 5. PERSONNEL: MISSING REPORTS AUDIT (Friday at 15:00)
         // ----------------------------------------------------
-        if (day === 5 && hour === 14 && minute === 0) {
-            console.log('[Scheduler] Executing Missing Weekly Reports Check...');
+        if (day === 5 && hour === 15 && minute === 0) {
+            console.log('[Scheduler] Executing Personnel Missing Report Audit & Vehicle Weekly Reports...');
             try {
+                await checkMissingReportsWeekly();
                 await checkMissingWeeklyReports();
             } catch (err) {
                 console.error('[Scheduler] Error in Missing Reports Check:', err);
@@ -121,9 +117,9 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
-        // 6. WEEKLY ASSET SUMMARY (Friday at 15:00 / 3 PM)
+        // 6. WEEKLY ASSET SUMMARY (Friday at 15:30)
         // ----------------------------------------------------
-        if (day === 5 && hour === 15 && minute === 0) {
+        if (day === 5 && hour === 15 && minute === 30) {
             console.log('[Scheduler] Executing Weekly Asset Summary...');
             try {
                 await sendWeeklyAssetSummary();

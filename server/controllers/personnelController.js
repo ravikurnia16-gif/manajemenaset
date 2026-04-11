@@ -1213,24 +1213,36 @@ exports.checkPlanDeadlines = async () => {
 };
 
 /**
- * WEEKLY MISSING REPORTS CHECK (FRIDAY)
- * Check reports from Mon to Thu
+ * WEEKLY MISSING REPORTS CHECK (FRIDAY at 15:00)
+ * Check daily reports from Mon to Fri, identify specific missing days per staff,
+ * send teguran to each staff and a recap to Kabid.
  */
 exports.checkMissingReportsWeekly = async () => {
-    console.log(`[${new Date().toLocaleString('id-ID')}] [Personnel] Checking Missing Weekly Reports...`);
-    
-    // Get Mon-Thu range
+    console.log(`[${new Date().toLocaleString('id-ID')}] [Personnel] Checking Missing Weekly Reports (Mon-Fri)...`);
+
     const now = new Date();
-    const thu = new Date(now);
-    thu.setDate(now.getDate() - 1); // Yesterday (Thu)
+    const dayOfWeek = now.getDay(); // 0=Sun, 5=Fri
+
+    // Calculate Monday of current week
     const mon = new Date(now);
-    mon.setDate(now.getDate() - 4); // Mon
-    
-    mon.setHours(0,0,0,0);
-    thu.setHours(23,59,59,999);
+    mon.setDate(now.getDate() - (dayOfWeek - 1)); // Go back to Monday
+    mon.setHours(0, 0, 0, 0);
+
+    // Build array of weekdays Mon-Fri
+    const HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+    const weekDays = [];
+    for (let i = 0; i < 5; i++) {
+        const d = new Date(mon);
+        d.setDate(mon.getDate() + i);
+        weekDays.push({
+            label: HARI[i],
+            start: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0),
+            end: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
+        });
+    }
 
     try {
-        // Get all staff members (excluding Kabid)
+        // Get all Sarpras staff (excluding Kabid)
         const staff = await prisma.user.findMany({
             where: {
                 position: { not: 'Kepala Bidang Sarana dan Prasarana' },
@@ -1245,60 +1257,177 @@ exports.checkMissingReportsWeekly = async () => {
             }
         });
 
-        const missingStaff = [];
+        const missingList = []; // { name, phone, missingDays: ['Senin','Rabu'] }
 
         for (const s of staff) {
-            const count = await prisma.personnelReport.count({
-                where: {
-                    userId: s.id,
-                    type: 'DAILY',
-                    date: { gte: mon, lte: thu }
-                }
-            });
+            const missingDays = [];
 
-            if (count === 0) {
-                missingStaff.push(s.name || s.username);
+            for (const wd of weekDays) {
+                const count = await prisma.personnelReport.count({
+                    where: {
+                        userId: s.id,
+                        type: 'DAILY',
+                        date: { gte: wd.start, lte: wd.end }
+                    }
+                });
+                if (count === 0) {
+                    missingDays.push(wd.label);
+                }
+            }
+
+            if (missingDays.length > 0) {
+                missingList.push({
+                    name: s.name || s.username,
+                    phone: s.phone,
+                    userId: s.id,
+                    missingDays
+                });
             }
         }
 
-        if (missingStaff.length > 0) {
-            const kabid = await prisma.user.findFirst({
-                where: { position: 'Kepala Bidang Sarana dan Prasarana' }
-            });
+        if (missingList.length === 0) {
+            console.log('[Personnel] All staff have complete daily reports this week. 🎉');
+            return;
+        }
 
-            if (kabid?.phone) {
-                let msg = `⚠️ *LAPORAN AUDIT HARIAN (SENIN-KAMIS)* ⚠️\n\n` +
-                    `Berikut adalah daftar staf yang *TIDAK MENGIRIM* laporan harian sama sekali pada periode Senin - Kamis ini:\n\n`;
-                
-                missingStaff.forEach((name, idx) => {
-                    msg += `${idx + 1}. ${name}\n`;
-                });
+        console.log(`[Personnel] ${missingList.length} staff with missing reports found.`);
 
-                msg += `\n_Mohon untuk diberikan arahan demi kedisiplinan administrasi unit Sarpras._`;
+        // --- 1. Send individual teguran to each staff ---
+        let cumulativeDelay = 0;
+        for (const entry of missingList) {
+            if (entry.phone) {
+                const staffMsg = `🚨 *PENGINGAT LAPORAN HARIAN* 🚨\n\n` +
+                    `Assalamu'alaikum Ustadz ${entry.name},\n\n` +
+                    `Mohon kesediaannya untuk segera melengkapi laporan harian yang belum terisi pada minggu ini:\n\n` +
+                    `📅 *Hari yang Kosong*: ${entry.missingDays.join(', ')}\n\n` +
+                    `Mohon segera diisi melalui aplikasi Manajemen Aset sebelum hari ini berakhir demi ketertiban administrasi unit. Syukron Jazakumullahu Khairan.`;
 
-                await whatsappService.sendMessage(kabid.phone, msg);
-                console.log('[Personnel] Missing report audit sent to Kabid.');
+                const delay = cumulativeDelay;
+                cumulativeDelay += Math.floor(Math.random() * (15000 - 5000 + 1)) + 5000;
 
-                // Push Notification
-                await sendPushToKabid(
-                    '⚠️ Audit Laporan Mingguan',
-                    `${missingStaff.length} staf tidak mengirim laporan minggu ini.`,
+                setTimeout(async () => {
+                    try {
+                        await whatsappService.sendMessage(entry.phone, staffMsg);
+                        console.log(`[Personnel] Teguran sent to ${entry.name} (missing: ${entry.missingDays.join(', ')})`);
+                    } catch (e) {
+                        console.error(`[Personnel] Failed to send teguran to ${entry.name}:`, e.message);
+                    }
+                }, delay);
+            }
+
+            // Push & In-App to staff
+            try {
+                await sendPushToUser(entry.userId, '🚨 Laporan Harian Belum Lengkap', `Hari kosong: ${entry.missingDays.join(', ')}`, '/personalia');
+                await createNotification(entry.userId, 'Laporan Harian Belum Lengkap', `Hari yang belum diisi: ${entry.missingDays.join(', ')}`, 'WARNING', '/personalia');
+            } catch (e) { }
+        }
+
+        // --- 2. Send recap to Kabid ---
+        const kabid = await prisma.user.findFirst({
+            where: { position: 'Kepala Bidang Sarana dan Prasarana' }
+        });
+
+        if (kabid?.phone) {
+            // Wait for staff messages to finish first
+            const kabidDelay = cumulativeDelay + 5000;
+
+            setTimeout(async () => {
+                try {
+                    let msg = `⚠️ *AUDIT KEDISIPLINAN LAPORAN (SENIN-JUMAT)* ⚠️\n\n` +
+                        `Berikut adalah daftar staf yang belum melengkapi laporan harian pada minggu ini:\n\n`;
+
+                    missingList.forEach((entry, idx) => {
+                        msg += `${idx + 1}. *${entry.name}* (${entry.missingDays.join(', ')})\n`;
+                    });
+
+                    msg += `\n_Mohon arahan kepada staf terkait agar melengkapi laporan sebelum jam kerja berakhir. Syukron._`;
+
+                    await whatsappService.sendMessage(kabid.phone, msg);
+                    console.log('[Personnel] Missing report recap sent to Kabid.');
+                } catch (e) {
+                    console.error('[Personnel] Failed to send recap to Kabid:', e.message);
+                }
+            }, kabidDelay);
+
+            // Push & In-App to Kabid
+            await sendPushToKabid(
+                '⚠️ Audit Laporan Mingguan',
+                `${missingList.length} staf belum melengkapi laporan minggu ini.`,
+                '/personalia'
+            );
+
+            if (kabid?.id) {
+                await createNotification(
+                    kabid.id,
+                    'Audit Laporan Mingguan',
+                    `${missingList.length} staf belum melengkapi laporan harian (Senin-Jumat)`,
+                    'WARNING',
                     '/personalia'
                 );
-
-                // In-App Notification
-                if (kabid?.id) {
-                    await createNotification(
-                        kabid.id,
-                        'Audit Laporan Mingguan',
-                        `${missingStaff.length} staf tidak mengirim laporan harian pada periode Senin-Kamis`,
-                        'WARNING',
-                        '/personalia'
-                    );
-                }
             }
         }
     } catch (err) {
         console.error('[Personnel] Missing Audit Error:', err.message);
+    }
+};
+
+/**
+ * WEEKLY REPORT REMINDER TO STAFF (FRIDAY 15:00)
+ * Sends a reminder to all staff to ensure their Mon-Fri daily reports are complete
+ */
+exports.sendWeeklyReportReminder = async () => {
+    console.log(`[${new Date().toLocaleString('id-ID')}] [Personnel] Sending Weekly Report Reminder to Staff...`);
+    
+    // Range: Mon-Fri
+    const now = new Date();
+    const fri = new Date(now);
+    const mon = new Date(now);
+    mon.setDate(now.getDate() - 4); // Mon
+    
+    mon.setHours(0,0,0,0);
+    fri.setHours(23,59,59,999);
+
+    try {
+        const staff = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { position: { contains: 'Sarana dan Prasarana' } },
+                    { position: { contains: 'Manajemen Aset' } },
+                    { position: { contains: 'Gudang dan Logistik' } },
+                    { position: { contains: 'Teknisi' } },
+                    { position: { contains: 'Keuangan dan Administrasi' } },
+                    { position: { contains: 'Kendaraan' } }
+                ],
+                phone: { not: null, not: '' }
+            }
+        });
+
+        for (const s of staff) {
+            // Check if they skipped any day or just send a general "check your weekly work"
+            const reportCount = await prisma.personnelReport.count({
+                where: {
+                    userId: s.id,
+                    type: 'DAILY',
+                    date: { gte: mon, lte: fri }
+                }
+            });
+
+            // If missing reports (typically should have 5), or just remind everyone
+            const msg = `*Bismillah, Pengingat Laporan Mingguan*\n\n` +
+                `Assalamu'alaikum Ustadz *${s.name}*,\n\n` +
+                `Mengingatkan kembali agar tidak lupa melengkapi *Laporan Harian* periode Senin s/d Jumat minggu ini di aplikasi Manajemen Aset.\n\n` +
+                `Statistik Anda minggu ini: *${reportCount} Laporan*\n` +
+                `_Mohon segera dilengkapi sebelum jam pulang kantor. Syukron Jazakumullahu Khairan._`;
+
+            setTimeout(async () => {
+                try {
+                    await whatsappService.sendMessage(s.phone, msg);
+                } catch (e) {
+                    console.error(`[Report Reminder] Failed to notify ${s.name}:`, e.message);
+                }
+            }, Math.random() * 30000); // Random delay to avoid spam detection
+        }
+    } catch (err) {
+        console.error('[Personnel] Weekly Reminder Error:', err.message);
     }
 };
