@@ -74,7 +74,7 @@ const MaintenanceDetail = () => {
                 payload.technicianPhone = technicianType === 'external' ? technicianPhone : undefined;
                 payload.approvalNote = actionNote;
             }
-            
+
             // Handle updates where actionTaken is provided (including partial updates)
             if (actionModal.type === 'completion' || actionModal.type === 'progress') {
                 payload.actionTaken = actionTaken;
@@ -116,7 +116,7 @@ const MaintenanceDetail = () => {
                 return { label: 'Mulai Pengerjaan', nextStatus: 'IN_PROGRESS', type: 'start' };
             }
             if (report.status === 'IN_PROGRESS') {
-                return { 
+                return {
                     label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion',
                     secondaryLabel: 'Update Progres', secondaryType: 'progress'
                 };
@@ -249,16 +249,16 @@ const MaintenanceDetail = () => {
                                     <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-100 bg-slate-50 group">
                                         {item.type === 'IMAGE' ? (
                                             <a href={getMediaUrl(item.url)} target="_blank" rel="noreferrer" className="block w-full h-full">
-                                                <img 
-                                                    src={getMediaUrl(item.url)} 
-                                                    alt={`Evidence ${idx + 1}`} 
-                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                                                <img
+                                                    src={getMediaUrl(item.url)}
+                                                    alt={`Evidence ${idx + 1}`}
+                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                                                 />
                                             </a>
                                         ) : (
-                                            <video 
-                                                src={getMediaUrl(item.url)} 
-                                                controls 
+                                            <video
+                                                src={getMediaUrl(item.url)}
+                                                controls
                                                 className="w-full h-full object-cover"
                                                 poster={getMediaUrl(report.photo)}
                                             />
@@ -272,10 +272,10 @@ const MaintenanceDetail = () => {
                                 // Fallback for single photo
                                 <div className="relative aspect-square rounded-xl overflow-hidden border border-slate-100 bg-slate-50 group">
                                     <a href={getMediaUrl(report.photo)} target="_blank" rel="noreferrer" className="block w-full h-full">
-                                        <img 
-                                            src={getMediaUrl(report.photo)} 
-                                            alt="Evidence" 
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                                        <img
+                                            src={getMediaUrl(report.photo)}
+                                            alt="Evidence"
+                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                                         />
                                     </a>
                                 </div>
@@ -302,9 +302,9 @@ const MaintenanceDetail = () => {
                     >
                         <CheckCircle size={18} /> {nextAction.label}
                     </button>
-                    
+
                     {nextAction.secondaryLabel && (
-                         <button
+                        <button
                             onClick={() => setActionModal({ show: true, type: nextAction.secondaryType, nextStatus: report.status })}
                             className="flex-1 flex items-center justify-center gap-2 bg-white border-2 border-orange-500 text-orange-600 py-3 rounded-xl font-semibold hover:bg-orange-50 transition-all"
                         >
@@ -371,15 +371,14 @@ const MaintenanceDetail = () => {
                                                 .filter(u => {
                                                     const pos = u.position || '';
                                                     if (report.targetDept === 'PEMBANGUNAN') {
-                                                        return pos.includes('Manajemen Aset') || pos.includes('Teknisi') || pos.includes('Pembangunan');
+                                                        return pos.includes('Staff Manajemen Aset') || pos.includes('Staff Teknisi Aset') || pos.includes('Staff Pembangunan');
                                                     }
                                                     // Untuk Sarpras
-                                                    return pos.includes('Manajemen Aset') || 
-                                                           pos.includes('Teknisi') || 
-                                                           pos.includes('Sarpras Unit') || 
-                                                           pos.includes('Kendaraan') || 
-                                                           pos.includes('Gudang') || 
-                                                           pos.includes('Logistik');
+                                                    return pos.includes('Staff Manajemen Aset') ||
+                                                        pos.includes('Staff Teknisi Aset') ||
+                                                        pos.includes('Sarpras Unit') ||
+                                                        pos.includes('Staff Kendaraan') ||
+                                                        pos.includes('Gudang dan Logistik');
                                                 })
                                                 .map(u => (
                                                     <option key={u.id} value={u.name || u.username}>{u.name || u.username}</option>
@@ -441,12 +440,12 @@ const MaintenanceDetail = () => {
                         )}
 
                         {actionModal.type === 'start' && (
-                             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
+                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
                                 <Info size={18} className="text-blue-600 mt-0.5" />
                                 <p className="text-xs text-blue-700 leading-relaxed">
                                     Status akan berubah menjadi <strong>Sedang Dikerjakan</strong>. Pelapor akan mendapatkan notifikasi bahwa Anda telah memulai perbaikan.
                                 </p>
-                             </div>
+                            </div>
                         )}
 
                         <div>
