@@ -173,7 +173,7 @@ exports.createReport = async (req, res) => {
                 // 1. In-App Notification (Only Staff Manajemen Aset for incoming requests)
                 const notifRecipients = await prisma.user.findMany({
                     where: {
-                        position: 'Staff Manajemen Aset'
+                        position: { contains: 'Manajemen Aset' }
                     }
                 });
  
@@ -215,7 +215,7 @@ exports.createReport = async (req, res) => {
                 // 2. WhatsApp Notification (Only Staff Manajemen Aset for incoming requests)
                 const waRecipients = await prisma.user.findMany({
                     where: {
-                        position: 'Staff Manajemen Aset',
+                        position: { contains: 'Manajemen Aset' },
                         phone: { not: null, not: '' }
                     }
                 });

@@ -365,7 +365,7 @@ const MaintenanceDetail = () => {
                                         >
                                             <option value="">-- Pilih Pegawai --</option>
                                             {users
-                                                .filter(u => ['Staff Pembangunan', 'Staff Manajemen Aset'].includes(u.position))
+                                                .filter(u => u.position?.includes('Pembangunan') || u.position?.includes('Manajemen Aset'))
                                                 .map(u => (
                                                     <option key={u.id} value={u.name || u.username}>{u.name || u.username}</option>
                                                 ))
