@@ -194,6 +194,7 @@ const StaffPerformance = () => {
 
     // Form State (Consolidated)
     const [form, setForm] = useState({
+        id: null,
         startTime: '08:00',
         endTime: '17:00',
         title: '',
@@ -435,7 +436,7 @@ const StaffPerformance = () => {
             const timeHeader = isPlan ? `📅 Periode: ${form.startDate} s/d ${form.endDate}` : `🕒 Jam: ${form.startTime}-${form.endTime}`;
             const details = `${timeHeader}\n📋 ${title}:\n${itemsList}\n\n📝 Catatan tambahan: ${form.content || '-'}`;
 
-            await api.post('/personnel/reports', {
+            const payload = {
                 ...form,
                 date: isPlan ? form.startDate : form.date,
                 type: isPlan ? 'WEEKLY' : 'DAILY',
@@ -449,12 +450,18 @@ const StaffPerformance = () => {
                     title: form.title,
                     items: validItems
                 }
-            });
+            };
+
+            if (form.id) {
+                await api.put(`/personnel/reports/${form.id}`, payload);
+            } else {
+                await api.post('/personnel/reports', payload);
+            }
 
             setShowForm(false);
             resetForm();
             fetchReports();
-            alert(`${isPlan ? 'Rencana' : 'Laporan'} berhasil dikirim`);
+            alert(`${isPlan ? 'Rencana' : 'Laporan'} berhasil ${form.id ? 'diperbarui' : 'dikirim'}`);
         } catch (err) {
             alert(err.response?.data?.error || 'Gagal mengirim data');
         } finally {
@@ -464,6 +471,7 @@ const StaffPerformance = () => {
 
     const resetForm = () => {
         setForm({
+            id: null,
             type: 'DAILY',
             category: 'UMUM',
             content: '',
@@ -480,6 +488,30 @@ const StaffPerformance = () => {
             generalItems: [{ activity: '', status: 'PENDING', percentage: 0, note: '' }],
             isPlan: activeTab === 'RENCANA'
         });
+    };
+
+    const handleEditReport = (r) => {
+        const isPlan = r.metadata?.isPlan;
+        setForm({
+            id: r.id,
+            type: r.type || (isPlan ? 'WEEKLY' : 'DAILY'),
+            category: r.category || 'UMUM',
+            content: r.content || '',
+            date: new Date(r.date || new Date()).toISOString().split('T')[0],
+            startDate: r.metadata?.startDate || new Date().toISOString().split('T')[0],
+            endDate: r.metadata?.endDate || new Date().toISOString().split('T')[0],
+            startTime: r.metadata?.startTime || '08:00',
+            endTime: r.metadata?.endTime || '17:00',
+            title: r.metadata?.title || 'RENCANA KERJA',
+            assigneeId: '',
+            priority: 'MEDIUM',
+            location: '',
+            generalItems: r.metadata?.items || [{ activity: '', status: isPlan ? 'PENDING' : 'SELESAI', percentage: isPlan ? 0 : 100, note: '' }],
+            isPlan: isPlan
+        });
+        setShowForm(true);
+        if (isPlan && activeTab !== 'RENCANA') changeTab('RENCANA');
+        else if (!isPlan && activeTab !== 'LAPORAN') changeTab('LAPORAN');
     };
 
     const handleUpdateAssignment = async (id, data) => {
@@ -905,7 +937,9 @@ const StaffPerformance = () => {
                                     ) : (
                                         <ReportTab 
                                             reports={reports} 
-                                            type={activeTab} 
+                                            type={activeTab}
+                                            user={user}
+                                            handleEditReport={handleEditReport}
                                         />
                                     )}
                                 </div>
@@ -1241,7 +1275,7 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
     );
 };
 
-const ReportTab = ({ reports, type }) => {
+const ReportTab = ({ reports, type, user, handleEditReport }) => {
     const [expandedReportIds, setExpandedReportIds] = useState([]);
 
     const toggleExpand = (id) => {
@@ -1316,12 +1350,22 @@ const ReportTab = ({ reports, type }) => {
                             {isExpanded && (
                                 <div className="p-8 pt-0 md:pl-20 border-t border-slate-50/50 bg-slate-50/30 animate-in slide-in-from-top-2 duration-300">
                                     <div className="pt-6 max-w-4xl space-y-6">
-                                        {r.metadata?.title && isPlan && (
-                                            <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-3xl">
-                                                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Judul Rencana</p>
-                                                <h5 className="text-sm font-bold text-slate-700 uppercase">{r.metadata.title}</h5>
-                                            </div>
-                                        )}
+                                        <div className="flex justify-between items-start gap-4">
+                                            {r.metadata?.title && isPlan && (
+                                                <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-3xl flex-1">
+                                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Judul Rencana</p>
+                                                    <h5 className="text-sm font-bold text-slate-700 uppercase">{r.metadata.title}</h5>
+                                                </div>
+                                            )}
+                                            {r.userId === user?.id && isPlan && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleEditReport(r); }}
+                                                    className="px-4 py-2 bg-white text-indigo-600 text-[10px] font-black uppercase tracking-widest rounded-xl border border-indigo-100 shadow-sm hover:bg-indigo-50 transition-colors shrink-0"
+                                                >
+                                                    Edit Rencana
+                                                </button>
+                                            )}
+                                        </div>
 
                                         <div className="space-y-4">
                                             <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2 italic">📝 Rincian Aktivitas</h4>

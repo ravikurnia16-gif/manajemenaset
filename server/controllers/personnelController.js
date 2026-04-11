@@ -13,6 +13,41 @@ const isSarprasUnit = async (unitId) => {
 
 // --- REPORTS ---
 
+exports.updateReport = async (req, res) => {
+    const { id } = req.params;
+    const { type, category, content, date, details, metadata } = req.body;
+    const user = req.user;
+
+    try {
+        const report = await prisma.personnelReport.findUnique({ where: { id: parseInt(id) } });
+
+        if (!report) {
+            return res.status(404).json({ error: 'Data tidak ditemukan' });
+        }
+
+        if (report.userId !== user.id && !['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role)) {
+            return res.status(403).json({ error: 'Akses ditolak. Anda hanya dapat mengedit rencana Anda sendiri.' });
+        }
+
+        const updated = await prisma.personnelReport.update({
+            where: { id: parseInt(id) },
+            data: {
+                type,
+                category: category || report.category,
+                content,
+                metadata: metadata || null,
+                date: date ? new Date(date) : report.date,
+                details
+            }
+        });
+
+        res.json({ message: 'Laporan berhasil diperbarui', data: updated });
+    } catch (error) {
+        console.error("Update Report Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.createReport = async (req, res) => {
     const { type, category, content, date, details, metadata } = req.body;
     const user = req.user;
