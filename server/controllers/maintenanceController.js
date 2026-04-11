@@ -256,8 +256,9 @@ exports.createReport = async (req, res) => {
                         `📜 *Kode* : ${code}\n` +
                         `📋 *Judul* : ${title}\n` +
                         `📝 *Masalah* : ${description}\n\n` +
-                        `📦 *Aset Terkait* :\n${assetListStr}\n\n` +
-                        `${isDirect ? `*Status*: Otomatis Ditugaskan ke Staff Aset.` : `Mohon segera ditindaklanjuti.`}`;
+                        (targetDept !== 'PEMBANGUNAN' ? `📦 *Aset Terkait* :\n${assetListStr}\n\n` : '') +
+                        `${isDirect ? `*Status*: Otomatis Ditugaskan ke Staff Aset.` : `Mohon segera ditindaklanjuti.`}\n\n` +
+                        `Syukron jazakumullahu khairan.`;
 
                     // Send to all found recipients with delay
                     setTimeout(async () => {
