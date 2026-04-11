@@ -253,6 +253,37 @@ const getPublicBusBookings = async (req, res) => {
     }
 };
 
+const getPublicBusInvoice = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const booking = await prisma.busBooking.findUnique({
+            where: { id: parseInt(id) },
+            include: { vehicle: true }
+        });
+
+        if (!booking) return res.status(404).json({ error: 'Invoice tidak ditemukan' });
+
+        // Remove sensitive info
+        const sanitized = {
+            id: booking.id,
+            requesterName: booking.requesterName,
+            unit: booking.unit,
+            destination: booking.destination,
+            passengerCount: booking.passengerCount,
+            startDate: booking.startDate,
+            endDate: booking.endDate,
+            totalKm: booking.totalKm,
+            totalBill: booking.totalBill,
+            isPaid: booking.isPaid,
+            paidAt: booking.paidAt,
+            vehicle: { name: booking.vehicle?.name, plateNumber: booking.vehicle?.plateNumber }
+        };
+        res.json(sanitized);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 // 3. Delete/Cancel (Internal)
 const deleteBusBooking = async (req, res) => {
     try {
@@ -560,8 +591,31 @@ const markBusAsPaid = async (req, res) => {
             data: {
                 isPaid: true,
                 paidAt: new Date()
-            }
+            },
+            include: { vehicle: true }
         });
+
+        // Send WhatsApp Invoice Receipt
+        if (updated.requesterPhone) {
+            const domainUrl = process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id';
+            const invoiceLink = `${domainUrl}/public/invoice-bus/${updated.id}`;
+            
+            const msg = `🧾 *KUITANSI PELUNASAN BUS YDI* 🚌\n\n` +
+                `Alhamdulillah Ustadz/Ustadzah *${(updated.requesterName || '').toUpperCase()}*,\n` +
+                `Pembayaran sewa operasional bus telah kami terima.\n\n` +
+                `📍 *Tujuan*: ${updated.destination}\n` +
+                `💰 *Total (Lunas)*: Rp ${updated.totalBill?.toLocaleString('id-ID')}\n` +
+                `📅 *Tgl Lunas*: ${new Date(updated.paidAt).toLocaleDateString('id-ID')}\n\n` +
+                `🔗 *Unduh INVOICE DIGITAL (PDF):*\n${invoiceLink}\n\n` +
+                `Jazakumullahu khairan atas kerjasamanya.\n` +
+                `_Bagian Keuangan & Sarpras Yayasan Dar el-Iman_`;
+
+            try {
+                await whatsappService.sendMessage(updated.requesterPhone, msg);
+            } catch (e) {
+                console.error('[Bus Finance] Invoice WA Failed:', e.message);
+            }
+        }
         res.json(updated);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -571,6 +625,7 @@ const markBusAsPaid = async (req, res) => {
 module.exports = {
     getAllBusBookings,
     getPublicBusBookings,
+    getPublicBusInvoice,
     createBusBooking,
     deleteBusBooking,
     cancelByToken,

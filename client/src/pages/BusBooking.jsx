@@ -688,8 +688,17 @@ const BusBooking = () => {
                                                     {paying ? 'Memproses...' : 'TANDAI TELAH BAYAR (LUNAS)'}
                                                 </button>
                                             ) : (
-                                                <div className="flex items-center gap-2 text-emerald-400 py-1 font-bold text-xs">
-                                                    <CheckCircle2 size={16} /> Pembayaran telah diterima pada {new Date(selectedBooking.paidAt).toLocaleDateString('id-ID')}
+                                                <div className="flex flex-col gap-3">
+                                                    <div className="flex items-center gap-2 text-emerald-400 py-1 font-bold text-xs">
+                                                        <CheckCircle2 size={16} /> Pembayaran telah diterima pada {new Date(selectedBooking.paidAt).toLocaleDateString('id-ID')}
+                                                    </div>
+                                                    <a 
+                                                        href={`/public/invoice-bus/${selectedBooking.id}`}
+                                                        target="_blank" rel="noopener noreferrer"
+                                                        className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-xl text-xs font-black transition-all flex justify-center items-center gap-2"
+                                                    >
+                                                        LIHAT / CETAK INVOICE LUNAS
+                                                    </a>
                                                 </div>
                                             )}
                                         </div>
