@@ -22,6 +22,7 @@ const BusBooking = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [selectedInvoices, setSelectedInvoices] = useState([]);
+    const [filterUnit, setFilterUnit] = useState('');
 
     // Calendar States
     const today = new Date();
@@ -216,15 +217,22 @@ const BusBooking = () => {
         }
     };
 
-    // Pagination Logic
-    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(bookings.length / itemsPerPage);
+    // Filtering & Pagination Logic
+    const uniqueUnits = [...new Set(bookings.map(b => b.unit || 'Umum'))].sort();
+    
+    const filteredBookings = bookings.filter(b => {
+        if (!filterUnit) return true;
+        return (b.unit || 'Umum') === filterUnit;
+    });
+
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(filteredBookings.length / itemsPerPage);
     const paginatedBookings = itemsPerPage === 'all'
-        ? bookings
-        : bookings.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+        ? filteredBookings
+        : filteredBookings.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     useEffect(() => {
-        setCurrentPage(1); // Reset to first page when items per page changes
-    }, [itemsPerPage]);
+        setCurrentPage(1); // Reset to first page when items per page or filter changes
+    }, [itemsPerPage, filterUnit]);
 
     // Calendar logic
     const calendarDays = (() => {
@@ -297,9 +305,25 @@ const BusBooking = () => {
             </div>
 
             <div className="w-full space-y-4">
-                <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest px-1">
-                    {viewMode === 'list' ? 'Jadwal Mendatang' : 'Kalender Jadwal'}
-                </h2>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
+                    <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                        {viewMode === 'list' ? 'Jadwal Mendatang' : 'Kalender Jadwal'}
+                    </h2>
+                    {viewMode === 'list' && (
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                            <select 
+                                className="w-full sm:w-auto bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 shadow-sm"
+                                value={filterUnit}
+                                onChange={(e) => setFilterUnit(e.target.value)}
+                            >
+                                <option value="">Semua Unit</option>
+                                {uniqueUnits.map(u => (
+                                    <option key={u} value={u}>{u}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                </div>
 
                 {viewMode === 'list' ? (
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
