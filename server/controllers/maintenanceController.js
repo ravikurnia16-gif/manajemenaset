@@ -402,21 +402,23 @@ exports.updateStatus = async (req, res) => {
                             where: { OR: [{ name: technician }, { username: technician }] }
                         });
 
-                        if (techUser && techUser.phone) {
+                        const actualTechPhone = techUser?.phone || technicianPhone;
+
+                        if (actualTechPhone) {
+                            const isExternal = !techUser;
                             const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
                             const maintenanceUrl = `${baseUrl}/pemeliharaan/${report.id}`;
                             const msgTech = `🛠 *PENUGASAN PEMELIHARAAN*\n\n` +
-                                `Halo *${techUser.name || techUser.username}*,\n` +
+                                `Halo *${techUser?.name || techUser?.username || technician}*,\n` +
                                 `Anda ditugaskan untuk memperbaiki: *${report.title}*.\n\n` +
                                 `📜 *Kode* : ${report.code}\n` +
                                 `📋 *Judul* : ${report.title}\n` +
                                 `📝 *Masalah* : ${report.description}\n\n` +
-                                `🚀 *MULAI PENGERJAAN*:\n` +
-                                `${maintenanceUrl}\n\n` +
+                                (isExternal ? `` : `🚀 *MULAI PENGERJAAN*:\n${maintenanceUrl}\n\n`) +
                                 `Syukron jazakumullahu khairan.`;
 
                             setTimeout(async () => {
-                                await whatsappService.sendMessage(techUser.phone, msgTech);
+                                await whatsappService.sendMessage(actualTechPhone, msgTech);
                             }, 45000); // Send slightly after submitter notif
                         }
                     } catch (e) {
