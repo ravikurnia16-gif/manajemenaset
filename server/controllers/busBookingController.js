@@ -284,6 +284,41 @@ const getPublicBusInvoice = async (req, res) => {
     }
 };
 
+const getPublicBusInvoiceBatch = async (req, res) => {
+    try {
+        const { ids } = req.query; // ?ids=1,2,3
+        if (!ids) return res.status(400).json({ error: 'IDs are required' });
+
+        const idArray = ids.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
+        
+        const bookings = await prisma.busBooking.findMany({
+            where: { id: { in: idArray }, isPaid: true },
+            include: { vehicle: true },
+            orderBy: { id: 'asc' }
+        });
+
+        // Remove sensitive info
+        const sanitized = bookings.map(booking => ({
+            id: booking.id,
+            requesterName: booking.requesterName,
+            unit: booking.unit,
+            destination: booking.destination,
+            passengerCount: booking.passengerCount,
+            startDate: booking.startDate,
+            endDate: booking.endDate,
+            totalKm: booking.totalKm,
+            totalBill: booking.totalBill,
+            isPaid: booking.isPaid,
+            paidAt: booking.paidAt,
+            vehicle: { name: booking.vehicle?.name, plateNumber: booking.vehicle?.plateNumber }
+        }));
+        
+        res.json(sanitized);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 // 3. Delete/Cancel (Internal)
 const deleteBusBooking = async (req, res) => {
     try {
@@ -626,6 +661,7 @@ module.exports = {
     getAllBusBookings,
     getPublicBusBookings,
     getPublicBusInvoice,
+    getPublicBusInvoiceBatch,
     createBusBooking,
     deleteBusBooking,
     cancelByToken,

@@ -4,6 +4,7 @@ const {
     getAllBusBookings,
     getPublicBusBookings,
     getPublicBusInvoice,
+    getPublicBusInvoiceBatch,
     createBusBooking,
     deleteBusBooking,
     cancelByToken,
@@ -15,6 +16,7 @@ const { verifyToken } = require('../middleware/authMiddleware');
 
 // Public Routes
 router.get('/public', getPublicBusBookings);
+router.get('/public/invoice/batch', getPublicBusInvoiceBatch);
 router.get('/public/invoice/:id', getPublicBusInvoice);
 router.post('/public', createBusBooking);
 router.post('/cancel-by-token', cancelByToken);

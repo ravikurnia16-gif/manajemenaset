@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
     Bus, Calendar, MapPin, Clock, Users, Plus, X, ArrowRight, Trash2, LayoutList, Phone, CheckCircle2,
-    ChevronLeft, ChevronRight
+    ChevronLeft, ChevronRight, Printer
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -21,6 +21,7 @@ const BusBooking = () => {
     const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [selectedInvoices, setSelectedInvoices] = useState([]);
 
     // Calendar States
     const today = new Date();
@@ -319,6 +320,23 @@ const BusBooking = () => {
                                             className="p-4 hover:bg-slate-50/50 transition-colors flex flex-col md:flex-row md:items-center justify-between group cursor-pointer gap-4"
                                         >
                                             <div className="flex gap-4 items-start" >
+                                                {b.isPaid && (
+                                                    <div 
+                                                        className="mt-2"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation(); // Mencegah click nyebar ke parent card
+                                                            if (selectedInvoices.includes(b.id)) {
+                                                                setSelectedInvoices(selectedInvoices.filter(id => id !== b.id));
+                                                            } else {
+                                                                setSelectedInvoices([...selectedInvoices, b.id]);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <div className={`w-5 h-5 rounded border ${selectedInvoices.includes(b.id) ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white hover:border-blue-400'} flex items-center justify-center transition-colors cursor-pointer`}>
+                                                            {selectedInvoices.includes(b.id) && <CheckCircle2 size={14} strokeWidth={3} />}
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 <div className="bg-blue-50 text-blue-600 p-3 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all flex-shrink-0" >
                                                     <Bus size={20} />
                                                 </div>
@@ -738,6 +756,35 @@ const BusBooking = () => {
                     </div>
                 ))}
             </div>
+            {/* Floating Action Button for Batch Print */}
+            {selectedInvoices.length > 0 && (
+                <div className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-50 animate-in slide-in-from-bottom-5">
+                    <div className="bg-slate-900 border border-slate-700 p-4 rounded-2xl shadow-2xl flex items-center gap-4">
+                        <div>
+                            <div className="text-white font-bold text-sm">{selectedInvoices.length} Invoice Terpilih</div>
+                            <div className="text-slate-400 text-xs">Pilih kelipatan 4 untuk presisi cetak.</div>
+                        </div>
+                        <a 
+                            href={`/public/invoice-bus/batch?ids=${selectedInvoices.join(',')}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all text-sm"
+                            onClick={() => {
+                                // Tunggu sebentar lalu reset agar centang hilang setelah popup tercetak
+                                setTimeout(() => setSelectedInvoices([]), 1000);
+                            }}
+                        >
+                            <Printer size={16} /> Buka Batch Print
+                        </a>
+                        <button 
+                            onClick={() => setSelectedInvoices([])}
+                            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                            title="Batal"
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
