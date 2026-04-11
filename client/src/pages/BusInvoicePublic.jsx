@@ -27,6 +27,15 @@ const BusInvoicePublic = () => {
 
     return (
         <div className="min-h-screen bg-slate-100 p-4 font-sans print:bg-white print:p-0 flex flex-col">
+            <style type="text/css" media="print">
+                {`
+                    @page { size: A5 landscape; margin: 10mm; }
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    .print\\:shadow-none { box-shadow: none !important; }
+                    .print\\:rounded-none { border-radius: 0 !important; }
+                    .print\\:border-none { border: none !important; }
+                `}
+            </style>
             <div className="max-w-3xl w-full mx-auto flex-1">
                 {/* ActionBar - Hidden on Print */}
                 <div className="flex justify-end mb-4 print:hidden">
