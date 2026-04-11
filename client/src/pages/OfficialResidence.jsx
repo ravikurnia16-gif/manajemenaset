@@ -118,15 +118,51 @@ async function downloadMOUPdf(mou) {
     doc.setDrawColor(180); doc.line(lm, y, rm, y);
   };
 
+  // Load logo as base64
+  let logoBase64 = null;
+  try {
+    const logoRes = await fetch("/Sarpras.jpeg");
+    const blob = await logoRes.blob();
+    logoBase64 = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.warn("Logo not found, proceeding without logo");
+  }
+
   // Header strip
   doc.setFillColor(20, 90, 50);
-  doc.rect(0, 0, W, 28, "F");
+  doc.rect(0, 0, W, 32, "F");
+
+  // Logo on the left
+  const logoSize = 20;
+  const logoX = margin;
+  const logoY = 6;
+  if (logoBase64) {
+    try {
+      // White circle background for logo
+      doc.setFillColor(255, 255, 255);
+      doc.circle(logoX + logoSize / 2, logoY + logoSize / 2, logoSize / 2 + 1, "F");
+      doc.addImage(logoBase64, "JPEG", logoX, logoY, logoSize, logoSize);
+    } catch (e) {
+      console.warn("Failed to add logo to PDF");
+    }
+  }
+
+  // Text shifted to account for logo
+  const textCenterX = logoBase64 ? (logoX + logoSize + 10 + (W - logoX - logoSize - 10 - margin) / 2) : W / 2;
   doc.setTextColor(255, 255, 255);
-  text("YAYASAN DAR EL IMAN", W / 2, 15, "bold", "center"); y = 15;
-  line();
-  text("SURAT PERJANJIAN PENGGUNAAN RUMAH DINAS", W / 2, 9, "normal", "center");
+  y = 13;
+  text("YAYASAN DAR EL IMAN", textCenterX, 16, "bold", "center");
+  y = 20;
+  text("SURAT PERJANJIAN PENGGUNAAN RUMAH DINAS", textCenterX, 9, "normal", "center");
+  y = 26;
+  doc.setFontSize(7); doc.setFont("helvetica", "italic");
+  doc.text("Kota Padang, Sumatera Barat", textCenterX, y, { align: "center" });
   doc.setTextColor(0, 0, 0);
-  y = 36;
+  y = 40;
 
   // Sub-title
   text("Memorandum of Understanding (MOU)", W / 2, 10, "italic", "center"); line();
