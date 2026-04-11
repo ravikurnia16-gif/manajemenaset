@@ -484,6 +484,8 @@ exports.getAllUsersForSelection = async (req, res) => {
                 id: true,
                 name: true,
                 username: true,
+                nip: true,
+                phone: true,
                 position: true,
                 role: true,
                 unit: { select: { name: true } }

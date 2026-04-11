@@ -139,7 +139,7 @@ async function downloadMOUPdf(mou) {
   hline(); line(2);
 
   // Pembukaan
-  const intro = `Pada hari ini, telah dibuat perjanjian antara Yayasan Dar El Iman, berkedudukan di Kota Padang, selanjutnya disebut PIHAK PERTAMA, dengan ${mou.residentName}, selaku ${mou.residentPosition}, selanjutnya disebut PIHAK KEDUA, mengenai penggunaan Rumah Dinas Unit ${mou.unit?.code || mou.unitId}.`;
+  const intro = `Pada hari ini, telah dibuat perjanjian antara Yayasan Dar El Iman, berkedudukan di Kota Padang, selanjutnya disebut PIHAK PERTAMA, dengan ${mou.residentName}, selanjutnya disebut PIHAK KEDUA, mengenai penggunaan Rumah Dinas Unit ${mou.unit?.code || mou.unitId}.`;
   doc.setFontSize(10); doc.setFont("helvetica", "normal");
   const introLines = doc.splitTextToSize(intro, W - margin * 2);
   doc.text(introLines, margin, y); y += introLines.length * 5 + 4;
@@ -237,6 +237,9 @@ export default function OfficialResidence() {
   const [form, setForm] = useState({});
   const [search, setSearch] = useState("");
   const [pdfLoading, setPdfLoading] = useState(null);
+  const [allUsers, setAllUsers] = useState([]);
+  const [nameSearch, setNameSearch] = useState("");
+  const [showNameDropdown, setShowNameDropdown] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -257,6 +260,10 @@ export default function OfficialResidence() {
         const res = await axios.get("/official-residence/maintenance");
         setMaintenance(res.data);
       }
+      
+      // Always fetch all users for the dropdowns
+      const usersRes = await axios.get("/personnel/all-users");
+      setAllUsers(usersRes.data);
     } catch (error) {
       console.error("Failed to fetch data:", error);
     }
@@ -275,6 +282,8 @@ export default function OfficialResidence() {
   const closeModal = () => { 
     setShowModal(null); 
     setForm({}); 
+    setNameSearch("");
+    setShowNameDropdown(false);
   };
 
   const handleSave = async () => {
@@ -309,6 +318,30 @@ export default function OfficialResidence() {
     catch (e) { alert("Gagal membuat PDF: " + e.message); }
     setPdfLoading(null);
   };
+
+  const onUserSelect = (user) => {
+    if (showModal === "resident") {
+      setForm({
+        ...form,
+        name: user.name,
+        nik: user.nip || "",
+        phone: user.phone || ""
+      });
+    } else if (showModal === "mou") {
+      setForm({
+        ...form,
+        residentName: user.name,
+        residentPosition: user.nip || "" // Use residentPosition to store NIY in DB
+      });
+    }
+    setNameSearch(user.name);
+    setShowNameDropdown(false);
+  };
+
+  const filteredUsers = allUsers.filter(u => 
+    u.name?.toLowerCase().includes(nameSearch.toLowerCase()) || 
+    u.username?.toLowerCase().includes(nameSearch.toLowerCase())
+  );
 
   const ic = "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white";
 
@@ -468,8 +501,7 @@ export default function OfficialResidence() {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>
-                      <th className="px-6 py-4 font-bold">Nama & NIK</th>
-                      <th className="px-6 py-4 font-bold">Jabatan</th>
+                      <th className="px-6 py-4 font-bold">Nama & NIY</th>
                       <th className="px-6 py-4 font-bold">Unit</th>
                       <th className="px-6 py-4 font-bold">Kontak</th>
                       <th className="px-6 py-4 font-bold">Status</th>
@@ -481,9 +513,8 @@ export default function OfficialResidence() {
                       <tr key={r.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="font-bold text-slate-800">{r.name}</div>
-                          <div className="text-xs text-slate-400">{r.nik || "-"}</div>
+                          <div className="text-xs text-slate-400">{r.nik || r.niy || "-"}</div>
                         </td>
-                        <td className="px-6 py-4 text-slate-600">{r.position || "-"}</td>
                         <td className="px-6 py-4 font-medium text-slate-700">{r.unit?.code}</td>
                         <td className="px-6 py-4 text-slate-600">{r.phone || "-"}</td>
                         <td className="px-6 py-4">
@@ -712,18 +743,40 @@ export default function OfficialResidence() {
               {showModal === "resident" && (
                 <>
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    <div className="relative">
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Nama Lengkap</label>
-                      <input value={form.name || ""} onChange={e => setForm({...form, name: e.target.value})} className={ic} />
+                      <input 
+                        value={nameSearch || form.name || ""} 
+                        onChange={e => {
+                          setNameSearch(e.target.value);
+                          setShowNameDropdown(true);
+                          setForm({...form, name: e.target.value});
+                        }} 
+                        onFocus={() => setShowNameDropdown(true)}
+                        placeholder="Ketik cari nama..."
+                        className={ic} 
+                      />
+                      {showNameDropdown && nameSearch && (
+                        <div className="absolute z-[70] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+                          {filteredUsers.length > 0 ? filteredUsers.map(u => (
+                            <button 
+                              key={u.id} 
+                              onClick={() => onUserSelect(u)}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+                            >
+                              <div className="font-bold text-slate-800">{u.name}</div>
+                              <div className="text-[10px] text-slate-400">{u.nip || u.username}</div>
+                            </button>
+                          )) : (
+                            <div className="px-4 py-3 text-xs text-slate-400 italic text-center">Tidak ditemukan</div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">NIK / ID</label>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">NIY</label>
                       <input value={form.nik || ""} onChange={e => setForm({...form, nik: e.target.value})} className={ic} />
                     </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Jabatan</label>
-                    <input value={form.position || ""} onChange={e => setForm({...form, position: e.target.value})} className={ic} />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -770,13 +823,52 @@ export default function OfficialResidence() {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    <div className="relative">
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Nama Penghuni</label>
-                      <input value={form.residentName || ""} onChange={e => setForm({...form, residentName: e.target.value})} className={ic} />
+                      <input 
+                        value={nameSearch || form.residentName || ""} 
+                        onChange={e => {
+                          setNameSearch(e.target.value);
+                          setShowNameDropdown(true);
+                          setForm({...form, residentName: e.target.value});
+                        }} 
+                        onFocus={() => setShowNameDropdown(true)}
+                        placeholder="Ketik cari nama..."
+                        className={ic} 
+                      />
+                      {showNameDropdown && nameSearch && (
+                        <div className="absolute z-[70] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+                          {filteredUsers.length > 0 ? filteredUsers.map(u => (
+                            <button 
+                              key={u.id} 
+                              onClick={() => {
+                                setForm({
+                                  ...form,
+                                  residentName: u.name,
+                                  residentNiy: u.nip || u.username
+                                });
+                                setNameSearch(u.name);
+                                setShowNameDropdown(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+                            >
+                              <div className="font-bold text-slate-800">{u.name}</div>
+                              <div className="text-[10px] text-slate-400">{u.nip || u.username}</div>
+                            </button>
+                          )) : (
+                            <div className="px-4 py-3 text-xs text-slate-400 italic text-center">Tidak ditemukan</div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Jabatan Penghuni</label>
-                      <input value={form.residentPosition || ""} onChange={e => setForm({...form, residentPosition: e.target.value})} className={ic} />
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">NIY</label>
+                      <input 
+                        value={form.residentPosition || ""} 
+                        onChange={e => setForm({...form, residentPosition: e.target.value})} 
+                        className={ic} 
+                        placeholder="Otomatis atau isi manual..."
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
