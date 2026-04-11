@@ -10,7 +10,8 @@ const {
     cancelByToken,
     assignDriver,
     completeBusBooking,
-    markBusAsPaid
+    markBusAsPaid,
+    getBusExpenseSummary
 } = require('../controllers/busBookingController');
 const { verifyToken } = require('../middleware/authMiddleware');
 
@@ -23,6 +24,7 @@ router.post('/cancel-by-token', cancelByToken);
 
 // Protected Routes
 router.get('/', verifyToken, getAllBusBookings);
+router.get('/expense-summary', verifyToken, getBusExpenseSummary);
 router.post('/', verifyToken, createBusBooking);
 router.delete('/:id', verifyToken, deleteBusBooking);
 router.put('/:id/assign-driver', verifyToken, assignDriver);

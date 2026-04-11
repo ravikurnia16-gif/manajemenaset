@@ -830,6 +830,16 @@ const BusBooking = () => {
 
 // --- Sub-Component: Revenue Dashboard ---
 const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
+    const [expenses, setExpenses] = useState({ totalFuel: 0, totalMaintenance: 0, totalExpenses: 0, fuelLogs: [], bookingFuel: [], maintenanceRecords: [] });
+    const [loadingExpenses, setLoadingExpenses] = useState(true);
+
+    useEffect(() => {
+        api.get('/bus-bookings/expense-summary')
+            .then(res => setExpenses(res.data))
+            .catch(err => console.error('Failed to load expenses:', err))
+            .finally(() => setLoadingExpenses(false));
+    }, []);
+
     // Hanya hitung yang sudah lunas
     const paidBookings = bookings.filter(b => b.isPaid);
 
@@ -847,10 +857,27 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === monthFilter;
         });
 
+    // Filter expenses by month too
+    const filterByMonth = (items) => {
+        if (monthFilter === 'all') return items;
+        return items.filter(item => {
+            const d = new Date(item.date);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === monthFilter;
+        });
+    };
+
+    const filteredFuel = filterByMonth([...(expenses.fuelLogs || []), ...(expenses.bookingFuel || [])]);
+    const filteredMaint = filterByMonth(expenses.maintenanceRecords || []);
+
+    const totalFuelFiltered = filteredFuel.reduce((s, f) => s + (f.cost || 0), 0);
+    const totalMaintFiltered = filteredMaint.reduce((s, m) => s + (m.cost || 0), 0);
+    const totalExpensesFiltered = totalFuelFiltered + totalMaintFiltered;
+
     // Aggregates
     const totalRev = filtered.reduce((sum, b) => sum + (b.totalBill || 0), 0);
     const totalKm = filtered.reduce((sum, b) => sum + (Number(b.totalKm) || 0), 0);
     const totalTrips = filtered.length;
+    const netProfit = totalRev - totalExpensesFiltered;
 
     // Group By Unit
     const byUnit = filtered.reduce((acc, b) => {
@@ -878,10 +905,10 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
     return (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header / Filter */}
-            <div className="flex justify-between items-end mb-6 pb-4 border-b border-slate-100">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 pb-4 border-b border-slate-100 gap-3">
                 <div>
-                    <h3 className="text-lg font-black text-slate-800">Ringkasan Omset Bus</h3>
-                    <p className="text-slate-500 text-xs">Total pendapatan bersih dari peminjaman LUNAS.</p>
+                    <h3 className="text-lg font-black text-slate-800">Laporan Keuangan Bus</h3>
+                    <p className="text-slate-500 text-xs">Pendapatan, Pengeluaran, dan Laba Bersih operasional Bus.</p>
                 </div>
                 <select
                     className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl px-4 py-2 focus:ring-2 focus:ring-emerald-500"
@@ -895,20 +922,45 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
                 </select>
             </div>
 
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            {/* KPI Cards - Revenue */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white shadow-lg shadow-emerald-200 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-4 opacity-20"><BarChart3 size={64} /></div>
-                    <div className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1 relative z-10">Total Omset</div>
+                    <div className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1 relative z-10">Total Pemasukan</div>
                     <div className="text-3xl font-black relative z-10">Rp {totalRev.toLocaleString('id-ID')}</div>
+                    <div className="text-emerald-200/80 text-[10px] mt-1 relative z-10">{totalTrips} Trip | {totalKm.toLocaleString('id-ID')} KM</div>
                 </div>
-                <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-                    <div className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Total Jarak Terbayar</div>
-                    <div className="text-2xl font-black text-slate-800">{totalKm.toLocaleString('id-ID')} <span className="text-lg text-slate-400 font-medium tracking-normal">KM</span></div>
+                <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg shadow-red-200 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-20"><ArrowRight size={64} /></div>
+                    <div className="text-red-100 text-xs font-bold uppercase tracking-widest mb-1 relative z-10">Total Pengeluaran</div>
+                    <div className="text-2xl font-black relative z-10">Rp {loadingExpenses ? '...' : totalExpensesFiltered.toLocaleString('id-ID')}</div>
+                    <div className="text-red-200/80 text-[10px] mt-1 relative z-10">BBM: Rp {totalFuelFiltered.toLocaleString('id-ID')} | Perawatan: Rp {totalMaintFiltered.toLocaleString('id-ID')}</div>
                 </div>
-                <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-                    <div className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Jumlah Perjalanan Lunas</div>
-                    <div className="text-2xl font-black text-slate-800">{totalTrips} <span className="text-lg text-slate-400 font-medium tracking-normal">Trip</span></div>
+                <div className={`rounded-2xl p-5 text-white shadow-lg relative overflow-hidden ${netProfit >= 0 ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-200' : 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-200'}`}>
+                    <div className="absolute top-0 right-0 p-4 opacity-20"><BarChart3 size={64} /></div>
+                    <div className="text-white/70 text-xs font-bold uppercase tracking-widest mb-1 relative z-10">Laba Bersih</div>
+                    <div className="text-3xl font-black relative z-10">{netProfit >= 0 ? '' : '-'}Rp {Math.abs(netProfit).toLocaleString('id-ID')}</div>
+                    <div className="text-white/60 text-[10px] mt-1 relative z-10">{netProfit >= 0 ? '📈 Surplus / Untung' : '📉 Defisit / Rugi'}</div>
+                </div>
+            </div>
+
+            {/* Expense Breakdown */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 flex items-start gap-4">
+                    <div className="bg-orange-500 text-white p-2.5 rounded-xl shrink-0 shadow-sm">⛽</div>
+                    <div>
+                        <div className="text-orange-800 font-black text-sm">Biaya BBM (Bahan Bakar)</div>
+                        <div className="text-orange-600 font-black text-xl mt-1">Rp {loadingExpenses ? '...' : totalFuelFiltered.toLocaleString('id-ID')}</div>
+                        <div className="text-orange-500/70 text-[10px] mt-1">{filteredFuel.length} transaksi tercatat</div>
+                    </div>
+                </div>
+                <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4 flex items-start gap-4">
+                    <div className="bg-violet-500 text-white p-2.5 rounded-xl shrink-0 shadow-sm">🔧</div>
+                    <div>
+                        <div className="text-violet-800 font-black text-sm">Biaya Perawatan & Perbaikan</div>
+                        <div className="text-violet-600 font-black text-xl mt-1">Rp {loadingExpenses ? '...' : totalMaintFiltered.toLocaleString('id-ID')}</div>
+                        <div className="text-violet-500/70 text-[10px] mt-1">{filteredMaint.length} pekerjaan tercatat</div>
+                    </div>
                 </div>
             </div>
 
