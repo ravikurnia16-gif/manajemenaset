@@ -170,19 +170,10 @@ exports.createReport = async (req, res) => {
                 const submitterInfo = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true, username: true } });
                 const submitterName = submitterInfo?.name || submitterInfo?.username || 'Seseorang';
 
-                // 1. In-App Notification (Sent to Leads for Visibility)
+                // 1. In-App Notification (Only Staff Manajemen Aset for incoming requests)
                 const notifRecipients = await prisma.user.findMany({
                     where: {
-                        OR: targetDept === 'PEMBANGUNAN' 
-                        ? [
-                            { position: 'Kepala Bidang Pembangunan' },
-                            { position: 'Staff Pembangunan' },
-                            { name: 'Muhammad Nur Siddiq Ardhi' }
-                        ]
-                        : [
-                            { position: 'Kepala Bidang Sarana dan Prasarana' },
-                            { position: 'Staff Manajemen Aset' }
-                        ]
+                        position: 'Staff Manajemen Aset'
                     }
                 });
  
@@ -221,18 +212,10 @@ exports.createReport = async (req, res) => {
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
 
-                // 2. WhatsApp Notification (Restricted Recipients)
+                // 2. WhatsApp Notification (Only Staff Manajemen Aset for incoming requests)
                 const waRecipients = await prisma.user.findMany({
                     where: {
-                        OR: targetDept === 'PEMBANGUNAN' 
-                        ? [
-                            { name: 'Muhammad Nur Siddiq Ardhi' },
-                            { position: 'Staff Manajemen Aset' } // Staff Sarpras handles entry for all
-                        ]
-                        : [
-                            // Kabid Sarpras NO WA (Bell Only), so only Staff Manajemen Aset gets WA
-                            { position: 'Staff Manajemen Aset' }
-                        ],
+                        position: 'Staff Manajemen Aset',
                         phone: { not: null, not: '' }
                     }
                 });
@@ -382,6 +365,26 @@ exports.updateStatus = async (req, res) => {
             notifType,
             `/pemeliharaan/${id}`
         );
+
+        // Bell notification to assigned technician
+        if (status === 'ASSIGNED' && technician) {
+            try {
+                const techUser = await prisma.user.findFirst({
+                    where: { OR: [{ name: technician }, { username: technician }] }
+                });
+                if (techUser) {
+                    await createNotification(
+                        techUser.id,
+                        'Penugasan Baru',
+                        `Anda ditugaskan untuk menangani: "${report.title}" (${report.code}).`,
+                        'URGENT',
+                        `/pemeliharaan/${id}`
+                    );
+                }
+            } catch (e) {
+                console.error('Bell notif to technician error:', e);
+            }
+        }
 
         res.json(report);
 
