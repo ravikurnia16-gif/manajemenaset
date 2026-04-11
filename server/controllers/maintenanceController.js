@@ -395,9 +395,10 @@ exports.updateStatus = async (req, res) => {
                 if (statusDidUnchange && !rejectionReason) return; 
 
                 // --- WhatsApp Notification to Technician (Async) ---
+                let techUser = null;
                 if (status === 'ASSIGNED' && technician) {
                     try {
-                        const techUser = await prisma.user.findFirst({
+                        techUser = await prisma.user.findFirst({
                             where: { OR: [{ name: technician }, { username: technician }] }
                         });
                         
@@ -408,7 +409,7 @@ exports.updateStatus = async (req, res) => {
                                 `📜 *Kode* : ${report.code}\n` +
                                 `📋 *Judul* : ${report.title}\n` +
                                 `📝 *Masalah* : ${report.description}\n\n` +
-                                `Terima kasih!`;
+                                `Syukron jazakumullahu khairan.`;
                                 
                             setTimeout(async () => {
                                 await whatsappService.sendMessage(techUser.phone, msgTech);
@@ -435,6 +436,11 @@ exports.updateStatus = async (req, res) => {
                     `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n\n` +
                     `Laporan Anda *\"${report.title}\"* (${report.code})\n` +
                     `Status terbaru: *${statusLabel}*\n`;
+
+                if (status === 'ASSIGNED' && techUser?.phone) {
+                    const techPhone = techUser.phone.replace(/^0/, '62');
+                    msg += `\n📞 *Kontak Petugas* : wa.me/${techPhone}\n`;
+                }
 
                 if (status === 'REJECTED' && rejectionReason) {
                     msg += `\n*Alasan:* ${rejectionReason}\n`;
