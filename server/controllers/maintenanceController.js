@@ -226,7 +226,8 @@ exports.createReport = async (req, res) => {
                     where: {
                         OR: targetDept === 'PEMBANGUNAN' 
                         ? [
-                            { name: 'Muhammad Nur Siddiq Ardhi' }
+                            { name: 'Muhammad Nur Siddiq Ardhi' },
+                            { position: 'Staff Manajemen Aset' } // Staff Sarpras handles entry for all
                         ]
                         : [
                             // Kabid Sarpras NO WA (Bell Only), so only Staff Manajemen Aset gets WA

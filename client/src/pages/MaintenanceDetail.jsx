@@ -361,9 +361,12 @@ const MaintenanceDetail = () => {
                                             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                         >
                                             <option value="">-- Pilih Pegawai --</option>
-                                            {users.map(u => (
-                                                <option key={u.id} value={u.name || u.username}>{u.name || u.username}</option>
-                                            ))}
+                                            {users
+                                                .filter(u => ['Staff Pembangunan', 'Staff Manajemen Aset'].includes(u.position))
+                                                .map(u => (
+                                                    <option key={u.id} value={u.name || u.username}>{u.name || u.username}</option>
+                                                ))
+                                            }
                                         </select>
                                     ) : (
                                         <input
