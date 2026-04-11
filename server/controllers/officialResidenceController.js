@@ -115,6 +115,32 @@ exports.deleteUnit = async (req, res) => {
     }
 };
 
+// --- HELPER: Sync Unit Status Based on Active Residents ---
+const syncUnitStatus = async (unitId) => {
+    if (!unitId) return;
+    const id = parseInt(unitId);
+    const activeCount = await prisma.officialResidenceResident.count({
+        where: { unitId: id, status: 'AKTIF' }
+    });
+    const unit = await prisma.officialResidenceUnit.findUnique({ where: { id } });
+    if (!unit) return;
+
+    let newStatus;
+    if (activeCount > 0) {
+        newStatus = 'DITEMPATI';
+    } else {
+        // Only change to KOSONG if currently DITEMPATI; leave MAINTENANCE alone
+        newStatus = unit.status === 'DITEMPATI' ? 'KOSONG' : unit.status;
+    }
+
+    if (newStatus !== unit.status) {
+        await prisma.officialResidenceUnit.update({
+            where: { id },
+            data: { status: newStatus }
+        });
+    }
+};
+
 // --- RESIDENTS ---
 exports.getAllResidents = async (req, res) => {
     try {
@@ -142,14 +168,9 @@ exports.createResident = async (req, res) => {
                 status: status || 'AKTIF'
             }
         });
-        
-        // Update unit status if needed
-        if (status === 'AKTIF') {
-            await prisma.officialResidenceUnit.update({
-                where: { id: parseInt(unitId) },
-                data: { status: 'DITEMPATI' }
-            });
-        }
+
+        // Auto-sync unit status based on active residents
+        await syncUnitStatus(unitId);
 
         res.json(resident);
     } catch (error) {
@@ -160,6 +181,13 @@ exports.createResident = async (req, res) => {
 exports.updateResident = async (req, res) => {
     try {
         const { nik, name, position, unitId, startDate, phone, status } = req.body;
+
+        // Get old unit before update (in case unit changed)
+        const oldResident = await prisma.officialResidenceResident.findUnique({
+            where: { id: parseInt(req.params.id) }
+        });
+        const oldUnitId = oldResident?.unitId;
+
         const resident = await prisma.officialResidenceResident.update({
             where: { id: parseInt(req.params.id) },
             data: {
@@ -172,6 +200,13 @@ exports.updateResident = async (req, res) => {
                 status: status || 'AKTIF'
             }
         });
+
+        // Sync status for both old and new units
+        await syncUnitStatus(unitId);
+        if (oldUnitId && oldUnitId !== parseInt(unitId)) {
+            await syncUnitStatus(oldUnitId);
+        }
+
         res.json(resident);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -180,9 +215,19 @@ exports.updateResident = async (req, res) => {
 
 exports.deleteResident = async (req, res) => {
     try {
+        // Get unit before deleting
+        const resident = await prisma.officialResidenceResident.findUnique({
+            where: { id: parseInt(req.params.id) }
+        });
+        const unitId = resident?.unitId;
+
         await prisma.officialResidenceResident.delete({
             where: { id: parseInt(req.params.id) }
         });
+
+        // Sync unit status after deletion
+        await syncUnitStatus(unitId);
+
         res.json({ message: 'Penghuni berhasil dihapus' });
     } catch (error) {
         res.status(500).json({ error: error.message });
