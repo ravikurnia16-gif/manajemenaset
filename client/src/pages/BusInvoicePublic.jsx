@@ -29,7 +29,7 @@ const BusInvoicePublic = () => {
         <div className="min-h-screen bg-slate-100 p-4 font-sans print:bg-white print:p-0 print:min-h-0 print:block">
             <style type="text/css" media="print">
                 {`
-                    @page { size: A5 landscape; margin: 5mm; }
+                    @page { size: A4 portrait; margin: 10mm; }
                     body { 
                         -webkit-print-color-adjust: exact; 
                         print-color-adjust: exact;
@@ -38,7 +38,7 @@ const BusInvoicePublic = () => {
                     }
                     @media print {
                         .invoice-container {
-                            zoom: 0.75; /* Skala dikecilkan agar muat */
+                            zoom: 0.95; /* Skala proporsional untuk A4 */
                             page-break-inside: avoid;
                             page-break-after: avoid;
                         }
