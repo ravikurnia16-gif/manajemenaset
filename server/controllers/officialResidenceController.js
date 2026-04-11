@@ -1,6 +1,49 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// --- HELPER: Generate MOU Number ---
+const generateMOUNumber = async () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-11
+    
+    const monthToRoman = (m) => {
+        const roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+        return roman[m];
+    };
+
+    const prefix = `MOU/`;
+    const suffix = `/SARPRAS/${monthToRoman(month)}/${year}`;
+
+    // Find all MOUs for the current year
+    const lastRecord = await prisma.officialResidenceMOU.findFirst({
+        where: {
+            mouNumber: {
+                startsWith: prefix,
+                endsWith: `/${year}`
+            }
+        },
+        orderBy: {
+            mouNumber: 'desc'
+        }
+    });
+
+    let nextSequence = 1;
+    if (lastRecord) {
+        // Example: MOU/001/SARPRAS/IV/2026 -> parts: ["MOU", "001", "SARPRAS", "IV", "2026"]
+        const parts = lastRecord.mouNumber.split('/');
+        if (parts.length >= 3) {
+            const lastSeq = parseInt(parts[1]);
+            if (!isNaN(lastSeq)) {
+                nextSequence = lastSeq + 1;
+            }
+        }
+    }
+
+    const sequence = nextSequence.toString().padStart(3, '0');
+    return `${prefix}${sequence}${suffix}`;
+};
+
 // --- DASHBOARD ---
 exports.getDashboardStats = async (req, res) => {
     try {
@@ -314,12 +357,17 @@ exports.getAllMOUs = async (req, res) => {
 
 exports.createMOU = async (req, res) => {
     try {
-        const { 
+        let { 
             mouNumber, unitId, residentName, residentPosition, 
             startDate, endDate, durationYears, status, 
             rights, obligations, notes, signedDate,
             signatureParty1, signatureParty2
         } = req.body;
+        
+        // Auto-generate MOU Number if not provided
+        if (!mouNumber || mouNumber === "(Otomatis)") {
+            mouNumber = await generateMOUNumber();
+        }
         
         const mou = await prisma.officialResidenceMOU.create({
             data: {

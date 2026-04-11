@@ -812,7 +812,12 @@ export default function OfficialResidence() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Nomor MOU</label>
-                      <input value={form.mouNumber || ""} onChange={e => setForm({...form, mouNumber: e.target.value})} placeholder="MOU/YDEI/001/2026" className={ic} />
+                      <input 
+                        value={form.mouNumber || ""} 
+                        onChange={e => setForm({...form, mouNumber: e.target.value})} 
+                        placeholder="(Otomatis)" 
+                        className={ic} 
+                      />
                     </div>
                     <div>
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Unit Rumah</label>
@@ -845,7 +850,7 @@ export default function OfficialResidence() {
                                 setForm({
                                   ...form,
                                   residentName: u.name,
-                                  residentNiy: u.nip || u.username
+                                  residentPosition: u.nip || u.username
                                 });
                                 setNameSearch(u.name);
                                 setShowNameDropdown(false);
