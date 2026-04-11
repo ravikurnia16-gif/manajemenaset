@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
     Bus, Calendar, MapPin, Clock, Users, Plus, X, ArrowRight, Trash2, LayoutList, Phone, CheckCircle2,
-    ChevronLeft, ChevronRight, Printer
+    ChevronLeft, ChevronRight, Printer, BarChart3
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -23,6 +23,7 @@ const BusBooking = () => {
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [selectedInvoices, setSelectedInvoices] = useState([]);
     const [filterUnit, setFilterUnit] = useState('');
+    const [revMonthFilter, setRevMonthFilter] = useState('all'); // 'all' or 'YYYY-MM'
 
     // Calendar States
     const today = new Date();
@@ -294,6 +295,14 @@ const BusBooking = () => {
                         >
                             <Calendar size={14} /> Kalender
                         </button>
+                        {isAdminAset && (
+                            <button
+                                onClick={() => setViewMode('revenue')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === 'revenue' ? 'bg-emerald-500 text-white shadow-sm' : 'text-emerald-600 hover:bg-emerald-100'}`}
+                            >
+                                <BarChart3 size={14} /> Omset
+                            </button>
+                        )}
                     </div>
                     <button
                         onClick={() => setShowBorrowModal(true)}
@@ -307,7 +316,7 @@ const BusBooking = () => {
             <div className="w-full space-y-4">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
                     <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
-                        {viewMode === 'list' ? 'Jadwal Mendatang' : 'Kalender Jadwal'}
+                        {viewMode === 'list' ? 'Jadwal Mendatang' : viewMode === 'calendar' ? 'Kalender Jadwal' : 'Rekapitulasi Keuangan Bus'}
                     </h2>
                     {viewMode === 'list' && (
                         <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -456,6 +465,12 @@ const BusBooking = () => {
                             </>
                         )}
                     </div>
+                ) : viewMode === 'revenue' && isAdminAset ? (
+                    <BusRevenueDashboard 
+                        bookings={bookings} 
+                        monthFilter={revMonthFilter} 
+                        setMonthFilter={setRevMonthFilter} 
+                    />
                 ) : (
                     <div className="space-y-4">
                         {/* Calendar Header */}
@@ -809,6 +824,134 @@ const BusBooking = () => {
                     </div>
                 </div>
             )}
+        </div>
+    );
+};
+
+// --- Sub-Component: Revenue Dashboard ---
+const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
+    // Hanya hitung yang sudah lunas
+    const paidBookings = bookings.filter(b => b.isPaid);
+
+    // Dapatkan semua opsi bulan yang tersedia dari data (Format: YYYY-MM)
+    const availableMonths = [...new Set(paidBookings.map(b => {
+        const d = new Date(b.paidAt || b.startDate);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }))].sort().reverse(); // Terbaru di atas
+
+    // Filter by month
+    const filtered = monthFilter === 'all' 
+        ? paidBookings 
+        : paidBookings.filter(b => {
+            const d = new Date(b.paidAt || b.startDate);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === monthFilter;
+        });
+
+    // Aggregates
+    const totalRev = filtered.reduce((sum, b) => sum + (b.totalBill || 0), 0);
+    const totalKm = filtered.reduce((sum, b) => sum + (Number(b.totalKm) || 0), 0);
+    const totalTrips = filtered.length;
+
+    // Group By Unit
+    const byUnit = filtered.reduce((acc, b) => {
+        const u = b.unit || 'Umum';
+        acc[u] = (acc[u] || 0) + (b.totalBill || 0);
+        return acc;
+    }, {});
+    const topUnits = Object.entries(byUnit).sort((a,b) => b[1] - a[1]); // Descending
+
+    // Group By Vehicle
+    const byVehicle = filtered.reduce((acc, b) => {
+        const v = b.vehicle?.name || 'Bus Unknown';
+        acc[v] = (acc[v] || 0) + (b.totalBill || 0);
+        return acc;
+    }, {});
+    const topVehicles = Object.entries(byVehicle).sort((a,b) => b[1] - a[1]);
+
+    const formatBulan = (yyyymm) => {
+        if(yyyymm === 'all') return 'Semua Waktu';
+        const [y, m] = yyyymm.split('-');
+        const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        return `${monthNames[parseInt(m)-1]} ${y}`;
+    };
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Header / Filter */}
+            <div className="flex justify-between items-end mb-6 pb-4 border-b border-slate-100">
+                <div>
+                    <h3 className="text-lg font-black text-slate-800">Ringkasan Omset Bus</h3>
+                    <p className="text-slate-500 text-xs">Total pendapatan bersih dari peminjaman LUNAS.</p>
+                </div>
+                <select
+                    className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-bold rounded-xl px-4 py-2 focus:ring-2 focus:ring-emerald-500"
+                    value={monthFilter}
+                    onChange={(e) => setMonthFilter(e.target.value)}
+                >
+                    <option value="all">Total Semua Waktu (All-Time)</option>
+                    {availableMonths.map(m => (
+                        <option key={m} value={m}>{formatBulan(m)}</option>
+                    ))}
+                </select>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white shadow-lg shadow-emerald-200 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-20"><BarChart3 size={64} /></div>
+                    <div className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1 relative z-10">Total Omset</div>
+                    <div className="text-3xl font-black relative z-10">Rp {totalRev.toLocaleString('id-ID')}</div>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+                    <div className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Total Jarak Terbayar</div>
+                    <div className="text-2xl font-black text-slate-800">{totalKm.toLocaleString('id-ID')} <span className="text-lg text-slate-400 font-medium tracking-normal">KM</span></div>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+                    <div className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1">Jumlah Perjalanan Lunas</div>
+                    <div className="text-2xl font-black text-slate-800">{totalTrips} <span className="text-lg text-slate-400 font-medium tracking-normal">Trip</span></div>
+                </div>
+            </div>
+
+            {/* Two Column details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Ranking By Unit */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                    <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <Users size={16} className="text-blue-500" /> Top Penyewa (Berdasarkan Unit)
+                    </h4>
+                    <div className="space-y-3">
+                        {topUnits.length === 0 && <div className="text-xs text-slate-400 italic">Belum ada data pendapatan.</div>}
+                        {topUnits.map(([unitName, sum], i) => (
+                            <div key={unitName} className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-slate-100">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-black">{i + 1}</div>
+                                    <div className="font-bold text-sm text-slate-700">{unitName}</div>
+                                </div>
+                                <div className="font-black text-emerald-600">Rp {sum.toLocaleString('id-ID')}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Ranking By Vehicle */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                    <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <Bus size={16} className="text-amber-500" /> Kontribusi Per Armada
+                    </h4>
+                    <div className="space-y-3">
+                        {topVehicles.length === 0 && <div className="text-xs text-slate-400 italic">Belum ada data pendapatan.</div>}
+                        {topVehicles.map(([vName, sum], i) => (
+                            <div key={vName} className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-slate-100">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-[10px] font-black">{i + 1}</div>
+                                    <div className="font-bold text-sm text-slate-700">{vName}</div>
+                                </div>
+                                <div className="font-black text-emerald-600">Rp {sum.toLocaleString('id-ID')}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
