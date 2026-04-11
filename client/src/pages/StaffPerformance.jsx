@@ -514,12 +514,12 @@ const StaffPerformance = () => {
                             </div>
                         </div>
                         
-                        <div className="grid grid-cols-2 md:flex items-center gap-2 md:gap-3 bg-white/5 backdrop-blur-md p-1.5 md:p-2.5 rounded-[24px] md:rounded-[32px] border border-white/10">
+                        <div className="w-full md:w-auto flex overflow-x-auto no-scrollbar items-center gap-2 md:gap-3 bg-white/5 backdrop-blur-md p-1.5 md:p-2.5 rounded-[24px] md:rounded-[32px] border border-white/10 snap-x">
                             {['RENCANA', 'LAPORAN', 'PENUGASAN', 'KPI'].filter(t => t !== 'KPI' || user.role === 'SUPER_ADMIN').map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => changeTab(tab)}
-                                    className={`px-4 md:px-7 py-2.5 md:py-3.5 rounded-xl md:rounded-[24px] text-[10px] md:text-[11px] font-black tracking-widest transition-all duration-300 relative group overflow-hidden ${activeTab === tab ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                                    className={`snap-center shrink-0 px-5 md:px-7 py-3 md:py-3.5 rounded-xl md:rounded-[24px] text-[10px] md:text-[11px] font-black tracking-widest transition-all duration-300 relative group overflow-hidden ${activeTab === tab ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                                 >
                                     <span className="relative z-10">{tab === 'RENCANA' ? 'RENCANA' : tab === 'LAPORAN' ? 'LAPORAN' : tab === 'PENUGASAN' ? 'TUGAS' : 'KPI'}</span>
                                 </button>
@@ -532,13 +532,13 @@ const StaffPerformance = () => {
                 <div className="space-y-6">
                     {/* Filter & Action Row */}
                     {!showForm && (
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/50 backdrop-blur-xl p-3 md:p-4 rounded-[28px] md:rounded-[32px] border border-slate-200/40 shadow-sm overflow-x-auto no-scrollbar">
-                            <div className="flex items-center gap-3 md:gap-4 flex-nowrap md:flex-1">
+                        <div className="flex flex-col md:flex-row flex-wrap md:items-center justify-between gap-4 bg-white/50 backdrop-blur-xl p-3 md:p-4 rounded-[28px] md:rounded-[32px] border border-slate-200/40 shadow-sm">
+                            <div className="flex overflow-x-auto no-scrollbar items-center gap-3 md:gap-4 md:flex-1 pb-1 md:pb-0">
                                 {isKabid && (
-                                    <div className="flex items-center gap-2 bg-white px-3 md:px-4 py-2 md:py-2.5 rounded-xl md:rounded-2xl border border-slate-100 shadow-sm min-w-[180px] md:min-w-[240px] shrink-0">
+                                    <div className="flex items-center gap-2 bg-white px-3 py-2.5 md:px-4 md:py-2.5 rounded-xl md:rounded-2xl border border-slate-100 shadow-sm min-w-[170px] md:min-w-[240px] shrink-0">
                                         <Users size={14} className="text-indigo-400" />
                                         <select 
-                                            className="bg-transparent border-none text-[10px] md:text-[11px] font-black text-slate-600 focus:ring-0 w-full cursor-pointer uppercase tracking-wider"
+                                            className="bg-transparent border-none text-[10px] md:text-[11px] font-black text-slate-600 focus:ring-0 w-full cursor-pointer uppercase tracking-wider p-0 m-0"
                                             value={filterStaff}
                                             onChange={(e) => setFilterStaff(e.target.value)}
                                         >
@@ -965,32 +965,32 @@ const KPITab = ({ leaderboard }) => (
             </div>
         ) : (
             <>
-                <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
                     {leaderboard.slice(0, 3).map((item, idx) => (
-                        <div key={item.userId} className={`relative bg-white rounded-[48px] p-10 shadow-xl transition-all hover:scale-[1.03] border-4 ${idx === 0 ? 'border-amber-100 ring-8 ring-amber-50' : 'border-slate-50'}`}>
-                            <div className="flex justify-between items-start mb-10">
+                        <div key={item.userId} className={`relative bg-white rounded-[32px] md:rounded-[48px] p-6 md:p-10 shadow-xl transition-all hover:scale-[1.03] border-4 ${idx === 0 ? 'border-amber-100 ring-8 ring-amber-50' : 'border-slate-50'}`}>
+                            <div className="flex justify-between items-start mb-6 md:mb-10">
                                 <RankBadge rank={idx} />
-                                <div className={`px-6 py-2 rounded-2xl text-[12px] font-black shadow-lg ${item.grade === 'A' ? 'bg-indigo-600 text-white shadow-indigo-200' : item.grade === 'B' ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-slate-900 text-white'}`}>GRADE {item.grade}</div>
+                                <div className={`px-4 py-1.5 md:px-6 md:py-2 rounded-xl md:rounded-2xl text-[10px] md:text-[12px] font-black shadow-lg ${item.grade === 'A' ? 'bg-indigo-600 text-white shadow-indigo-200' : item.grade === 'B' ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-slate-900 text-white'}`}>GRADE {item.grade}</div>
                             </div>
-                            <div className="mb-10">
-                                <h3 className="text-2xl font-black text-slate-900 italic uppercase leading-tight tracking-tighter">{item.name}</h3>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mt-2">
+                            <div className="mb-8 md:mb-10">
+                                <h3 className="text-xl md:text-2xl font-black text-slate-900 italic uppercase leading-tight tracking-tighter">{item.name}</h3>
+                                <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mt-1 md:mt-2">
                                     <Zap size={10} className="text-indigo-500" /> {item.position || 'STAF SARPRAS'}
                                 </p>
                             </div>
-                            <div className="space-y-6">
+                            <div className="space-y-5 md:space-y-6">
                                 <ScoreBar label="Penyelesaian" score={item.scores.completion} color="bg-indigo-500" icon={Target} />
                                 <ScoreBar label="Ketepatan" score={item.scores.punctuality} color="bg-emerald-500" icon={Timer} />
                                 <ScoreBar label="Laporan" score={item.scores.report} color="bg-amber-500" icon={FileText} />
                             </div>
-                            <div className="mt-12 pt-8 border-t border-slate-50 flex items-center justify-between">
+                            <div className="mt-8 md:mt-12 pt-6 md:pt-8 border-t border-slate-50 flex items-center justify-between">
                                 <div>
-                                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">Skor Rata-rata</p>
-                                    <p className="text-5xl font-black text-slate-900 italic tracking-tighter">{item.averageScore}</p>
+                                    <p className="text-[7px] md:text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">Skor Rata-rata</p>
+                                    <p className="text-4xl md:text-5xl font-black text-slate-900 italic tracking-tighter">{item.averageScore}</p>
                                 </div>
                                 <div className="text-right">
-                                    <Activity size={24} className="text-slate-100 mb-2 ml-auto" />
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.stats.total} TUGAS</p>
+                                    <Activity size={20} md:size={24} className="text-slate-100 mb-1 md:mb-2 ml-auto" />
+                                    <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.stats.total} TUGAS</p>
                                 </div>
                             </div>
                         </div>
@@ -1133,45 +1133,41 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
                     const isExpanded = expandedIds.includes(a.id);
 
                     return (
-                        <div key={a.id} className={`border-b border-slate-50 border-l-[8px] md:border-l-[12px] ${accentClass} ${isEven ? 'bg-white' : 'bg-slate-50/50'} hover:bg-indigo-50/30 transition-all group relative`}>
-                            <div className="p-4 md:p-6 flex flex-col md:flex-row justify-between gap-4 items-center">
-                                <div className="flex items-center gap-4 flex-1 min-w-0 w-full md:w-auto">
-                                    <button 
-                                        onClick={() => toggleExpand(a.id)}
-                                        className={`p-2 rounded-xl transition-all ${isExpanded ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600'}`}
-                                    >
-                                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                                    </button>
-                                    <div className="space-y-1 flex-1 min-w-0">
-                                        <div className="flex flex-wrap items-center gap-2">
+                        <div key={a.id} className={`border-b border-slate-50 border-l-[8px] md:border-l-[12px] ${accentClass} ${isEven ? 'bg-white' : 'bg-slate-50/50'} hover:bg-slate-50/80 transition-all group relative`}>
+                            <div 
+                                onClick={() => toggleExpand(a.id)}
+                                className="p-4 md:p-6 cursor-pointer flex items-start md:items-center justify-between gap-3 md:gap-4"
+                            >
+                                <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1 min-w-0 w-full">
+                                    <div className="relative w-10 md:w-12 h-10 md:h-12 flex items-center justify-center bg-white rounded-full shadow-sm border border-slate-100 shrink-0">
+                                        <svg className="w-full h-full -rotate-90" viewBox="0 0 48 48">
+                                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-50" />
+                                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={125.6} strokeDashoffset={125.6 - (125.6 * a.progressPercentage) / 100} className="text-indigo-600 transition-all duration-1000 stroke-linecap-round" />
+                                        </svg>
+                                        <span className="absolute text-[8px] md:text-[10px] font-black text-slate-900 italic tracking-tighter">{a.progressPercentage}%</span>
+                                    </div>
+                                    <div className="space-y-1.5 flex-1 min-w-0">
+                                        <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
                                             <PriorityBadge priority={a.priority} config={priorityConfig} />
                                             <StatusBadge status={a.status} config={statusConfig} />
-                                            <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest bg-white/50 px-2 py-0.5 rounded-full border border-slate-100">ID: {a.id}</span>
+                                            <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest bg-white/50 px-2 py-0.5 rounded-full border border-slate-100 hidden sm:inline-block">ID: {a.id}</span>
                                         </div>
                                         <h3 className="text-sm md:text-base font-black text-slate-800 italic uppercase leading-tight tracking-tight truncate group-hover:text-indigo-600 transition-colors">{a.title}</h3>
-                                        <div className="flex flex-wrap items-center gap-3">
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                <Users size={12} className="text-indigo-400" />
-                                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest truncate">{a.assignee?.name || a.assignee?.username}</span>
+                                        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                                            <div className="flex items-center gap-1 min-w-0">
+                                                <Users size={12} className="text-indigo-400 shrink-0" />
+                                                <span className="text-[8px] md:text-[9px] font-black text-slate-500 uppercase tracking-widest truncate">{a.assignee?.name || a.assignee?.username}</span>
                                             </div>
-                                            <div className="flex items-center gap-1.5 text-slate-400">
-                                                <MapPin size={12} />
-                                                <span className="text-[9px] font-bold uppercase tracking-widest truncate">{a.location || 'SARPRAS ZONE'}</span>
+                                            <div className="flex items-center gap-1 text-slate-400 min-w-0">
+                                                <MapPin size={12} className="shrink-0" />
+                                                <span className="text-[8px] md:text-[9px] font-bold uppercase tracking-widest truncate">{a.location || 'SARPRAS ZONE'}</span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-
-                                <div className="flex items-center gap-6 self-end md:self-center">
-                                    <div className="flex flex-col items-center md:items-end gap-1">
-                                        <div className="relative w-12 h-12 flex items-center justify-center bg-white rounded-full shadow-sm border border-slate-100">
-                                            <svg className="w-full h-full -rotate-90">
-                                                <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-50" />
-                                                <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={125.6} strokeDashoffset={125.6 - (125.6 * a.progressPercentage) / 100} className="text-indigo-600 transition-all duration-1000 stroke-linecap-round" />
-                                            </svg>
-                                            <span className="absolute text-[10px] font-black text-slate-900 italic tracking-tighter">{a.progressPercentage}%</span>
-                                        </div>
-                                        <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest">Penyelesaian</p>
+                                <div className="shrink-0">
+                                    <div className={`p-1.5 md:p-2 rounded-full md:rounded-xl transition-all ${isExpanded ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
+                                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                     </div>
                                 </div>
                             </div>
@@ -1277,43 +1273,42 @@ const ReportTab = ({ reports, type }) => {
                     const isPlan = r.metadata?.isPlan;
 
                     return (
-                        <div key={r.id} className={`border-b border-slate-50 border-l-[8px] ${isPlan ? 'border-l-indigo-500' : 'border-l-emerald-500'} ${isEven ? 'bg-white' : 'bg-slate-50/50'} hover:bg-slate-100/50 transition-all group relative`}>
-                            <div className="p-4 md:p-6 flex flex-col md:flex-row justify-between gap-4 items-center">
-                                <div className="flex items-center gap-4 flex-1 min-w-0 w-full md:w-auto">
-                                    <button 
-                                        onClick={() => toggleExpand(r.id)}
-                                        className={`p-2 rounded-xl transition-all ${isExpanded ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600'}`}
-                                    >
-                                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                                    </button>
-                                    <div className="space-y-1 flex-1 min-w-0">
-                                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <div key={r.id} className={`border-b border-slate-50 border-l-[8px] md:border-l-[12px] ${isPlan ? 'border-l-indigo-500' : 'border-l-emerald-500'} ${isEven ? 'bg-white' : 'bg-slate-50/50'} hover:bg-slate-50/80 transition-all group relative`}>
+                            <div 
+                                onClick={() => toggleExpand(r.id)}
+                                className="p-4 md:p-6 cursor-pointer flex items-start md:items-center justify-between gap-3 md:gap-4"
+                            >
+                                <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1 min-w-0 w-full">
+                                    <div className={`w-10 md:w-12 h-10 md:h-12 rounded-full flex items-center justify-center shrink-0 border-2 ${isPlan ? 'bg-indigo-50 border-indigo-100 text-indigo-500' : 'bg-emerald-50 border-emerald-100 text-emerald-500'}`}>
+                                        {isPlan ? <Calendar size={18} /> : <FileText size={18} />}
+                                    </div>
+                                    <div className="space-y-1.5 flex-1 min-w-0">
+                                        <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
                                             <span className="px-2 py-0.5 bg-slate-900 text-white text-[8px] font-black uppercase tracking-widest rounded-full">{r.category || (isPlan ? 'PLN' : 'RPT')}</span>
-                                            <span className="text-[9px] font-black text-slate-300">#{r.id.toString().padStart(5, '0')}</span>
+                                            <span className="text-[8px] font-black text-slate-300 tracking-widest">#{r.id.toString().padStart(5, '0')}</span>
                                         </div>
                                         <h3 className="text-sm md:text-base font-black text-slate-800 uppercase italic leading-tight tracking-tight truncate group-hover:text-indigo-600 transition-colors">
                                             {r.user?.name || r.user?.username}
                                         </h3>
-                                        <div className="flex flex-wrap items-center gap-3">
+                                        <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3 text-[9px] font-black text-slate-500 uppercase tracking-widest">
                                             <div className="flex items-center gap-1.5 min-w-0">
-                                                <Calendar size={12} className="text-indigo-400" />
-                                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest truncate">
-                                                    {new Date(r.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                                                </span>
+                                                <Calendar size={12} className="text-indigo-400 shrink-0" />
+                                                <span className="truncate">{new Date(r.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                            </div>
+                                            <span className="hidden md:inline-block text-slate-300">•</span>
+                                            <div className="flex items-center text-slate-400">
+                                                <span>{isPlan ? `TARGET: ${new Date(r.metadata?.startDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} - ${new Date(r.metadata?.endDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}` : `PKL: ${r.metadata?.startTime || '08:00'} - ${r.metadata?.endTime || '17:00'} WIB`}</span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-6 self-end md:self-center">
-                                    <div className="text-center md:text-right min-w-[140px]">
-                                        <p className="text-[10px] font-black text-slate-900 tracking-tighter uppercase whitespace-nowrap">
-                                            {isPlan ? `${new Date(r.metadata?.startDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} - ${new Date(r.metadata?.endDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}` : `${r.metadata?.startTime || '08:00'} - ${r.metadata?.endTime || '17:00'} WIB`}
-                                        </p>
-                                        <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest">{isPlan ? 'PERIODE TARGET' : 'JAM AKTIVITAS'}</p>
+                                <div className="shrink-0 flex flex-col items-end gap-2">
+                                    <div className={`p-1.5 md:p-2 rounded-full md:rounded-xl transition-all ${isExpanded ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
+                                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                     </div>
-                                    <div className="px-3 py-1 rounded-full bg-slate-50 border border-slate-100 shadow-sm hidden md:block">
-                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">{isPlan ? 'RENCANA' : 'HARIAN'}</p>
+                                    <div className="px-2 py-0.5 rounded-full bg-slate-50 border border-slate-100 shadow-sm hidden md:block">
+                                        <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">{isPlan ? 'RENCANA' : 'HARIAN'}</p>
                                     </div>
                                 </div>
                             </div>
