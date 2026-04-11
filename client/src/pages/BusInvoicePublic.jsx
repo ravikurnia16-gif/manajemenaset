@@ -29,11 +29,20 @@ const BusInvoicePublic = () => {
         <div className="min-h-screen bg-slate-100 p-4 font-sans print:bg-white print:p-0 flex flex-col">
             <style type="text/css" media="print">
                 {`
-                    @page { size: A5 landscape; margin: 10mm; }
-                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    .print\\:shadow-none { box-shadow: none !important; }
-                    .print\\:rounded-none { border-radius: 0 !important; }
-                    .print\\:border-none { border: none !important; }
+                    @page { size: A5 landscape; margin: 5mm; }
+                    body { 
+                        -webkit-print-color-adjust: exact; 
+                        print-color-adjust: exact;
+                    }
+                    @media print {
+                        .invoice-container {
+                            zoom: 0.85; /* Skala dikecilkan agar muat */
+                            page-break-inside: avoid;
+                        }
+                        .print\\:shadow-none { box-shadow: none !important; }
+                        .print\\:rounded-none { border-radius: 0 !important; }
+                        .print\\:border-none { border: none !important; }
+                    }
                 `}
             </style>
             <div className="max-w-3xl w-full mx-auto flex-1">
@@ -48,7 +57,7 @@ const BusInvoicePublic = () => {
                 </div>
 
                 {/* Printable Invoice Container */}
-                <div className="bg-white p-6 md:p-12 rounded-[2rem] shadow-xl border border-slate-100 print:shadow-none print:rounded-none print:border-none print:p-2">
+                <div className="invoice-container bg-white p-6 md:p-12 rounded-[2rem] shadow-xl border border-slate-100 print:shadow-none print:rounded-none print:border-none print:p-2">
                     
                     {/* Header */}
                     <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-slate-100 pb-6 mb-6 print:pb-3 print:mb-3 gap-4 print:gap-2">
