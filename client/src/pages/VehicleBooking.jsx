@@ -289,11 +289,36 @@ const VehicleBooking = () => {
         finally { setSubmitting(false); }
     };
 
-    // Pagination Logic
-    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(bookings.length / itemsPerPage);
+    // Sort & Pagination Logic
+    const sortedBookings = [...bookings].sort((a, b) => {
+        if (activeTab === 'MY_REQUESTS') {
+            const getStatusWeight = (status) => {
+                if (['BERLANGSUNG'].includes(status)) return 1;
+                if (['APPROVED', 'PENDING'].includes(status)) return 2;
+                return 3; // COMPLETED, CANCELLED, REJECTED
+            };
+            
+            const weightA = getStatusWeight(a.status);
+            const weightB = getStatusWeight(b.status);
+            
+            if (weightA !== weightB) return weightA - weightB;
+            
+            if (weightA <= 2) {
+                // nearest upcoming start date first
+                return new Date(a.startDate) - new Date(b.startDate);
+            }
+            // most recently finished first
+            return new Date(b.startDate) - new Date(a.startDate);
+        }
+        
+        // Default for History and Approval: most recent first
+        return new Date(b.createdAt || b.startDate) - new Date(a.createdAt || a.startDate);
+    });
+
+    const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(sortedBookings.length / itemsPerPage);
     const paginatedBookings = itemsPerPage === 'all'
-        ? bookings
-        : bookings.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+        ? sortedBookings
+        : sortedBookings.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     useEffect(() => {
         setCurrentPage(1); // Reset to first page when filters or items per page changes
