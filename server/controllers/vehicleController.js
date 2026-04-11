@@ -206,78 +206,88 @@ exports.updateVehicle = async (req, res) => {
 };
 
 /**
- * Checker for Vehicle Tax Notifications (25 days before)
+ * Checker for Vehicle Tax Notifications (Pajak Tahunan + 5 Tahunan)
+ * Dikirim ke Staff Gudang dan Logistik pada H-25, H-20, H-15, H-10, H-7, H-5, H-3, H-2, H-1
  */
 const { sendMessage } = require('../services/whatsappService');
 
+const REMINDER_DAYS = [25, 20, 15, 10, 7, 5, 3, 2, 1];
+
 exports.checkTaxNotifications = async () => {
     try {
-        console.log('Checking for vehicle tax notifications (25 days)...');
-
-        const targetDate = new Date();
-        targetDate.setDate(targetDate.getDate() + 25);
-
-        const startOfTarget = new Date(targetDate.setHours(0, 0, 0, 0));
-        const endOfTarget = new Date(targetDate.setHours(23, 59, 59, 999));
+        console.log('Checking for vehicle tax notifications...');
 
         const vehicles = await prisma.vehicle.findMany({
             where: {
                 OR: [
-                    { taxDueDate: { gte: startOfTarget, lte: endOfTarget } },
-                    { stnkDueDate: { gte: startOfTarget, lte: endOfTarget } }
+                    { taxDueDate: { not: null } },
+                    { stnkDueDate: { not: null } }
                 ]
             }
         });
 
         if (vehicles.length === 0) return;
 
-        // Find recipients: Leads (Kepala Bidang Sarana dan Prasarana) and Eldo
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Only Staff Gudang dan Logistik
         const recipients = await prisma.user.findMany({
             where: {
-                OR: [
-                    { position: 'Kepala Bidang Sarana dan Prasarana' },
-                    { position: 'Staff Gudang dan Logistik' }
-                    // Eldo replaced by position
-                ],
-                phone: { not: null, not: '' }
+                position: 'Staff Gudang dan Logistik',
+                phone: { not: null }
             }
         });
 
         if (recipients.length === 0) {
-            console.log('No recipients (Ravi or Eldo) found or they do not have phone numbers for tax notification.');
+            console.log('No Staff Gudang dan Logistik found for tax notification.');
             return;
         }
 
         for (const vehicle of vehicles) {
-            let taxType = "";
-            let dueDate = null;
+            const alerts = [];
 
-            if (vehicle.taxDueDate >= startOfTarget && vehicle.taxDueDate <= endOfTarget) {
-                taxType = "Pajak Tahunan";
-                dueDate = vehicle.taxDueDate;
-            } else {
-                taxType = "Pajak 5 Tahunan (STNK)";
-                dueDate = vehicle.stnkDueDate;
+            // Check Pajak Tahunan
+            if (vehicle.taxDueDate) {
+                const dueDate = new Date(vehicle.taxDueDate);
+                dueDate.setHours(0, 0, 0, 0);
+                const diffDays = Math.ceil((dueDate - today) / (1000 * 3600 * 24));
+                if (REMINDER_DAYS.includes(diffDays)) {
+                    alerts.push({ type: 'Pajak Tahunan', dueDate: vehicle.taxDueDate, daysLeft: diffDays });
+                }
             }
 
-            const message = `📢 *PENGINGAT PAJAK KENDARAAN*\n\n` +
-                `Kendaraan *${vehicle.name} (${vehicle.plateNumber})* akan jatuh tempo *${taxType}* dalam 25 hari.\n\n` +
-                `Tanggal Jatuh Tempo: ${new Date(dueDate).toLocaleDateString('id-ID')}\n` +
-                `Mohon segera diproses pembayarannya.`;
+            // Check Pajak 5 Tahunan (STNK)
+            if (vehicle.stnkDueDate) {
+                const dueDate = new Date(vehicle.stnkDueDate);
+                dueDate.setHours(0, 0, 0, 0);
+                const diffDays = Math.ceil((dueDate - today) / (1000 * 3600 * 24));
+                if (REMINDER_DAYS.includes(diffDays)) {
+                    alerts.push({ type: 'Pajak 5 Tahunan (STNK)', dueDate: vehicle.stnkDueDate, daysLeft: diffDays });
+                }
+            }
 
-            let cumulativeDelay = 0;
-            for (const person of recipients) {
-                const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
-                cumulativeDelay += randomGap;
+            for (const alert of alerts) {
+                const dayLabel = alert.daysLeft === 1 ? "BESOK" : `${alert.daysLeft} hari lagi`;
+                const emoji = alert.daysLeft <= 3 ? '🚨' : alert.daysLeft <= 7 ? '⚠️' : '📢';
+                const message = `${emoji} *PENGINGAT ${alert.type.toUpperCase()}*\n\n` +
+                    `Kendaraan *${vehicle.name} (${vehicle.plateNumber})* akan jatuh tempo *${alert.type}* ${dayLabel}.\n\n` +
+                    `📅 Jatuh Tempo: ${new Date(alert.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}\n` +
+                    `Mohon segera diproses pembayarannya.`;
 
-                setTimeout(async () => {
-                    try {
-                        await sendMessage(person.phone, message);
-                        console.log(`Tax notification sent for ${vehicle.name} to ${person.name} (${person.phone})`);
-                    } catch (e) {
-                        console.error(`[Vehicle Tax] Failed to notify ${person.name}:`, e.message);
-                    }
-                }, cumulativeDelay);
+                let cumulativeDelay = 0;
+                for (const person of recipients) {
+                    const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
+                    cumulativeDelay += randomGap;
+                    setTimeout(async () => {
+                        try {
+                            await sendMessage(person.phone, message);
+                            console.log(`Tax notification (${alert.type}, H-${alert.daysLeft}) sent for ${vehicle.name} to ${person.name}`);
+                        } catch (e) {
+                            console.error(`[Vehicle Tax] Failed to notify ${person.name}:`, e.message);
+                        }
+                    }, cumulativeDelay);
+                }
             }
         }
     } catch (error) {
@@ -287,16 +297,14 @@ exports.checkTaxNotifications = async () => {
 
 /**
  * Checker for Vehicle KIR Notifications
- * Sent 30 days before, then every 5 days (25, 20, 15, 10, 5, 0)
+ * Dikirim ke Staff Gudang dan Logistik pada H-25, H-20, H-15, H-10, H-7, H-5, H-3, H-2, H-1
  */
 exports.checkKirNotifications = async () => {
     try {
         console.log('Checking for vehicle KIR notifications...');
 
         const vehicles = await prisma.vehicle.findMany({
-            where: {
-                kirDueDate: { not: null }
-            }
+            where: { kirDueDate: { not: null } }
         });
 
         if (vehicles.length === 0) return;
@@ -304,43 +312,40 @@ exports.checkKirNotifications = async () => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // Find recipients: Leads and Finance Staff
+        // Only Staff Gudang dan Logistik
         const recipients = await prisma.user.findMany({
             where: {
-                position: { in: ['Kepala Bidang Sarana dan Prasarana', 'Staff Kendaraan'] },
-                phone: { not: null, not: '' }
+                position: 'Staff Gudang dan Logistik',
+                phone: { not: null }
             }
         });
 
         if (recipients.length === 0) {
-            console.log('No recipients found for KIR notification.');
+            console.log('No Staff Gudang dan Logistik found for KIR notification.');
             return;
         }
 
         for (const vehicle of vehicles) {
             const dueDate = new Date(vehicle.kirDueDate);
             dueDate.setHours(0, 0, 0, 0);
+            const diffDays = Math.ceil((dueDate - today) / (1000 * 3600 * 24));
 
-            const diffInTime = dueDate.getTime() - today.getTime();
-            const diffInDays = Math.ceil(diffInTime / (1000 * 3600 * 24));
-
-            // Notify on day 30, 25, 20, 15, 10, 5, and 0
-            if ([30, 25, 20, 15, 10, 5, 0].includes(diffInDays)) {
-                const dayLabel = diffInDays === 0 ? "HARI INI" : `dalam ${diffInDays} hari`;
-                const message = `🚚 *PENGINGAT JADWAL KIR*\n\n` +
+            if (REMINDER_DAYS.includes(diffDays)) {
+                const dayLabel = diffDays === 1 ? "BESOK" : `${diffDays} hari lagi`;
+                const emoji = diffDays <= 3 ? '🚨' : diffDays <= 7 ? '⚠️' : '🚚';
+                const message = `${emoji} *PENGINGAT JADWAL KIR*\n\n` +
                     `Kendaraan *${vehicle.name} (${vehicle.plateNumber})* akan jatuh tempo *KIR* ${dayLabel}.\n\n` +
-                    `Tanggal Jatuh Tempo: ${new Date(vehicle.kirDueDate).toLocaleDateString('id-ID')}\n` +
+                    `📅 Jatuh Tempo: ${new Date(vehicle.kirDueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}\n` +
                     `Mohon segera diproses pendaftarannya.`;
 
                 let cumulativeDelay = 0;
                 for (const person of recipients) {
                     const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
                     cumulativeDelay += randomGap;
-
                     setTimeout(async () => {
                         try {
                             await sendMessage(person.phone, message);
-                            console.log(`KIR notification sent for ${vehicle.name} to ${person.name} (${person.phone})`);
+                            console.log(`KIR notification (H-${diffDays}) sent for ${vehicle.name} to ${person.name}`);
                         } catch (e) {
                             console.error(`[Vehicle KIR] Failed to notify ${person.name}:`, e.message);
                         }
