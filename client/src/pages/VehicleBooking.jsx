@@ -69,6 +69,9 @@ const VehicleBooking = () => {
     // Special Roles: Yayasan Leadership
     const yayasanPositions = ['Ketua Yayasan', 'Bendahara Yayasan', 'Sekretaris Yayasan'];
     const isYayasanLeader = yayasanPositions.includes(user.position);
+    
+    // Head of Sarpras
+    const isKabidSarpras = user.position === 'Kepala Bidang Sarana dan Prasarana';
 
     const [isPIC, setIsPIC] = useState(false);
 
@@ -348,7 +351,7 @@ const VehicleBooking = () => {
     };
 
 
-    const canApprove = isSuperAdmin || isAdminAset || isPIC;
+    const canApprove = isSuperAdmin || isAdminAset || isPIC || isKabidSarpras;
 
     const tabs = [
         { id: 'CURRENT_FLEET', label: 'Daftar Kendaraan', icon: <Car size={16} /> },

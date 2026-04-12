@@ -1,16 +1,23 @@
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-    try {
-        console.log("Connecting to database...");
-        const result = await prisma.$queryRaw`SELECT 1 as connected`;
-        console.log("Connection successful:", result);
-    } catch (error) {
-        console.error("Connection failed:", error.message);
-    } finally {
-        await prisma.$disconnect();
-    }
+  const events = await prisma.sarprasCalendarEvent.findMany({
+    orderBy: { id: 'desc' },
+    take: 5,
+    include: { pics: true }
+  });
+  console.log('Events:', JSON.stringify(events, null, 2));
+
+  const reports = await prisma.personnelReport.findMany({
+    where: { type: 'WEEKLY' }, // isPlan typically maps to WEEKLY
+    orderBy: { id: 'desc' },
+    take: 2
+  });
+  console.log('Reports:', JSON.stringify(reports, null, 2));
 }
 
-main();
+main()
+  .catch(console.error)
+  .finally(() => prisma.$disconnect());
