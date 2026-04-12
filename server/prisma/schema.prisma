@@ -487,6 +487,7 @@ model Vehicle {
   status             String  @default("ACTIVE") // ACTIVE / INACTIVE
   isRentable         Boolean @default(false) // Bisa disewa atau tidak
   defaultRentalPrice Float? // Biaya Sewa Default per hari
+  lastFuelCondition  String? // Kondisi BBM terakhir (LOW, MEDIUM, HIGH)
 
   // Additional fields (kept from previous version)
   year          Int?
@@ -585,6 +586,7 @@ model VehicleBooking {
   fuelRefill    Boolean   @default(false)
   fuelPrice     Float     @default(0)
   fuelLiters    Float? // Amount in liters if refilled during trip
+  fuelCondition String?   // Kondisi BBM di akhirjalanan (LOW, MEDIUM, HIGH)
   tripStartTime DateTime?
   tripEndTime   DateTime?
 

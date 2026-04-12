@@ -440,7 +440,7 @@ exports.startTrip = async (req, res) => {
 exports.endTrip = async (req, res) => {
     try {
         const { id } = req.params;
-        const { endKm, tripNotes, fuelRefill, fuelPrice, fuelLiters } = req.body;
+        const { endKm, tripNotes, fuelRefill, fuelPrice, fuelLiters, fuelCondition } = req.body;
 
         const booking = await prisma.vehicleBooking.findUnique({
             where: { id: parseInt(id) },
@@ -468,15 +468,57 @@ exports.endTrip = async (req, res) => {
                 fuelRefill: !!fuelRefill,
                 fuelPrice: parseFloat(fuelPrice) || 0,
                 fuelLiters: fuelLiters ? parseFloat(fuelLiters) : null,
+                fuelCondition: fuelCondition || null,
                 status: 'COMPLETED'
             }
         });
 
-        // Sync odometer vehicle
+        // Sync odometer & last fuel condition to vehicle
         await prisma.vehicle.update({
             where: { id: booking.vehicleId },
-            data: { odometer: parseInt(endKm) }
+            data: { 
+                odometer: parseInt(endKm),
+                ...(fuelCondition ? { lastFuelCondition: fuelCondition } : {})
+            }
         });
+
+        // Fuel Notification Logic
+        if (fuelCondition === 'LOW' || fuelCondition === 'MEDIUM') {
+            const vehicleWithPics = await prisma.vehicle.findUnique({
+                where: { id: booking.vehicleId },
+                include: { pics: true, bookings: { where: { id: parseInt(id) }, include: { user: true } } }
+            });
+
+            if (vehicleWithPics && vehicleWithPics.pics && vehicleWithPics.pics.length > 0) {
+                const bookInfo = vehicleWithPics.bookings[0];
+                const notifLevel = fuelCondition === 'LOW' ? 'URGENT' : 'WARNING';
+                const notifEmoji = fuelCondition === 'LOW' ? '🚨' : '⚠️';
+                const conditionStr = fuelCondition === 'LOW' ? 'Kecil dari 1/4 (Sangat Minim)' : 'Antara 1/4 dan 1/2';
+                
+                const fuelMsg = `${notifEmoji} *LAPORAN KONDISI BBM ARMADA*\n\n` +
+                    `Armada: *${vehicleWithPics.name} (${vehicleWithPics.plateNumber})*\n` +
+                    `Pengguna Terakhir: ${bookInfo.user.name}\n` +
+                    `Kondisi BBM saat ini: *${conditionStr}*\n\n` +
+                    `Mohon agar PIC segera menindaklanjuti untuk pengisian BBM armada agar siap digunakan untuk perjalanan selanjutnya.`;
+                
+                for (const pic of vehicleWithPics.pics) {
+                    try {
+                        if (pic.phone) {
+                            await sendMessage(pic.phone, fuelMsg);
+                        }
+                        await createNotification(
+                            pic.id,
+                            `Peringatan Kondisi BBM ${vehicleWithPics.plateNumber}`,
+                            `Kondisi BBM ${vehicleWithPics.name} dilaporkan ${conditionStr} oleh pengemudi terakhir.`,
+                            notifLevel,
+                            '/kendaraan'
+                        );
+                    } catch (err) {
+                        console.error('Failed to send fuel notification to PIC:', err.message);
+                    }
+                }
+            }
+        }
 
         res.json(updated);
     } catch (error) {

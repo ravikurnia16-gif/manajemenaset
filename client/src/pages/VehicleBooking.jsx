@@ -54,7 +54,7 @@ const VehicleBooking = () => {
     const [showBorrowModal, setShowBorrowModal] = useState(false);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
     const [showActionModal, setShowActionModal] = useState(null); // { type: 'REJECT'|'START'|'END', data: booking }
-    const [actionData, setActionData] = useState({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelLiters: '' });
+    const [actionData, setActionData] = useState({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelLiters: '', fuelCondition: null });
 
     // Filter State for History
     const [filterVehicle, setFilterVehicle] = useState('');
@@ -262,12 +262,14 @@ const VehicleBooking = () => {
                 tripNotes: actionData.notes,
                 fuelRefill: actionData.fuelRefill,
                 fuelPrice: actionData.fuelPrice,
-                fuelLiters: actionData.fuelLiters
+                fuelLiters: actionData.fuelLiters,
+                fuelCondition: actionData.fuelCondition
             });
             showToast('Perjalanan selesai!', 'success');
             setShowActionModal(null);
-            setActionData({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelLiters: '' });
+            setActionData({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelLiters: '', fuelCondition: null });
             fetchBookings();
+            fetchVehicles(); // Refresh vehicles to update last fuel condition
             
             // Pop up pemberitahuan pengembalian kunci
             setTimeout(() => {
@@ -530,9 +532,20 @@ const VehicleBooking = () => {
                                                 <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
                                                     <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">
                                                         <Fuel size={10} className="text-orange-500" />
-                                                        Fuel
+                                                        BBM
                                                     </div>
-                                                    <div className="text-xs font-bold text-slate-700">{v.fuelType || '-'}</div>
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="text-xs font-bold text-slate-700">{v.fuelType || '-'}</div>
+                                                        {v.lastFuelCondition && (
+                                                            <div className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                                                v.lastFuelCondition === 'LOW' ? 'bg-red-100 text-red-600' :
+                                                                v.lastFuelCondition === 'MEDIUM' ? 'bg-amber-100 text-amber-600' :
+                                                                'bg-green-100 text-green-600'
+                                                            }`}>
+                                                                {v.lastFuelCondition === 'LOW' ? '< 1/4' : v.lastFuelCondition === 'MEDIUM' ? '1/4 - 1/2' : '> 1/2'}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -1777,6 +1790,42 @@ const VehicleBooking = () => {
                                                 </div>
                                             </div>
                                         )}
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Kondisi BBM Saat Ini</label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setActionData({ ...actionData, fuelCondition: 'LOW' })}
+                                                className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                                                    actionData.fuelCondition === 'LOW' ? 'bg-red-50 border-red-500 text-red-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <div className={`w-3 h-3 rounded-full ${actionData.fuelCondition === 'LOW' ? 'bg-red-500' : 'bg-slate-300'}`}></div>
+                                                &lt; 1/4
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setActionData({ ...actionData, fuelCondition: 'MEDIUM' })}
+                                                className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                                                    actionData.fuelCondition === 'MEDIUM' ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <div className={`w-3 h-3 rounded-full ${actionData.fuelCondition === 'MEDIUM' ? 'bg-amber-500' : 'bg-slate-300'}`}></div>
+                                                1/4 - 1/2
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setActionData({ ...actionData, fuelCondition: 'HIGH' })}
+                                                className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                                                    actionData.fuelCondition === 'HIGH' ? 'bg-green-50 border-green-500 text-green-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <div className={`w-3 h-3 rounded-full ${actionData.fuelCondition === 'HIGH' ? 'bg-green-500' : 'bg-slate-300'}`}></div>
+                                                &gt; 1/2
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div>
