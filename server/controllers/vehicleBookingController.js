@@ -371,51 +371,29 @@ exports.startTrip = async (req, res) => {
                 `Selisih: *${diff} KM*\n\n` +
                 `_Mohon tindak lanjuti jika terdapat indikasi penggunaan armada di luar sistem._`;
 
-            // A. Notify Kepala Bidang Sarpras
-            const leads = await prisma.user.findMany({
+            // A. Notify Kepala Bidang Sarpras & Staff Kendaraan
+            const recipients = await prisma.user.findMany({
                 where: {
-                    position: 'Kepala Bidang Sarana dan Prasarana',
+                    OR: [
+                        { position: 'Kepala Bidang Sarana dan Prasarana' },
+                        { position: { contains: 'Staff Kendaraan' } }
+                    ],
                     phone: { not: null, not: '' }
                 }
             });
 
-            for (const lead of leads) {
+            for (const person of recipients) {
                 try {
-                    await sendMessage(lead.phone, discMsg);
+                    await sendMessage(person.phone, discMsg);
                     await createNotification(
-                        lead.id,
+                        person.id,
                         'Peringatan Diskrepansi Odometer',
-                        `Selisih ${diff} KM pada kendaraan ${booking.vehicle.plateNumber} oleh ${booking.user.name}.`,
+                        `Selisih ${diff} KM pada ${booking.vehicle.name} (${booking.vehicle.plateNumber}) oleh ${booking.user.name}.`,
                         'WARNING',
                         '/kendaraan/laporan'
                     );
                 } catch (err) {
-                    console.error('Failed to notify lead:', err.message);
-                }
-            }
-
-            // B. Notify Staff Kendaraan (PIC armada ini)
-            const vehicleWithPics = await prisma.vehicle.findUnique({
-                where: { id: booking.vehicleId },
-                include: { pics: true }
-            });
-
-            if (vehicleWithPics?.pics) {
-                for (const pic of vehicleWithPics.pics) {
-                    try {
-                        if (pic.phone) {
-                            await sendMessage(pic.phone, discMsg);
-                        }
-                        await createNotification(
-                            pic.id,
-                            'Peringatan Diskrepansi Odometer',
-                            `Selisih ${diff} KM pada ${booking.vehicle.name} (${booking.vehicle.plateNumber}) oleh ${booking.user.name}.`,
-                            'WARNING',
-                            '/kendaraan/laporan'
-                        );
-                    } catch (err) {
-                        console.error('Failed to notify PIC:', err.message);
-                    }
+                    console.error(`Failed to notify ${person.position}:`, err.message);
                 }
             }
         }
@@ -484,37 +462,44 @@ exports.endTrip = async (req, res) => {
 
         // Fuel Notification Logic
         if (fuelCondition === 'LOW' || fuelCondition === 'MEDIUM') {
-            const vehicleWithPics = await prisma.vehicle.findUnique({
+            const vehicleInfo = await prisma.vehicle.findUnique({
                 where: { id: booking.vehicleId },
-                include: { pics: true, bookings: { where: { id: parseInt(id) }, include: { user: true } } }
+                include: { bookings: { where: { id: parseInt(id) }, include: { user: true } } }
             });
 
-            if (vehicleWithPics && vehicleWithPics.pics && vehicleWithPics.pics.length > 0) {
-                const bookInfo = vehicleWithPics.bookings[0];
+            const staffRecipients = await prisma.user.findMany({
+                where: {
+                    position: { contains: 'Staff Kendaraan' },
+                    phone: { not: null, not: '' }
+                }
+            });
+
+            if (vehicleInfo && staffRecipients.length > 0) {
+                const bookInfo = vehicleInfo.bookings[0];
                 const notifLevel = fuelCondition === 'LOW' ? 'URGENT' : 'WARNING';
                 const notifEmoji = fuelCondition === 'LOW' ? '🚨' : '⚠️';
                 const conditionStr = fuelCondition === 'LOW' ? 'Kecil dari 1/4 (Sangat Minim)' : 'Antara 1/4 dan 1/2';
                 
                 const fuelMsg = `${notifEmoji} *LAPORAN KONDISI BBM ARMADA*\n\n` +
-                    `Armada: *${vehicleWithPics.name} (${vehicleWithPics.plateNumber})*\n` +
+                    `Armada: *${vehicleInfo.name} (${vehicleInfo.plateNumber})*\n` +
                     `Pengguna Terakhir: ${bookInfo.user.name}\n` +
                     `Kondisi BBM saat ini: *${conditionStr}*\n\n` +
-                    `Mohon agar PIC segera menindaklanjuti untuk pengisian BBM armada agar siap digunakan untuk perjalanan selanjutnya.`;
+                    `Mohon agar Tim Staff Kendaraan segera menindaklanjuti untuk pengisian BBM armada agar siap digunakan untuk perjalanan selanjutnya.`;
                 
-                for (const pic of vehicleWithPics.pics) {
+                for (const staff of staffRecipients) {
                     try {
-                        if (pic.phone) {
-                            await sendMessage(pic.phone, fuelMsg);
+                        if (staff.phone) {
+                            await sendMessage(staff.phone, fuelMsg);
                         }
                         await createNotification(
-                            pic.id,
-                            `Peringatan Kondisi BBM ${vehicleWithPics.plateNumber}`,
-                            `Kondisi BBM ${vehicleWithPics.name} dilaporkan ${conditionStr} oleh pengemudi terakhir.`,
+                            staff.id,
+                            `Peringatan Kondisi BBM ${vehicleInfo.plateNumber}`,
+                            `Kondisi BBM ${vehicleInfo.name} dilaporkan ${conditionStr} oleh pengemudi terakhir.`,
                             notifLevel,
                             '/kendaraan'
                         );
                     } catch (err) {
-                        console.error('Failed to send fuel notification to PIC:', err.message);
+                        console.error('Failed to send fuel notification to Staff:', err.message);
                     }
                 }
             }
