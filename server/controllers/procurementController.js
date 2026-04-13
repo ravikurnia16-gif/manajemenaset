@@ -13,7 +13,7 @@ const assignmentTimers = new Map();
 // Helper to generate Request Code
 const generateCode = async () => {
     const year = new Date().getFullYear();
-    
+
     const lastRecord = await prisma.procurement.findFirst({
         where: {
             code: {
@@ -199,29 +199,29 @@ exports.createProcurement = async (req, res) => {
 
         // Notify chosen staff if Direct Order
         if (isDirect && assignedStaffId) {
-             const assignedUser = await prisma.user.findUnique({ where: { id: parseInt(assignedStaffId) } });
-             if (assignedUser && assignedUser.phone) {
-                 const itemListMsg = items.map((it, idx) =>
-                     `${idx + 1}. *${it.name}*` + (it.spec && it.spec !== '-' ? ` (${it.spec})` : '')
-                 ).join('\n');
+            const assignedUser = await prisma.user.findUnique({ where: { id: parseInt(assignedStaffId) } });
+            if (assignedUser && assignedUser.phone) {
+                const itemListMsg = items.map((it, idx) =>
+                    `${idx + 1}. *${it.name}*` + (it.spec && it.spec !== '-' ? ` (${it.spec})` : '')
+                ).join('\n');
 
-                 const msg = `*Bismillah*\n\n` +
-                     `*Info Penugasan Pengadaan (MANDAT KABID)*\n\n` +
-                     `Halo *${assignedUser.name || assignedUser.username}*,\n\n` +
-                     `Anda menerima perintah langsung pengadaan *"${title}"* dari Kepala Bidang.\n\n` +
-                     `*Rincian Barang:*\n` +
-                     `${itemListMsg}\n\n` +
-                     `Mohon segera diproses. Syukron.`;
+                const msg = `*Bismillah*\n\n` +
+                    `*Info Penugasan Pengadaan (MANDAT KABID)*\n\n` +
+                    `Halo *${assignedUser.name || assignedUser.username}*,\n\n` +
+                    `Anda menerima perintah langsung pengadaan *"${title}"* dari Kepala Bidang.\n\n` +
+                    `*Rincian Barang:*\n` +
+                    `${itemListMsg}\n\n` +
+                    `Mohon segera diproses. Syukron.`;
 
-                 setTimeout(async () => {
-                     try {
-                         await waTemplateService.send('PROCUREMENT_DIRECT_ASSIGNED', assignedUser.phone, {}, msg);
-                         console.log(`[WA] Instant direct procurement mandate sent to ${assignedUser.username}`);
-                     } catch (e) {
-                         console.error('WA Mandate Notification Error:', e);
-                     }
-                 }, 5000);
-             }
+                setTimeout(async () => {
+                    try {
+                        await waTemplateService.send('PROCUREMENT_DIRECT_ASSIGNED', assignedUser.phone, {}, msg);
+                        console.log(`[WA] Instant direct procurement mandate sent to ${assignedUser.username}`);
+                    } catch (e) {
+                        console.error('WA Mandate Notification Error:', e);
+                    }
+                }, 5000);
+            }
         }
 
         res.json({ message: `${results.length} Request(s) submitted`, data: results });
@@ -286,7 +286,7 @@ exports.createProcurement = async (req, res) => {
                             OR: [
                                 { position: 'Kepala Bidang Sarana dan Prasarana' },
                                 { position: 'Staff Manajemen Aset' },
-                                { position: 'Staff Keuangan' }
+                                { position: 'Staff Keuangan dan Administrasi (Sarpras)' }
                             ],
                             phone: { not: null, not: '' }
                         }
@@ -661,7 +661,7 @@ exports.updateItemDetail = async (req, res) => {
         // --- WhatsApp Notification: Penugasan (Async & Debounced) ---
         // Only notify if assignment is NEW or CHANGED
         const isAssignmentChanged = assignedToId && (parseInt(assignedToId) !== currentItem.assignedToId);
-        
+
         if (isAssignmentChanged) {
             const key = `${assignedToId}-${item.procurementId}`;
 
@@ -811,9 +811,9 @@ exports.processBAST = async (req, res) => {
     try {
         const procurement = await prisma.procurement.findUnique({
             where: { id: parseInt(id) },
-            include: { 
-                items: { include: { vendor: true } }, 
-                unit: true 
+            include: {
+                items: { include: { vendor: true } },
+                unit: true
             }
         });
 
