@@ -431,14 +431,18 @@ const StaffPerformance = () => {
         );
     };
 
-    const handleReviewReport = async (id, status, feedback) => {
+    const handleReviewReport = async (id, status, feedback, verifiedItemIndices) => {
+        if (submitting) return;
+        setSubmitting(true);
         try {
-            await api.post(`/personnel/reports/${id}/review`, { status, feedback });
+            await api.post(`/personnel/reports/${id}/review`, { status, feedback, verifiedItemIndices });
             alert('Tinjauan berhasil disimpan');
             fetchReports();
         } catch (err) {
             console.error(err);
             alert('Gagal mengirim tinjauan: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -1463,11 +1467,16 @@ const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, 
         );
         if (!reviewForms[id]) {
             const r = reports.find(doc => doc.id === id);
+            const initialVerified = (r?.metadata?.items || [])
+                .map((it, idx) => it.verified ? idx : null)
+                .filter(idx => idx !== null);
+
             setReviewForms(prev => ({
                 ...prev,
                 [id]: { 
                     status: r?.metadata?.review?.status || 'VERIFIED', 
-                    feedback: r?.metadata?.review?.feedback || '' 
+                    feedback: r?.metadata?.review?.feedback || '',
+                    verifiedItemIndices: initialVerified
                 }
             }));
         }
@@ -1478,6 +1487,16 @@ const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, 
             ...prev,
             [id]: { ...(prev[id] || {}), ...fields }
         }));
+    };
+
+    const toggleItemVerification = (reportId, itemIdx) => {
+        const currentForm = reviewForms[reportId] || { verifiedItemIndices: [] };
+        const currentIndices = currentForm.verifiedItemIndices || [];
+        const newIndices = currentIndices.includes(itemIdx)
+            ? currentIndices.filter(i => i !== itemIdx)
+            : [...currentIndices, itemIdx];
+        
+        updateReviewForm(reportId, { verifiedItemIndices: newIndices });
     };
 
     return (
@@ -1557,19 +1576,29 @@ const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, 
                                                 {(r.metadata?.items || []).map((it, iIdx) => {
                                                     const sourceLabel = it.planId ? 'RENCANA' : it.title?.startsWith('[TUGAS]') ? 'PENUGASAN' : 'INSIDENTAL';
                                                     const sourceColor = it.planId ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : it.title?.startsWith('[TUGAS]') ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200';
+                                                    const isVerified = form.verifiedItemIndices?.includes(iIdx) || it.verified;
                                                     
                                                     return (
-                                                        <div key={idx} className="flex items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm group/item">
+                                                        <div key={iIdx} className="flex items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm group/item">
                                                             <div className="flex items-center gap-4 flex-1 min-w-0">
-                                                                <div className="w-12 h-12 rounded-full border-2 border-slate-50 flex items-center justify-center text-[10px] font-black text-indigo-600 italic bg-slate-50/30">
-                                                                    {it.percentage}%
-                                                                </div>
+                                                                {isKabid ? (
+                                                                    <button 
+                                                                        onClick={() => toggleItemVerification(r.id, iIdx)}
+                                                                        className={`w-12 h-12 rounded-full border-2 transition-all flex items-center justify-center shrink-0 ${isVerified ? 'bg-emerald-500 border-emerald-400 text-white shadow-lg shadow-emerald-100' : 'bg-slate-50 border-slate-100 text-slate-300 hover:border-emerald-200'}`}
+                                                                    >
+                                                                        {isVerified ? <CheckCircle size={20} /> : <div className="w-5 h-5 rounded-full border-2 border-slate-200" />}
+                                                                    </button>
+                                                                ) : (
+                                                                    <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center shrink-0 ${isVerified ? 'bg-emerald-50 border-emerald-100 text-emerald-500' : 'bg-slate-50 border-slate-50 text-slate-100'}`}>
+                                                                        {isVerified ? <ShieldCheck size={20} /> : it.percentage === 100 ? <CheckCircle size={18} className="opacity-20" /> : <div className="w-4 h-4 rounded-full border-2 border-slate-50" />}
+                                                                    </div>
+                                                                )}
                                                                 <div className="flex-1 min-w-0">
                                                                     <div className="flex items-center gap-2 mb-1">
                                                                         <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-md border ${sourceColor} uppercase tracking-widest`}>{sourceLabel}</span>
-                                                                        <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">{it.status}</span>
+                                                                        <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">{it.percentage}% {it.status}</span>
                                                                     </div>
-                                                                    <p className="text-sm font-bold text-slate-700 uppercase italic truncate whitespace-pre-wrap">{it.title || it.text || it.activity}</p>
+                                                                    <p className={`text-sm font-bold uppercase italic truncate whitespace-pre-wrap transition-colors ${isVerified ? 'text-emerald-700' : 'text-slate-700'}`}>{it.title || it.text || it.activity}</p>
                                                                     {it.note && <p className="text-[10px] font-medium text-slate-400 italic mt-1 leading-relaxed">"{it.note}"</p>}
                                                                 </div>
                                                             </div>
@@ -1620,12 +1649,19 @@ const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, 
                                                     </div>
                                                 </div>
 
-                                                <div className="pt-4 flex justify-end">
+                                                <div className="pt-4 flex flex-col items-end gap-3">
+                                                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest italic">Notifikasi hanya dikirim sekali setelah tombol di bawah ditekan</p>
                                                     <button 
-                                                        onClick={() => handleReviewReport(r.id, form.status, form.feedback)}
-                                                        className="px-10 py-4 bg-indigo-600 text-white text-[10px] font-black rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 uppercase tracking-[0.2em] transform active:scale-95"
+                                                        onClick={() => handleReviewReport(r.id, form.status, form.feedback, form.verifiedItemIndices)}
+                                                        disabled={submitting}
+                                                        className="px-10 py-4 bg-indigo-600 text-white text-[10px] font-black rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 uppercase tracking-[0.2em] transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3"
                                                     >
-                                                        Simpan Tinjauan & Kirim Notif
+                                                        {submitting ? (
+                                                            <>
+                                                                <Loader2 size={16} className="animate-spin" />
+                                                                MEMPROSES...
+                                                            </>
+                                                        ) : 'Simpan Tinjauan & Kirim Notif'}
                                                     </button>
                                                 </div>
                                             </div>

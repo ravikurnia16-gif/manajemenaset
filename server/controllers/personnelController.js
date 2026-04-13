@@ -1368,7 +1368,7 @@ exports.checkPlanDeadlines = async () => {
  */
 exports.reviewReport = async (req, res) => {
     const { id } = req.params;
-    const { status, feedback } = req.body;
+    const { status, feedback, verifiedItemIndices } = req.body;
     const user = req.user;
 
     try {
@@ -1385,9 +1385,19 @@ exports.reviewReport = async (req, res) => {
 
         if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan.' });
 
+        // Update item-level verification in metadata
+        let items = report.metadata?.items || [];
+        if (Array.isArray(verifiedItemIndices)) {
+            items = items.map((it, idx) => ({
+                ...it,
+                verified: verifiedItemIndices.includes(idx)
+            }));
+        }
+
         // Update metadata with review data
         const updatedMetadata = { 
             ...(report.metadata || {}),
+            items,
             review: {
                 status: status || 'VERIFIED',
                 feedback: feedback || '',
@@ -1403,19 +1413,27 @@ exports.reviewReport = async (req, res) => {
             include: { user: { select: { name: true, phone: true } } }
         });
 
-        // NOTIFICATION TO STAFF
+        // 1. IN-APP NOTIFICATION (Lonceng - Always)
+        const statusLabelShort = status === 'VERIFIED' ? '✅ Disetujui' : '⚠️ Butuh Coaching';
+        await createNotification(
+            report.userId,
+            `Tinjauan Laporan: ${statusLabelShort}`,
+            `Laporan harian Anda (${new Date(report.date).toLocaleDateString('id-ID')}) telah diperiksa oleh Kabid.`,
+            status === 'VERIFIED' ? 'SUCCESS' : 'WARNING',
+            `/staff-performance?tab=${report.type === 'WEEKLY' ? 'RENCANA' : 'LAPORAN'}`
+        );
+
+        // 2. WHATSAPP NOTIFICATION (ONLY if NEEDS_COACHING)
         const staffPhone = updatedReport.user?.phone;
-        if (staffPhone) {
-            const statusLabel = status === 'VERIFIED' ? '✅ DIVERIFIKASI' : (status === 'NEEDS_COACHING' ? '⚠️ BUTUH PERBAIKAN' : status);
+        if (staffPhone && status === 'NEEDS_COACHING') {
             const waMsg = `📢 *TINJAUAN LAPORAN ANDA*\n\n` +
                 `Assalamu'alaikum ${updatedReport.user.name},\n\n` +
                 `Laporan harian Anda tanggal *${new Date(updatedReport.date).toLocaleDateString('id-ID')}* telah diperiksa oleh Kabid.\n\n` +
-                `📌 *Status*: ${statusLabel}\n` +
+                `📌 *Status*: ⚠️ BUTUH PERBAIKAN / COACHING\n` +
                 `📝 *Feedback*: ${feedback || '-'}\n\n` +
-                `Syukron atas dedikasinya. Lanjutkan semangat bekerja!`;
+                `Syukron atas dedikasinya. Silakan lakukan perbaikan sesuai arahan Kabid.`;
 
             try {
-                const whatsappService = require('../services/whatsappService');
                 await whatsappService.sendMessage(staffPhone, waMsg);
             } catch (waErr) {
                 console.error('[Review Notification] WA Failed:', waErr.message);
