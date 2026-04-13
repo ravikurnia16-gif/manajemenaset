@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { 
     Calendar, FileText, FileCheck, Trophy, Plus, Search, 
     Filter, LayoutDashboard, TrendingUp, Users, Activity, 
-    CheckCircle2, Clock, Zap, AlertCircle, MapPin, Tag, 
+    Clock, Zap, AlertCircle, MapPin, Tag, 
     ArrowRight, MoreVertical, Flag, Loader2, X, ChevronDown, 
     ChevronUp, CheckSquare, Square, Target, Timer, Award,
     Medal, Crown, Send, Trash2, Sparkles, Download, ListChecks,
@@ -190,9 +190,6 @@ const StaffPerformance = () => {
         pendingReviews: 0,
         incidentalCount: 0
     });
-
-    // Sub-item Selection State
-    const [userDailyReports, setUserDailyReports] = useState([]);
 
     // Sub-item Selection State
     const [previewSource, setPreviewSource] = useState(null); // Source for item picker
@@ -432,17 +429,6 @@ const StaffPerformance = () => {
         setSelectedItemsIndices(prev => 
             prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
         );
-    };
-
-    const handleReviewReport = async (id, status, feedback) => {
-        try {
-            await api.post(`/personnel/reports/${id}/review`, { status, feedback });
-            alert('Tinjauan berhasil disimpan');
-            fetchReports();
-        } catch (err) {
-            console.error(err);
-            alert('Gagal mengirim tinjauan: ' + (err.response?.data?.error || err.message));
-        }
     };
 
     const handleReviewReport = async (id, status, feedback) => {
@@ -1461,7 +1447,13 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
                             )}
                         </div>
                     );
-     const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, isKabid }) => {
+                })
+            )}
+        </div>
+    );
+};
+
+const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, isKabid }) => {
     const [expandedReportIds, setExpandedReportIds] = useState([]);
     const [reviewForms, setReviewForms] = useState({}); // { reportId: { status, feedback } }
 
