@@ -180,6 +180,11 @@ const StaffPerformance = () => {
     const [userPlans, setUserPlans] = useState([]);
     const [userAssignments, setUserAssignments] = useState([]);
     const [userRoutines, setUserRoutines] = useState([]);
+    const [userDailyReports, setUserDailyReports] = useState([]);
+
+    // Sub-item Selection State
+    const [previewSource, setPreviewSource] = useState(null); // Source for item picker
+    const [selectedItemsIndices, setSelectedItemsIndices] = useState([]); // Indices for sub-tasks
 
 
     // Filters
@@ -249,16 +254,18 @@ const StaffPerformance = () => {
 
     const fetchInitialData = async () => {
         try {
-            const [staffRes, routineRes, assignmentRes, planRes] = await Promise.all([
+            const [staffRes, routineRes, assignmentRes, planRes, dailyRes] = await Promise.all([
                 api.get('/personnel/staff'),
                 api.get('/personnel/routines'),
                 api.get('/personnel/assignments', { params: { userId: user.id } }),
-                api.get('/personnel/reports', { params: { userId: user.id, type: 'WEEKLY' } })
+                api.get('/personnel/reports', { params: { userId: user.id, type: 'WEEKLY' } }),
+                api.get('/personnel/reports', { params: { userId: user.id, type: 'DAILY', limit: 100 } })
             ]);
             setStaffList(staffRes.data || []);
             setUserRoutines(routineRes.data?.filter(r => r.assigneeId === user.id) || []);
             setUserAssignments(assignmentRes.data || []);
             setUserPlans(Array.isArray(planRes.data) ? planRes.data : (planRes.data?.data || []));
+            setUserDailyReports(Array.isArray(dailyRes.data) ? dailyRes.data : (dailyRes.data?.data || []));
         } catch (err) {
             console.error('Failed to fetch initial data:', err);
         }
@@ -344,6 +351,8 @@ const StaffPerformance = () => {
 
     const handleSourceCategorySelect = (category) => {
         setActiveSourceCategory(category);
+        setPreviewSource(null);
+        setSelectedItemsIndices([]);
         let titles = [];
 
         if (category === 'PLAN') {
@@ -364,33 +373,52 @@ const StaffPerformance = () => {
                 title: t.title,
                 items: Array.isArray(t.items) ? t.items.map(i => ({ activity: i.text, percentage: i.percentage || 0, status: i.isDone ? 'SELESAI' : 'PROSES' })) : []
             }));
+        } else if (category === 'DAILY_HISTORY') {
+            titles = userDailyReports.map(r => ({
+                id: r.id,
+                title: `Laporan ${new Date(r.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+                items: (r.metadata?.items || []).map((it, idx) => ({ ...it, originalIdx: idx }))
+            }));
         }
 
         setAvailableSourceTitles(titles);
     };
 
-    const importFromSelectedSource = (source) => {
-        if (!source || !source.items) return;
+    const handleToggleImportItem = (idx) => {
+        setSelectedItemsIndices(prev => 
+            prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
+        );
+    };
 
-        const prefix = activeSourceCategory === 'PLAN' ? '[RENCANA]' : activeSourceCategory === 'ROUTINE' ? '[RUTIN]' : '[TUGAS]';
+    const importFromSelectedSource = () => {
+        if (!previewSource || selectedItemsIndices.length === 0) return;
+
+        const prefix = activeSourceCategory === 'PLAN' ? '[RENCANA]' 
+                     : activeSourceCategory === 'ROUTINE' ? '[RUTIN]' 
+                     : activeSourceCategory === 'TASK' ? '[TUGAS]'
+                     : '[RIWAYAT]';
         
-        const newItems = source.items.map(item => ({
-            activity: `${prefix} ${item.activity || item.text || 'Aktivitas'}`,
+        const sourceItems = previewSource.items.filter((_, idx) => selectedItemsIndices.includes(idx));
+
+        const newItems = sourceItems.map(item => ({
+            activity: `${item.activity || item.text || 'Aktivitas'}`, // Removed duplicate prefix because it will be added in description if needed, better clean title
             status: item.status || 'PROSES',
             percentage: item.percentage || 0,
-            note: `Diambil dari ${prefix} ${source.title}`,
-            planId: activeSourceCategory === 'PLAN' ? source.id : undefined,
+            note: `Diambil dari ${prefix} ${previewSource.title}`,
+            planId: activeSourceCategory === 'PLAN' ? previewSource.id : undefined,
             planItemIndex: activeSourceCategory === 'PLAN' ? item.originalIdx : undefined
         }));
 
         setForm(prev => ({
             ...prev,
-            generalItems: [...prev.generalItems.filter(i => i.activity), ...newItems]
+            generalItems: [...prev.generalItems.filter(i => i.activity.trim()), ...newItems]
         }));
 
-        // Reset Selection
+        // Reset Selection Hub
         setActiveSourceCategory(null);
         setAvailableSourceTitles([]);
+        setPreviewSource(null);
+        setSelectedItemsIndices([]);
     };
 
     const handleSubmit = async (e) => {
@@ -771,37 +799,94 @@ const StaffPerformance = () => {
                                                         >
                                                             <ClipboardCheck size={14} /> Ambil dari Penugasan
                                                         </button>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => handleSourceCategorySelect('DAILY_HISTORY')} 
+                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeSourceCategory === 'DAILY_HISTORY' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                                        >
+                                                            <History size={14} /> Ambil dari Laporan Lama
+                                                        </button>
                                                     </div>
 
                                                     {activeSourceCategory && (
                                                         <div className="bg-slate-50 p-6 rounded-[32px] border border-slate-200 animate-in zoom-in-95 duration-200">
-                                                            <div className="flex items-center justify-between mb-4">
+                                                            <div className="flex items-center justify-between mb-4 px-2">
                                                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                                                     <LayoutDashboard size={14} className="text-slate-400" />
-                                                                    Pilih Judul {activeSourceCategory === 'PLAN' ? 'Rencana Kerja' : activeSourceCategory === 'ROUTINE' ? 'Rutinitas' : 'Penugasan'}
+                                                                    {previewSource ? `Pilih Item dari: ${previewSource.title}` : `Pilih Judul ${activeSourceCategory === 'PLAN' ? 'Rencana Kerja' : activeSourceCategory === 'ROUTINE' ? 'Rutinitas' : activeSourceCategory === 'TASK' ? 'Penugasan' : 'Laporan Lama'}`}
                                                                 </h4>
-                                                                <button onClick={() => setActiveSourceCategory(null)} className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Batal</button>
+                                                                <button onClick={() => { setActiveSourceCategory(null); setPreviewSource(null); }} className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Tutup</button>
                                                             </div>
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                                {availableSourceTitles.length === 0 ? (
-                                                                    <div className="col-span-2 py-4 text-center text-[10px] font-black text-slate-300 uppercase italic">Tidak ada data ditemukan</div>
-                                                                ) : (
-                                                                    availableSourceTitles.map(src => (
-                                                                        <button
-                                                                            key={src.id}
-                                                                            type="button"
-                                                                            onClick={() => importFromSelectedSource(src)}
-                                                                            className="flex items-center justify-between p-4 bg-white border border-slate-100 hover:border-indigo-400 rounded-2xl text-left transition-all group"
-                                                                        >
-                                                                            <div className="flex-1 min-w-0">
-                                                                                <p className="text-xs font-bold text-slate-700 uppercase truncate">{src.title}</p>
-                                                                                <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mt-1">{src.items?.length || 0} ITEM AKTIVITAS</p>
+
+                                                            {!previewSource ? (
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                    {availableSourceTitles.length === 0 ? (
+                                                                        <div className="col-span-2 py-8 text-center text-[10px] font-black text-slate-300 uppercase italic">Tidak ada data ditemukan</div>
+                                                                    ) : (
+                                                                        availableSourceTitles.map(src => (
+                                                                            <button
+                                                                                key={src.id}
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setPreviewSource(src);
+                                                                                    // Pre-select all items that are NOT completed
+                                                                                    const incompleteIndices = src.items
+                                                                                        .map((it, idx) => (it.status !== 'SELESAI' && it.percentage < 100) ? idx : -1)
+                                                                                        .filter(idx => idx !== -1);
+                                                                                    setSelectedItemsIndices(incompleteIndices.length > 0 ? incompleteIndices : src.items.map((_, i) => i));
+                                                                                }}
+                                                                                className="flex items-center justify-between p-4 bg-white border border-slate-100 hover:border-indigo-400 rounded-2xl text-left transition-all group"
+                                                                            >
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <p className="text-xs font-bold text-slate-700 uppercase truncate">{src.title}</p>
+                                                                                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mt-1">{src.items?.length || 0} ITEM AKTIVITAS</p>
+                                                                                </div>
+                                                                                <ArrowRight size={14} className="text-slate-200 group-hover:text-indigo-500 transition-colors" />
+                                                                            </button>
+                                                                        ))
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="space-y-3 animate-in fade-in slide-in-from-right-4 duration-300">
+                                                                    <div className="max-h-[300px] overflow-y-auto pr-2 space-y-2 no-scrollbar">
+                                                                        {previewSource.items.map((it, idx) => (
+                                                                            <div 
+                                                                                key={idx}
+                                                                                onClick={() => handleToggleImportItem(idx)}
+                                                                                className={`flex items-center gap-4 p-4 rounded-2xl border transition-all cursor-pointer ${selectedItemsIndices.includes(idx) ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100 hover:border-slate-300'}`}
+                                                                            >
+                                                                                <div className={`shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${selectedItemsIndices.includes(idx) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-200'}`}>
+                                                                                    {selectedItemsIndices.includes(idx) && <CheckSquare size={12} className="text-white" />}
+                                                                                </div>
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <p className={`text-xs font-bold ${selectedItemsIndices.includes(idx) ? 'text-indigo-900' : 'text-slate-600'}`}>{it.activity || it.text || 'Aktivitas'}</p>
+                                                                                    <div className="flex items-center gap-2 mt-1">
+                                                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Progres: {it.percentage || 0}%</span>
+                                                                                        {it.status && <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${it.status === 'SELESAI' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{it.status}</span>}
+                                                                                    </div>
+                                                                                </div>
                                                                             </div>
-                                                                            <ArrowRight size={14} className="text-slate-200 group-hover:text-indigo-500 transition-colors" />
+                                                                        ))}
+                                                                    </div>
+                                                                    <div className="flex gap-2 pt-4">
+                                                                        <button 
+                                                                            type="button" 
+                                                                            onClick={importFromSelectedSource}
+                                                                            disabled={selectedItemsIndices.length === 0}
+                                                                            className="flex-1 py-3 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-800 disabled:opacity-50 transition-all shadow-lg"
+                                                                        >
+                                                                            Impor {selectedItemsIndices.length} Item Terpilih
                                                                         </button>
-                                                                    ))
-                                                                )}
-                                                            </div>
+                                                                        <button 
+                                                                            type="button" 
+                                                                            onClick={() => { setPreviewSource(null); setSelectedItemsIndices([]); }}
+                                                                            className="px-6 py-3 bg-white text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 border border-slate-200 transition-all"
+                                                                        >
+                                                                            Kembali
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
