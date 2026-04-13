@@ -3,7 +3,7 @@ import {
     Car, Calendar, MapPin, Info, CheckCircle, XCircle,
     Clock, Gauge, Fuel, User, Plus, Search, X, Lock,
     ArrowRight, ChevronRight, ChevronLeft, AlertCircle, Trash2,
-    Users, LogIn, LogOut, Receipt, Navigation2
+    Users, LogIn, LogOut, Receipt, Navigation2, Loader2
 } from 'lucide-react';
 import api from '../lib/axios';
 
