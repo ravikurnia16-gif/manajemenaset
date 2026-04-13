@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import api from '../lib/axios';
 import {
   MessageSquare, Save, RotateCcw, Search, ChevronDown, ChevronRight,
   ToggleLeft, ToggleRight, Eye, Edit3, X, Check, Loader2, Bell,
   Bus, Wrench, ShoppingCart, Users, Box, Sparkles, AlertCircle, Info
 } from 'lucide-react';
-
-const API = import.meta.env.VITE_API_URL || '/api';
 
 const CATEGORY_META = {
   KENDARAAN: { icon: Bus, color: '#10b981', label: 'Kendaraan' },
@@ -29,9 +27,7 @@ const WaNotificationManagement = () => {
   const [saving, setSaving] = useState(false);
   const [previewId, setPreviewId] = useState(null);
   const [toastMsg, setToastMsg] = useState('');
-
-  const token = JSON.parse(localStorage.getItem('user'))?.token;
-  const headers = { Authorization: `Bearer ${token}` };
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     fetchTemplates();
@@ -40,7 +36,8 @@ const WaNotificationManagement = () => {
   const fetchTemplates = async () => {
     try {
       setLoading(true);
-      const { data } = await axios.get(`${API}/wa-templates`, { headers });
+      setErrorMsg('');
+      const { data } = await api.get('/wa-templates');
       setTemplates(data);
       // Auto-expand all categories
       const cats = {};
@@ -48,7 +45,9 @@ const WaNotificationManagement = () => {
       setExpandedCats(cats);
     } catch (err) {
       console.error('Fetch templates error:', err);
-      showToast(`Gagal memuat template: ${err.response?.data?.error || err.message}`);
+      const msg = err.response?.data?.error || err.message || 'Gagal memuat data';
+      setErrorMsg(`Gagal memuat template: ${msg}`);
+      showToast(`Error: ${msg}`);
     } finally {
       setLoading(false);
     }
@@ -57,11 +56,11 @@ const WaNotificationManagement = () => {
   const handleSeed = async () => {
     try {
       setSeeding(true);
-      const { data } = await axios.post(`${API}/wa-templates/seed`, {}, { headers });
+      const { data } = await api.post('/wa-templates/seed', {});
       showToast(data.message);
       fetchTemplates();
     } catch (err) {
-      showToast('Gagal menambahkan template default');
+      showToast('Gagal menambahkan template default: ' + (err.response?.data?.error || err.message));
     } finally {
       setSeeding(false);
     }
@@ -69,7 +68,7 @@ const WaNotificationManagement = () => {
 
   const handleToggle = async (tpl) => {
     try {
-      await axios.put(`${API}/wa-templates/${tpl.id}`, { isActive: !tpl.isActive }, { headers });
+      await api.put(`/wa-templates/${tpl.id}`, { isActive: !tpl.isActive });
       setTemplates(prev => prev.map(t => t.id === tpl.id ? { ...t, isActive: !t.isActive } : t));
       showToast(`Notifikasi "${tpl.name}" ${!tpl.isActive ? 'diaktifkan' : 'dinonaktifkan'}`);
     } catch (err) {
@@ -92,10 +91,10 @@ const WaNotificationManagement = () => {
     try {
       setSaving(true);
       const positions = editPositions.split(',').map(s => s.trim()).filter(Boolean);
-      await axios.put(`${API}/wa-templates/${editingId}`, {
+      await api.put(`/wa-templates/${editingId}`, {
         content: editContent,
         recipientPositions: JSON.stringify(positions)
-      }, { headers });
+      });
       setEditingId(null);
       fetchTemplates();
       showToast('Template berhasil disimpan');
@@ -109,7 +108,7 @@ const WaNotificationManagement = () => {
   const handleReset = async (slug) => {
     if (!confirm('Reset template ini ke konten default?')) return;
     try {
-      await axios.post(`${API}/wa-templates/reset/${slug}`, {}, { headers });
+      await api.post(`/wa-templates/reset/${slug}`, {});
       fetchTemplates();
       showToast('Template berhasil di-reset');
     } catch (err) {
@@ -176,6 +175,20 @@ const WaNotificationManagement = () => {
         </button>
       </div>
 
+      {/* Error Banner */}
+      {errorMsg && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3 items-start">
+          <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+          <div className="text-sm text-red-800">
+            <p className="font-medium mb-1">Gagal Memuat Data</p>
+            <p>{errorMsg}</p>
+            <button onClick={fetchTemplates} className="mt-2 text-red-600 hover:text-red-700 font-medium underline">
+              Coba Lagi
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Info */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3 items-start">
         <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
@@ -198,7 +211,7 @@ const WaNotificationManagement = () => {
       </div>
 
       {/* Template List by Category */}
-      {templates.length === 0 ? (
+      {templates.length === 0 && !errorMsg ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-300">
           <MessageSquare className="w-12 h-12 text-slate-300 mx-auto mb-4" />
           <p className="text-slate-500 mb-4">Belum ada template notifikasi.</p>
@@ -247,27 +260,37 @@ const WaNotificationManagement = () => {
                           {tpl.description && <p className="text-xs text-slate-400 mt-1">{tpl.description}</p>}
 
                           {/* Available Variables */}
-                          {tpl.availableVars && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {JSON.parse(tpl.availableVars).map(v => (
-                                <span key={v} className="px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] font-mono rounded border border-amber-200">
-                                  {`{{${v}}}`}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                          {tpl.availableVars && (() => {
+                            try {
+                              const vars = JSON.parse(tpl.availableVars);
+                              return vars.length > 0 ? (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {vars.map(v => (
+                                    <span key={v} className="px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] font-mono rounded border border-amber-200">
+                                      {`{{${v}}}`}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null;
+                            } catch { return null; }
+                          })()}
 
                           {/* Recipients */}
-                          {tpl.recipientPositions && JSON.parse(tpl.recipientPositions || '[]').length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              <span className="text-[10px] text-slate-400 mr-1">Penerima:</span>
-                              {JSON.parse(tpl.recipientPositions).map(p => (
-                                <span key={p} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] rounded border border-blue-200">
-                                  {p}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                          {tpl.recipientPositions && (() => {
+                            try {
+                              const positions = JSON.parse(tpl.recipientPositions || '[]');
+                              return positions.length > 0 ? (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  <span className="text-[10px] text-slate-400 mr-1">Penerima:</span>
+                                  {positions.map(p => (
+                                    <span key={p} className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] rounded border border-blue-200">
+                                      {p}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null;
+                            } catch { return null; }
+                          })()}
                         </div>
 
                         {/* Actions */}
@@ -341,26 +364,30 @@ const WaNotificationManagement = () => {
               {(() => {
                 const tpl = templates.find(t => t.id === editingId);
                 if (!tpl?.availableVars) return null;
-                return (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                    <p className="text-xs font-medium text-amber-700 mb-2">Variabel yang tersedia (klik untuk menyalin):</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {JSON.parse(tpl.availableVars).map(v => (
-                        <button
-                          key={v}
-                          onClick={() => {
-                            const varStr = `{{${v}}}`;
-                            navigator.clipboard?.writeText(varStr);
-                            showToast(`Disalin: ${varStr}`);
-                          }}
-                          className="px-2 py-1 bg-white text-amber-800 text-xs font-mono rounded border border-amber-300 hover:bg-amber-100 transition-all cursor-pointer"
-                        >
-                          {`{{${v}}}`}
-                        </button>
-                      ))}
+                try {
+                  const vars = JSON.parse(tpl.availableVars);
+                  if (vars.length === 0) return null;
+                  return (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                      <p className="text-xs font-medium text-amber-700 mb-2">Variabel yang tersedia (klik untuk menyalin):</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {vars.map(v => (
+                          <button
+                            key={v}
+                            onClick={() => {
+                              const varStr = `{{${v}}}`;
+                              navigator.clipboard?.writeText(varStr);
+                              showToast(`Disalin: ${varStr}`);
+                            }}
+                            className="px-2 py-1 bg-white text-amber-800 text-xs font-mono rounded border border-amber-300 hover:bg-amber-100 transition-all cursor-pointer"
+                          >
+                            {`{{${v}}}`}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                );
+                  );
+                } catch { return null; }
               })()}
 
               {/* Content Editor */}
