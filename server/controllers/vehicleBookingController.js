@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendMessage } = require('../services/whatsappService');
+const waTemplateService = require('../services/waTemplateService');
 const { createNotification } = require('./notificationController');
 
 // Helper for WA date formatting
@@ -181,7 +182,7 @@ exports.requestBooking = async (req, res) => {
 
             for (const pic of vehicle.pics) {
                 if (pic.phone) {
-                    await sendMessage(pic.phone, msg);
+                    await waTemplateService.send('VEHICLE_BOOKING_CREATED_ADMIN', pic.phone, {}, msg);
                 }
                 // Add System Notification for PICs
                 await createNotification(
@@ -212,7 +213,7 @@ exports.requestBooking = async (req, res) => {
                     `Tujuan: ${destination}\n\n` +
                     `*Status*: Sistem telah memberikan Persetujuan Otomatis.`;
 
-                await sendMessage(headSarpras.phone, msgHead);
+                await waTemplateService.send('VEHICLE_BOOKING_CREATED_KABID', headSarpras.phone, {}, msgHead);
                 await createNotification(
                     headSarpras.id,
                     'Prioritas Pimpinan Yayasan',
@@ -235,7 +236,7 @@ exports.requestBooking = async (req, res) => {
             }
 
             msg += `\n\nSelamat bertugas!`;
-            await sendMessage(booking.user.phone, msg);
+            await waTemplateService.send('VEHICLE_BOOKING_STATUS_UPDATE', booking.user.phone, {}, msg);
         }
 
         res.status(201).json(booking);
@@ -315,7 +316,7 @@ exports.reviewBooking = async (req, res) => {
                     `Permintaan Anda untuk kendaraan *${booking.vehicle.name}* telah *DITOLAK ❌*.\n` +
                     (adminNote ? `Catatan: ${adminNote}` : '');
             }
-            await sendMessage(booking.user.phone, msg);
+            await waTemplateService.send('VEHICLE_BOOKING_FINISHED', booking.user.phone, {}, msg);
         }
 
         // Add System Notification for User
@@ -386,7 +387,7 @@ exports.startTrip = async (req, res) => {
 
             for (const person of recipients) {
                 try {
-                    await sendMessage(person.phone, discMsg);
+                    await waTemplateService.send('VEHICLE_BOOKING_DISCREPANCY_KABID', person.phone, {}, discMsg);
                     await createNotification(
                         person.id,
                         'Peringatan Diskrepansi Odometer',
@@ -491,7 +492,7 @@ exports.endTrip = async (req, res) => {
                 for (const staff of staffRecipients) {
                     try {
                         if (staff.phone) {
-                            await sendMessage(staff.phone, fuelMsg);
+                            await waTemplateService.send('VEHICLE_BOOKING_FUEL_ALERT', staff.phone, {}, fuelMsg);
                         }
                         await createNotification(
                             staff.id,
@@ -694,7 +695,7 @@ exports.checkOverdueVehicleBookings = async () => {
                     `⚠️ Mohon segera selesaikan perjalanan melalui aplikasi Sarpras dengan menginputkan Kilometer Akhir agar armada dapat digunakan oleh pengguna lain.\n\n` +
                     `Terima kasih.`;
 
-                await sendMessage(booking.user.phone, waMsg);
+                await waTemplateService.send('VEHICLE_REMINDER_H1', booking.user.phone, {}, waMsg);
             }
         }
     } catch (error) {
@@ -753,7 +754,7 @@ exports.checkUpcomingVehicleBookings = async () => {
                     `Jika tidak jadi digunakan, mohon batalkan request agar armada dapat digunakan oleh pengguna lain.\n\n` +
                     `Terima kasih.`;
 
-                await sendMessage(booking.user.phone, waMsg);
+                await waTemplateService.send('VEHICLE_BOOKING_REVIEW', booking.user.phone, {}, waMsg);
             }
         }
     } catch (error) {

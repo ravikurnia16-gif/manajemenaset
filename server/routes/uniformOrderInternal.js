@@ -103,7 +103,7 @@ const createOrder = async (req, res) => {
 
         // Send WhatsApp notifications
         try {
-            const { sendMessage } = require('../services/whatsappService');
+            const waTemplateService = require('../services/waTemplateService');
             const settings = await prisma.setting.findFirst();
 
             const itemList = order.items.map((oi, i) =>
@@ -122,7 +122,7 @@ const createOrder = async (req, res) => {
                     `💰 Total: Rp ${order.totalAmount.toLocaleString('id-ID')}\n` +
                     `📝 Catatan: ${order.note || '-'}`;
 
-                await sendMessage(settings.waGroupId, msg);
+                await waTemplateService.send('UNIFORM_INTERNAL_GROUP', settings.waGroupId, {}, msg);
             }
 
             // 2. Notify the ordering user directly (Unit Order confirmation)
@@ -146,7 +146,7 @@ const createOrder = async (req, res) => {
 
                 setTimeout(async () => {
                     try {
-                        await sendMessage(order.customerPhone, confirmMsg);
+                        await waTemplateService.send('UNIFORM_INTERNAL_CUSTOMER', order.customerPhone, {}, confirmMsg);
                     } catch (e) {
                         console.error('[WA] Unit order confirmation failed:', e.message);
                     }

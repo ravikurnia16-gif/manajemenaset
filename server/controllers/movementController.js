@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendMessage } = require('../services/whatsappService');
+const waTemplateService = require('../services/waTemplateService');
 const { createNotification } = require('./notificationController');
 
 /**
@@ -122,7 +123,7 @@ exports.requestMutation = async (req, res) => {
                     cumulativeDelay += randomGap;
                     setTimeout(async () => {
                         try {
-                            await sendMessage(user.phone, message);
+                            await waTemplateService.send('MOVEMENT_CREATED_ADMIN', user.phone, {}, message);
                         } catch (err) {
                             console.error(`[Mutation] Notification failed for ${user.username}`);
                         }

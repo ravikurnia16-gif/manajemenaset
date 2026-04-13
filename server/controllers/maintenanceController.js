@@ -2,6 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { deleteFile } = require('../services/minioService');
 const whatsappService = require('../services/whatsappService');
+const waTemplateService = require('../services/waTemplateService');
 const { createNotification } = require('./notificationController');
 const predictiveService = require('../services/predictiveService');
 const crypto = require('crypto');
@@ -209,7 +210,12 @@ exports.createReport = async (req, res) => {
                         `${isDirect ? `*Status* : Langsung Ditugaskan (Pimpinan) \u2705\n\n` : `\n`}` +
                         `Mohon menunggu proses pengerjaan.`;
 
-                    await whatsappService.sendMessage(submitter.phone, msgSubmitter);
+                    await waTemplateService.send('MAINTENANCE_CREATED_SUBMITTER', submitter.phone, {
+                        nama_pelapor: submitter.name || submitter.username,
+                        judul: isDirect ? `[INSTRUKSI KABID] ${title}` : title,
+                        kode: code,
+                        tipe: type === 'ASSET' ? 'Aset Terdata' : 'Non-Aset / Umum'
+                    }, msgSubmitter);
                 }
 
                 // 2. WhatsApp Notification (Only Staff Manajemen Aset for incoming requests)
@@ -253,7 +259,16 @@ exports.createReport = async (req, res) => {
 
                             setTimeout(async () => {
                                 try {
-                                    await whatsappService.sendMessage(admin.phone, msgAdmin);
+                                    await waTemplateService.send('MAINTENANCE_CREATED_ADMIN', admin.phone, {
+                                        nama_pelapor: submitter?.name || submitter?.username || '-',
+                                        telepon_pelapor: submitter?.phone?.replace(/^0/, '62') || '-',
+                                        urgensi: isDirect ? 'PENGERJAAN PRIORITAS' : (urgencyLabels[report.urgency] || report.urgency),
+                                        kategori: report.category === 'ROUTINE' ? 'Pemeliharaan Rutin' : 'Pemeliharaan Insidentil',
+                                        kode: code,
+                                        judul: title,
+                                        deskripsi: description,
+                                        daftar_aset: assetListStr
+                                    }, msgAdmin);
                                 } catch (e) {
                                     console.error(`[WA] Failed admin notif to ${admin.username}:`, e);
                                 }
@@ -278,7 +293,12 @@ exports.createReport = async (req, res) => {
                             `Mohon segera ditindaklanjuti. Syukron.`;
 
                         setTimeout(async () => {
-                            await whatsappService.sendMessage(techUser.phone, msgTech);
+                            await waTemplateService.send('MAINTENANCE_ASSIGNED_TECH', techUser.phone, {
+                                nama_teknisi: techUser.name || techUser.username,
+                                judul: title,
+                                kode: code,
+                                deskripsi: description
+                            }, msgTech);
                         }, 5000);
                     }
                 }
@@ -418,7 +438,12 @@ exports.updateStatus = async (req, res) => {
                                 `Syukron jazakumullahu khairan.`;
 
                             setTimeout(async () => {
-                                await whatsappService.sendMessage(actualTechPhone, msgTech);
+                                await waTemplateService.send('MAINTENANCE_ASSIGNED_TECH', actualTechPhone, {
+                                    nama_teknisi: techUser?.name || techUser?.username || technician,
+                                    judul: report.title,
+                                    kode: report.code,
+                                    deskripsi: report.description
+                                }, msgTech);
                             }, 45000); // Send slightly after submitter notif
                         }
                     } catch (e) {
@@ -457,8 +482,18 @@ exports.updateStatus = async (req, res) => {
                 }
 
                 setTimeout(async () => {
-                    try {
-                        await whatsappService.sendMessage(submitter.phone, msg);
+                        let extDetail = '';
+                        if (status === 'ASSIGNED' && selectedTechPhone) extDetail += `\n📞 *Kontak Petugas* : wa.me/${selectedTechPhone.replace(/^0/, '62')}\n`;
+                        if (status === 'REJECTED' && rejectionReason) extDetail += `\n*Alasan:* ${rejectionReason}\n`;
+                        if (status === 'COMPLETED' && actionTaken) extDetail += `\n*Tindakan:* ${actionTaken}\n`;
+
+                        await waTemplateService.send('MAINTENANCE_STATUS_UPDATE', submitter.phone, {
+                            nama_pelapor: submitter.name || submitter.username,
+                            judul: report.title,
+                            kode: report.code,
+                            status: statusLabel,
+                            detail_tambahan: extDetail
+                        }, msg);
                         console.log(`[WA] Status notif sent to ${submitter.username}`);
                     } catch (e) {
                         console.error('WA Status Error:', e);

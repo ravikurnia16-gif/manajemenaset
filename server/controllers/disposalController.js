@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const waService = require('../services/whatsappService');
+const waTemplateService = require('../services/waTemplateService');
 const { createNotification } = require('./notificationController');
 
 /**
@@ -114,7 +115,7 @@ exports.createDisposal = async (req, res) => {
                     `_Mohon segera tinjau di dashboard Sistem Manajemen Aset._`;
 
                 for (const lead of leads) {
-                    await waService.sendMessage(lead.phone, waMessage);
+                    await waTemplateService.send('DISPOSAL_CREATED_ADMIN', lead.phone, {}, waMessage);
                 }
             }
         } catch (waError) {

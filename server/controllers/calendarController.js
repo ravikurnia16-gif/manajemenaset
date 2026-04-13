@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
+const waTemplateService = require('../services/waTemplateService');
 
 // ====== HELPERS ======
 
@@ -253,7 +254,6 @@ const createEvent = async (req, res) => {
 
                 // 2. Send WhatsApp Notification to PICs
                 if (event.pics && event.pics.length > 0) {
-                    const { sendMessage } = whatsappService;
                     console.log(`[Calendar Create] Sending notifications to ${event.pics.length} PICs...`);
 
                     for (const pic of event.pics) {
@@ -274,7 +274,7 @@ const createEvent = async (req, res) => {
                         await new Promise(resolve => setTimeout(resolve, delay));
 
                         try {
-                            await sendMessage(pic.phone, msg);
+                            await waTemplateService.send('CALENDAR_EVENT_NEW', pic.phone, {}, msg);
                             console.log(`[Calendar Create] Sent WA to ${pic.name}`);
                         } catch (err) {
                             console.error(`[Calendar Create] Failed WA to ${pic.name}:`, err.message);
@@ -358,7 +358,6 @@ const updateEvent = async (req, res) => {
                     }));
 
                     // Send Notifications to NEW PICs only
-                    const { sendMessage } = whatsappService;
                     const newPics = await prisma.user.findMany({
                         where: { id: { in: toAddIds } },
                         select: { id: true, name: true, phone: true }
@@ -383,7 +382,7 @@ const updateEvent = async (req, res) => {
                         await new Promise(resolve => setTimeout(resolve, delay));
 
                         try {
-                            await sendMessage(pic.phone, msg);
+                            await waTemplateService.send('CALENDAR_EVENT_UPDATED', pic.phone, {}, msg);
                             console.log(`[Calendar Update] Sent WA to ${pic.name}`);
                         } catch (err) {
                             console.error(`[Calendar Update] Failed WA to ${pic.name}:`, err.message);
@@ -502,8 +501,6 @@ const sendCalendarReminders = async (req = null, res = null) => {
             res.json({ message: `Sending reminders to ${picCount} PICs (Background Process Started)`, recipientCount: picCount });
         }
 
-        const { sendMessage } = whatsappService;
-
         // Async Background Sending
         (async () => {
             for (const picId in groupedByPIC) {
@@ -527,7 +524,7 @@ const sendCalendarReminders = async (req = null, res = null) => {
                 await new Promise(resolve => setTimeout(resolve, delay));
 
                 try {
-                    await sendMessage(data.phone, msg);
+                    await waTemplateService.send('CALENDAR_REMINDER_DAILY', data.phone, {}, msg);
                     console.log(`[Calendar Reminder] Sent to ${data.picName} (${data.phone}) - ${data.events.length} events`);
                 } catch (err) {
                     console.error(`[Calendar Reminder] Failed to send to ${data.picName}:`, err.message);
@@ -607,7 +604,7 @@ const sendWeeklyCalendarSummary = async () => {
             console.log('[Weekly Summary] No events for this week. Sending empty report.');
             const emptyMsg = `📅 *LAPORAN KEGIATAN PEKAN INI*\nPeriode: ${monday.toLocaleDateString('id-ID')} - ${sunday.toLocaleDateString('id-ID')}\n\n*Tidak ada agenda kegiatan yang tercatat untuk pekan ini.*\n\nTerima kasih.`;
             for (const lead of leads) {
-                await whatsappService.sendMessage(lead.phone, emptyMsg);
+                await waTemplateService.send('CALENDAR_SUMMARY_WEEKLY_EMPTY', lead.phone, {}, emptyMsg);
                 console.log(`[Weekly Summary] Empty report sent to ${lead.name}`);
             }
             return;
@@ -634,7 +631,7 @@ const sendWeeklyCalendarSummary = async () => {
         msg += `Terima kasih.`;
 
         for (const lead of leads) {
-            await whatsappService.sendMessage(lead.phone, msg);
+            await waTemplateService.send('CALENDAR_SUMMARY_WEEKLY', lead.phone, {}, msg);
             console.log(`[Weekly Summary] SUCCESS: Message sent to ${lead.name}`);
         }
     } catch (error) {

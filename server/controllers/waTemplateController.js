@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { clearCache } = require('../services/waTemplateService');
 
 // Default templates to seed
 const DEFAULT_TEMPLATES = [
@@ -188,6 +189,7 @@ const updateTemplate = async (req, res) => {
             data: updateData
         });
 
+        clearCache();
         res.json(template);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -228,6 +230,7 @@ const resetTemplate = async (req, res) => {
             }
         });
 
+        clearCache();
         res.json(template);
     } catch (error) {
         res.status(500).json({ error: error.message });

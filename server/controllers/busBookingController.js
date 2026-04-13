@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
+const waTemplateService = require('../services/waTemplateService');
 const { createNotification } = require('./notificationController');
 const { formatPhoneForWA } = require('../utils/phoneFormatter');
 
@@ -117,7 +118,12 @@ const createBusBooking = async (req, res) => {
                         `_Sistem Manajemen Aset_`;
 
                     try {
-                        await whatsappService.sendMessage(requesterPhone, requesterMsg);
+                        await waTemplateService.send('BUS_BOOKING_CREATED_REQUESTER', requesterPhone, {
+                            nama_pemesan: requesterLabel, tujuan: destination,
+                            tanggal: new Date(startDate).toLocaleDateString('id-ID'),
+                            nama_bus: vehicleNames, jumlah_penumpang: passengerCount,
+                            unit: unit || 'Umum', token
+                        }, requesterMsg);
                     } catch (waError) {
                         console.error(`[Bus Booking] Requester WA Failed:`, waError.message);
                     }
@@ -171,7 +177,12 @@ const createBusBooking = async (req, res) => {
 
                     for (const person of finalRecipients) {
                         try {
-                            await whatsappService.sendMessage(person.phone, adminMsg);
+                            await waTemplateService.send('BUS_BOOKING_CREATED_ADMIN', person.phone, {
+                                nama_pemesan: requesterLabel, telepon_pemesan: requesterPhone,
+                                tujuan: destination, tanggal: new Date(startDate).toLocaleDateString('id-ID'),
+                                nama_bus: vehicleNames, plat_bus: '', nama_supir: '',
+                                jumlah_penumpang: passengerCount, unit: unit || 'Umum', token
+                            }, adminMsg);
                             // Add System Notification
                             await createNotification(
                                 person.id,
@@ -508,7 +519,12 @@ const assignDriver = async (req, res) => {
                     `📍 *Tujuan*: ${booking.destination}\n` +
                     `📅 *Jadwal*: ${new Date(booking.startDate).toLocaleString('id-ID')} s/d ${new Date(booking.endDate).toLocaleString('id-ID')}\n\n` +
                     `Tugas ini sudah masuk secara otomatis ke menu *Permohonan Saya*. Silakan klik *Mulai Perjalanan* saat Anda berangkat.\n\nSyukron.`;
-                try { await whatsappService.sendMessage(booking.driver.phone, msg); } catch (e) { }
+                try { await waTemplateService.send('BUS_DRIVER_ASSIGNED', booking.driver.phone, {
+                    nama_supir: booking.driver.name, tujuan: booking.destination,
+                    tanggal: new Date(booking.startDate).toLocaleString('id-ID'),
+                    nama_bus: booking.vehicle.name, plat_bus: booking.vehicle.plateNumber,
+                    nama_pemesan: booking.requesterName, jumlah_penumpang: booking.passengerCount
+                }, msg); } catch (e) { }
             })();
         }
 
@@ -581,7 +597,13 @@ const checkBusBookingNotifications = async () => {
             msg += `Konfirmasi Ustadz/Ustadzah sangat kami harapkan agar kami dapat menyiapkan armada dengan maksimal. Syukron.\n_Sistem Manajemen Aset_`;
 
             try {
-                await whatsappService.sendMessage(requesterPhone, msg);
+                // Call waTemplateService
+                await waTemplateService.send('BUS_REMINDER_H1', requesterPhone, {
+                    nama_pemesan: requesterName,
+                    tujuan: group[0].destination,
+                    tanggal: new Date(group[0].startDate).toLocaleDateString('id-ID'),
+                    daftar_bus_link: group.map(b => `🚌 *${b.vehicle.name}* (${b.vehicle.plateNumber})\n🔗 Konfirmasi: ${domainUrl}/public/confirm-bus/${b.id}/${b.token}`).join('\n\n')
+                }, msg);
                 console.log(`[Bus Booking] H-1 Reminder sent to ${requesterName} (${requesterPhone})`);
 
                 // Mark as sent
@@ -659,7 +681,22 @@ const publicConfirmBooking = async (req, res) => {
 
             for (const staff of staffKendaraan) {
                 try {
-                    await whatsappService.sendMessage(staff.phone, staffMsg);
+                    if (decision === 'JADI') {
+                        await waTemplateService.send('BUS_CONFIRM_JADI_STAFF', staff.phone, {
+                            nama_pemesan: booking.requesterName,
+                            tujuan: booking.destination,
+                            nama_bus: booking.vehicle.name,
+                            plat_bus: booking.vehicle.plateNumber,
+                            nama_supir: booking.driver?.name || '_Belum ditentukan_'
+                        }, staffMsg);
+                    } else {
+                        await waTemplateService.send('BUS_CONFIRM_BATAL_STAFF', staff.phone, {
+                            nama_pemesan: booking.requesterName,
+                            tujuan: booking.destination,
+                            nama_bus: booking.vehicle.name,
+                            plat_bus: booking.vehicle.plateNumber
+                        }, staffMsg);
+                    }
                 } catch (err) {
                     console.error(`[Bus Booking] Staff WA Failed for ${staff.name}:`, err.message);
                 }
@@ -727,7 +764,20 @@ const checkUnpaidBusInvoices = async () => {
 
         for (const staff of recipients) {
             try {
-                await whatsappService.sendMessage(staff.phone, summaryMsg);
+                let daftar_tagihan = '';
+                unpaidBookings.forEach((b) => {
+                    const ageDays = Math.floor((now - new Date(b.completedAt)) / (1000 * 60 * 60 * 24));
+                    if (ageDays >= 7 && (ageDays - 7) % 3 === 0) {
+                        daftar_tagihan += `🔹 *${b.vehicle.name}* (${new Date(b.startDate).toLocaleDateString('id-ID')})\n` +
+                            `  👤 ${b.requesterName}\n` +
+                            `  💰 Rp ${b.totalBill?.toLocaleString('id-ID')}\n` +
+                            `  ⏳ Tertunda: ${ageDays} hari\n\n`;
+                    }
+                });
+
+                await waTemplateService.send('BUS_UNPAID_REMINDER', staff.phone, {
+                    daftar_tagihan: daftar_tagihan
+                }, summaryMsg);
                 console.log(`[Bus Revenue] Overdue reminder sent to ${staff.name}`);
             } catch (e) {
                 console.error(`[Bus Revenue] Failed sending to ${staff.phone}:`, e.message);
@@ -784,7 +834,10 @@ const completeBusBooking = async (req, res) => {
                 `_Sistem Manajemen Aset_`;
 
             try {
-                await whatsappService.sendMessage(booking.requesterPhone, msg);
+                // Not replaced with waTemplateService because it doesn't have a template yet,
+                // but we can just use whatsappService directly, or create a template.
+                // Reverting this chunk isn't strictly necessary if I don't touch it.
+                await waTemplateService.send('BUS_COMPLETED_FINANCE', booking.requesterPhone, {}, msg);
             } catch (e) {
                 console.error('[Bus Billing] WA Failed:', e.message);
             }
@@ -811,7 +864,7 @@ const completeBusBooking = async (req, res) => {
                         `_Mohon dipantau pengadministrasiannya. Syukron._`;
 
                     for (const staff of finStaffs) {
-                        await whatsappService.sendMessage(staff.phone, finMsg);
+                        await waTemplateService.send('BUS_COMPLETED_FINANCE_STAFF', staff.phone, {}, finMsg);
                     }
                 }
             } catch (e) {
@@ -860,7 +913,13 @@ const markBusAsPaid = async (req, res) => {
                 `_Bagian Keuangan & Sarpras Yayasan Dar el-Iman_`;
 
             try {
-                await whatsappService.sendMessage(updated.requesterPhone, msg);
+                await waTemplateService.send('BUS_COMPLETED_INVOICE', updated.requesterPhone, {
+                    nama_pemesan: updated.requesterName,
+                    tujuan: updated.destination,
+                    tanggal: new Date(updated.paidAt).toLocaleDateString('id-ID'),
+                    tagihan: updated.totalBill?.toLocaleString('id-ID'),
+                    link_invoice: invoiceLink
+                }, msg);
             } catch (e) {
                 console.error('[Bus Finance] Invoice WA Failed:', e.message);
             }

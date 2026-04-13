@@ -123,8 +123,8 @@ const createOrder = async (req, res) => {
 
         // Send WhatsApp notifications via global staggered queue
         (async () => {
-            const waService = require('../services/whatsappService');
-            if (!waService.sendMessage) return;
+            const waTemplateService = require('../services/waTemplateService');
+            if (!waTemplateService.send) return;
 
             try {
                 // Generate Item List String
@@ -147,7 +147,7 @@ const createOrder = async (req, res) => {
                         `InsyaaAllah akan segera diproses.\n` +
                         `Jazaakumullahu khairan.`;
 
-                    await waService.sendMessage(order.customerPhone, customerMsg);
+                    await waTemplateService.send('UNIFORM_ORDER_CREATED_CUSTOMER', order.customerPhone, {}, customerMsg);
                 }
 
                 // 2. Send to Jeri Saputra
@@ -167,7 +167,7 @@ const createOrder = async (req, res) => {
                         `📝 Catatan: ${order.note?.split('\n\n')[1]?.replace('ITEM PESANAN:', '')?.trim() || '-'}\n\n` +
                         `Mohon segera diproses. Syukran.`;
 
-                    await waService.sendMessage(targetUser.phone, specificMsg);
+                    await waTemplateService.send('UNIFORM_ORDER_CREATED_ADMIN', targetUser.phone, {}, specificMsg);
                 }
             } catch (waError) {
                 console.error('WA notification delivery failed:', waError.message);
@@ -321,7 +321,7 @@ const notifyItemStatus = async (req, res) => {
 
         if (!item || !item.order.customerPhone) return res.status(404).json({ error: 'Data tidak lengkap' });
 
-        const waService = require('../services/whatsappService');
+        const waTemplateService = require('../services/waTemplateService');
         let message = '';
 
         if (type === 'READY') {
@@ -342,7 +342,7 @@ const notifyItemStatus = async (req, res) => {
         }
 
         if (message) {
-            await waService.sendMessage(item.order.customerPhone, message);
+            await waTemplateService.send('UNIFORM_ITEM_STATUS_COMPLETED', item.order.customerPhone, {}, message);
         }
 
         res.json({ message: 'Notifikasi terkirim' });
@@ -442,7 +442,7 @@ const bulkUpdateItems = async (req, res) => {
         });
 
         if (order.customerPhone) {
-            const waService = require('../services/whatsappService');
+            const waTemplateService = require('../services/waTemplateService');
             let message = '';
 
             const isUnit = (order.note && order.note.includes('PESANAN UNIT INTERNAL')) || 
@@ -514,7 +514,7 @@ const bulkUpdateItems = async (req, res) => {
 
             if (message) {
                 try {
-                    await waService.sendMessage(order.customerPhone, message);
+                    await waTemplateService.send('UNIFORM_ORDER_PAYMENT_ACCEPTED', order.customerPhone, {}, message);
                 } catch(err) {
                     console.error('[Bulk Update WA] Error:', err.message);
                 }

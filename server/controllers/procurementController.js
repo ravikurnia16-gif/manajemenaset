@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { deleteFile } = require('../services/minioService');
 const whatsappService = require('../services/whatsappService');
+const waTemplateService = require('../services/waTemplateService');
 const { createNotification } = require('./notificationController');
 
 // Debounce map for assignment notifications: { "userId-procId": Timer }
@@ -214,7 +215,7 @@ exports.createProcurement = async (req, res) => {
 
                  setTimeout(async () => {
                      try {
-                         await whatsappService.sendMessage(assignedUser.phone, msg);
+                         await waTemplateService.send('PROCUREMENT_DIRECT_ASSIGNED', assignedUser.phone, {}, msg);
                          console.log(`[WA] Instant direct procurement mandate sent to ${assignedUser.username}`);
                      } catch (e) {
                          console.error('WA Mandate Notification Error:', e);
@@ -275,7 +276,7 @@ exports.createProcurement = async (req, res) => {
                         `${itemList}\n\n` +
                         `${isDirect ? `*Status* : Langsung Disetujui (Instruksi Kabid) \u2705\n` : `Pesanan Ustadz/Ustadzah akan segera kami proses.`}`;
 
-                    await whatsappService.sendMessage(submitter.phone, msgSubmitter);
+                    await waTemplateService.send('PROCUREMENT_NEW_SUBMITTER', submitter.phone, {}, msgSubmitter);
                 }
 
                 if (!isDirect) {
@@ -310,7 +311,7 @@ exports.createProcurement = async (req, res) => {
 
                                 setTimeout(async () => {
                                     try {
-                                        await whatsappService.sendMessage(admin.phone, msgAdm);
+                                        await waTemplateService.send('PROCUREMENT_NEW_ADMIN', admin.phone, {}, msgAdm);
                                     } catch (e) {
                                         console.error(`Failed sending to ${admin.username}:`, e);
                                     }
@@ -452,7 +453,7 @@ exports.importProcurement = async (req, res) => {
                     // The global queue handles staggering (30-60s)
                     for (const admin of admins) {
                         try {
-                            await whatsappService.sendMessage(admin.phone, msgAdm);
+                            await waTemplateService.send('PROCUREMENT_IMPORT_ADMIN', admin.phone, {}, msgAdm);
                         } catch (e) {
                             console.error(`[WA] Failed sending to ${admin.username}:`, e);
                         }
@@ -543,7 +544,13 @@ exports.updateStatus = async (req, res) => {
                     // Delay 30 seconds
                     setTimeout(async () => {
                         try {
-                            await whatsappService.sendMessage(submitter.phone, msg);
+                            await waTemplateService.send('PROCUREMENT_STATUS_UPDATE', submitter.phone, {
+                                nama_pengaju: submitter.name || submitter.username,
+                                judul: procurement.title || procurement.code,
+                                kode: procurement.code,
+                                status: status,
+                                detail_tambahan: msg
+                            }, msg);
                             console.log(`[WA] Stage notification sent to ${submitter.username} for status ${status}`);
                         } catch (e) {
                             console.error(`[WA] Failed stage notification:`, e);
@@ -698,7 +705,7 @@ exports.updateItemDetail = async (req, res) => {
                         `${itemListMsg}\n\n` +
                         `Mohon segera ditindaklanjuti. Syukron Jazakumullahu khairan.`;
 
-                    await whatsappService.sendMessage(assignedUser.phone, msg);
+                    await waTemplateService.send('PROCUREMENT_ITEM_ASSIGNED', assignedUser.phone, {}, msg);
                     console.log(`[WA] Consolidated assignment notification sent to ${assignedUser.username} for ${procurement.items.length} items`);
                 } catch (err) {
                     console.error('WA Assignment Notification Error:', err);
@@ -746,7 +753,7 @@ exports.updateItemDetail = async (req, res) => {
 
                     setTimeout(async () => {
                         try {
-                            await whatsappService.sendMessage(submitter.phone, msg);
+                            await waTemplateService.send('PROCUREMENT_VENDOR_SELECTED', submitter.phone, {}, msg);
                             console.log(`[WA] Vendor notification sent to ${submitter.username}`);
                         } catch (e) {
                             console.error('[WA] Failed vendor notification:', e);
@@ -925,7 +932,7 @@ exports.processBAST = async (req, res) => {
 
                 setTimeout(async () => {
                     try {
-                        await whatsappService.sendMessage(submitter.phone, msg);
+                        await waTemplateService.send('PROCUREMENT_BAST_COMPLETED', submitter.phone, {}, msg);
                         console.log(`[WA] BAST notification sent to ${submitter.username}`);
                     } catch (e) {
                         console.error('[WA] Failed BAST notification:', e);
@@ -998,7 +1005,7 @@ exports.notifyAssignees = async (req, res) => {
                 `${itemListMsg}\n\n` +
                 `Mohon segera ditindaklanjuti. Syukron Jazakumullahu khairan.`;
 
-            await whatsappService.sendMessage(user.phone, msg);
+            await waTemplateService.send('PROCUREMENT_ITEM_ASSIGNED_MANUAL', user.phone, {}, msg);
         }
 
         res.json({ message: `Notifikasi telah dikirim ke ${assigneeIds.length} petugas.` });

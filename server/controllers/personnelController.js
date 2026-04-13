@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
+const waTemplateService = require('../services/waTemplateService');
 const { sendPushToUser, sendPushToKabid } = require('../services/pushService');
 const { createNotification } = require('./notificationController');
 
@@ -322,7 +323,7 @@ exports.createAssignment = async (req, res) => {
                         `*Deskripsi* :\n${checklist || description}\n\n` +
                         `Mohon bantuan untuk segera dilaksanakan ya Ustadz`;
 
-                    await whatsappService.sendMessage(assignee.phone, msg);
+                    await waTemplateService.send('PERSONNEL_ASSIGNMENT_NEW', assignee.phone, {}, msg);
                 }
 
                 // Push Notification to Assignee
@@ -764,7 +765,7 @@ exports.checkAssignmentDeadlines = async () => {
                     `Mohon kesediaannya untuk segera diselesaikan atau diupdate progresnya di aplikasi Sarpras ya Ustadz. Syukron Jazakumullahu Khairan.`;
 
                 try {
-                    await whatsappService.sendMessage(a.assignee.phone, msg);
+                    await waTemplateService.send('PERSONNEL_ASSIGNMENT_REMINDER', a.assignee.phone, {}, msg);
 
                     await prisma.personnelAssignment.update({
                         where: { id: a.id },
@@ -828,7 +829,7 @@ exports.requestExtension = async (req, res) => {
                 `📝 *Alasan*: ${reason}\n\n` +
                 `Mohon segera tinjau pengajuan ini di aplikasi Manajemen Aset. Syukron.`;
 
-            try { await whatsappService.sendMessage(assignment.assigner.phone, msg); } catch (e) { }
+            try { await waTemplateService.send('PERSONNEL_ASSIGNMENT_DONE', assignment.assigner.phone, {}, msg); } catch (e) { }
         }
 
         res.json(updated);
@@ -879,7 +880,7 @@ exports.handleExtension = async (req, res) => {
                     : `⚠️ Mohon tetap selesaikan sesuai deadline awal: ${new Date(assignment.dueDate).toLocaleDateString('id-ID')}\n`) +
                 `\nMohon dicek kembali di aplikasi Manajemen Aset. Syukron.`;
 
-            try { await whatsappService.sendMessage(assignment.assignee.phone, msg); } catch (e) { }
+            try { await waTemplateService.send('PERSONNEL_ASSIGNMENT_REJECTED', assignment.assignee.phone, {}, msg); } catch (e) { }
         }
 
         res.json(updated);
@@ -1037,7 +1038,7 @@ exports.generateRoutineTasks = async () => {
                         `*Deskripsi* :\n${checklist || routine.description}\n\n` +
                         `Mohon bantuan untuk segera dilaksanakan ya Ustadz. Semangat!`;
 
-                    try { await whatsappService.sendMessage(assignment.assignee.phone, msg); } catch (e) { }
+                    try { await waTemplateService.send('PERSONNEL_ASSIGNMENT_EVALUATED', assignment.assignee.phone, {}, msg); } catch (e) { }
                 }
             }
         }
@@ -1204,7 +1205,7 @@ exports.sendDailyPersonnelSummary = async () => {
 
         msg += `_Silakan cek detail lengkapnya di aplikasi Manajemen Aset._`;
 
-        await whatsappService.sendMessage(kabid.phone, msg);
+        await waTemplateService.send('PERSONNEL_SUMMARY_DAILY', kabid.phone, {}, msg);
         console.log('[Personnel] Daily Summary sent to Kabid.');
 
         // Push Notification to Kabid
@@ -1293,14 +1294,14 @@ exports.checkPlanDeadlines = async () => {
             if (msg) {
                 // Send to Staff via WA
                 if (p.user?.phone) {
-                    try { await whatsappService.sendMessage(p.user.phone, msg); } catch (e) { }
+                    try { await waTemplateService.send('PERSONNEL_RATING_NEW', p.user.phone, {}, msg); } catch (e) { }
                 }
                 // Send to Kabid via WA
                 if (kabid?.phone) {
                     const kabidMsg = `*LAPORAN PENGINGAT RENCANA KERJA*\n\n` +
                         `*Kepada*: ${p.user.name || p.user.username}\n` +
                         msg;
-                    try { await whatsappService.sendMessage(kabid.phone, kabidMsg); } catch (e) { }
+                    try { await waTemplateService.send('PERSONNEL_RATING_NEW_KABID', kabid.phone, {}, kabidMsg); } catch (e) { }
                 }
 
                 // Push Notification to Staff
@@ -1420,7 +1421,7 @@ exports.checkMissingReportsWeekly = async () => {
 
                 setTimeout(async () => {
                     try {
-                        await whatsappService.sendMessage(entry.phone, staffMsg);
+                        await waTemplateService.send('PERSONNEL_SUMMARY_WEEKLY_STAFF', entry.phone, {}, staffMsg);
                         console.log(`[Personnel] Teguran sent to ${entry.name} (missing: ${entry.missingDays.join(', ')})`);
                     } catch (e) {
                         console.error(`[Personnel] Failed to send teguran to ${entry.name}:`, e.message);
@@ -1455,7 +1456,7 @@ exports.checkMissingReportsWeekly = async () => {
 
                     msg += `\n_Mohon arahan kepada staf terkait agar melengkapi laporan sebelum jam kerja berakhir. Syukron._`;
 
-                    await whatsappService.sendMessage(kabid.phone, msg);
+                    await waTemplateService.send('PERSONNEL_SUMMARY_WEEKLY_KABID', kabid.phone, {}, msg);
                     console.log('[Personnel] Missing report recap sent to Kabid.');
                 } catch (e) {
                     console.error('[Personnel] Failed to send recap to Kabid:', e.message);
@@ -1534,7 +1535,7 @@ exports.sendWeeklyReportReminder = async () => {
 
             setTimeout(async () => {
                 try {
-                    await whatsappService.sendMessage(s.phone, msg);
+                    await waTemplateService.send('PERSONNEL_PUNISHMENT_NEW', s.phone, {}, msg);
                 } catch (e) {
                     console.error(`[Report Reminder] Failed to notify ${s.name}:`, e.message);
                 }
