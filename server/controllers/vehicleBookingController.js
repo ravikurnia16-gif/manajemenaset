@@ -541,7 +541,7 @@ exports.getBookings = async (req, res) => {
         } else if (tab === 'APPROVED') {
             where.status = 'APPROVED';
         } else if (tab === 'CALENDAR') {
-            where.status = { in: ['APPROVED', 'BERLANGSUNG'] };
+            where.status = { in: ['APPROVED', 'BERLANGSUNG', 'COMPLETED'] };
             // Add Date Range Filters for CALENDAR
             if (startDate || endDate) {
                 // If it's for month calendar, we want any booking that intersects the month

@@ -123,7 +123,7 @@ const VehicleBooking = () => {
         const targetTime = targetDate.getTime();
 
         return bookings.filter(b => {
-            if (!b.startDate || (b.status !== 'APPROVED' && b.status !== 'BERLANGSUNG')) return false;
+            if (!b.startDate || (b.status !== 'APPROVED' && b.status !== 'BERLANGSUNG' && b.status !== 'COMPLETED')) return false;
             const startDate = new Date(b.startDate);
             startDate.setHours(0, 0, 0, 0);
             const startTime = startDate.getTime();
@@ -784,8 +784,14 @@ const VehicleBooking = () => {
                                                         <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                                                             <Car size={14} className="text-slate-400" /> {ev.vehicle?.name || 'Mobil'} <span className="text-[10px] text-slate-400 font-mono tracking-wider">{ev.vehicle?.plateNumber || ''}</span>
                                                         </h4>
-                                                        <div className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${ev.status === 'BERLANGSUNG' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>
-                                                            {ev.status === 'BERLANGSUNG' ? 'Di Jalan' : 'Disetujui'}
+                                                        <div className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                                                            ev.status === 'BERLANGSUNG' ? 'bg-indigo-100 text-indigo-700' : 
+                                                            ev.status === 'COMPLETED' ? 'bg-slate-100 text-slate-600' : 
+                                                            'bg-green-100 text-green-700'
+                                                        }`}>
+                                                            {ev.status === 'BERLANGSUNG' ? 'Di Jalan' : 
+                                                             ev.status === 'COMPLETED' ? 'Selesai' : 
+                                                             'Disetujui'}
                                                         </div>
                                                     </div>
                                                     <div className="mt-2 space-y-1.5">
