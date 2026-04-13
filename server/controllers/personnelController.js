@@ -3,6 +3,7 @@ const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
 const { sendPushToUser, sendPushToKabid } = require('../services/pushService');
 const { createNotification } = require('./notificationController');
+const n8nService = require('../services/n8nService');
 
 // Helper to check if user belongs to 'Sarana dan Prasarana' unit
 const isSarprasUnit = async (unitId) => {
@@ -322,7 +323,18 @@ exports.createAssignment = async (req, res) => {
                         `*Deskripsi* :\n${checklist || description}\n\n` +
                         `Mohon bantuan untuk segera dilaksanakan ya Ustadz`;
 
-                    await whatsappService.sendMessage(assignee.phone, msg);
+                    // 1. Send to n8n (Primary Pilot)
+                    await n8nService.sendNotification('TASK_ASSIGNED', assignee.phone, {
+                        title: title,
+                        assigner: assigner?.name || assigner?.username || 'Admin',
+                        assignee_name: assignee.name,
+                        due_date: dueDate ? new Date(dueDate).toLocaleDateString('id-ID') : '-',
+                        description: description,
+                        items: items // We send the raw list so n8n can process it
+                    }, msg);
+
+                    // 2. Fallback to Internal WA service if needed (Optional)
+                    // await whatsappService.sendMessage(assignee.phone, msg);
                 }
 
                 // Push Notification to Assignee
