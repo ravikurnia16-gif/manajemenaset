@@ -829,11 +829,7 @@ const StaffPerformance = () => {
                                                                                 type="button"
                                                                                 onClick={() => {
                                                                                     setPreviewSource(src);
-                                                                                    // Pre-select all items that are NOT completed
-                                                                                    const incompleteIndices = src.items
-                                                                                        .map((it, idx) => (it.status !== 'SELESAI' && it.percentage < 100) ? idx : -1)
-                                                                                        .filter(idx => idx !== -1);
-                                                                                    setSelectedItemsIndices(incompleteIndices.length > 0 ? incompleteIndices : src.items.map((_, i) => i));
+                                                                                    setSelectedItemsIndices([]);
                                                                                 }}
                                                                                 className="flex items-center justify-between p-4 bg-white border border-slate-100 hover:border-indigo-400 rounded-2xl text-left transition-all group"
                                                                             >
