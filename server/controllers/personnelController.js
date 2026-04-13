@@ -1226,24 +1226,25 @@ exports.sendDailyPersonnelSummary = async () => {
             return acc;
         }, {});
 
-        let msg = `📊 *RANGKUMAN LAPORAN HARIAN STAF*\n` +
-            `📅 *Tanggal* : ${today.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}\n\n`;
-
+        let summaryText = '';
         for (const [name, userReports] of Object.entries(summary)) {
-            msg += `👤 *${name}*:\n`;
+            summaryText += `👤 *${name}*:\n`;
             userReports.forEach(r => {
                 const items = r.metadata?.items || [];
                 const completed = items.filter(i => i.status === 'SELESAI').length;
-                msg += `- ${r.category}: ${items.length} aktivitas (${completed} selesai)\n`;
+                summaryText += `- ${r.category}: ${items.length} aktivitas (${completed} selesai)\n`;
             });
-            msg += `\n`;
+            summaryText += `\n`;
         }
 
-        msg += `_Silakan cek detail lengkapnya di aplikasi Manajemen Aset._`;
+        let msg = `📊 *RANGKUMAN LAPORAN HARIAN STAF*\n` +
+            `📅 *Tanggal* : ${today.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}\n\n` +
+            summaryText +
+            `_Silakan cek detail lengkapnya di aplikasi Manajemen Aset._`;
 
         await waTemplateService.send('PERSONNEL_SUMMARY_DAILY', kabid.phone, {
             tanggal: today.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }),
-            isi_rangkuman: msg.split('numeric'})\n\n')[1] || '-'
+            isi_rangkuman: summaryText.trim() || '-'
         }, msg);
         console.log('[Personnel] Daily Summary sent to Kabid.');
 

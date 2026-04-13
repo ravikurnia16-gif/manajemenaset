@@ -465,7 +465,6 @@ const DEFAULT_TEMPLATES = [
         recipientPositions: '[]',
         availableVars: '["nama_kegiatan","waktu"]'
     },
-    },
 
     // === LOGISTIK (SERAGAM) ===
     {
