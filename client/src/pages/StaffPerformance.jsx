@@ -8,7 +8,7 @@ import {
     ChevronUp, CheckSquare, Square, Target, Timer, Award,
     Medal, Crown, Send, Trash2, Sparkles, Download, ListChecks,
     ClipboardCheck, History, ClipboardList, ShieldCheck, CheckCircle, 
-    MessageSquare, CheckCircle2
+    MessageSquare
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -225,8 +225,8 @@ const StaffPerformance = () => {
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) || 
-                    (user.position?.toLowerCase().includes('kepala bidang') && user.unit?.name?.toLowerCase().includes('sarana dan prasarana'));
-    const isKabid = user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana dan Prasarana';
+                    (user.position?.toLowerCase()?.includes('kepala bidang') && user.unit?.name?.toLowerCase()?.includes('sarana dan prasarana'));
+    const isKabid = user.role === 'SUPER_ADMIN' || (user.position && user.position.includes('Kepala Bidang Sarana dan Prasarana'));
 
     // Form State (Consolidated)
     const [form, setForm] = useState({
@@ -244,7 +244,7 @@ const StaffPerformance = () => {
     const statusConfig = {
         'PENDING': { label: 'MENUNGGU', color: 'bg-amber-500 text-white shadow-amber-200', icon: Clock },
         'IN_PROGRESS': { label: 'PROSES', color: 'bg-indigo-500 text-white shadow-indigo-200', icon: Zap },
-        'COMPLETED': { label: 'SELESAI', color: 'bg-emerald-500 text-white shadow-emerald-200', icon: CheckCircle2 },
+        'COMPLETED': { label: 'SELESAI', color: 'bg-emerald-500 text-white shadow-emerald-200', icon: CheckCircle },
         'OVERDUE': { label: 'TERLAMBAT', color: 'bg-rose-500 text-white shadow-rose-200', icon: AlertCircle }
     };
 
@@ -1114,15 +1114,15 @@ const StaffPerformance = () => {
                                                 </div>
                                                 <div className="bg-amber-50 p-4 rounded-[24px] border border-amber-100 shadow-sm flex flex-col gap-1 items-center justify-center text-center">
                                                     <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Menunggu</p>
-                                                    <p className="text-xl font-black text-amber-600 tracking-tighter">{assignments.filter(a => a.status === 'PENDING').length}</p>
+                                                    <p className="text-xl font-black text-amber-600 tracking-tighter">{assignments.filter(a => a?.status === 'PENDING').length}</p>
                                                 </div>
                                                 <div className="bg-indigo-50 p-4 rounded-[24px] border border-indigo-100 shadow-sm flex flex-col gap-1 items-center justify-center text-center">
                                                     <p className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Proses</p>
-                                                    <p className="text-xl font-black text-indigo-600 tracking-tighter">{assignments.filter(a => a.status === 'IN_PROGRESS').length}</p>
+                                                    <p className="text-xl font-black text-indigo-600 tracking-tighter">{assignments.filter(a => a?.status === 'IN_PROGRESS').length}</p>
                                                 </div>
                                                 <div className="bg-emerald-50 p-4 rounded-[24px] border border-emerald-100 shadow-sm flex flex-col gap-1 items-center justify-center text-center">
                                                     <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Selesai</p>
-                                                    <p className="text-xl font-black text-emerald-600 tracking-tighter">{assignments.filter(a => a.status === 'COMPLETED').length}</p>
+                                                    <p className="text-xl font-black text-emerald-600 tracking-tighter">{assignments.filter(a => a?.status === 'COMPLETED').length}</p>
                                                 </div>
                                             </div>
                                             
@@ -1380,9 +1380,9 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
                                     <div className="relative w-10 md:w-12 h-10 md:h-12 flex items-center justify-center bg-white rounded-full shadow-sm border border-slate-100 shrink-0">
                                         <svg className="w-full h-full -rotate-90" viewBox="0 0 48 48">
                                             <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-50" />
-                                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={125.6} strokeDashoffset={125.6 - (125.6 * a.progressPercentage) / 100} className="text-indigo-600 transition-all duration-1000 stroke-linecap-round" />
+                                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={125.6} strokeDashoffset={125.6 - (125.6 * (a.progressPercentage || 0)) / 100} className="text-indigo-600 transition-all duration-1000 stroke-linecap-round" />
                                         </svg>
-                                        <span className="absolute text-[8px] md:text-[10px] font-black text-slate-900 italic tracking-tighter">{a.progressPercentage}%</span>
+                                        <span className="absolute text-[8px] md:text-[10px] font-black text-slate-900 italic tracking-tighter">{(a.progressPercentage || 0)}%</span>
                                     </div>
                                     <div className="space-y-1.5 flex-1 min-w-0">
                                         <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
