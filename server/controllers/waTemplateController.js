@@ -454,3 +454,101 @@ const DEFAULT_TEMPLATES = [
         availableVars: '[]'
     }
 ];
+
+// Get all templates
+const getAllTemplates = async (req, res) => {
+    try {
+        const templates = await prisma.waNotificationTemplate.findMany({
+            orderBy: [{ category: 'asc' }, { name: 'asc' }]
+        });
+        res.json(templates);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Get single template
+const getTemplateBySlug = async (req, res) => {
+    try {
+        const template = await prisma.waNotificationTemplate.findUnique({
+            where: { slug: req.params.slug }
+        });
+        if (!template) return res.status(404).json({ error: 'Template tidak ditemukan' });
+        res.json(template);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Update template
+const updateTemplate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { content, recipientPositions, isActive } = req.body;
+
+        const updateData = {};
+        if (content !== undefined) updateData.content = content;
+        if (recipientPositions !== undefined) updateData.recipientPositions = typeof recipientPositions === 'string' ? recipientPositions : JSON.stringify(recipientPositions);
+        if (isActive !== undefined) updateData.isActive = isActive;
+
+        const template = await prisma.waNotificationTemplate.update({
+            where: { id: parseInt(id) },
+            data: updateData
+        });
+
+        clearCache();
+        res.json(template);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Seed default templates (only insert if slug doesn't exist)
+const seedTemplates = async (req, res) => {
+    try {
+        let created = 0;
+        for (const tpl of DEFAULT_TEMPLATES) {
+            const exists = await prisma.waNotificationTemplate.findUnique({
+                where: { slug: tpl.slug }
+            });
+            if (!exists) {
+                await prisma.waNotificationTemplate.create({ data: tpl });
+                created++;
+            }
+        }
+        res.json({ message: `${created} template baru berhasil ditambahkan.`, total: DEFAULT_TEMPLATES.length });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Reset a template to its default content
+const resetTemplate = async (req, res) => {
+    try {
+        const { slug } = req.params;
+        const defaultTpl = DEFAULT_TEMPLATES.find(t => t.slug === slug);
+        if (!defaultTpl) return res.status(404).json({ error: 'Template default tidak ditemukan' });
+
+        const template = await prisma.waNotificationTemplate.update({
+            where: { slug },
+            data: {
+                content: defaultTpl.content,
+                recipientPositions: defaultTpl.recipientPositions
+            }
+        });
+
+        clearCache();
+        res.json(template);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+module.exports = {
+    getAllTemplates,
+    getTemplateBySlug,
+    updateTemplate,
+    seedTemplates,
+    resetTemplate,
+    DEFAULT_TEMPLATES
+};
