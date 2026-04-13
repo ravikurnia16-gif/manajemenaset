@@ -604,7 +604,10 @@ exports.getVehicleDashboard = async (req, res) => {
             const [completedBookings, fuelLogs, serviceLogs] = await Promise.all([
                 prisma.vehicleBooking.findMany({
                     where: { vehicleId: v.id, status: 'COMPLETED', tripEndTime: { gte: isSummary ? thirtyDaysPast : filterStart, lte: filterEnd } },
-                    select: { startKm: true, endKm: true, fuelLiters: true, fuelPrice: true, tripStartTime: true, tripEndTime: true }
+                    select: { 
+                        startKm: true, endKm: true, fuelLiters: true, fuelPrice: true, tripStartTime: true, tripEndTime: true,
+                        user: { select: { unit: { select: { name: true } } } }
+                    }
                 }),
                 prisma.vehicleFuelLog.findMany({
                     where: { vehicleId: v.id, date: { gte: isSummary ? thirtyDaysPast : filterStart, lte: filterEnd } },
@@ -622,15 +625,33 @@ exports.getVehicleDashboard = async (req, res) => {
             const dServiceCost = serviceLogs.reduce((sum, l) => sum + l.cost, 0);
 
             const activeDays = new Set();
+            
+            // Calculate Usage per Unit
+            const unitUsageMap = {};
+
             completedBookings.forEach(b => {
                 if (b.tripStartTime) {
                     const start = new Date(b.tripStartTime);
                     const end = b.tripEndTime ? new Date(b.tripEndTime) : new Date();
                     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) activeDays.add(new Date(d).toDateString());
                 }
+
+                const unitName = b.user?.unit?.name || 'Tanpa Unit';
+                if (!unitUsageMap[unitName]) {
+                    unitUsageMap[unitName] = { distance: 0, fuelCost: 0 };
+                }
+                unitUsageMap[unitName].distance += ((b.endKm || 0) - (b.startKm || 0));
+                unitUsageMap[unitName].fuelCost += (b.fuelPrice || 0);
             });
+            
             const daysInPeriod = isSummary ? 30 : (filterEnd.getDate());
             const utilization = (activeDays.size / daysInPeriod) * 100;
+
+            const unitUsageArray = Object.keys(unitUsageMap).map(unit => ({
+                unit,
+                distance: unitUsageMap[unit].distance,
+                fuelCost: unitUsageMap[unit].fuelCost
+            })).sort((a, b) => b.distance - a.distance);
 
             return {
                 id: v.id, name: v.name, plate: v.plateNumber,
@@ -638,7 +659,8 @@ exports.getVehicleDashboard = async (req, res) => {
                 utilization: Math.min(utilization, 100),
                 cpkm: dTotalKm > 0 ? (dFuelCost + dServiceCost) / dTotalKm : 0,
                 fuelCpkm: dTotalKm > 0 ? dFuelCost / dTotalKm : 0,
-                totalKm: dTotalKm
+                totalKm: dTotalKm,
+                unitUsage: unitUsageArray
             };
         }));
 

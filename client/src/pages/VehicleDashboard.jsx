@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, Activity, AlertCircle, Gauge, Filter, Download, Trophy, Clock, CheckCircle2, MapPin, User } from 'lucide-react';
+import { Car, Calendar, Wrench, AlertOctagon, TrendingUp, Loader2, Fuel, DollarSign, Activity, AlertCircle, Gauge, Filter, Download, Trophy, Clock, CheckCircle2, MapPin, User, Navigation2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, Cell, PieChart, Pie } from 'recharts';
 import api from '../lib/axios';
 
@@ -583,6 +583,42 @@ const VehicleDashboard = () => {
                             <p className="text-center text-slate-400 text-sm py-8">Belum ada riwayat peminjaman.</p>
                         )}
                     </div>
+                </div>
+            </div>
+
+            {/* Analisa Distribusi Jarak per Unit */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mt-6">
+                <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-3 uppercase tracking-tight italic">
+                    <div className="p-1.5 bg-purple-50 text-purple-600 rounded-lg"><Navigation2 size={20} /></div> Analisa Distribusi Jarak per Unit
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {data?.vStats?.filter(v => v.unitUsage?.length > 0).map(v => (
+                        <div key={v.id} className="p-4 border border-slate-100 rounded-2xl bg-slate-50/50 flex flex-col hover:border-purple-200 transition-colors">
+                            <h4 className="font-black text-slate-800 mb-3 pb-2 border-b border-slate-200 flex items-center justify-between">
+                                <span className="flex items-center gap-2"><Car size={16} className="text-slate-400"/> {v.name}</span>
+                                <span className="text-xs font-mono text-slate-500 bg-white px-2 py-0.5 rounded-lg border border-slate-100">{v.plate}</span>
+                            </h4>
+                            <div className="space-y-2 flex-1">
+                                {v.unitUsage.map((u, idx) => (
+                                    <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 hover:shadow-sm transition-all text-xs group">
+                                        <div className="font-bold text-slate-600 flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-purple-400"></div>
+                                            <span className="group-hover:text-purple-700 transition-colors">{u.unit}</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="font-black text-indigo-600">{u.distance.toLocaleString('id-ID')} km</div>
+                                            <div className="text-[9px] font-bold text-slate-400">
+                                                {u.fuelCost > 0 ? `isi BBM Rp ${Math.round(u.fuelCost).toLocaleString('id-ID')}` : 'belum ada isi BBM'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                    {data?.vStats?.filter(v => v.unitUsage?.length > 0).length === 0 && (
+                        <p className="text-center text-slate-400 text-sm py-8 col-span-full">Belum ada peminjaman unit yang selesai pada periode ini.</p>
+                    )}
                 </div>
             </div>
 
