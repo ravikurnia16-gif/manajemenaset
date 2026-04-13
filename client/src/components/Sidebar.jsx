@@ -9,7 +9,7 @@ const Sidebar = ({ isOpen = true }) => {
 
     // State for collapsible menus
     const [openMenus, setOpenMenus] = useState({
-        assets: true,
+        assets: false,
         vehicles: false,
         warehouse: false,
         personnel: false
