@@ -1,7 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const waService = require('../services/whatsappService');
-const waTemplateService = require('../services/waTemplateService');
 const { createNotification } = require('./notificationController');
 
 /**
@@ -115,13 +114,7 @@ exports.createDisposal = async (req, res) => {
                     `_Mohon segera tinjau di dashboard Sistem Manajemen Aset._`;
 
                 for (const lead of leads) {
-                    await waTemplateService.send('DISPOSAL_CREATED_ADMIN', lead.phone, {
-                        jumlah_aset: results.processed.length,
-                        daftar_aset: results.processed.length === 1 ? `${results.processed[0].asset.name} (${results.processed[0].asset.code})` : `${results.processed.slice(0, 5).map(p => p.asset.name).join(', ')}${results.processed.length > 5 ? '...' : ''}`,
-                        alasan: reason,
-                        metode: method || '-',
-                        diajukan_oleh: results.processed[0].proposedBy.name || results.processed[0].proposedBy.username
-                    }, waMessage);
+                    await waService.sendMessage(lead.phone, waMessage);
                 }
             }
         } catch (waError) {

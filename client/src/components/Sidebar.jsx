@@ -247,9 +247,7 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/master" className={navItemClass('/master')}><Database size={18} /> Master Data</Link>
                     )}
                     <Link to="/settings" className={navItemClass('/settings')}><Settings size={18} /> Pengaturan</Link>
-                    {(isKabidSarpras || isGlobalAdmin) && (
-                        <Link to="/notifikasi-wa" className={navItemClass('/notifikasi-wa')}><MessageSquare size={18} /> Notifikasi WA</Link>
-                    )}
+
                 </div>
             </nav>
 

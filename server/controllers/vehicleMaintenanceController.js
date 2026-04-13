@@ -1,7 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sendMessage } = require('../services/whatsappService');
-const waTemplateService = require('../services/waTemplateService');
 
 // Get all maintenance logs
 exports.getAllMaintenanceLogs = async (req, res) => {
@@ -249,13 +248,7 @@ exports.checkMaintenanceNotifications = async () => {
 
                 setTimeout(async () => {
                     try {
-                        await waTemplateService.send('VEHICLE_MAINTENANCE_CREATED_ADMIN', person.phone, {
-                            nama_kendaraan: log.vehicle.name,
-                            nomor_plat: log.vehicle.plateNumber,
-                            tgl_terakhir: new Date(log.date).toLocaleDateString('id-ID'),
-                            km_terakhir: log.odometer?.toLocaleString() || '0',
-                            target_km: log.nextServiceOdometer?.toLocaleString() || '0'
-                        }, message);
+                        await sendMessage(person.phone, message);
                         console.log(`Notification sent for ${log.vehicle.name} to ${person.name} (${person.phone})`);
                     } catch (e) {
                         console.error(`[Vehicle Maintenance] Failed to notify ${person.name}:`, e.message);
@@ -359,13 +352,7 @@ exports.checkKmServiceNotifications = async () => {
 
                 setTimeout(async () => {
                     try {
-                        await waTemplateService.send('VEHICLE_MAINTENANCE_STATUS_UPDATE', person.phone, {
-                            nama_kendaraan: vehicle.name,
-                            nomor_plat: vehicle.plateNumber,
-                            km_saat_ini: (vehicle.odometer || 0).toLocaleString(),
-                            target_service: latestService.nextServiceOdometer.toLocaleString(),
-                            status_text: statusText
-                        }, message);
+                        await sendMessage(person.phone, message);
                         console.log(`[KM Service] Notification sent for ${vehicle.name} to ${person.name} (${person.phone})`);
                     } catch (e) {
                         console.error(`[KM Service] Failed to notify ${person.name}:`, e.message);

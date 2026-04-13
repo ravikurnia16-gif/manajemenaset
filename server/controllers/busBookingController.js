@@ -1,7 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
-const waTemplateService = require('../services/waTemplateService');
 const { createNotification } = require('./notificationController');
 const { formatPhoneForWA } = require('../utils/phoneFormatter');
 
@@ -118,12 +117,7 @@ const createBusBooking = async (req, res) => {
                         `_Sistem Manajemen Aset_`;
 
                     try {
-                        await waTemplateService.send('BUS_BOOKING_CREATED_REQUESTER', requesterPhone, {
-                            nama_pemesan: requesterLabel, tujuan: destination,
-                            tanggal: new Date(startDate).toLocaleDateString('id-ID'),
-                            nama_bus: vehicleNames, jumlah_penumpang: passengerCount,
-                            unit: unit || 'Umum', token
-                        }, requesterMsg);
+                        await whatsappService.sendMessage(requesterPhone, requesterMsg);
                     } catch (waError) {
                         console.error(`[Bus Booking] Requester WA Failed:`, waError.message);
                     }
@@ -177,12 +171,7 @@ const createBusBooking = async (req, res) => {
 
                     for (const person of finalRecipients) {
                         try {
-                            await waTemplateService.send('BUS_BOOKING_CREATED_ADMIN', person.phone, {
-                                nama_pemesan: requesterLabel, telepon_pemesan: requesterPhone,
-                                tujuan: destination, tanggal: new Date(startDate).toLocaleDateString('id-ID'),
-                                nama_bus: vehicleNames, plat_bus: '', nama_supir: '',
-                                jumlah_penumpang: passengerCount, unit: unit || 'Umum', token
-                            }, adminMsg);
+                            await whatsappService.sendMessage(person.phone, adminMsg);
                             // Add System Notification
                             await createNotification(
                                 person.id,
@@ -519,12 +508,7 @@ const assignDriver = async (req, res) => {
                     `📍 *Tujuan*: ${booking.destination}\n` +
                     `📅 *Jadwal*: ${new Date(booking.startDate).toLocaleString('id-ID')} s/d ${new Date(booking.endDate).toLocaleString('id-ID')}\n\n` +
                     `Tugas ini sudah masuk secara otomatis ke menu *Permohonan Saya*. Silakan klik *Mulai Perjalanan* saat Anda berangkat.\n\nSyukron.`;
-                try { await waTemplateService.send('BUS_DRIVER_ASSIGNED', booking.driver.phone, {
-                    nama_supir: booking.driver.name, tujuan: booking.destination,
-                    tanggal: new Date(booking.startDate).toLocaleString('id-ID'),
-                    nama_bus: booking.vehicle.name, plat_bus: booking.vehicle.plateNumber,
-                    nama_pemesan: booking.requesterName, jumlah_penumpang: booking.passengerCount
-                }, msg); } catch (e) { }
+                try { await whatsappService.sendMessage(booking.driver.phone, msg); } catch (e) { }
             })();
         }
 
@@ -598,12 +582,7 @@ const checkBusBookingNotifications = async () => {
 
             try {
                 // Call waTemplateService
-                await waTemplateService.send('BUS_REMINDER_H1', requesterPhone, {
-                    nama_pemesan: requesterName,
-                    tujuan: group[0].destination,
-                    tanggal: new Date(group[0].startDate).toLocaleDateString('id-ID'),
-                    daftar_bus_link: group.map(b => `🚌 *${b.vehicle.name}* (${b.vehicle.plateNumber})\n🔗 Konfirmasi: ${domainUrl}/public/confirm-bus/${b.id}/${b.token}`).join('\n\n')
-                }, msg);
+                await whatsappService.sendMessage(requesterPhone, msg);
                 console.log(`[Bus Booking] H-1 Reminder sent to ${requesterName} (${requesterPhone})`);
 
                 // Mark as sent
@@ -682,20 +661,9 @@ const publicConfirmBooking = async (req, res) => {
             for (const staff of staffKendaraan) {
                 try {
                     if (decision === 'JADI') {
-                        await waTemplateService.send('BUS_CONFIRM_JADI_STAFF', staff.phone, {
-                            nama_pemesan: booking.requesterName,
-                            tujuan: booking.destination,
-                            nama_bus: booking.vehicle.name,
-                            plat_bus: booking.vehicle.plateNumber,
-                            nama_supir: booking.driver?.name || '_Belum ditentukan_'
-                        }, staffMsg);
+                        await whatsappService.sendMessage(staff.phone, staffMsg);
                     } else {
-                        await waTemplateService.send('BUS_CONFIRM_BATAL_STAFF', staff.phone, {
-                            nama_pemesan: booking.requesterName,
-                            tujuan: booking.destination,
-                            nama_bus: booking.vehicle.name,
-                            plat_bus: booking.vehicle.plateNumber
-                        }, staffMsg);
+                        await whatsappService.sendMessage(staff.phone, staffMsg);
                     }
                 } catch (err) {
                     console.error(`[Bus Booking] Staff WA Failed for ${staff.name}:`, err.message);
@@ -775,9 +743,7 @@ const checkUnpaidBusInvoices = async () => {
                     }
                 });
 
-                await waTemplateService.send('BUS_UNPAID_REMINDER', staff.phone, {
-                    daftar_tagihan: daftar_tagihan
-                }, summaryMsg);
+                await whatsappService.sendMessage(staff.phone, summaryMsg);
                 console.log(`[Bus Revenue] Overdue reminder sent to ${staff.name}`);
             } catch (e) {
                 console.error(`[Bus Revenue] Failed sending to ${staff.phone}:`, e.message);

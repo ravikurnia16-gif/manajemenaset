@@ -46,7 +46,7 @@ app.use('/api/official-residence', require('./routes/officialResidenceRoutes'));
 app.use('/api/media', require('./routes/mediaRoutes'));
 app.use('/api/vehicle-inspections', require('./routes/vehicleInspectionRoutes'));
 app.use('/api/push', require('./routes/pushRoutes'));
-app.use('/api/wa-templates', require('./routes/waTemplateRoutes'));
+
 
 // Serve Static Files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

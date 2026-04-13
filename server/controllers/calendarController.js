@@ -1,7 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
-const waTemplateService = require('../services/waTemplateService');
 
 // ====== HELPERS ======
 
@@ -274,14 +273,7 @@ const createEvent = async (req, res) => {
                         await new Promise(resolve => setTimeout(resolve, delay));
 
                         try {
-                            await waTemplateService.send('CALENDAR_EVENT_NEW', pic.phone, {
-                                nama_pic: pic.name,
-                                judul_kegiatan: title,
-                                tanggal: dateStr,
-                                kategori: category || '-',
-                                lokasi: location || '-',
-                                deskripsi: description || '-'
-                            }, msg);
+                            await whatsappService.sendMessage(pic.phone, msg);
                             console.log(`[Calendar Create] Sent WA to ${pic.name}`);
                         } catch (err) {
                             console.error(`[Calendar Create] Failed WA to ${pic.name}:`, err.message);
@@ -389,13 +381,7 @@ const updateEvent = async (req, res) => {
                         await new Promise(resolve => setTimeout(resolve, delay));
 
                         try {
-                            await waTemplateService.send('CALENDAR_EVENT_UPDATED', pic.phone, {
-                                nama_pic: pic.name,
-                                judul_kegiatan: title,
-                                tanggal: dateStr,
-                                kategori: category || '-',
-                                lokasi: location || '-'
-                            }, msg);
+                            await whatsappService.sendMessage(pic.phone, msg);
                             console.log(`[Calendar Update] Sent WA to ${pic.name}`);
                         } catch (err) {
                             console.error(`[Calendar Update] Failed WA to ${pic.name}:`, err.message);
@@ -537,10 +523,7 @@ const sendCalendarReminders = async (req = null, res = null) => {
                 await new Promise(resolve => setTimeout(resolve, delay));
 
                 try {
-                    await waTemplateService.send('CALENDAR_REMINDER_DAILY', data.phone, {
-                        nama_pic: data.picName,
-                        daftar_kegiatan: msg.split('besok:\n\n')[1] || '-' // Extract the list from the fallback msg for now
-                    }, msg);
+                    await whatsappService.sendMessage(data.phone, msg);
                     console.log(`[Calendar Reminder] Sent to ${data.picName} (${data.phone}) - ${data.events.length} events`);
                 } catch (err) {
                     console.error(`[Calendar Reminder] Failed to send to ${data.picName}:`, err.message);
@@ -620,9 +603,7 @@ const sendWeeklyCalendarSummary = async () => {
             console.log('[Weekly Summary] No events for this week. Sending empty report.');
             const emptyMsg = `📅 *LAPORAN KEGIATAN PEKAN INI*\nPeriode: ${monday.toLocaleDateString('id-ID')} - ${sunday.toLocaleDateString('id-ID')}\n\n*Tidak ada agenda kegiatan yang tercatat untuk pekan ini.*\n\nTerima kasih.`;
             for (const lead of leads) {
-                await waTemplateService.send('CALENDAR_SUMMARY_WEEKLY_EMPTY', lead.phone, {
-                    periode: `${monday.toLocaleDateString('id-ID')} - ${sunday.toLocaleDateString('id-ID')}`
-                }, emptyMsg);
+                await whatsappService.sendMessage(lead.phone, emptyMsg);
                 console.log(`[Weekly Summary] Empty report sent to ${lead.name}`);
             }
             return;
@@ -649,10 +630,7 @@ const sendWeeklyCalendarSummary = async () => {
         msg += `Terima kasih.`;
 
         for (const lead of leads) {
-            await waTemplateService.send('CALENDAR_SUMMARY_WEEKLY', lead.phone, {
-                periode: `${monday.toLocaleDateString('id-ID')} - ${sunday.toLocaleDateString('id-ID')}`,
-                daftar_kegiatan: msg.split('\]\n\n')[1] || msg.substring(msg.indexOf('📌')) || '-'
-            }, msg);
+            await whatsappService.sendMessage(lead.phone, msg);
             console.log(`[Weekly Summary] SUCCESS: Message sent to ${lead.name}`);
         }
     } catch (error) {

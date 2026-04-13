@@ -1,7 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
-const waTemplateService = require('../services/waTemplateService');
 const { sendPushToUser, sendPushToKabid } = require('../services/pushService');
 const { createNotification } = require('./notificationController');
 
@@ -323,13 +322,7 @@ exports.createAssignment = async (req, res) => {
                         `*Deskripsi* :\n${checklist || description}\n\n` +
                         `Mohon bantuan untuk segera dilaksanakan ya Ustadz`;
 
-                    await waTemplateService.send('PERSONNEL_ASSIGNMENT_NEW', assignee.phone, {
-                        nama_pegawai: assignee.name,
-                        judul_tugas: title,
-                        deadline: dueDate ? new Date(dueDate).toLocaleDateString('id-ID') : '-',
-                        pemberi_tugas: assigner?.name || assigner?.username || 'Admin',
-                        deskripsi_tugas: checklist || description || '-'
-                    }, msg);
+                    await whatsappService.sendMessage(assignee.phone, msg);
                 }
 
                 // Push Notification to Assignee
@@ -771,13 +764,7 @@ exports.checkAssignmentDeadlines = async () => {
                     `Mohon kesediaannya untuk segera diselesaikan atau diupdate progresnya di aplikasi Sarpras ya Ustadz. Syukron Jazakumullahu Khairan.`;
 
                 try {
-                    await waTemplateService.send('PERSONNEL_ASSIGNMENT_REMINDER', a.assignee.phone, {
-                        nama_pegawai: a.assignee.name || '',
-                        judul_tugas: a.title,
-                        deadline: new Date(a.dueDate).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }),
-                        progress: a.progressPercentage,
-                        pemberi_tugas: a.assigner?.name || 'Admin'
-                    }, msg);
+                    await whatsappService.sendMessage(a.assignee.phone, msg);
 
                     await prisma.personnelAssignment.update({
                         where: { id: a.id },
@@ -1242,10 +1229,7 @@ exports.sendDailyPersonnelSummary = async () => {
             summaryText +
             `_Silakan cek detail lengkapnya di aplikasi Manajemen Aset._`;
 
-        await waTemplateService.send('PERSONNEL_SUMMARY_DAILY', kabid.phone, {
-            tanggal: today.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }),
-            isi_rangkuman: summaryText.trim() || '-'
-        }, msg);
+        await whatsappService.sendMessage(kabid.phone, msg);
         console.log('[Personnel] Daily Summary sent to Kabid.');
 
         // Push Notification to Kabid

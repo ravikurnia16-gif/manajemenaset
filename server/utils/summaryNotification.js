@@ -1,7 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
-const waTemplateService = require('../services/waTemplateService');
 
 /**
  * Sends a weekly summary of new assets to specific leads.
@@ -77,7 +76,7 @@ const sendWeeklyAssetSummary = async () => {
         // 6. Send WhatsApp to all leads
         for (const lead of leads) {
             try {
-                await waTemplateService.send('ASSET_SUMMARY_WEEKLY', lead.phone, {}, message);
+                await whatsappService.sendMessage(lead.phone, message);
                 console.log(`[Weekly Summary] Summary sent to ${lead.name} (${lead.phone})`);
             } catch (sendError) {
                 console.error(`[Weekly Summary] Failed to send message to ${lead.name}:`, sendError.message);

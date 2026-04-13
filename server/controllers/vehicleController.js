@@ -210,7 +210,6 @@ exports.updateVehicle = async (req, res) => {
  * Dikirim ke Staff Gudang dan Logistik pada H-25, H-20, H-15, H-10, H-7, H-5, H-3, H-2, H-1
  */
 const { sendMessage } = require('../services/whatsappService');
-const waTemplateService = require('../services/waTemplateService');
 
 const REMINDER_DAYS = [25, 20, 15, 10, 7, 5, 3, 2, 1];
 
@@ -282,13 +281,7 @@ exports.checkTaxNotifications = async () => {
                     cumulativeDelay += randomGap;
                     setTimeout(async () => {
                         try {
-                            await waTemplateService.send('VEHICLE_TAX_EXPIRING_ADMIN', person.phone, {
-                                nama_kendaraan: vehicle.name,
-                                nomor_plat: vehicle.plateNumber,
-                                tipe_pajak: alert.type,
-                                jatuh_tempo: new Date(alert.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-                                tenggat_waktu: dayLabel
-                            }, message);
+                            await sendMessage(person.phone, message);
                             console.log(`Tax notification (${alert.type}, H-${alert.daysLeft}) sent for ${vehicle.name} to ${person.name}`);
                         } catch (e) {
                             console.error(`[Vehicle Tax] Failed to notify ${person.name}:`, e.message);
@@ -351,12 +344,7 @@ exports.checkKirNotifications = async () => {
                     cumulativeDelay += randomGap;
                     setTimeout(async () => {
                         try {
-                            await waTemplateService.send('VEHICLE_PLATE_EXPIRING_ADMIN', person.phone, {
-                                nama_kendaraan: vehicle.name,
-                                nomor_plat: vehicle.plateNumber,
-                                jatuh_tempo: new Date(vehicle.kirDueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-                                tenggat_waktu: dayLabel
-                            }, message);
+                            await sendMessage(person.phone, message);
                             console.log(`KIR notification (H-${diffDays}) sent for ${vehicle.name} to ${person.name}`);
                         } catch (e) {
                             console.error(`[Vehicle KIR] Failed to notify ${person.name}:`, e.message);
@@ -405,11 +393,7 @@ exports.sendTestWA = async (req, res) => {
 
             setTimeout(async () => {
                 const message = `🧪 *TEST NOTIFIKASI SISTEM*\n\nWhatsApp Service Aktif!\nTarget: ${person.name}\nNomor: ${person.phone}\nPesan ini dikirim untuk memverifikasi jalur komunikasi.`;
-                await waTemplateService.send('VEHICLE_DRIVER_EXPIRED_ADMIN', person.phone, {
-                    nama_penerima: person.name,
-                    nomor_hp: person.phone,
-                    pesan_test: message
-                }, message);
+                await sendMessage(person.phone, message);
             }, cumulativeDelay);
         }
         res.json({ message: `Test messages sent to ${recipients.length} recipients` });
@@ -426,10 +410,7 @@ exports.sendPureTestWA = async (req, res) => {
 
         const message = `🧪 *TEST PURE WA*\n\nWhatsApp Service successfully reached from local server!\nTarget: ${phone}\nPesan ini dikirim tanpa koneksi database.`;
 
-        await waTemplateService.send('TEST_WA_MSG', phone, {
-            nomor_hp: phone,
-            pesan_test: message
-        }, message);
+        await sendMessage(phone, message);
         res.json({ message: `Pure test message sent to ${phone}` });
     } catch (error) {
         res.status(500).json({ error: error.message });

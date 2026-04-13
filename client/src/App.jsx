@@ -32,7 +32,7 @@ import BusBookingPublic from './pages/BusBookingPublic';
 import BusInvoicePublic from './pages/BusInvoicePublic';
 import BusInvoiceBatchPrint from './pages/BusInvoiceBatchPrint';
 import BusConfirmationPublic from './pages/BusConfirmationPublic';
-import WaNotificationManagement from './pages/WaNotificationManagement';
+
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
 import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
 import VehicleMaintenanceDetail from './pages/VehicleMaintenanceDetail';
@@ -144,15 +144,7 @@ function App() {
           <Route path="personalia/kpi" element={<Navigate to="/personalia/kinerja?tab=KPI" replace />} />
           <Route path="laporan" element={<ReportPage />} />
 
-          {/* Module: Manajemen Notifikasi WA (Kabid Sarpras & Admin) */}
-          <Route path="notifikasi-wa" element={
-            (() => {
-              const u = JSON.parse(localStorage.getItem('user'));
-              const allowed = u?.position === 'Kepala Bidang Sarana dan Prasarana'
-                || ['SUPER_ADMIN', 'ADMIN_ASET'].includes(u?.role);
-              return allowed ? <WaNotificationManagement /> : <Navigate to="/dashboard" />;
-            })()
-          } />
+
 
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />
         </Route>
