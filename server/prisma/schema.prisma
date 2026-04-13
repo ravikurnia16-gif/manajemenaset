@@ -1042,3 +1042,17 @@ model PersonnelKPI {
 
   @@unique([userId, month, year])
 }
+
+model WaNotificationTemplate {
+  id                 Int      @id @default(autoincrement())
+  slug               String   @unique // e.g. BUS_REMINDER_H1, MAINTENANCE_NEW
+  name               String // Display name
+  category           String // KENDARAAN, PEMELIHARAAN, PENGADAAN, GUDANG, UMUM
+  description        String?  @db.Text // Penjelasan kapan notif ini dikirim
+  content            String   @db.Text // Template pesan dengan {{placeholder}}
+  recipientPositions String?  @db.Text // JSON array of position strings
+  availableVars      String?  @db.Text // JSON array of available variables
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}

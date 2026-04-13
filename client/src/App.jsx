@@ -32,6 +32,7 @@ import BusBookingPublic from './pages/BusBookingPublic';
 import BusInvoicePublic from './pages/BusInvoicePublic';
 import BusInvoiceBatchPrint from './pages/BusInvoiceBatchPrint';
 import BusConfirmationPublic from './pages/BusConfirmationPublic';
+import WaNotificationManagement from './pages/WaNotificationManagement';
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
 import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
 import VehicleMaintenanceDetail from './pages/VehicleMaintenanceDetail';
@@ -142,6 +143,13 @@ function App() {
           <Route path="personalia/rutin" element={<PersonnelRoutine />} />
           <Route path="personalia/kpi" element={<Navigate to="/personalia/kinerja?tab=KPI" replace />} />
           <Route path="laporan" element={<ReportPage />} />
+
+          {/* Module: Manajemen Notifikasi WA (Kabid Sarpras Only) */}
+          <Route path="notifikasi-wa" element={
+            JSON.parse(localStorage.getItem('user'))?.position === 'Kepala Bidang Sarana dan Prasarana'
+              ? <WaNotificationManagement />
+              : <Navigate to="/dashboard" />
+          } />
 
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />
         </Route>
