@@ -727,7 +727,6 @@ const VehicleBooking = () => {
                                     calendarDays.map((day, i) => {
                                         if (!day) return <div key={`empty-${i}`} className="bg-slate-50/20 rounded-2xl" />;
                                         const dayEvents = getEventsForDay(day);
-                                        const isSelected = selectedDate === day;
                                         const isToday = day === dateNow.getDate() && calMonth === dateNow.getMonth() + 1 && calYear === dateNow.getFullYear();
                                         
                                         return (
@@ -750,8 +749,8 @@ const VehicleBooking = () => {
                                                 
                                                 <div className="flex-1 overflow-y-auto custom-scrollbar no-scrollbar-h space-y-1">
                                                     {dayEvents.slice(0, 3).map((ev, idx) => (
-                                                        <div key={idx} className={`w-full px-1.5 py-1 text-[9px] font-bold text-white rounded cursor-pointer truncate ${vehicleColors[ev.vehicleId] || 'bg-slate-500'} hover:opacity-90`} title={`${ev.vehicle.name} - ${ev.user.name}`}>
-                                                            {ev.vehicle.name}
+                                                        <div key={idx} className={`w-full px-1.5 py-1 text-[9px] font-bold text-white rounded cursor-pointer truncate ${vehicleColors[ev.vehicleId] || 'bg-slate-500'} hover:opacity-90`} title={`${ev.vehicle?.name || 'Mobil'} - ${ev.user?.name || 'User'}`}>
+                                                            {ev.vehicle?.name || 'Mobil'}
                                                         </div>
                                                     ))}
                                                     {dayEvents.length > 3 && <div className="text-[8px] font-black text-slate-400 text-center uppercase tracking-wider">+{dayEvents.length - 3} lainnya</div>}
@@ -783,7 +782,7 @@ const VehicleBooking = () => {
                                                 <div className="flex-1">
                                                     <div className="flex justify-between items-start">
                                                         <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                                                            <Car size={14} className="text-slate-400" /> {ev.vehicle.name} <span className="text-[10px] text-slate-400 font-mono tracking-wider">{ev.vehicle.plateNumber}</span>
+                                                            <Car size={14} className="text-slate-400" /> {ev.vehicle?.name || 'Mobil'} <span className="text-[10px] text-slate-400 font-mono tracking-wider">{ev.vehicle?.plateNumber || ''}</span>
                                                         </h4>
                                                         <div className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${ev.status === 'BERLANGSUNG' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>
                                                             {ev.status === 'BERLANGSUNG' ? 'Di Jalan' : 'Disetujui'}
@@ -791,7 +790,7 @@ const VehicleBooking = () => {
                                                     </div>
                                                     <div className="mt-2 space-y-1.5">
                                                         <div className="flex items-center gap-2 text-xs text-slate-600">
-                                                            <User size={12} className="text-blue-400" /> <span className="font-bold">{ev.user.name}</span> <span className="text-slate-400 text-[10px] uppercase">({ev.user.unit?.name || 'Unit -'})</span>
+                                                            <User size={12} className="text-blue-400" /> <span className="font-bold">{ev.user?.name || 'User'}</span> <span className="text-slate-400 text-[10px] uppercase">({ev.user?.unit?.name || 'Unit -'})</span>
                                                         </div>
                                                         <div className="flex items-center gap-2 text-xs text-slate-600">
                                                             <MapPin size={12} className="text-red-400" /> {ev.destination}
