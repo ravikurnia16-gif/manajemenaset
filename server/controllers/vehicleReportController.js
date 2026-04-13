@@ -218,7 +218,10 @@ exports.checkMissingWeeklyReports = async () => {
 
             setTimeout(async () => {
                 try {
-                    await waTemplateService.send('VEHICLE_REPORT_ADMIN', person.phone, {}, message);
+                    await waTemplateService.send('VEHICLE_REPORT_ADMIN', person.phone, {
+                        periode: periodStr,
+                        daftar_kendaraan: vehicleListStr
+                    }, message);
                     console.log(`Missing report notification sent to ${person.name} (${person.phone})`);
                 } catch (e) {
                     console.error(`[Vehicle Report] Failed to notify ${person.name}:`, e.message);

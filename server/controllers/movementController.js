@@ -123,7 +123,13 @@ exports.requestMutation = async (req, res) => {
                     cumulativeDelay += randomGap;
                     setTimeout(async () => {
                         try {
-                            await waTemplateService.send('MOVEMENT_CREATED_ADMIN', user.phone, {}, message);
+                            await waTemplateService.send('MOVEMENT_CREATED_ADMIN', user.phone, {
+                                jumlah_aset: processedMovements.length,
+                                daftar_aset: displayNames,
+                                tujuan: processedMovements[0].toLocation,
+                                alasan: reason || '-',
+                                diajukan_oleh: processedMovements[0].requester.username
+                            }, message);
                         } catch (err) {
                             console.error(`[Mutation] Notification failed for ${user.username}`);
                         }

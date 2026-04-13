@@ -93,7 +93,12 @@ exports.requestLoan = async (req, res) => {
                             if (admin.phone) {
                                 const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
                                 const message = `📢 *PERMOHONAN PINJAM ASET YAYASAN*\n\nUser *${requesterName}* mengajukan peminjaman aset Yayasan:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
-                                await waTemplateService.send('LOAN_CREATED_ADMIN', admin.phone, {}, message);
+                                await waTemplateService.send('LOAN_CREATED_ADMIN', admin.phone, {
+                                    nama_pemesan: requesterName,
+                                    daftar_aset: assetListStr,
+                                    keperluan: purpose,
+                                    tanggal: expectedReturnDate
+                                }, message);
                                 console.log(`[Loan Notif] WA sent to ${admin.position}: ${admin.name}`);
                             }
                         } catch (e) {
@@ -119,7 +124,12 @@ exports.requestLoan = async (req, res) => {
                             if (admin.phone) {
                                 const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
                                 const message = `📦 *PERMOHONAN PINJAM ASET*\n\nUser *${requesterName}* mengajukan peminjaman aset dari unit Anda:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
-                                await waTemplateService.send('LOAN_VEHICLE_CREATED_ADMIN', admin.phone, {}, message);
+                                await waTemplateService.send('LOAN_VEHICLE_CREATED_ADMIN', admin.phone, {
+                                    nama_pemesan: requesterName,
+                                    daftar_aset: assetListStr,
+                                    keperluan: purpose,
+                                    tanggal: expectedReturnDate
+                                }, message);
                             }
                         } catch (e) {
                             console.error(`[Loan Notif] Failed to notify admin ${admin.name}:`, e.message);
@@ -333,7 +343,10 @@ exports.checkOverdueLoans = async () => {
                     const assetListStr = loans.map(l => `- ${l.asset.name} (Batas: ${new Date(l.expectedReturnDate).toLocaleDateString('id-ID')})`).join('\n');
                     const message = `⚠️ *PERINGATAN: PENGEMBALIAN ASET TERLAMBAT*\n\nHalo *${borrower.name}*,\n\nMohon segera mengembalikan aset berikut yang telah melewati batas waktu pengembalian:\n\n${assetListStr}\n\nMohon segera lakukan pengembalian dan konfirmasi di sistem Manajemen Aset. Terima kasih.`;
 
-                    await waTemplateService.send('LOAN_STATUS_UPDATE', borrower.phone, {}, message);
+                    await waTemplateService.send('LOAN_STATUS_UPDATE', borrower.phone, {
+                        nama_peminjam: borrower.name,
+                        daftar_aset: assetListStr
+                    }, message);
                 } catch (e) {
                     console.error(`[Job Error] Failed to send WA to ${borrower.name}:`, e.message);
                 }

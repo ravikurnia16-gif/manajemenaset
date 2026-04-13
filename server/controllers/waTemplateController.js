@@ -95,133 +95,131 @@ const DEFAULT_TEMPLATES = [
         recipientPositions: '["Staff Manajemen Aset"]',
         availableVars: '["tujuan","nama_pemesan"]'
     },
-
-    // === KENDARAAN (UMUM) ===
     {
         slug: 'VEHICLE_BOOKING_CREATED_ADMIN',
-        name: 'Booking Kendaraan Baru (ke Admin)',
+        name: 'Booking Kendaraan Baru (ke Admin & PIC)',
         category: 'KENDARAAN',
-        description: 'Dikirim ke admin saat ada pemesanan kendaraan umum.',
-        content: `🚗 *BOOKING KENDARAAN BARU*\n\n👤 *Pemesan*: {{nama_pemesan}}\n📅 *Waktu*: {{waktu}}\n🚗 *Armada*: {{nama_kendaraan}}\n📍 *Tujuan*: {{tujuan}}\n\nMohon ditinjau di sistem.`,
-        recipientPositions: '["Staff Manajemen Aset"]',
-        availableVars: '["nama_pemesan","waktu","nama_kendaraan","tujuan"]'
+        description: 'Dikirim ke admin dan PIC armada saat ada pemesanan kendaraan baru.',
+        content: `🚗 *BOOKING KENDARAAN BARU*\n\n👤 *Pemesan*: {{nama_pemesan}}\n📅 *Waktu*: {{waktu}}\n🚗 *Armada*: {{nama_kendaraan}}\n👤 *Driver*: {{nama_supir}}\n📍 *Tujuan*: {{tujuan}}\n📌 *Keperluan*: {{keperluan}}\n👨‍💼 *PIC Armada*: {{nama_pic}}\n\n*Status*: {{status}}\n\nMohon ditinjau di sistem.`,
+        recipientPositions: '["Staff Manajemen Aset","PIC Armada"]',
+        availableVars: '["nama_pemesan","waktu","nama_kendaraan","nama_supir","tujuan","keperluan","nama_pic","status"]'
     },
     {
         slug: 'VEHICLE_BOOKING_CREATED_KABID',
         name: 'Booking Kendaraan (ke Kabid - Prioritas)',
         category: 'KENDARAAN',
         description: 'Dikirim ke Kabid untuk booking prioritas pimpinan yayasan.',
-        content: `⭐ *BOOKING KENDARAAN PRIORITAS*\n\nAda pemesanan kendaraan pimpinan yayasan:\n👤 *Pemesan*: {{nama_pemesan}}\n📅 *Waktu*: {{waktu}}\n📍 *Tujuan*: {{tujuan}}\n\n*Status*: Sistem telah memberikan Persetujuan Otomatis.`,
+        content: `⭐ *BOOKING KENDARAAN PRIORITAS*\n\nAda pemesanan kendaraan pimpinan yayasan:\n👤 *Pemesan*: {{nama_pemesan}}\n📅 *Waktu*: {{waktu}}\n🚗 *Armada*: {{nama_kendaraan}}\n👤 *Driver*: {{nama_supir}}\n📍 *Tujuan*: {{tujuan}}\n\n*Status*: Sistem telah memberikan Persetujuan Otomatis.`,
         recipientPositions: '["Kepala Bidang Sarana dan Prasarana"]',
-        availableVars: '["nama_pemesan","waktu","tujuan"]'
+        availableVars: '["nama_pemesan","waktu","nama_kendaraan","nama_supir","tujuan"]'
     },
     {
         slug: 'VEHICLE_BOOKING_STATUS_UPDATE',
         name: 'Update Status Booking Kendaraan',
         category: 'KENDARAAN',
         description: 'Dikirim ke pemesan saat booking disetujui/ditolak.',
-        content: `🚗 *UPDATE BOOKING KENDARAAN*\n\nBismillah, permintaan kendaraan Anda untuk *{{nama_kendaraan}}* telah diupdate.\nStatus terbaru: *{{status}}*\n\nSelamat bertugas!`,
+        content: `🚗 *UPDATE BOOKING KENDARAAN*\n\nBismillah, permintaan {{jenis_layanan}} kendaraan Anda untuk *{{nama_kendaraan}}* telah diupdate.\n\nStatus: *{{status_text}}*\n📅 Waktu: {{waktu_str}}\n📍 Tujuan: {{tujuan}}\n👤 Admin: {{nama_admin}}\n\nCatatan: {{catatan}}\n\nSelamat bertugas!`,
         recipientPositions: '[]',
-        availableVars: '["nama_kendaraan","status"]'
+        availableVars: '["jenis_layanan","status_text","nama_kendaraan","waktu_str","tujuan","nama_admin","catatan"]'
     },
     {
         slug: 'VEHICLE_BOOKING_FINISHED',
         name: 'Booking Kendaraan Selesai/Ditolak',
         category: 'KENDARAAN',
         description: 'Dikirim ke pemesan saat perjalanan selesai atau ditolak.',
-        content: `🚗 *INFO BOOKING KENDARAAN*\n\nPermintaan Anda untuk kendaraan *{{nama_kendaraan}}* telah {{status}}.\n{{catatan}}`,
+        content: `🚗 *INFO BOOKING KENDARAAN*\n\nPermintaan {{jenis_layanan}} Anda untuk kendaraan *{{nama_kendaraan}}* telah {{status_text}}.\n\n📅 Waktu: {{waktu_str}}\n📍 Tujuan: {{tujuan}}\n👤 Admin: {{nama_admin}}\n\nCatatan: {{catatan}}`,
         recipientPositions: '[]',
-        availableVars: '["nama_kendaraan","status","catatan"]'
+        availableVars: '["jenis_layanan","status_text","nama_kendaraan","waktu_str","tujuan","nama_admin","catatan"]'
     },
     {
         slug: 'VEHICLE_BOOKING_DISCREPANCY_KABID',
         name: 'Peringatan Diskrepansi Odometer',
         category: 'KENDARAAN',
         description: 'Dikirim ke Kabid jika ada selisih kilometer yang tidak wajar.',
-        content: `⚠️ *PERINGATAN DISKREPANSI KM*\n\nTerdeteksi selisih kilometer yang tidak wajar pada kendaraan *{{nama_kendaraan}}*.\nKm Awal: {{km_awal}}\nKm Akhir: {{km_akhir}}\n\nMohon segera divalidasi.`,
+        content: `⚠️ *PERINGATAN DISKREPANSI KM*\n\nTerdeteksi selisih kilometer saat mulai perjalanan pada kendaraan *{{nama_kendaraan}}*.\n\n👤 Pengguna: {{nama_pengguna}}\n🔢 KM Sistem: {{km_sistem}}\n🔢 KM Input: {{km_input}}\n📉 Selisih: *{{selisih}} KM*\n\nMohon segera divalidasi.`,
         recipientPositions: '["Kepala Bidang Sarana dan Prasarana"]',
-        availableVars: '["nama_kendaraan","km_awal","km_akhir"]'
+        availableVars: '["nama_kendaraan","nama_pengguna","km_sistem","km_input","selisih"]'
     },
     {
         slug: 'VEHICLE_BOOKING_FUEL_ALERT',
-        name: 'Notifikasi Pengisian BBM',
+        name: 'Notifikasi Kondisi BBM Minim',
         category: 'KENDARAAN',
-        description: 'Notifikasi ke admin untuk memantau pengisian BBM kendaraan.',
-        content: `⛽ *PENGISIAN BBM KENDARAAN*\n\nKendaraan {{nama_kendaraan}} telah melakukan pengisian BBM.\nJumlah: {{liter}} Liter\nBy: {{nama_driver}}`,
-        recipientPositions: '["Staff Manajemen Aset"]',
-        availableVars: '["nama_kendaraan","liter","nama_driver"]'
+        description: 'Notifikasi ke admin dan PIC untuk memantau kondisi BBM kendaraan yang dilaporkan rendah.',
+        content: `⛽ *PERINGATAN KONDISI BBM*\n\nKendaraan {{nama_kendaraan}} dilaporkan memiliki bbm minim oleh {{nama_pengguna}}.\nKondisi: {{kondisi_bbm}}\nKeterangan: {{keterangan}}\n\nMohon ditindaklanjuti untuk pengisian.`,
+        recipientPositions: '["Staff Manajemen Aset","PIC Armada"]',
+        availableVars: '["nama_kendaraan","nama_pengguna","kondisi_bbm","keterangan"]'
     },
     {
         slug: 'VEHICLE_REMINDER_H1',
         name: 'Reminder Pengembalian Kendaraan',
         category: 'KENDARAAN',
         description: 'Reminder ke user untuk menginput KM akhir setelah perjalanan.',
-        content: `⚠️ *REMINDER PENGEMBALIAN ARMAD*\n\nHalo {{nama_pemesan}},\nMohon segera selesaikan perjalanan melalui aplikasi Sarpras dengan menginputkan Kilometer Akhir agar armada dapat digunakan oleh pengguna lain. Syukron.`,
+        content: `⏰ *PENGINGAT PENYELESAIAN PERJALANAN*\n\nArmada: {{nama_kendaraan}}\nDestinasi: {{tujuan}}\nWaktu Selesai: {{waktu_selesai}}\nSudah Lewat: *{{selisih_jam}} jam*\n\n⚠️ Mohon segera selesaikan perjalanan melalui aplikasi Sarpras dengan menginputkan Kilometer Akhir agar armada dapat digunakan oleh pengguna lain.`,
         recipientPositions: '[]',
-        availableVars: '["nama_pemesan"]'
+        availableVars: '["nama_kendaraan","tujuan","waktu_selesai","selisih_jam"]'
     },
     {
         slug: 'VEHICLE_BOOKING_REVIEW',
         name: 'Review Pemakaian Kendaraan',
         category: 'KENDARAAN',
         description: 'Notifikasi ke user jika kendaraan tidak jadi digunakan.',
-        content: `🚗 *REVIEW PEMAKAIAN*\n\nUstadz/Ustadzah, jika kendaraan tidak jadi digunakan, mohon batalkan request agar armada dapat digunakan oleh pengguna lain. Syukron.`,
+        content: `🚗 *PENGINGAT MEMULAI PERJALANAN*\n\nArmada: {{nama_kendaraan}}\nTujuan: {{tujuan}}\nJadwal: {{waktu_mulai}}\nSudah Lewat: *{{selisih_jam}} jam*\n\n⚠️ Jika Anda akan menggunakan armada, mohon segera mulai perjalanan melalui aplikasi SARPRAS. Jika tidak jadi, mohon batalkan request.`,
         recipientPositions: '[]',
-        availableVars: '[]'
+        availableVars: '["nama_kendaraan","tujuan","waktu_mulai","selisih_jam"]'
     },
     {
         slug: 'VEHICLE_TAX_EXPIRING_ADMIN',
         name: 'Reminder Pajak Kendaraan Expired',
         category: 'KENDARAAN',
         description: 'Notifikasi masa berlaku pajak akan habis ke admin.',
-        content: `⚠️ *PAJAK KENDARAAN EXPIRED*\n\nPajak kendaraan *{{nama_kendaraan}}* ({{no_pol}}) akan habis dalam *{{sisa_hari}}* hari.\nMohon segera diurus perpanjangannya.`,
+        content: `⚠️ *PENGINGAT {{tipe_pajak}}*\n\nKendaraan *{{nama_kendaraan}}* ({{nomor_plat}}) akan jatuh tempo {{tipe_pajak}} dalam *{{tenggat_waktu}}*.\n\n📅 Jatuh Tempo: {{jatuh_tempo}}\nMohon segera diproses perpanjangannya.`,
         recipientPositions: '["Staff Manajemen Aset"]',
-        availableVars: '["nama_kendaraan","no_pol","sisa_hari"]'
+        availableVars: '["nama_kendaraan","nomor_plat","tipe_pajak","jatuh_tempo","tenggat_waktu"]'
     },
     {
         slug: 'VEHICLE_PLATE_EXPIRING_ADMIN',
         name: 'Reminder Plat Nomor/KIR Expired',
         category: 'KENDARAAN',
         description: 'Notifikasi masa berlaku plat/KIR akan habis ke admin.',
-        content: `⚠️ *PLATE/KIR EXPIRED*\n\nMasa berlaku STNK/KIR kendaraan *{{nama_kendaraan}}* ({{no_pol}}) akan habis dalam *{{sisa_hari}}* hari.\nMohon tindak lanjutnya.`,
-        recipientPositions: '["Staff Manajemen Aset"]',
-        availableVars: '["nama_kendaraan","no_pol","sisa_hari"]'
+        content: `⚠️ *PENGINGAT JADWAL KIR*\n\nKendaraan *{{nama_kendaraan}}* ({{nomor_plat}}) akan jatuh tempo *KIR* dalam *{{tenggat_waktu}}*.\n\n📅 Jatuh Tempo: {{jatuh_tempo}}\nMohon segera diproses pendaftarannya.`,
+        recipientPositions: '["Staff Gudang dan Logistik"]',
+        availableVars: '["nama_kendaraan","nomor_plat","jatuh_tempo","tenggat_waktu"]'
     },
     {
         slug: 'VEHICLE_DRIVER_EXPIRED_ADMIN',
         name: 'Reminder SIM Driver Expired',
         category: 'KENDARAAN',
         description: 'Notifikasi masa berlaku SIM driver akan habis ke admin.',
-        content: `⚠️ *SIM DRIVER EXPIRED*\n\nMasa berlaku SIM driver *{{nama_driver}}* akan habis dalam *{{sisa_hari}}* hari.\nMohon segera diingatkan.`,
+        content: `⚠️ *PENGINGAT SIM EXPIRED*\n\nMasa berlaku SIM driver *{{nama_penerima}}* akan habis.\n\n{{pesan_test}}`,
         recipientPositions: '["Staff Manajemen Aset"]',
-        availableVars: '["nama_driver","sisa_hari"]'
+        availableVars: '["nama_penerima","nomor_hp","pesan_test"]'
     },
     {
         slug: 'VEHICLE_REPORT_ADMIN',
         name: 'Laporan Mingguan Kendaraan (Belum)',
         category: 'KENDARAAN',
-        description: 'Teguran ke staff yang belum menginput laporan mingguan kendaraan.',
-        content: `📝 *TEGURAN LAPORAN KENDARAAN*\n\nBismillah {{nama_staff}},\nAnda belum menginput laporan rutin mingguan untuk kendaraan yang Anda kelola.\n\nMohon segera diselesaikan. Syukron.`,
-        recipientPositions: '[]',
-        availableVars: '["nama_staff"]'
+        description: 'Teguran ke PIC/Staff yang belum menginput laporan mingguan kendaraan.',
+        content: `⚠️ *PENGINGAT LAPORAN MINGGUAN KENDARAAN*\n\nBerikut daftar kendaraan aktif yang *BELUM* dibuatkan Laporan periodik minggu ini ({{periode}}):\n\n{{daftar_kendaraan}}\n\nMohon segera diinput melalui aplikasi.`,
+        recipientPositions: '["PIC Armada"]',
+        availableVars: '["periode","daftar_kendaraan"]'
     },
     {
         slug: 'VEHICLE_MAINTENANCE_CREATED_ADMIN',
         name: 'Servis Kendaraan Baru',
         category: 'KENDARAAN',
-        description: 'Notifikasi pengajuan servis/pemeliharaan kendaraan.',
-        content: `🛠 *SERVIS KENDARAAN BARU*\n\nPengajuan servis untuk *{{nama_kendaraan}}* telah masuk.\nDeskripsi: {{deskripsi}}\n\nMohon ditinjau admin.`,
-        recipientPositions: '["Staff Manajemen Aset"]',
-        availableVars: '["nama_kendaraan","deskripsi"]'
+        description: 'Notifikasi pengajuan servis/pemeliharaan kendaraan ke admin dan PIC.',
+        content: `🛠 *PENGINGAT PEMELIHARAAN KENDARAAN*\n\nKendaraan *{{nama_kendaraan}}* ({{nomor_plat}}) sudah lama tidak servis rutin.\n\n📅 Terakhir: {{tgl_terakhir}}\n🔢 Terakhir: {{km_terakhir}} km\n🎯 Target: {{target_km}} km`,
+        recipientPositions: '["Staff Manajemen Aset","PIC Armada"]',
+        availableVars: '["nama_kendaraan","nomor_plat","tgl_terakhir","km_terakhir","target_km"]'
     },
     {
         slug: 'VEHICLE_MAINTENANCE_STATUS_UPDATE',
         name: 'Update Status Servis Kendaraan',
         category: 'KENDARAAN',
         description: 'Notifikasi perubahan status pengerjaan servis kendaraan.',
-        content: `🛠 *UPDATE SERVIS KENDARAAN*\n\nServis kendaraan *{{nama_kendaraan}}* kini berstatus: *{{status}}*.\nCatatan: {{catatan}}`,
+        content: `🔧 *PENGINGAT SERVICE KENDARAAN*\n\nKendaraan *{{nama_kendaraan}}* ({{nomor_plat}})\n\n🔢 KM Saat Ini: {{km_saat_ini}} km\n🎯 Target Service: {{target_service}} km\n\n{{status_text}}`,
         recipientPositions: '[]',
-        availableVars: '["nama_kendaraan","status","catatan"]'
+        availableVars: '["nama_kendaraan","nomor_plat","km_saat_ini","target_service","status_text"]'
     },
 
     // === PEMELIHARAAN ===
@@ -268,25 +266,34 @@ const DEFAULT_TEMPLATES = [
         name: 'Konfirmasi Pengadaan (ke Pengaju)',
         category: 'PENGADAAN',
         description: 'Dikirim ke pengaju setelah membuat permintaan pengadaan.',
-        content: `📦 *PENGADAAN DITERIMA*\n\nPengajuan pengadaan *"{{judul}}"* Anda telah masuk ke sistem.\nKode: {{kode}}\n\nMohon menunggu peninjauan pimpinan.`,
+        content: `📦 *INFO REQUEST PENGADAAN*\n\nUstadz/Ustadzah *{{nama_pengaju}}*, {{jumlah_request}} permintaan anda telah kami terima dengan rincian:\n\n{{daftar_barang}}\n\n{{info_status}}`,
         recipientPositions: '[]',
-        availableVars: '["nama_pengaju","judul","kode"]'
+        availableVars: '["nama_pengaju","jumlah_request","daftar_barang","info_status"]'
     },
     {
         slug: 'PROCUREMENT_NEW_ADMIN',
         name: 'Pengadaan Baru (ke Admin)',
         category: 'PENGADAAN',
         description: 'Notifikasi ke admin pengadaan saat ada item baru masuk.',
-        content: `📦 *PENGAJUAN PENGADAAN BARU*\n\n👤 *Pengaju*: {{nama_pengaju}}\n📋 *Judul*: {{judul}}\n📜 *Kode*: {{kode}}\n\nMohon segera tinjau alur persetujuan.`,
+        content: `📦 *INFO REQUEST PENGADAAN*\n\nAda {{jumlah_request}} pesanan baru dari:\n👤 *Nama* : {{nama_pengaju}}\n🆔 *NIY* : {{niy}}\n🏢 *Unit* : {{unit}}\n\n*Rincian Permintaan:*\n{{daftar_barang}}\n\nMohon segera diproses.`,
         recipientPositions: '["Staff Manajemen Aset"]',
-        availableVars: '["nama_pengaju","judul","kode"]'
+        availableVars: '["jumlah_request","nama_pengaju","niy","unit","daftar_barang"]'
+    },
+    {
+        slug: 'PROCUREMENT_IMPORT_ADMIN',
+        name: 'Pengadaan Baru via Import (ke Admin)',
+        category: 'PENGADAAN',
+        description: 'Notifikasi ke admin saat ada data pengadaan di-import dari Excel.',
+        content: `📥 *IMPORT REQUEST PENGADAAN*\n\nAda {{jumlah_request}} pesanan baru di-import dari Excel oleh:\n👤 *Nama* : {{nama_pengaju}}\n🆔 *NIY* : {{niy}}\n🏢 *Unit* : {{unit}}\n\n*Rincian Permintaan:*\n{{daftar_barang}}\n\nMohon segera diproses.`,
+        recipientPositions: '["Staff Manajemen Aset"]',
+        availableVars: '["jumlah_request","nama_pengaju","niy","unit","daftar_barang"]'
     },
     {
         slug: 'PROCUREMENT_STATUS_UPDATE',
         name: 'Update Status Pengadaan',
         category: 'PENGADAAN',
         description: 'Dikirim ke pengaju saat status pengadaan berubah.',
-        content: `📦 *UPDATE PENGADAAN*\n\nUstadz/Ustadzah *{{nama_pengaju}}*,\n\nPengajuan *"{{judul}}"* ({{kode}})\nStatus terbaru: *{{status}}*\n\n{{detail_tambahan}}`,
+        content: `📦 *INFO REQUEST PENGADAAN*\n\nUstadz/Ustadzah *{{nama_pengaju}}*,\n\nPermintaan *{{judul}}* ({{kode}})\nStatus: *{{status}}*\n\n{{detail_tambahan}}`,
         recipientPositions: '[]',
         availableVars: '["nama_pengaju","judul","kode","status","detail_tambahan"]'
     },
@@ -295,18 +302,36 @@ const DEFAULT_TEMPLATES = [
         name: 'Penugasan Langsung Pengadaan',
         category: 'PENGADAAN',
         description: 'Notifikasi ke PIC saat ditugaskan langsung oleh pimpinan.',
-        content: `📦 *MANDAT PENGADAAN*\n\nUstadz {{nama_pic}},\nAnda ditugaskan sebagai PIC untuk pengadaan: {{judul}}.\n\nMohon segera diproses sesuai arahan. Syukron.`,
+        content: `📦 *INFO PENUGASAN PENGADAAN (MANDAT KABID)*\n\nHalo {{nama_staf}},\nAnda menerima perintah langsung pengadaan *{{judul}}* dari Kepala Bidang.\n\n*Rincian Barang:*\n{{daftar_barang}}\n\nMohon segera diproses. Syukron.`,
         recipientPositions: '[]',
-        availableVars: '["nama_pic","judul"]'
+        availableVars: '["nama_staf","judul","daftar_barang"]'
+    },
+    {
+        slug: 'PROCUREMENT_ITEM_ASSIGNED',
+        name: 'Penugasan Item Pengadaan',
+        category: 'PENGADAAN',
+        description: 'Notifikasi ke staff saat ditugaskan mengelola item pengadaan.',
+        content: `📦 *INFO PENUGASAN PENGADAAN*\n\nUstadz/Ustadzah *{{nama_staf}}*,\n\nAnda telah ditugaskan untuk mengelola item berikut pada pengajuan *{{judul}}*:\n\n{{daftar_barang}}\n\nMohon segera ditindaklanjuti. Syukron.`,
+        recipientPositions: '[]',
+        availableVars: '["nama_staf","judul","daftar_barang"]'
+    },
+    {
+        slug: 'PROCUREMENT_VENDOR_SELECTED',
+        name: 'Vendor Terpilih (ke Pengaju)',
+        category: 'PENGADAAN',
+        description: 'Notifikasi ke pengaju saat vendor untuk item yang diminta sudah dipilih.',
+        content: `🏪 *VENDOR TERPILIH*\n\nUstadz/Ustadzah *{{nama_pengaju}}*,\nVendor terpilih untuk item *{{nama_barang}}* pada permintaan *{{judul}}*:\n\n🏪 *Vendor* : {{nama_vendor}}\n💰 *Harga* : Rp {{harga}}\n\nProses pengadaan sedang berjalan.`,
+        recipientPositions: '[]',
+        availableVars: '["nama_pengaju","nama_barang","judul","nama_vendor","harga"]'
     },
     {
         slug: 'PROCUREMENT_BAST_COMPLETED',
         name: 'Berita Acara Selesai (ke Pengaju)',
         category: 'PENGADAAN',
         description: 'Dikirim saat barang sudah diserahterimakan (BAST).',
-        content: `✅ *PENGADAAN SELESAI (BAST)*\n\nAlhamdulillah, barang untuk pengadaan *"{{judul}}"* telah diserahterimakan.\n\nMohon jaga dan rawat aset ini dengan baik. Jazakallah Khairan.`,
+        content: `✅ *PENGADAAN SELESAI (BAST)*\n\nAlhamdulillah, permintaan Anda *{{judul}}* telah *SELESAI (BAST)*.\n\n*Rincian:*\n{{daftar_barang}}\n\nBarang sudah diterima dan tercatat sebagai aset. Jazakumullahu Khairan.`,
         recipientPositions: '[]',
-        availableVars: '["judul"]'
+        availableVars: '["nama_pengaju","judul","daftar_barang"]'
     },
 
     // === PERSONALIA ===
@@ -315,54 +340,99 @@ const DEFAULT_TEMPLATES = [
         name: 'Penugasan Baru (ke Staff)',
         category: 'PERSONALIA',
         description: 'Dikirim ke staff saat mendapat tugas personalia baru.',
-        content: `📋 *PENUGASAN KERJA BARU*\n\nHalo *{{nama_staff}}*,\n\nAnda mendapat penugasan baru:\n📝 *Tugas*: {{judul}}\n📅 *Target*: {{deadline}}\n\nMohon dilaksanakan dengan amanah. Syukron.`,
+        content: `📋 *PENUGASAN KERJA BARU*\n\nHalo *{{nama_pegawai}}*,\n\nAnda mendapat penugasan baru:\n📝 *Tugas*: {{judul_tugas}}\n📅 *Deadline*: {{deadline}}\n👤 *Dari*: {{pemberi_tugas}}\n\n*Deskripsi*:\n{{deskripsi_tugas}}\n\nMohon dilaksanakan dengan amanah. Syukron.`,
         recipientPositions: '[]',
-        availableVars: '["nama_staff","judul","deadline"]'
+        availableVars: '["nama_pegawai","judul_tugas","deadline","pemberi_tugas","deskripsi_tugas"]'
     },
     {
         slug: 'PERSONNEL_ASSIGNMENT_REMINDER',
         name: 'Reminder Deadline Personalia',
         category: 'PERSONALIA',
         description: 'Pengingat otomatis saat deadline tugas personalia mendekat.',
-        content: `⏰ *PENGINGAT DEADLINE*\n\nHalo {{nama_staff}},\nTugas *"{{judul}}"* sudah mendekati deadline ({{deadline}}).\n\nMohon segera diselesaikan. Syukron.`,
+        content: `⏰ *PENGINGAT DEADLINE TUGAS*\n\nHalo {{nama_pegawai}},\nTugas *"{{judul_tugas}}"* mendekati deadline ({{deadline}}).\n📊 Progres: {{progress}}%\n👤 Dari: {{pemberi_tugas}}\n\nMohon segera diselesaikan atau update progresnya. Syukron.`,
         recipientPositions: '[]',
-        availableVars: '["nama_staff","judul","deadline"]'
+        availableVars: '["nama_pegawai","judul_tugas","deadline","progress","pemberi_tugas"]'
     },
     {
         slug: 'PERSONNEL_ASSIGNMENT_DONE',
-        name: 'Tugas Selesai (ke Atasan)',
+        name: 'Pengajuan Penundaan (ke Atasan)',
         category: 'PERSONALIA',
-        description: 'Notifikasi ke pimpinan saat staff menyelesaikan tugas.',
-        content: `✅ *TUGAS SELESAI*\n\nStaff *{{nama_staff}}* telah menyelesaikan tugas: {{judul}}.\nMohon dilakukan peninjauan progres.`,
+        description: 'Notifikasi ke pimpinan saat staff mengajukan penundaan deadline.',
+        content: `⏳ *PENGAJUAN PENUNDAAN TUGAS*\n\nUstadz {{nama_assigner}},\nPelaksana *{{nama_pelaksana}}* mengajukan penundaan untuk tugas:\n\n📌 *Tugas*: {{judul_tugas}}\n📅 *Deadline Awal*: {{deadline_awal}}\n⏳ *Usulan Baru*: {{usulan_baru}}\n📝 *Alasan*: {{alasan}}\n\nMohon segera tinjau di aplikasi Sarpras.`,
         recipientPositions: '["Kepala Bidang Sarana dan Prasarana"]',
-        availableVars: '["nama_staff","judul"]'
+        availableVars: '["nama_assigner","nama_pelaksana","judul_tugas","deadline_awal","usulan_baru","alasan"]'
+    },
+    {
+        slug: 'PERSONNEL_ASSIGNMENT_REJECTED',
+        name: 'Respon Penundaan (ke Staff)',
+        category: 'PERSONALIA',
+        description: 'Notifikasi status pengajuan penundaan tugas.',
+        content: `📋 *STATUS PENUNDAAN TUGAS*\n\nUstadz {{nama_pegawai}}, pengajuan penundaan untuk tugas *{{judul_tugas}}* telah *{{status_text}}*.\n\n{{deadline_info}}\n\nMohon dicek kembali di aplikasi. Syukron.`,
+        recipientPositions: '[]',
+        availableVars: '["nama_pegawai","judul_tugas","status_text","deadline_info"]'
+    },
+    {
+        slug: 'PERSONNEL_ASSIGNMENT_EVALUATED',
+        name: 'Tugas Rutin Otomatis',
+        category: 'PERSONALIA',
+        description: 'Notifikasi saat tugas rutin masuk secara otomatis.',
+        content: `⚙️ *TUGAS RUTIN OTOMATIS*\n\nBismillah, telah masuk tugas rutin otomatis:\n📌 *Judul*: {{judul_tugas}}\n👤 *Pemberi*: {{pemberi_tugas}}\n\n*Deskripsi*:\n{{deskripsi_tugas}}\n\nSemangat berkhidmah!`,
+        recipientPositions: '[]',
+        availableVars: '["judul_tugas","pemberi_tugas","deskripsi_tugas"]'
     },
     {
         slug: 'PERSONNEL_SUMMARY_DAILY',
         name: 'Rekap Laporan Harian (ke Kabid)',
         category: 'PERSONALIA',
         description: 'Rekapitulasi progres kerja harian staff ke pimpinan.',
-        content: `📊 *REKAP LAPORAN HARIAN STAFF*\n\nBerikut ringkasan progres kerja hari ini:\n\n{{daftar_progres}}\n\n_Sistem Manajemen Aset_`,
+        content: `📊 *RANGKUMAN LAPORAN HARIAN STAF*\n📅 *Tanggal* : {{tanggal}}\n\n{{isi_rangkuman}}\n\n_Silakan cek detail lengkapnya di aplikasi Manajemen Aset._`,
         recipientPositions: '["Kepala Bidang Sarana dan Prasarana"]',
-        availableVars: '["daftar_progres"]'
+        availableVars: '["tanggal","isi_rangkuman"]'
     },
     {
         slug: 'PERSONNEL_RATING_NEW',
-        name: 'Notifikasi Penilaian Pimpinan',
+        name: 'Pengingat Rencana Kerja (ke Staff)',
         category: 'PERSONALIA',
-        description: 'Ulasan atau rating dari pimpinan terhadap kinerja staff.',
-        content: `⭐ *PENILAIAN KINERJA*\n\nHalo {{nama_staff}},\nAnda mendapatkan ulasan dari Pimpinan:\n\n"{{ulasan}}"\n\nTerus tingkatkan kinerja ya! Jazakallah Khairan.`,
+        description: 'Reminder deadline rencana kerja pimpinan.',
+        content: `🗓️ *PENGINGAT RENCANA KERJA*\n\nAssalamu\'alaikum Ustadz {{nama_staf}},\n\n{{pesan_peringatan}}`,
         recipientPositions: '[]',
-        availableVars: '["nama_staff","ulasan"]'
+        availableVars: '["nama_staf","judul_rencana","periode","deadline","pesan_peringatan"]'
+    },
+    {
+        slug: 'PERSONNEL_RATING_NEW_KABID',
+        name: 'Audit Rencana Kerja (ke Kabid)',
+        category: 'PERSONALIA',
+        description: 'Audit pimpinan terhadap rencana kerja staff yang terlambat.',
+        content: `📊 *AUDIT RENCANA KERJA*\n\nLaporan pengingat untuk *{{nama_staf}}*:\n\n{{pesan_peringatan}}`,
+        recipientPositions: '["Kepala Bidang Sarana dan Prasarana"]',
+        availableVars: '["nama_staf","pesan_peringatan"]'
+    },
+    {
+        slug: 'PERSONNEL_SUMMARY_WEEKLY_STAFF',
+        name: 'Teguran Laporan Harian (ke Staff)',
+        category: 'PERSONALIA',
+        description: 'Teguran mingguan ke staff yang belum melengkapi laporan.',
+        content: `🚨 *PENGINGAT LAPORAN HARIAN*\n\nUstadz {{nama_ustadz}}, mohon lengkapi laporan harian pada mingu ini untuk hari:\n📅 *Hari*: {{hari_kosong}}\n\nMohon segera diisi demi ketertiban administrasi. Syukron.`,
+        recipientPositions: '[]',
+        availableVars: '["nama_ustadz","hari_kosong"]'
+    },
+    {
+        slug: 'PERSONNEL_SUMMARY_WEEKLY_KABID',
+        name: 'Audit Laporan Mingguan (ke Kabid)',
+        category: 'PERSONALIA',
+        description: 'Dashboard kedisiplinan laporan mingguan untuk pimpinan.',
+        content: `⚠️ *AUDIT KEDISIPLINAN LAPORAN*\n\nDaftar staf yang belum melengkapi laporan mingguan:\n\n{{daftar_staf_kosong}}\n\nMohon arahannya.`,
+        recipientPositions: '["Kepala Bidang Sarana dan Prasarana"]',
+        availableVars: '["daftar_staf_kosong"]'
     },
     {
         slug: 'PERSONNEL_PUNISHMENT_NEW',
-        name: 'Notifikasi Teguran (ke Staff)',
+        name: 'Broadcast Pengingat Laporan',
         category: 'PERSONALIA',
-        description: 'Dikirim ke staff yang tidak melengkapi laporan kerja.',
-        content: `⚠️ *TEGURAN KEDISIPLINAN*\n\nHalo {{nama_staff}},\nSistem mencatat Anda belum melengkapi laporan kerja pada hari: {{hari_absen}}.\n\nMohon segera dilengkapi. Syukron.`,
+        description: 'Broadcast pengingat ke seluruh staff di akhir pekan.',
+        content: `Bismillah,\nAssalamu\'alaikum Ustadz *{{nama_ustadz}}*,\n\nMengingatkan agar tidak lupa melengkapi laporan harian periode ini. Statistik Anda: *{{jumlah_laporan}} Laporan*. Syukron.`,
         recipientPositions: '[]',
-        availableVars: '["nama_staff","hari_absen"]'
+        availableVars: '["nama_ustadz","jumlah_laporan"]'
     },
 
     // === PINJAM ASET ===
@@ -371,9 +441,9 @@ const DEFAULT_TEMPLATES = [
         name: 'Permohonan Pinjam Aset (ke Admin)',
         category: 'UMUM',
         description: 'Dikirim ke admin saat ada pengajuan pinjam aset yayasan.',
-        content: `📢 *PERMOHONAN PINJAM ASET*\n\nUser *{{nama_peminjam}}* mengajukan peminjaman aset:\n{{daftar_aset}}\n\nMohon tinjau di sistem. Syukron.`,
+        content: `📢 *PERMOHONAN PINJAM ASET*\n\nUser *{{nama_pemesan}}* mengajukan peminjaman aset:\n{{daftar_aset}}\n\n📅 Tanggal: {{tanggal}}\n📌 Keperluan: {{keperluan}}\n\nMohon tinjau di sistem. Syukron.`,
         recipientPositions: '["Staff Manajemen Aset"]',
-        availableVars: '["nama_peminjam","daftar_aset"]'
+        availableVars: '["nama_pemesan","daftar_aset","keperluan","tanggal"]'
     },
     {
         slug: 'LOAN_STATUS_UPDATE',
@@ -395,14 +465,6 @@ const DEFAULT_TEMPLATES = [
         recipientPositions: '[]',
         availableVars: '["nama_kegiatan","waktu"]'
     },
-    {
-        slug: 'CALENDAR_SUMMARY_WEEKLY',
-        name: 'Rekap Kegiatan Mingguan',
-        category: 'UMUM',
-        description: 'Daftar seluruh agenda kegiatan dalam satu pekan.',
-        content: `📅 *LAPORAN KEGIATAN PEKAN INI*\n\nBerikut daftar agenda kegiatan:\n\n{{daftar_kegiatan}}\n\nSyukron.`,
-        recipientPositions: '["Kepala Bidang Sarana dan Prasarana"]',
-        availableVars: '["daftar_kegiatan"]'
     },
 
     // === LOGISTIK (SERAGAM) ===
@@ -533,7 +595,8 @@ const resetTemplate = async (req, res) => {
             where: { slug },
             data: {
                 content: defaultTpl.content,
-                recipientPositions: defaultTpl.recipientPositions
+                recipientPositions: defaultTpl.recipientPositions,
+                availableVars: defaultTpl.availableVars
             }
         });
 

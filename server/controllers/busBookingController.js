@@ -834,10 +834,14 @@ const completeBusBooking = async (req, res) => {
                 `_Sistem Manajemen Aset_`;
 
             try {
-                // Not replaced with waTemplateService because it doesn't have a template yet,
-                // but we can just use whatsappService directly, or create a template.
-                // Reverting this chunk isn't strictly necessary if I don't touch it.
-                await waTemplateService.send('BUS_COMPLETED_FINANCE', booking.requesterPhone, {}, msg);
+                await waTemplateService.send('BUS_COMPLETED_FINANCE', booking.requesterPhone, {
+                    nama_pemesan: booking.requesterName,
+                    unit: booking.unit || '-',
+                    tujuan: booking.destination,
+                    tanggal: new Date(booking.startDate).toLocaleDateString('id-ID'),
+                    jarak: kmVal,
+                    tagihan: billAmount.toLocaleString('id-ID')
+                }, msg);
             } catch (e) {
                 console.error('[Bus Billing] WA Failed:', e.message);
             }
@@ -864,7 +868,14 @@ const completeBusBooking = async (req, res) => {
                         `_Mohon dipantau pengadministrasiannya. Syukron._`;
 
                     for (const staff of finStaffs) {
-                        await waTemplateService.send('BUS_COMPLETED_FINANCE_STAFF', staff.phone, {}, finMsg);
+                        await waTemplateService.send('BUS_COMPLETED_FINANCE_STAFF', staff.phone, {
+                            nama_pemesan: booking.requesterName,
+                            unit: booking.unit || '-',
+                            tujuan: booking.destination,
+                            tanggal: new Date(booking.startDate).toLocaleDateString('id-ID'),
+                            jarak: kmVal,
+                            tagihan: billAmount.toLocaleString('id-ID')
+                        }, finMsg);
                     }
                 }
             } catch (e) {

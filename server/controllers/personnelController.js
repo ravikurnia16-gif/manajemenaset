@@ -323,7 +323,13 @@ exports.createAssignment = async (req, res) => {
                         `*Deskripsi* :\n${checklist || description}\n\n` +
                         `Mohon bantuan untuk segera dilaksanakan ya Ustadz`;
 
-                    await waTemplateService.send('PERSONNEL_ASSIGNMENT_NEW', assignee.phone, {}, msg);
+                    await waTemplateService.send('PERSONNEL_ASSIGNMENT_NEW', assignee.phone, {
+                        nama_pegawai: assignee.name,
+                        judul_tugas: title,
+                        deadline: dueDate ? new Date(dueDate).toLocaleDateString('id-ID') : '-',
+                        pemberi_tugas: assigner?.name || assigner?.username || 'Admin',
+                        deskripsi_tugas: checklist || description || '-'
+                    }, msg);
                 }
 
                 // Push Notification to Assignee
@@ -765,7 +771,13 @@ exports.checkAssignmentDeadlines = async () => {
                     `Mohon kesediaannya untuk segera diselesaikan atau diupdate progresnya di aplikasi Sarpras ya Ustadz. Syukron Jazakumullahu Khairan.`;
 
                 try {
-                    await waTemplateService.send('PERSONNEL_ASSIGNMENT_REMINDER', a.assignee.phone, {}, msg);
+                    await waTemplateService.send('PERSONNEL_ASSIGNMENT_REMINDER', a.assignee.phone, {
+                        nama_pegawai: a.assignee.name || '',
+                        judul_tugas: a.title,
+                        deadline: new Date(a.dueDate).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }),
+                        progress: a.progressPercentage,
+                        pemberi_tugas: a.assigner?.name || 'Admin'
+                    }, msg);
 
                     await prisma.personnelAssignment.update({
                         where: { id: a.id },
@@ -829,7 +841,16 @@ exports.requestExtension = async (req, res) => {
                 `📝 *Alasan*: ${reason}\n\n` +
                 `Mohon segera tinjau pengajuan ini di aplikasi Manajemen Aset. Syukron.`;
 
-            try { await waTemplateService.send('PERSONNEL_ASSIGNMENT_DONE', assignment.assigner.phone, {}, msg); } catch (e) { }
+            try {
+                await waTemplateService.send('PERSONNEL_ASSIGNMENT_DONE', assignment.assigner.phone, {
+                    nama_assigner: assignment.assigner.name || '',
+                    nama_pelaksana: assignment.assignee.name || '',
+                    judul_tugas: assignment.title,
+                    deadline_awal: new Date(assignment.dueDate).toLocaleDateString('id-ID'),
+                    usulan_baru: new Date(requestedDate).toLocaleDateString('id-ID'),
+                    alasan: reason
+                }, msg);
+            } catch (e) { }
         }
 
         res.json(updated);
@@ -880,7 +901,16 @@ exports.handleExtension = async (req, res) => {
                     : `⚠️ Mohon tetap selesaikan sesuai deadline awal: ${new Date(assignment.dueDate).toLocaleDateString('id-ID')}\n`) +
                 `\nMohon dicek kembali di aplikasi Manajemen Aset. Syukron.`;
 
-            try { await waTemplateService.send('PERSONNEL_ASSIGNMENT_REJECTED', assignment.assignee.phone, {}, msg); } catch (e) { }
+            try {
+                await waTemplateService.send('PERSONNEL_ASSIGNMENT_REJECTED', assignment.assignee.phone, {
+                    nama_pegawai: assignment.assignee.name,
+                    judul_tugas: assignment.title,
+                    status_text: statusText,
+                    deadline_info: isApproved
+                        ? `Deadline Baru: ${new Date(assignment.requestedExtensionDate).toLocaleDateString('id-ID')}`
+                        : `Mohon tetap selesaikan sesuai deadline awal: ${new Date(assignment.dueDate).toLocaleDateString('id-ID')}`
+                }, msg);
+            } catch (e) { }
         }
 
         res.json(updated);
@@ -1038,7 +1068,13 @@ exports.generateRoutineTasks = async () => {
                         `*Deskripsi* :\n${checklist || routine.description}\n\n` +
                         `Mohon bantuan untuk segera dilaksanakan ya Ustadz. Semangat!`;
 
-                    try { await waTemplateService.send('PERSONNEL_ASSIGNMENT_EVALUATED', assignment.assignee.phone, {}, msg); } catch (e) { }
+                    try {
+                        await waTemplateService.send('PERSONNEL_ASSIGNMENT_EVALUATED', assignment.assignee.phone, {
+                            judul_tugas: routine.title,
+                            pemberi_tugas: assignment.assigner?.name || 'Sistem',
+                            deskripsi_tugas: checklist || routine.description || '-'
+                        }, msg);
+                    } catch (e) { }
                 }
             }
         }
@@ -1205,7 +1241,10 @@ exports.sendDailyPersonnelSummary = async () => {
 
         msg += `_Silakan cek detail lengkapnya di aplikasi Manajemen Aset._`;
 
-        await waTemplateService.send('PERSONNEL_SUMMARY_DAILY', kabid.phone, {}, msg);
+        await waTemplateService.send('PERSONNEL_SUMMARY_DAILY', kabid.phone, {
+            tanggal: today.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }),
+            isi_rangkuman: msg.split('numeric'})\n\n')[1] || '-'
+        }, msg);
         console.log('[Personnel] Daily Summary sent to Kabid.');
 
         // Push Notification to Kabid
@@ -1294,14 +1333,27 @@ exports.checkPlanDeadlines = async () => {
             if (msg) {
                 // Send to Staff via WA
                 if (p.user?.phone) {
-                    try { await waTemplateService.send('PERSONNEL_RATING_NEW', p.user.phone, {}, msg); } catch (e) { }
+                    try {
+                        await waTemplateService.send('PERSONNEL_RATING_NEW', p.user.phone, {
+                            nama_staf: p.user.name || p.user.username,
+                            judul_rencana: meta.title || 'Rencana Kerja',
+                            periode: `${new Date(meta.startDate).toLocaleDateString('id-ID')} s/d ${new Date(meta.endDate).toLocaleDateString('id-ID')}`,
+                            deadline: new Date(meta.endDate).toLocaleDateString('id-ID'),
+                            pesan_peringatan: msg
+                        }, msg);
+                    } catch (e) { }
                 }
                 // Send to Kabid via WA
                 if (kabid?.phone) {
                     const kabidMsg = `*LAPORAN PENGINGAT RENCANA KERJA*\n\n` +
                         `*Kepada*: ${p.user.name || p.user.username}\n` +
                         msg;
-                    try { await waTemplateService.send('PERSONNEL_RATING_NEW_KABID', kabid.phone, {}, kabidMsg); } catch (e) { }
+                    try {
+                        await waTemplateService.send('PERSONNEL_RATING_NEW_KABID', kabid.phone, {
+                            nama_staf: p.user.name || p.user.username,
+                            pesan_peringatan: msg
+                        }, kabidMsg);
+                    } catch (e) { }
                 }
 
                 // Push Notification to Staff
@@ -1421,7 +1473,10 @@ exports.checkMissingReportsWeekly = async () => {
 
                 setTimeout(async () => {
                     try {
-                        await waTemplateService.send('PERSONNEL_SUMMARY_WEEKLY_STAFF', entry.phone, {}, staffMsg);
+                        await waTemplateService.send('PERSONNEL_SUMMARY_WEEKLY_STAFF', entry.phone, {
+                            nama_ustadz: entry.name,
+                            hari_kosong: entry.missingDays.join(', ')
+                        }, staffMsg);
                         console.log(`[Personnel] Teguran sent to ${entry.name} (missing: ${entry.missingDays.join(', ')})`);
                     } catch (e) {
                         console.error(`[Personnel] Failed to send teguran to ${entry.name}:`, e.message);
@@ -1456,7 +1511,9 @@ exports.checkMissingReportsWeekly = async () => {
 
                     msg += `\n_Mohon arahan kepada staf terkait agar melengkapi laporan sebelum jam kerja berakhir. Syukron._`;
 
-                    await waTemplateService.send('PERSONNEL_SUMMARY_WEEKLY_KABID', kabid.phone, {}, msg);
+                    await waTemplateService.send('PERSONNEL_SUMMARY_WEEKLY_KABID', kabid.phone, {
+                        daftar_staf_kosong: missingList.map((entry, idx) => `${idx + 1}. ${entry.name} (${entry.missingDays.join(', ')})`).join('\n')
+                    }, msg);
                     console.log('[Personnel] Missing report recap sent to Kabid.');
                 } catch (e) {
                     console.error('[Personnel] Failed to send recap to Kabid:', e.message);
@@ -1535,7 +1592,10 @@ exports.sendWeeklyReportReminder = async () => {
 
             setTimeout(async () => {
                 try {
-                    await waTemplateService.send('PERSONNEL_PUNISHMENT_NEW', s.phone, {}, msg);
+                    await waTemplateService.send('PERSONNEL_PUNISHMENT_NEW', s.phone, {
+                        nama_ustadz: s.name,
+                        jumlah_laporan: reportCount
+                    }, msg);
                 } catch (e) {
                     console.error(`[Report Reminder] Failed to notify ${s.name}:`, e.message);
                 }

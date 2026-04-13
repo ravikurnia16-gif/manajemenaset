@@ -186,7 +186,11 @@ exports.requestBooking = async (req, res) => {
                         nama_pemesan: booking.user.name,
                         waktu: `${startStr} - ${endStr}`,
                         nama_kendaraan: `${vehicle.name} (${vehicle.plateNumber})`,
-                        tujuan: destination
+                        nama_supir: driverName,
+                        tujuan: destination,
+                        keperluan: purpose,
+                        nama_pic: vehicle.pics.map(p => p.name).join(', ') || '-',
+                        status: statusText
                     }, msg);
                 }
                 // Add System Notification for PICs
@@ -221,6 +225,8 @@ exports.requestBooking = async (req, res) => {
                 await waTemplateService.send('VEHICLE_BOOKING_CREATED_KABID', headSarpras.phone, {
                     nama_pemesan: booking.user.name,
                     waktu: `${startStr} - ${endStr}`,
+                    nama_kendaraan: `${vehicle.name} (${vehicle.plateNumber})`,
+                    nama_supir: booking.driver?.name || (booking.driverId ? 'Driver Terpilih' : 'Tanpa Driver'),
                     tujuan: destination
                 }, msgHead);
                 await createNotification(
@@ -245,7 +251,15 @@ exports.requestBooking = async (req, res) => {
             }
 
             msg += `\n\nSelamat bertugas!`;
-            await waTemplateService.send('VEHICLE_BOOKING_STATUS_UPDATE', booking.user.phone, {}, msg);
+            await waTemplateService.send('VEHICLE_BOOKING_STATUS_UPDATE', booking.user.phone, {
+                jenis_layanan: isRental ? 'PENYEWAAN' : 'PEMINJAMAN',
+                status_text: 'DISETUJUI OTOMATIS',
+                nama_kendaraan: vehicle.name,
+                waktu_str: `${formatWAWaktu(startDate)} - ${formatWAWaktu(endDate)}`,
+                tujuan: destination,
+                nama_admin: 'Sistem',
+                catatan: initialStatus === 'BERLANGSUNG' ? `Perjalanan dimulai dengan KM: ${finalStartKm}` : 'Persetujuan otomatis'
+            }, msg);
         }
 
         res.status(201).json(booking);
@@ -325,7 +339,15 @@ exports.reviewBooking = async (req, res) => {
                     `Permintaan Anda untuk kendaraan *${booking.vehicle.name}* telah *DITOLAK ❌*.\n` +
                     (adminNote ? `Catatan: ${adminNote}` : '');
             }
-            await waTemplateService.send('VEHICLE_BOOKING_FINISHED', booking.user.phone, {}, msg);
+            await waTemplateService.send('VEHICLE_BOOKING_FINISHED', booking.user.phone, {
+                jenis_layanan: termHeader,
+                status_text: status === 'APPROVED' ? 'DISETUJUI' : 'DITOLAK',
+                nama_kendaraan: booking.vehicle.name,
+                waktu_str: `${formatWAWaktu(booking.startDate)} - ${formatWAWaktu(booking.endDate)}`,
+                tujuan: booking.destination,
+                nama_admin: adminName,
+                catatan: adminNote || '-'
+            }, msg);
         }
 
         // Add System Notification for User
@@ -396,7 +418,13 @@ exports.startTrip = async (req, res) => {
 
             for (const person of recipients) {
                 try {
-                    await waTemplateService.send('VEHICLE_BOOKING_DISCREPANCY_KABID', person.phone, {}, discMsg);
+                    await waTemplateService.send('VEHICLE_BOOKING_DISCREPANCY_KABID', person.phone, {
+                        nama_kendaraan: `${booking.vehicle.name} (${booking.vehicle.plateNumber})`,
+                        nama_pengguna: booking.user.name,
+                        km_sistem: currentOdometer,
+                        km_input: inputKm,
+                        selisih: inputKm - currentOdometer
+                    }, discMsg);
                     await createNotification(
                         person.id,
                         'Peringatan Diskrepansi Odometer',
@@ -501,7 +529,12 @@ exports.endTrip = async (req, res) => {
                 for (const staff of staffRecipients) {
                     try {
                         if (staff.phone) {
-                            await waTemplateService.send('VEHICLE_BOOKING_FUEL_ALERT', staff.phone, {}, fuelMsg);
+                            await waTemplateService.send('VEHICLE_BOOKING_FUEL_ALERT', staff.phone, {
+                                nama_kendaraan: `${vehicleInfo.name} (${vehicleInfo.plateNumber})`,
+                                nama_pengguna: bookInfo.user.name,
+                                kondisi_bbm: fuelCondition,
+                                keterangan: conditionStr
+                            }, fuelMsg);
                         }
                         await createNotification(
                             staff.id,
@@ -704,7 +737,12 @@ exports.checkOverdueVehicleBookings = async () => {
                     `⚠️ Mohon segera selesaikan perjalanan melalui aplikasi Sarpras dengan menginputkan Kilometer Akhir agar armada dapat digunakan oleh pengguna lain.\n\n` +
                     `Terima kasih.`;
 
-                await waTemplateService.send('VEHICLE_REMINDER_H1', booking.user.phone, {}, waMsg);
+                await waTemplateService.send('VEHICLE_REMINDER_H1', booking.user.phone, {
+                    nama_kendaraan: `${booking.vehicle.name} (${booking.vehicle.plateNumber})`,
+                    tujuan: booking.destination,
+                    waktu_selesai: new Date(booking.endDate).toLocaleString('id-ID'),
+                    selisih_jam: diffHours
+                }, waMsg);
             }
         }
     } catch (error) {
@@ -763,7 +801,12 @@ exports.checkUpcomingVehicleBookings = async () => {
                     `Jika tidak jadi digunakan, mohon batalkan request agar armada dapat digunakan oleh pengguna lain.\n\n` +
                     `Terima kasih.`;
 
-                await waTemplateService.send('VEHICLE_BOOKING_REVIEW', booking.user.phone, {}, waMsg);
+                await waTemplateService.send('VEHICLE_BOOKING_REVIEW', booking.user.phone, {
+                    nama_kendaraan: `${booking.vehicle.name} (${booking.vehicle.plateNumber})`,
+                    tujuan: booking.destination,
+                    waktu_mulai: formatWAWaktu(booking.startDate),
+                    selisih_jam: diffHours
+                }, waMsg);
             }
         }
     } catch (error) {
