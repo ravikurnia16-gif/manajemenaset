@@ -482,6 +482,7 @@ exports.updateStatus = async (req, res) => {
                 }
 
                 setTimeout(async () => {
+                    try {
                         let extDetail = '';
                         if (status === 'ASSIGNED' && selectedTechPhone) extDetail += `\n📞 *Kontak Petugas* : wa.me/${selectedTechPhone.replace(/^0/, '62')}\n`;
                         if (status === 'REJECTED' && rejectionReason) extDetail += `\n*Alasan:* ${rejectionReason}\n`;
