@@ -14,6 +14,28 @@ import api from '../lib/axios';
 
 // --- SHARED COMPONENTS ---
 
+const safeFormatDate = (dateStr, options = { day: 'numeric', month: 'short', year: 'numeric' }) => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '-';
+    try {
+        return date.toLocaleDateString('id-ID', options);
+    } catch (e) {
+        return '-';
+    }
+};
+
+const safeFormatDateTime = (dateStr) => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '-';
+    try {
+        return date.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+        return '-';
+    }
+};
+
 const StatusBadge = ({ status, config }) => {
     const c = config[status] || { label: status, color: 'bg-slate-100 text-slate-600', icon: AlertCircle };
     const Icon = c.icon;
@@ -112,7 +134,7 @@ const SubTaskItem = ({ item, idx, progressVal, isDone, updating, isAssignee, can
                                     <div key={lIdx} className="group/log">
                                         <p className="text-[10px] font-medium text-slate-500 leading-relaxed italic">"{log.text}"</p>
                                         <p className="text-[8px] font-black text-slate-300 uppercase tracking-tighter mt-0.5">
-                                            {new Date(log.timestamp).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                            {safeFormatDateTime(log.timestamp)}
                                         </p>
                                     </div>
                                 ))}
@@ -1466,8 +1488,9 @@ const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, 
             prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
         );
         if (!reviewForms[id]) {
-            const r = reports.find(doc => doc.id === id);
-            const initialVerified = (r?.metadata?.items || [])
+            const r = reports.find(doc => doc.id == id);
+            const items = Array.isArray(r?.metadata?.items) ? r.metadata.items : [];
+            const initialVerified = items
                 .map((it, idx) => it.verified ? idx : null)
                 .filter(idx => idx !== null);
 
@@ -1546,11 +1569,11 @@ const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, 
                                         <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3 text-[9px] font-black text-slate-500 uppercase tracking-widest">
                                             <div className="flex items-center gap-1.5 min-w-0">
                                                 <Calendar size={12} className="text-indigo-400 shrink-0" />
-                                                <span className="truncate">{new Date(r.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                                <span className="truncate">{safeFormatDate(r.date)}</span>
                                             </div>
                                             <span className="hidden md:inline-block text-slate-300">•</span>
                                             <div className="flex items-center text-slate-400">
-                                                <span>{isPlan ? `PERIOD: ${new Date(r.metadata?.startDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} - ${new Date(r.metadata?.endDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}` : `${(r.metadata?.items || []).length} AKTIVITAS`}</span>
+                                                <span>{isPlan ? `PERIOD: ${safeFormatDate(r.metadata?.startDate, { day: '2-digit', month: 'short' })} - ${safeFormatDate(r.metadata?.endDate, { day: '2-digit', month: 'short' })}` : `${(r.metadata?.items || []).length} AKTIVITAS`}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1684,7 +1707,7 @@ const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, 
                                                             <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-[10px] font-black text-white italic">KB</div>
                                                             <div>
                                                                 <p className="text-[10px] font-black text-slate-900 uppercase">{review.reviewedByName || 'KABID SARPRAS'}</p>
-                                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">DIVERIFIKASI PADA {new Date(review.reviewedAt).toLocaleDateString('id-ID')}</p>
+                                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">DIVERIFIKASI PADA {safeFormatDate(review.reviewedAt)}</p>
                                                             </div>
                                                         </div>
                                                         <ShieldCheck className="text-indigo-200" size={32} />
