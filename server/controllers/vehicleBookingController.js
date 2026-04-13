@@ -182,7 +182,12 @@ exports.requestBooking = async (req, res) => {
 
             for (const pic of vehicle.pics) {
                 if (pic.phone) {
-                    await waTemplateService.send('VEHICLE_BOOKING_CREATED_ADMIN', pic.phone, {}, msg);
+                    await waTemplateService.send('VEHICLE_BOOKING_CREATED_ADMIN', pic.phone, {
+                        nama_pemesan: booking.user.name,
+                        waktu: `${startStr} - ${endStr}`,
+                        nama_kendaraan: `${vehicle.name} (${vehicle.plateNumber})`,
+                        tujuan: destination
+                    }, msg);
                 }
                 // Add System Notification for PICs
                 await createNotification(
@@ -213,7 +218,11 @@ exports.requestBooking = async (req, res) => {
                     `Tujuan: ${destination}\n\n` +
                     `*Status*: Sistem telah memberikan Persetujuan Otomatis.`;
 
-                await waTemplateService.send('VEHICLE_BOOKING_CREATED_KABID', headSarpras.phone, {}, msgHead);
+                await waTemplateService.send('VEHICLE_BOOKING_CREATED_KABID', headSarpras.phone, {
+                    nama_pemesan: booking.user.name,
+                    waktu: `${startStr} - ${endStr}`,
+                    tujuan: destination
+                }, msgHead);
                 await createNotification(
                     headSarpras.id,
                     'Prioritas Pimpinan Yayasan',

@@ -63,6 +63,21 @@ const send = async (slug, phone, vars = {}, fallbackMsg = null) => {
 
         // Template exists and is ACTIVE → use template content
         if (template && template.isActive) {
+            let expectsVars = false;
+            try {
+                const available = JSON.parse(template.availableVars || '[]');
+                expectsVars = available.length > 0;
+            } catch (e) {
+                expectsVars = false;
+            }
+
+            // Failsafe: Jika template butuh variabel, tapi controller tidak mengirim variabel apapun {}.
+            // Ini berarti controller belum di-update ke sistem baru. Kita gunakan `fallbackMsg`.
+            if (expectsVars && Object.keys(vars).length === 0 && fallbackMsg) {
+                await whatsappService.sendMessage(phone, fallbackMsg);
+                return true;
+            }
+
             const msg = formatContent(template.content, vars);
             await whatsappService.sendMessage(phone, msg);
             return true;
