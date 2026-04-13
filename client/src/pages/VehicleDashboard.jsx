@@ -365,7 +365,6 @@ const VehicleDashboard = () => {
                 {stats.map((s, i) => <StatCard key={i} {...s} />)}
             </div>
 
-            {
             {/* -------------------- BENTO ROW 1: Tren Jarak & Status Ketersediaan -------------------- */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-6">
                 {/* Tren Jarak Tempuh - ALL VEHICLES (Lebar 3/4) */}
