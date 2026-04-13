@@ -1359,7 +1359,73 @@ exports.checkPlanDeadlines = async () => {
             }
         }
     } catch (err) {
-        console.error('[Personnel Plan] Deadline Check Error:', err.message);
+        console.error('[Personnel] Weekly Report Check Error:', err.message);
+    }
+};
+
+/**
+ * REVIEW A PERSONNEL REPORT (KABID ONLY)
+ */
+exports.reviewReport = async (req, res) => {
+    const { id } = req.params;
+    const { status, feedback } = req.body;
+    const user = req.user;
+
+    try {
+        // Only SUPER_ADMIN and KABID position can review
+        const isKabid = user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana dan Prasarana';
+        if (!isKabid) {
+            return res.status(403).json({ error: 'Hanya Kepala Bidang yang dapat memberikan tinjauan.' });
+        }
+
+        const report = await prisma.personnelReport.findUnique({
+            where: { id: parseInt(id) },
+            include: { user: true }
+        });
+
+        if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan.' });
+
+        // Update metadata with review data
+        const updatedMetadata = { 
+            ...(report.metadata || {}),
+            review: {
+                status: status || 'VERIFIED',
+                feedback: feedback || '',
+                reviewedAt: new Date().toISOString(),
+                reviewedById: user.id,
+                reviewedByName: user.name || user.username
+            }
+        };
+
+        const updatedReport = await prisma.personnelReport.update({
+            where: { id: report.id },
+            data: { metadata: updatedMetadata },
+            include: { user: { select: { name: true, phone: true } } }
+        });
+
+        // NOTIFICATION TO STAFF
+        const staffPhone = updatedReport.user?.phone;
+        if (staffPhone) {
+            const statusLabel = status === 'VERIFIED' ? '✅ DIVERIFIKASI' : (status === 'NEEDS_COACHING' ? '⚠️ BUTUH PERBAIKAN' : status);
+            const waMsg = `📢 *TINJAUAN LAPORAN ANDA*\n\n` +
+                `Assalamu'alaikum ${updatedReport.user.name},\n\n` +
+                `Laporan harian Anda tanggal *${new Date(updatedReport.date).toLocaleDateString('id-ID')}* telah diperiksa oleh Kabid.\n\n` +
+                `📌 *Status*: ${statusLabel}\n` +
+                `📝 *Feedback*: ${feedback || '-'}\n\n` +
+                `Syukron atas dedikasinya. Lanjutkan semangat bekerja!`;
+
+            try {
+                const whatsappService = require('../services/whatsappService');
+                await whatsappService.sendMessage(staffPhone, waMsg);
+            } catch (waErr) {
+                console.error('[Review Notification] WA Failed:', waErr.message);
+            }
+        }
+
+        res.json({ message: 'Laporan berhasil diperiksa', data: updatedReport });
+    } catch (error) {
+        console.error("Review Report Error:", error);
+        res.status(500).json({ error: error.message });
     }
 };
 

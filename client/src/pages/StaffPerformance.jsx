@@ -7,7 +7,8 @@ import {
     ArrowRight, MoreVertical, Flag, Loader2, X, ChevronDown, 
     ChevronUp, CheckSquare, Square, Target, Timer, Award,
     Medal, Crown, Send, Trash2, Sparkles, Download, ListChecks,
-    ClipboardCheck, History, ClipboardList
+    ClipboardCheck, History, ClipboardList, ShieldCheck, CheckCircle, 
+    MessageSquare, CheckCircle2
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -181,6 +182,17 @@ const StaffPerformance = () => {
     const [userAssignments, setUserAssignments] = useState([]);
     const [userRoutines, setUserRoutines] = useState([]);
     const [userDailyReports, setUserDailyReports] = useState([]);
+    
+    // Kabid Stats
+    const [kabidStats, setKabidStats] = useState({
+        totalPlannedItems: 0,
+        completedPlannedItems: 0,
+        pendingReviews: 0,
+        incidentalCount: 0
+    });
+
+    // Sub-item Selection State
+    const [userDailyReports, setUserDailyReports] = useState([]);
 
     // Sub-item Selection State
     const [previewSource, setPreviewSource] = useState(null); // Source for item picker
@@ -288,6 +300,38 @@ const StaffPerformance = () => {
             });
             
             setReports(filtered);
+
+            // CALCULATE KABID STATS (Only if Kabid)
+            if (isKabid) {
+                let plannedTotal = 0;
+                let plannedDone = 0;
+                let pendingRev = 0;
+                let incidental = 0;
+
+                data.forEach(r => {
+                    const items = r.metadata?.items || [];
+                    const isPlan = r.metadata?.isPlan;
+                    const reviewStatus = r.metadata?.review?.status || 'PENDING';
+                    
+                    if (reviewStatus === 'PENDING') pendingRev++;
+
+                    items.forEach(it => {
+                        if (it.planId) {
+                            plannedTotal++;
+                            if (it.percentage === 100 || it.status === 'SELESAI') plannedDone++;
+                        } else if (!isPlan) {
+                            incidental++;
+                        }
+                    });
+                });
+
+                setKabidStats({
+                    totalPlannedItems: plannedTotal,
+                    completedPlannedItems: plannedDone,
+                    pendingReviews: pendingRev,
+                    incidentalCount: incidental
+                });
+            }
         } catch (err) {
             console.error(err);
         } finally {
@@ -388,6 +432,28 @@ const StaffPerformance = () => {
         setSelectedItemsIndices(prev => 
             prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
         );
+    };
+
+    const handleReviewReport = async (id, status, feedback) => {
+        try {
+            await api.post(`/personnel/reports/${id}/review`, { status, feedback });
+            alert('Tinjauan berhasil disimpan');
+            fetchReports();
+        } catch (err) {
+            console.error(err);
+            alert('Gagal mengirim tinjauan: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleReviewReport = async (id, status, feedback) => {
+        try {
+            await api.post(`/personnel/reports/${id}/review`, { status, feedback });
+            alert('Tinjauan berhasil disimpan');
+            fetchReports();
+        } catch (err) {
+            console.error(err);
+            alert('Gagal mengirim tinjauan: ' + (err.response?.data?.error || err.message));
+        }
     };
 
     const importFromSelectedSource = () => {
@@ -590,6 +656,49 @@ const StaffPerformance = () => {
 
                 {/* Main Content Hub */}
                 <div className="space-y-6">
+                    {/* Kabid Professional Insights Card */}
+                    {isKabid && !showForm && (
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-4 duration-1000">
+                            <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-200/40 relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-50 rounded-bl-[40px] -mr-4 -mt-4 transition-all group-hover:w-24 group-hover:h-24" />
+                                <Target className="text-indigo-500 mb-4 relative z-10" size={24} />
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 relative z-10">Efektivitas Rencana</p>
+                                <div className="flex items-end gap-2 relative z-10">
+                                    <h4 className="text-3xl font-black text-slate-900 tracking-tighter italic">
+                                        {kabidStats.totalPlannedItems > 0 ? Math.round((kabidStats.completedPlannedItems / kabidStats.totalPlannedItems) * 100) : 0}%
+                                    </h4>
+                                    <p className="text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-tighter">Target Tercapai</p>
+                                </div>
+                            </div>
+                            <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-200/40 relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-50 rounded-bl-[40px] -mr-4 -mt-4 transition-all group-hover:w-24 group-hover:h-24" />
+                                <Zap className="text-emerald-500 mb-4 relative z-10" size={24} />
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 relative z-10">Antrean Verifikasi</p>
+                                <div className="flex items-end gap-2 relative z-10">
+                                    <h4 className="text-3xl font-black text-slate-900 tracking-tighter italic">{kabidStats.pendingReviews}</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-tighter">Laporan</p>
+                                </div>
+                            </div>
+                            <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-200/40 relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-20 h-20 bg-amber-50 rounded-bl-[40px] -mr-4 -mt-4 transition-all group-hover:w-24 group-hover:h-24" />
+                                <Activity className="text-amber-500 mb-4 relative z-10" size={24} />
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 relative z-10">Beban Insidental</p>
+                                <div className="flex items-end gap-2 relative z-10">
+                                    <h4 className="text-3xl font-black text-slate-900 tracking-tighter italic">{kabidStats.incidentalCount}</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-tighter">Aktivitas Dadakan</p>
+                                </div>
+                            </div>
+                            <div className="bg-indigo-600 p-6 rounded-[32px] shadow-xl shadow-indigo-200 relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-bl-[40px] -mr-4 -mt-4 transition-all group-hover:scale-110" />
+                                <Trophy className="text-indigo-200 mb-4 relative z-10" size={24} />
+                                <p className="text-[9px] font-black text-indigo-200/60 uppercase tracking-widest mb-1 relative z-10">Departemen Score</p>
+                                <div className="flex items-end gap-2 relative z-10">
+                                    <h4 className="text-3xl font-black text-white tracking-tighter italic">A+</h4>
+                                    <p className="text-[10px] font-bold text-indigo-300 mb-1.5 uppercase tracking-tighter">Healthy Status</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     {/* Filter & Action Row */}
                     {!showForm && (
                         <div className="flex flex-col md:flex-row flex-wrap md:items-center justify-between gap-4 bg-white/50 backdrop-blur-xl p-3 md:p-4 rounded-[28px] md:rounded-[32px] border border-slate-200/40 shadow-sm">
@@ -1021,6 +1130,8 @@ const StaffPerformance = () => {
                                             type={activeTab}
                                             user={user}
                                             handleEditReport={handleEditReport}
+                                            handleReviewReport={handleReviewReport}
+                                            isKabid={isKabid}
                                         />
                                     )}
                                 </div>
@@ -1350,19 +1461,31 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
                             )}
                         </div>
                     );
-                })
-            )}
-        </div>
-    );
-};
-
-const ReportTab = ({ reports, type, user, handleEditReport }) => {
+     const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, isKabid }) => {
     const [expandedReportIds, setExpandedReportIds] = useState([]);
+    const [reviewForms, setReviewForms] = useState({}); // { reportId: { status, feedback } }
 
     const toggleExpand = (id) => {
         setExpandedReportIds(prev => 
             prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
         );
+        if (!reviewForms[id]) {
+            const r = reports.find(doc => doc.id === id);
+            setReviewForms(prev => ({
+                ...prev,
+                [id]: { 
+                    status: r?.metadata?.review?.status || 'VERIFIED', 
+                    feedback: r?.metadata?.review?.feedback || '' 
+                }
+            }));
+        }
+    };
+
+    const updateReviewForm = (id, fields) => {
+        setReviewForms(prev => ({
+            ...prev,
+            [id]: { ...(prev[id] || {}), ...fields }
+        }));
     };
 
     return (
@@ -1373,7 +1496,7 @@ const ReportTab = ({ reports, type, user, handleEditReport }) => {
                     <span>Aktivitas Utama & Personil</span>
                 </div>
                 <div className="md:col-span-4 text-center">{type === 'RENCANA' ? 'Periode Rencana' : 'Waktu Laporan'}</div>
-                <div className="md:col-span-2 text-right">Label</div>
+                <div className="md:col-span-2 text-right">Status & Label</div>
             </div>
             
             {reports.length === 0 ? (
@@ -1386,20 +1509,24 @@ const ReportTab = ({ reports, type, user, handleEditReport }) => {
                     const isEven = idx % 2 === 0;
                     const isExpanded = expandedReportIds.includes(r.id);
                     const isPlan = r.metadata?.isPlan;
+                    const review = r.metadata?.review || { status: 'PENDING' };
+                    const form = reviewForms[r.id] || { status: 'VERIFIED', feedback: '' };
 
                     return (
-                        <div key={r.id} className={`border-b border-slate-50 border-l-[8px] md:border-l-[12px] ${isPlan ? 'border-l-indigo-500' : 'border-l-emerald-500'} ${isEven ? 'bg-white' : 'bg-slate-50/50'} hover:bg-slate-50/80 transition-all group relative`}>
+                        <div key={r.id} className={`border-b border-slate-50 border-l-[8px] md:border-l-[12px] ${review.status === 'VERIFIED' ? 'border-l-emerald-500' : review.status === 'NEEDS_COACHING' ? 'border-l-amber-500' : isPlan ? 'border-l-indigo-500' : 'border-l-slate-200'} ${isEven ? 'bg-white' : 'bg-slate-50/50'} hover:bg-slate-50/80 transition-all group relative`}>
                             <div 
                                 onClick={() => toggleExpand(r.id)}
                                 className="p-4 md:p-6 cursor-pointer flex items-start md:items-center justify-between gap-3 md:gap-4"
                             >
                                 <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1 min-w-0 w-full">
-                                    <div className={`w-10 md:w-12 h-10 md:h-12 rounded-full flex items-center justify-center shrink-0 border-2 ${isPlan ? 'bg-indigo-50 border-indigo-100 text-indigo-500' : 'bg-emerald-50 border-emerald-100 text-emerald-500'}`}>
-                                        {isPlan ? <Calendar size={18} /> : <FileText size={18} />}
+                                    <div className={`w-10 md:w-12 h-10 md:h-12 rounded-full flex items-center justify-center shrink-0 border-2 ${review.status === 'VERIFIED' ? 'bg-emerald-50 border-emerald-100 text-emerald-500' : isPlan ? 'bg-indigo-50 border-indigo-100 text-indigo-500' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                                        {review.status === 'VERIFIED' ? <ShieldCheck size={20} /> : isPlan ? <Calendar size={18} /> : <FileText size={18} />}
                                     </div>
                                     <div className="space-y-1.5 flex-1 min-w-0">
                                         <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
                                             <span className="px-2 py-0.5 bg-slate-900 text-white text-[8px] font-black uppercase tracking-widest rounded-full">{r.category || (isPlan ? 'PLN' : 'RPT')}</span>
+                                            {review.status === 'VERIFIED' && <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 text-[8px] font-black uppercase tracking-widest rounded-full">✅ Verified</span>}
+                                            {review.status === 'NEEDS_COACHING' && <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 text-[8px] font-black uppercase tracking-widest rounded-full">⚠️ Coaching</span>}
                                             <span className="text-[8px] font-black text-slate-300 tracking-widest">#{r.id.toString().padStart(5, '0')}</span>
                                         </div>
                                         <h3 className="text-sm md:text-base font-black text-slate-800 uppercase italic leading-tight tracking-tight truncate group-hover:text-indigo-600 transition-colors">
@@ -1412,7 +1539,7 @@ const ReportTab = ({ reports, type, user, handleEditReport }) => {
                                             </div>
                                             <span className="hidden md:inline-block text-slate-300">•</span>
                                             <div className="flex items-center text-slate-400">
-                                                <span>{isPlan ? `TARGET: ${new Date(r.metadata?.startDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} - ${new Date(r.metadata?.endDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}` : `PKL: ${r.metadata?.startTime || '08:00'} - ${r.metadata?.endTime || '17:00'} WIB`}</span>
+                                                <span>{isPlan ? `PERIOD: ${new Date(r.metadata?.startDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} - ${new Date(r.metadata?.endDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}` : `${(r.metadata?.items || []).length} AKTIVITAS`}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1423,58 +1550,117 @@ const ReportTab = ({ reports, type, user, handleEditReport }) => {
                                         {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                     </div>
                                     <div className="px-2 py-0.5 rounded-full bg-slate-50 border border-slate-100 shadow-sm hidden md:block">
-                                        <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">{isPlan ? 'RENCANA' : 'HARIAN'}</p>
+                                        <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">{isPlan ? 'PLANNED' : 'DAILY'}</p>
                                     </div>
                                 </div>
                             </div>
 
+                            {/* Collapsible Content */}
                             {isExpanded && (
-                                <div className="p-8 pt-0 md:pl-20 border-t border-slate-50/50 bg-slate-50/30 animate-in slide-in-from-top-2 duration-300">
-                                    <div className="pt-6 max-w-4xl space-y-6">
-                                        <div className="flex justify-between items-start gap-4">
-                                            {r.metadata?.title && isPlan && (
-                                                <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-3xl flex-1">
-                                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Judul Rencana</p>
-                                                    <h5 className="text-sm font-bold text-slate-700 uppercase">{r.metadata.title}</h5>
-                                                </div>
-                                            )}
-                                            {r.userId === user?.id && isPlan && (
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleEditReport(r); }}
-                                                    className="px-4 py-2 bg-white text-indigo-600 text-[10px] font-black uppercase tracking-widest rounded-xl border border-indigo-100 shadow-sm hover:bg-indigo-50 transition-colors shrink-0"
-                                                >
-                                                    Edit Rencana
-                                                </button>
-                                            )}
-                                        </div>
-
+                                <div className="p-8 pt-0 md:pl-20 border-t border-slate-50/50 bg-slate-50/20 animate-in slide-in-from-top-2 duration-300">
+                                    <div className="pt-6 max-w-4xl space-y-8">
                                         <div className="space-y-4">
-                                            <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2 italic">📝 Rincian Aktivitas</h4>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                {(r.metadata?.items || []).map((it, iIdx) => (
-                                                    <div key={iIdx} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-start justify-between gap-4 shadow-sm">
-                                                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                                                            <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${it.status === 'SELESAI' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]'}`} />
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-xs font-bold text-slate-700 leading-tight">{it.activity || it.name || it.text}</p>
-                                                                {it.note && isNaN(it.note) && <p className="text-[10px] font-medium text-slate-400 italic mt-1.5 leading-relaxed">"{it.note}"</p>}
+                                            <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2 italic">📋 Rincian Pekerjaan & Sumber</h4>
+                                            <div className="space-y-3">
+                                                {(r.metadata?.items || []).map((it, iIdx) => {
+                                                    const sourceLabel = it.planId ? 'RENCANA' : it.title?.startsWith('[TUGAS]') ? 'PENUGASAN' : 'INSIDENTAL';
+                                                    const sourceColor = it.planId ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : it.title?.startsWith('[TUGAS]') ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200';
+                                                    
+                                                    return (
+                                                        <div key={idx} className="flex items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm group/item">
+                                                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                                <div className="w-12 h-12 rounded-full border-2 border-slate-50 flex items-center justify-center text-[10px] font-black text-indigo-600 italic bg-slate-50/30">
+                                                                    {it.percentage}%
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-md border ${sourceColor} uppercase tracking-widest`}>{sourceLabel}</span>
+                                                                        <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">{it.status}</span>
+                                                                    </div>
+                                                                    <p className="text-sm font-bold text-slate-700 uppercase italic truncate whitespace-pre-wrap">{it.title || it.text || it.activity}</p>
+                                                                    {it.note && <p className="text-[10px] font-medium text-slate-400 italic mt-1 leading-relaxed">"{it.note}"</p>}
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                        <div className="text-right shrink-0">
-                                                            <p className={`text-[10px] font-black tracking-tighter ${it.status === 'SELESAI' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                                                                {it.percentage || 0}% {it.status}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         </div>
-                                        
-                                        {(r.content || r.details) && (
-                                            <div className="space-y-3">
-                                                <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2 italic">📌 Memo Eksekutif</h4>
-                                                <div className="bg-white/60 p-5 rounded-2xl border border-slate-100 text-xs text-slate-600 italic leading-relaxed whitespace-pre-wrap">
-                                                    {r.content || (r.details?.split('📋')[1]?.split('📝 Catatan')[1]?.substring(1) || r.details)}
+
+                                        {/* Kabid Review Section */}
+                                        {isKabid && (
+                                            <div className="mt-8 p-8 bg-indigo-50/50 rounded-[32px] border border-indigo-100/50 space-y-6">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-100">
+                                                        <ShieldCheck size={18} />
+                                                    </div>
+                                                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest italic">Tinjauan Eksekutif Kabid</h4>
+                                                </div>
+                                                
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                    <div className="space-y-4">
+                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Keputusan Verifikasi</label>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <button 
+                                                                onClick={() => updateReviewForm(r.id, { status: 'VERIFIED' })}
+                                                                className={`py-4 px-4 rounded-2xl text-[10px] font-black transition-all flex flex-col items-center gap-2 ${form.status === 'VERIFIED' ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-100 scale-105' : 'bg-white text-slate-400 border border-slate-100 hover:bg-emerald-50'}`}
+                                                            >
+                                                                <CheckCircle size={20} />
+                                                                VERIFIKASI
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => updateReviewForm(r.id, { status: 'NEEDS_COACHING' })}
+                                                                className={`py-4 px-4 rounded-2xl text-[10px] font-black transition-all flex flex-col items-center gap-2 ${form.status === 'NEEDS_COACHING' ? 'bg-amber-600 text-white shadow-xl shadow-amber-100 scale-105' : 'bg-white text-slate-400 border border-slate-100 hover:bg-amber-50'}`}
+                                                            >
+                                                                <MessageSquare size={20} />
+                                                                BUTUH COACHING
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-4">
+                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Arahan / Feedback</label>
+                                                        <textarea 
+                                                            value={form.feedback}
+                                                            onChange={(e) => updateReviewForm(r.id, { feedback: e.target.value })}
+                                                            placeholder="Tulis arahan profesional Anda di sini..."
+                                                            className="w-full p-5 bg-white border border-slate-200 rounded-[24px] text-xs font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all resize-none h-32"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="pt-4 flex justify-end">
+                                                    <button 
+                                                        onClick={() => handleReviewReport(r.id, form.status, form.feedback)}
+                                                        className="px-10 py-4 bg-indigo-600 text-white text-[10px] font-black rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 uppercase tracking-[0.2em] transform active:scale-95"
+                                                    >
+                                                        Simpan Tinjauan & Kirim Notif
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Feedback Show for Staff */}
+                                        {!isKabid && review.feedback && (
+                                            <div className="mt-8 p-8 bg-gradient-to-br from-indigo-50 to-white rounded-[40px] border border-indigo-100 shadow-sm relative overflow-hidden">
+                                                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-100/50 rounded-full -mr-16 -mt-16" />
+                                                <div className="relative z-10">
+                                                    <div className="flex items-center gap-3 mb-4">
+                                                        <div className="p-1.5 bg-indigo-600 rounded-lg text-white">
+                                                            <MessageSquare size={14} />
+                                                        </div>
+                                                        <h4 className="text-[10px] font-black text-indigo-900 uppercase tracking-widest">Catatan Pembinaan Kabid</h4>
+                                                    </div>
+                                                    <p className="text-base font-bold text-slate-700 italic leading-relaxed whitespace-pre-wrap">"{review.feedback}"</p>
+                                                    <div className="mt-8 pt-6 border-t border-indigo-100 flex items-center justify-between">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-[10px] font-black text-white italic">KB</div>
+                                                            <div>
+                                                                <p className="text-[10px] font-black text-slate-900 uppercase">{review.reviewedByName || 'KABID SARPRAS'}</p>
+                                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">DIVERIFIKASI PADA {new Date(review.reviewedAt).toLocaleDateString('id-ID')}</p>
+                                                            </div>
+                                                        </div>
+                                                        <ShieldCheck className="text-indigo-200" size={32} />
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}

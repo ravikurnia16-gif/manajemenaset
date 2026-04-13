@@ -9,6 +9,7 @@ router.use(verifyToken); // All personnel routes require authentication
 router.post('/reports', personnelController.createReport);
 router.get('/reports', personnelController.getReports);
 router.put('/reports/:id', personnelController.updateReport);
+router.post('/reports/:id/review', personnelController.reviewReport);
 // AI Summary route removed
 
 // Assignments
