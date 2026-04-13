@@ -144,11 +144,14 @@ function App() {
           <Route path="personalia/kpi" element={<Navigate to="/personalia/kinerja?tab=KPI" replace />} />
           <Route path="laporan" element={<ReportPage />} />
 
-          {/* Module: Manajemen Notifikasi WA (Kabid Sarpras Only) */}
+          {/* Module: Manajemen Notifikasi WA (Kabid Sarpras & Admin) */}
           <Route path="notifikasi-wa" element={
-            JSON.parse(localStorage.getItem('user'))?.position === 'Kepala Bidang Sarana dan Prasarana'
-              ? <WaNotificationManagement />
-              : <Navigate to="/dashboard" />
+            (() => {
+              const u = JSON.parse(localStorage.getItem('user'));
+              const allowed = u?.position === 'Kepala Bidang Sarana dan Prasarana'
+                || ['SUPER_ADMIN', 'ADMIN_ASET'].includes(u?.role);
+              return allowed ? <WaNotificationManagement /> : <Navigate to="/dashboard" />;
+            })()
           } />
 
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />

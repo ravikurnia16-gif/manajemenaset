@@ -65,8 +65,8 @@ exports.requestBooking = async (req, res) => {
         // 1. Check for strict overlaps with APPROVED or BERLANGSUNG bookings
         const conflict = await findOverlappingBooking(vehicleId, start, end);
         if (conflict) {
-            return res.status(400).json({ 
-                error: `Jadwal bentrok! Kendaraan sudah dipesan oleh ${conflict.user.name} pada: ${formatWAWaktu(conflict.startDate)} - ${formatWAWaktu(conflict.endDate)}.` 
+            return res.status(400).json({
+                error: `Jadwal bentrok! Kendaraan sudah dipesan oleh ${conflict.user.name} pada: ${formatWAWaktu(conflict.startDate)} - ${formatWAWaktu(conflict.endDate)}.`
             });
         }
 
@@ -277,8 +277,8 @@ exports.reviewBooking = async (req, res) => {
         if (status === 'APPROVED') {
             const conflict = await findOverlappingBooking(booking.vehicleId, booking.startDate, booking.endDate, id);
             if (conflict) {
-                return res.status(400).json({ 
-                    error: `Gagal menyetujui! Sudah ada jadwal yang disetujui untuk ${conflict.user.name} pada jam tersebut.` 
+                return res.status(400).json({
+                    error: `Gagal menyetujui! Sudah ada jadwal yang disetujui untuk ${conflict.user.name} pada jam tersebut.`
                 });
             }
         }
@@ -457,7 +457,7 @@ exports.endTrip = async (req, res) => {
         // Sync odometer & last fuel condition to vehicle
         await prisma.vehicle.update({
             where: { id: booking.vehicleId },
-            data: { 
+            data: {
                 odometer: parseInt(endKm),
                 ...(fuelCondition ? { lastFuelCondition: fuelCondition } : {})
             }
@@ -482,13 +482,13 @@ exports.endTrip = async (req, res) => {
                 const notifLevel = fuelCondition === 'LOW' ? 'URGENT' : 'WARNING';
                 const notifEmoji = fuelCondition === 'LOW' ? '🚨' : '⚠️';
                 const conditionStr = fuelCondition === 'LOW' ? 'Kecil dari 1/4 (Sangat Minim)' : 'Antara 1/4 dan 1/2';
-                
+
                 const fuelMsg = `${notifEmoji} *LAPORAN KONDISI BBM ARMADA*\n\n` +
                     `Armada: *${vehicleInfo.name} (${vehicleInfo.plateNumber})*\n` +
                     `Pengguna Terakhir: ${bookInfo.user.name}\n` +
                     `Kondisi BBM saat ini: *${conditionStr}*\n\n` +
                     `Mohon agar Tim Staff Kendaraan segera menindaklanjuti untuk pengisian BBM armada agar siap digunakan untuk perjalanan selanjutnya.`;
-                
+
                 for (const staff of staffRecipients) {
                     try {
                         if (staff.phone) {

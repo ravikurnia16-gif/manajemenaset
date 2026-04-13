@@ -47,7 +47,8 @@ const WaNotificationManagement = () => {
       data.forEach(t => { cats[t.category] = true; });
       setExpandedCats(cats);
     } catch (err) {
-      console.error(err);
+      console.error('Fetch templates error:', err);
+      showToast(`Gagal memuat template: ${err.response?.data?.error || err.message}`);
     } finally {
       setLoading(false);
     }
