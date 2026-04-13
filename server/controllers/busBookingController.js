@@ -128,8 +128,7 @@ const createBusBooking = async (req, res) => {
                     where: {
                         OR: [
                             { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } },
-                            { position: { contains: 'Staff Manajemen Aset' } },
-                            { position: { contains: 'Staff Kendaraan' } }
+                            { position: { contains: 'Staff Manajemen Aset' } }
                         ],
                         phone: { not: null, not: '' }
                     }
@@ -271,7 +270,7 @@ const getBusExpenseSummary = async (req, res) => {
 
         // 2. BBM: Hanya dari VehicleBooking.fuelPrice
         const vehicleBookingFuel = await prisma.vehicleBooking.findMany({
-            where: { 
+            where: {
                 vehicleId: { in: busVehicleIds },
                 fuelRefill: true,
                 fuelPrice: { gt: 0 }
@@ -297,10 +296,10 @@ const getBusExpenseSummary = async (req, res) => {
             totalMaintenance,
             totalExpenses: totalFuel + totalMaintenance,
             fuelRecords: vehicleBookingFuel.map(f => ({ cost: f.fuelPrice, date: f.startDate })),
-            maintenanceRecords: serviceRecords.map(m => ({ 
-                cost: m.cost, 
+            maintenanceRecords: serviceRecords.map(m => ({
+                cost: m.cost,
                 date: m.date,
-                title: m.description || m.type 
+                title: m.description || m.type
             }))
         });
     } catch (err) {
@@ -345,7 +344,7 @@ const getPublicBusInvoiceBatch = async (req, res) => {
         if (!ids) return res.status(400).json({ error: 'IDs are required' });
 
         const idArray = ids.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
-        
+
         const bookings = await prisma.busBooking.findMany({
             where: { id: { in: idArray }, isPaid: true },
             include: { vehicle: true },
@@ -367,7 +366,7 @@ const getPublicBusInvoiceBatch = async (req, res) => {
             paidAt: booking.paidAt,
             vehicle: { name: booking.vehicle?.name, plateNumber: booking.vehicle?.plateNumber }
         }));
-        
+
         res.json(sanitized);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -576,7 +575,7 @@ const checkBusBookingNotifications = async () => {
             for (const b of group) {
                 const link = `${domainUrl}/public/confirm-bus/${b.id}/${b.token}`;
                 msg += `🚌 *${b.vehicle.name}* (${b.vehicle.plateNumber})\n` +
-                       `🔗 Konfirmasi: ${link}\n\n`;
+                    `🔗 Konfirmasi: ${link}\n\n`;
             }
 
             msg += `Konfirmasi Ustadz/Ustadzah sangat kami harapkan agar kami dapat menyiapkan armada dengan maksimal. Syukron.\n_Sistem Manajemen Aset_`;
@@ -584,7 +583,7 @@ const checkBusBookingNotifications = async () => {
             try {
                 await whatsappService.sendMessage(requesterPhone, msg);
                 console.log(`[Bus Booking] H-1 Reminder sent to ${requesterName} (${requesterPhone})`);
-                
+
                 // Mark as sent
                 await prisma.busBooking.updateMany({
                     where: { id: { in: group.map(b => b.id) } },
@@ -639,7 +638,7 @@ const publicConfirmBooking = async (req, res) => {
         // Notify Staff Kendaraan
         const staffKendaraan = await prisma.user.findMany({
             where: {
-                position: { contains: 'Staff Kendaraan' },
+                position: { contains: 'Staff Manajemen aset' },
                 phone: { not: null, not: '' }
             }
         });
@@ -712,7 +711,7 @@ const checkUnpaidBusInvoices = async () => {
 
         unpaidBookings.forEach((b) => {
             const ageDays = Math.floor((now - new Date(b.completedAt)) / (1000 * 60 * 60 * 24));
-            
+
             // Only remind on day 7, 10, 13, 16, etc.
             if (ageDays >= 7 && (ageDays - 7) % 3 === 0) {
                 hasReminders = true;
@@ -849,7 +848,7 @@ const markBusAsPaid = async (req, res) => {
         if (updated.requesterPhone) {
             const domainUrl = process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id';
             const invoiceLink = `${domainUrl}/public/invoice-bus/${updated.id}`;
-            
+
             const msg = `🧾 *KUITANSI PELUNASAN BUS YDI* 🚌\n\n` +
                 `Alhamdulillah Ustadz/Ustadzah *${(updated.requesterName || '').toUpperCase()}*,\n` +
                 `Pembayaran sewa operasional bus telah kami terima.\n\n` +
