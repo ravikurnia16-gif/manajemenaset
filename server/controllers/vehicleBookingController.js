@@ -260,17 +260,17 @@ exports.reviewBooking = async (req, res) => {
 
         if (!booking) return res.status(404).json({ error: 'Booking tidak ditemukan' });
 
+        const admin = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const adminName = admin?.name || req.user.username || 'Admin';
+
         // Check permission: Super Admin or one of the Vehicle PICs or Kabid Sarpras
         const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role);
         const isPIC = booking.vehicle.pics.some(p => p.id === req.user.id);
-        const isKabidSarpras = req.user.position === 'Kepala Bidang Sarana dan Prasarana';
+        const isKabidSarpras = admin?.position === 'Kepala Bidang Sarana dan Prasarana';
 
         if (!isSuperAdmin && !isPIC && !isKabidSarpras) {
             return res.status(403).json({ error: 'Akses ditolak. Anda bukan PIC resmi kendaraan ini.' });
         }
-
-        const admin = await prisma.user.findUnique({ where: { id: req.user.id } });
-        const adminName = admin?.name || req.user.username || 'Admin';
 
         // Check for overlaps before approving
         if (status === 'APPROVED') {
@@ -524,9 +524,13 @@ exports.getBookings = async (req, res) => {
 
         if (vehicleId) where.vehicleId = parseInt(vehicleId);
 
+        const currentUser = await prisma.user.findUnique({
+            where: { id: req.user.id }
+        });
+
         const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role);
         const isAdminAset = req.user.role === 'ADMIN_ASET';
-        const isKabidSarpras = req.user.position === 'Kepala Bidang Sarana dan Prasarana';
+        const isKabidSarpras = currentUser?.position === 'Kepala Bidang Sarana dan Prasarana';
         const isNormalOrPIC = !isSuperAdmin && !isAdminAset && !isKabidSarpras;
 
         if (tab === 'PENDING' || tab === 'APPROVAL') {

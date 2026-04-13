@@ -30,7 +30,7 @@ exports.register = async (req, res) => {
 // Helper to generate login response
 const generateLoginResponse = async (user, res) => {
     const token = jwt.sign(
-        { id: user.id, role: user.role, unitId: user.unitId },
+        { id: user.id, role: user.role, unitId: user.unitId, position: user.position },
         process.env.JWT_SECRET || 'secret_fallback',
         { expiresIn: '365d' }
     );
