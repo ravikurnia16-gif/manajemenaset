@@ -9,17 +9,6 @@ const {
 } = require('../controllers/waTemplateController');
 const { verifyToken } = require('../middleware/authMiddleware');
 
-router.get('/debug', async (req, res) => {
-    try {
-        const { PrismaClient } = require('@prisma/client');
-        const prisma = new PrismaClient();
-        const templates = await prisma.waNotificationTemplate.findMany();
-        res.json({ message: 'Debug info', count: templates.length, templates });
-    } catch(e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
 // All routes are protected
 router.get('/', verifyToken, getAllTemplates);
 router.get('/:slug', verifyToken, getTemplateBySlug);

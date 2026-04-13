@@ -129,9 +129,9 @@ const WaNotificationManagement = () => {
   // Group templates by category
   const grouped = useMemo(() => {
     const filtered = templates.filter(t =>
-      t.name.toLowerCase().includes(search.toLowerCase()) ||
-      t.slug.toLowerCase().includes(search.toLowerCase()) ||
-      t.content.toLowerCase().includes(search.toLowerCase())
+      (t.name?.toLowerCase() || '').includes(search.toLowerCase()) ||
+      (t.slug?.toLowerCase() || '').includes(search.toLowerCase()) ||
+      (t.content?.toLowerCase() || '').includes(search.toLowerCase())
     );
     return filtered.reduce((acc, tpl) => {
       if (!acc[tpl.category]) acc[tpl.category] = [];
