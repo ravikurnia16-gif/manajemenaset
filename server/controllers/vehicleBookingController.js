@@ -540,6 +540,27 @@ exports.getBookings = async (req, res) => {
             }
         } else if (tab === 'APPROVED') {
             where.status = 'APPROVED';
+        } else if (tab === 'CALENDAR') {
+            where.status = { in: ['APPROVED', 'BERLANGSUNG'] };
+            // Add Date Range Filters for CALENDAR
+            if (startDate || endDate) {
+                // If it's for month calendar, we want any booking that intersects the month
+                // Usually startDate is start of month, endDate is end of month
+                // So: booking.startDate <= endDate AND booking.endDate >= startDate
+                const conditions = [];
+                if (startDate) {
+                    const viewStart = new Date(startDate);
+                    viewStart.setHours(0, 0, 0, 0);
+                    // booking ends after view start
+                    where.endDate = { ...where.endDate, gte: viewStart };
+                }
+                if (endDate) {
+                    const viewEnd = new Date(endDate);
+                    viewEnd.setHours(23, 59, 59, 999);
+                    // booking starts before view end
+                    where.startDate = { ...where.startDate, lte: viewEnd };
+                }
+            }
         } else if (tab === 'MY_REQUESTS') {
             where.userId = req.user.id;
             // No status filter = get all user request history

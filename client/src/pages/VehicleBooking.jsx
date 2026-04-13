@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     Car, Calendar, MapPin, Info, CheckCircle, XCircle,
     Clock, Gauge, Fuel, User, Plus, Search, X, Lock,
-    ArrowRight, ChevronRight, AlertCircle, Trash2,
+    ArrowRight, ChevronRight, ChevronLeft, AlertCircle, Trash2,
     Users, LogIn, LogOut, Receipt, Navigation2
 } from 'lucide-react';
 import api from '../lib/axios';
@@ -62,6 +62,13 @@ const VehicleBooking = () => {
     const [filterEndDate, setFilterEndDate] = useState('');
     const [filterType, setFilterType] = useState('ALL'); // ALL, INTERNAL, SEWA
 
+    // Calendar States
+    const dateNow = new Date();
+    const [calMonth, setCalMonth] = useState(dateNow.getMonth() + 1);
+    const [calYear, setCalYear] = useState(dateNow.getFullYear());
+    const [selectedDate, setSelectedDate] = useState(null);
+    const [showDayModal, setShowDayModal] = useState(false);
+
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role);
     const isAdminAset = ['ADMIN_ASET'].includes(user.role);
@@ -99,13 +106,68 @@ const VehicleBooking = () => {
         }
     }, [vehicles, user.id]);
 
+    // Calendar Handlers
+    const calendarDays = useMemo(() => {
+        const firstDay = new Date(calYear, calMonth - 1, 1).getDay();
+        const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+        const days = [];
+        for (let i = 0; i < firstDay; i++) days.push(null);
+        for (let d = 1; d <= daysInMonth; d++) days.push(d);
+        return days;
+    }, [calMonth, calYear]);
+
+    const getEventsForDay = (day) => {
+        if (!day) return [];
+        const targetDate = new Date(calYear, calMonth - 1, day);
+        targetDate.setHours(0, 0, 0, 0);
+        const targetTime = targetDate.getTime();
+
+        return bookings.filter(b => {
+            if (!b.startDate || (b.status !== 'APPROVED' && b.status !== 'BERLANGSUNG')) return false;
+            const startDate = new Date(b.startDate);
+            startDate.setHours(0, 0, 0, 0);
+            const startTime = startDate.getTime();
+
+            const endDate = new Date(b.endDate);
+            endDate.setHours(23, 59, 59, 999);
+            const endTime = endDate.getTime();
+
+            return targetTime >= startTime && targetTime <= endTime;
+        });
+    };
+
+    const prevMonth = () => {
+        if (calMonth === 1) { setCalMonth(12); setCalYear(y => y - 1); }
+        else setCalMonth(m => m - 1);
+    };
+    const nextMonth = () => {
+        if (calMonth === 12) { setCalMonth(1); setCalYear(y => y + 1); }
+        else setCalMonth(m => m + 1);
+    };
+    const goToday = () => { setCalMonth(dateNow.getMonth() + 1); setCalYear(dateNow.getFullYear()); };
+    const DAY_NAMES = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    const MONTH_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+    // Vehicle Color mapping for calendar
+    const [vehicleColors, setVehicleColors] = useState({});
+    useEffect(() => {
+        if (vehicles.length > 0 && Object.keys(vehicleColors).length === 0) {
+            const colors = ['bg-indigo-500', 'bg-emerald-500', 'bg-sky-500', 'bg-rose-500', 'bg-amber-500', 'bg-purple-500', 'bg-teal-500', 'bg-pink-500', 'bg-cyan-500'];
+            const mapping = {};
+            vehicles.forEach((v, index) => {
+                mapping[v.id] = colors[index % colors.length];
+            });
+            setVehicleColors(mapping);
+        }
+    }, [vehicles]);
+
     useEffect(() => {
         fetchBookings();
         if (activeTab === 'DRIVERS') {
             fetchDrivers();
             fetchStaff();
         }
-    }, [activeTab, filterVehicle, filterStartDate, filterEndDate, filterType]);
+    }, [activeTab, filterVehicle, filterStartDate, filterEndDate, filterType, calMonth, calYear]);
 
     const fetchVehicles = async () => {
         try {
@@ -132,7 +194,7 @@ const VehicleBooking = () => {
 
     const handleToggleDriver = async (userId, isCurrentlyDriver) => {
         try {
-            await api.post('personnel/drivers/toggle', { userId, isDriver: !isCurrentlyDriver });
+            await api.post('personnel/drivers/toggle', { userId, isCurrentlyDriver: !isCurrentlyDriver });
             showToast(`Status driver berhasil diperbarui.`, 'success');
             fetchDrivers();
             fetchStaff();
@@ -150,7 +212,15 @@ const VehicleBooking = () => {
                 if (filterVehicle) params.vehicleId = filterVehicle;
                 if (filterStartDate) params.startDate = filterStartDate;
                 if (filterEndDate) params.endDate = filterEndDate;
+            } else if (activeTab === 'CALENDAR') {
+                // Pass month start and end dates
+                const startStr = `${calYear}-${String(calMonth).padStart(2, '0')}-01`;
+                const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+                const endStr = `${calYear}-${String(calMonth).padStart(2, '0')}-${daysInMonth}`;
+                params.startDate = startStr;
+                params.endDate = endStr;
             }
+
             if (filterType === 'INTERNAL') params.isRented = 'false';
             if (filterType === 'SEWA') params.isRented = 'true';
 
@@ -355,6 +425,7 @@ const VehicleBooking = () => {
 
     const tabs = [
         { id: 'CURRENT_FLEET', label: 'Daftar Kendaraan', icon: <Car size={16} /> },
+        { id: 'CALENDAR', label: 'Kalender', icon: <Calendar size={16} /> },
         ...(canApprove ? [{ id: 'APPROVAL', label: 'Persetujuan', icon: <CheckCircle size={16} />, count: bookings.filter(b => b.status === 'PENDING').length }] : []),
         { id: 'MY_REQUESTS', label: 'Permohonan Saya', icon: <User size={16} /> },
         ...(canApprove ? [{ id: 'HISTORY', label: 'Riwayat Seluruhnya', icon: <Clock size={16} /> }] : []),
@@ -623,6 +694,121 @@ const VehicleBooking = () => {
                                 ));
                             })()}
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'CALENDAR' && (
+                    <div className="flex flex-col h-[800px] border border-slate-100 rounded-2xl overflow-hidden bg-white">
+                        <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                                <button onClick={prevMonth} className="p-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-600 transition-all"><ChevronLeft size={20} /></button>
+                                <h2 className="text-xl font-black text-slate-800 w-48 text-center">{MONTH_NAMES[calMonth - 1]} {calYear}</h2>
+                                <button onClick={nextMonth} className="p-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-600 transition-all"><ChevronRight size={20} /></button>
+                            </div>
+                            <div className="flex gap-4 items-center">
+                                <button onClick={goToday} className="px-4 py-2 bg-indigo-50 text-indigo-700 text-xs font-black rounded-xl hover:bg-indigo-100 transition-all uppercase tracking-widest">Hari Ini</button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 flex flex-col p-4 bg-slate-50/30">
+                            {/* Days Header */}
+                            <div className="grid grid-cols-7 gap-2 mb-2">
+                                {DAY_NAMES.map(d => <div key={d} className={`text-center py-2 text-[10px] font-black uppercase tracking-[0.2em] ${d === 'Min' ? 'text-red-400' : 'text-slate-400'}`}>{d}</div>)}
+                            </div>
+
+                            {/* Calendar Grid */}
+                            <div className="flex-1 grid grid-cols-7 gap-2 auto-rows-fr">
+                                {loading ? (
+                                    <div className="col-span-7 flex flex-col items-center justify-center p-20 opacity-20">
+                                        <Loader2 className="animate-spin" size={48} />
+                                        <p className="mt-4 font-black text-xs tracking-widest">SINKRONISASI...</p>
+                                    </div>
+                                ) : (
+                                    calendarDays.map((day, i) => {
+                                        if (!day) return <div key={`empty-${i}`} className="bg-slate-50/20 rounded-2xl" />;
+                                        const dayEvents = getEventsForDay(day);
+                                        const isSelected = selectedDate === day;
+                                        const isToday = day === dateNow.getDate() && calMonth === dateNow.getMonth() + 1 && calYear === dateNow.getFullYear();
+                                        
+                                        return (
+                                            <div
+                                                key={day}
+                                                onClick={() => {
+                                                    if (dayEvents.length > 0) {
+                                                        setSelectedDate(day);
+                                                        setShowDayModal(true);
+                                                    }
+                                                }}
+                                                className={`min-h-[100px] p-2 rounded-2xl border transition-all relative flex flex-col gap-1 ${dayEvents.length > 0 ? 'cursor-pointer hover:border-slate-300 hover:bg-white hover:shadow-md border-slate-200 bg-white' : 'border-dashed border-slate-200 bg-slate-50/50'} ${isToday ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}`}
+                                            >
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <span className={`text-sm font-black flex items-center justify-center w-7 h-7 rounded-lg ${isToday ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500'}`}>
+                                                        {day}
+                                                    </span>
+                                                    {dayEvents.length > 0 && <span className="text-[9px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md">{dayEvents.length}</span>}
+                                                </div>
+                                                
+                                                <div className="flex-1 overflow-y-auto custom-scrollbar no-scrollbar-h space-y-1">
+                                                    {dayEvents.slice(0, 3).map((ev, idx) => (
+                                                        <div key={idx} className={`w-full px-1.5 py-1 text-[9px] font-bold text-white rounded cursor-pointer truncate ${vehicleColors[ev.vehicleId] || 'bg-slate-500'} hover:opacity-90`} title={`${ev.vehicle.name} - ${ev.user.name}`}>
+                                                            {ev.vehicle.name}
+                                                        </div>
+                                                    ))}
+                                                    {dayEvents.length > 3 && <div className="text-[8px] font-black text-slate-400 text-center uppercase tracking-wider">+{dayEvents.length - 3} lainnya</div>}
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Event Details Modal */}
+                        {showDayModal && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+                                <div className="bg-white rounded-3xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col shadow-2xl relative">
+                                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-50">
+                                        <div>
+                                            <h3 className="text-xl font-black tracking-tight text-indigo-900">Jadwal Tanggal {selectedDate} {MONTH_NAMES[calMonth - 1]} {calYear}</h3>
+                                            <p className="text-xs text-indigo-600/80 font-bold mt-1">Total {getEventsForDay(selectedDate).length} Kendaraan Berangkat</p>
+                                        </div>
+                                        <button onClick={() => setShowDayModal(false)} className="w-10 h-10 bg-white hover:bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center transition-all shadow-sm">
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+                                    <div className="p-6 overflow-y-auto custom-scrollbar space-y-4">
+                                        {getEventsForDay(selectedDate).map(ev => (
+                                            <div key={ev.id} className="p-4 border border-slate-100 rounded-2xl flex gap-4 hover:shadow-md transition-shadow relative overflow-hidden group">
+                                                <div className={`absolute top-0 left-0 w-1.5 h-full ${vehicleColors[ev.vehicleId] || 'bg-slate-500'}`} />
+                                                <div className="flex-1">
+                                                    <div className="flex justify-between items-start">
+                                                        <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                                            <Car size={14} className="text-slate-400" /> {ev.vehicle.name} <span className="text-[10px] text-slate-400 font-mono tracking-wider">{ev.vehicle.plateNumber}</span>
+                                                        </h4>
+                                                        <div className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${ev.status === 'BERLANGSUNG' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>
+                                                            {ev.status === 'BERLANGSUNG' ? 'Di Jalan' : 'Disetujui'}
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-2 space-y-1.5">
+                                                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                                                            <User size={12} className="text-blue-400" /> <span className="font-bold">{ev.user.name}</span> <span className="text-slate-400 text-[10px] uppercase">({ev.user.unit?.name || 'Unit -'})</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                                                            <MapPin size={12} className="text-red-400" /> {ev.destination}
+                                                        </div>
+                                                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                                                            <Clock size={12} className="text-amber-400" /> {new Date(ev.startDate).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' })}
+                                                            {' - '}
+                                                            {new Date(ev.endDate).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
