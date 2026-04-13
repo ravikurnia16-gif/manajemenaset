@@ -1193,6 +1193,7 @@ const StaffPerformance = () => {
                                             handleEditReport={handleEditReport}
                                             handleReviewReport={handleReviewReport}
                                             isKabid={isKabid}
+                                            submitting={submitting}
                                         />
                                     )}
                                 </div>
@@ -1528,7 +1529,7 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
     );
 };
 
-const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, isKabid }) => {
+const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, isKabid, submitting }) => {
     const [expandedReportIds, setExpandedReportIds] = useState([]);
     const [reviewForms, setReviewForms] = useState({}); // { reportId: { status, feedback } }
 
