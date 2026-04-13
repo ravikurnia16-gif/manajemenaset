@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Component } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
     Calendar, FileText, FileCheck, Trophy, Plus, Search, 
@@ -11,6 +11,52 @@ import {
     MessageSquare
 } from 'lucide-react';
 import api from '../lib/axios';
+
+// --- ERROR BOUNDARY ---
+class StaffPerformanceErrorBoundary extends Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+    componentDidCatch(error, errorInfo) {
+        console.error('StaffPerformance crashed:', error, errorInfo);
+    }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div style={{ padding: '40px', textAlign: 'center', fontFamily: 'sans-serif' }}>
+                    <h2 style={{ color: '#EF4444', marginBottom: '16px' }}>⚠️ Terjadi Kesalahan</h2>
+                    <p style={{ color: '#64748B', marginBottom: '8px' }}>Dashboard gagal dimuat. Detail error:</p>
+                    <pre style={{ background: '#F1F5F9', padding: '16px', borderRadius: '12px', textAlign: 'left', fontSize: '12px', overflow: 'auto', maxHeight: '200px', color: '#334155' }}>
+                        {this.state.error?.toString()}
+                    </pre>
+                    <button 
+                        onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
+                        style={{ marginTop: '16px', padding: '12px 24px', background: '#6366F1', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                        Muat Ulang Halaman
+                    </button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
+const safeParseUser = () => {
+    try {
+        const raw = localStorage.getItem('user');
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (e) {
+        console.error('Failed to parse user from localStorage:', e);
+        return {};
+    }
+};
 
 // --- SHARED COMPONENTS ---
 
@@ -223,10 +269,13 @@ const StaffPerformance = () => {
     const [filterStatus, setFilterStatus] = useState('ALL');
     const [filterPeriod, setFilterPeriod] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
 
-    const user = JSON.parse(localStorage.getItem('user')) || {};
-    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(user.role) || 
-                    (user.position?.toLowerCase()?.includes('kepala bidang') && user.unit?.name?.toLowerCase()?.includes('sarana dan prasarana'));
-    const isKabid = user.role === 'SUPER_ADMIN' || (user.position && user.position.includes('Kepala Bidang Sarana dan Prasarana'));
+    const user = safeParseUser();
+    const userRole = user.role || '';
+    const userPosition = typeof user.position === 'string' ? user.position : '';
+    const userUnitName = typeof user.unit?.name === 'string' ? user.unit.name : '';
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(userRole) || 
+                    (userPosition.toLowerCase().includes('kepala bidang') && userUnitName.toLowerCase().includes('sarana dan prasarana'));
+    const isKabid = userRole === 'SUPER_ADMIN' || userPosition.includes('Kepala Bidang Sarana dan Prasarana');
 
     // Form State (Consolidated)
     const [form, setForm] = useState({
@@ -421,7 +470,7 @@ const StaffPerformance = () => {
         if (category === 'PLAN') {
             titles = userPlans.map(p => ({ 
                 id: p.id, 
-                title: p.metadata?.title || `Rencana ${new Date(p.date).toLocaleDateString()}`,
+                title: p.metadata?.title || `Rencana ${safeFormatDate(p.date)}`,
                 items: (p.metadata?.items || []).map((it, idx) => ({ ...it, originalIdx: idx }))
             }));
         } else if (category === 'ROUTINE') {
@@ -439,7 +488,7 @@ const StaffPerformance = () => {
         } else if (category === 'DAILY_HISTORY') {
             titles = userDailyReports.map(r => ({
                 id: r.id,
-                title: `Laporan ${new Date(r.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+                title: `Laporan ${safeFormatDate(r.date)}`,
                 items: (r.metadata?.items || []).map((it, idx) => ({ ...it, originalIdx: idx }))
             }));
         }
@@ -1274,7 +1323,7 @@ const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate
         );
     };
 
-    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const user = safeParseUser();
     const isAssigneeFor = (a) => a.assigneeId === userId;
     const canAssign = user.role === 'SUPER_ADMIN';
 
@@ -1726,5 +1775,10 @@ const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, 
     );
 };
 
-export default StaffPerformance;
+const StaffPerformanceWithBoundary = () => (
+    <StaffPerformanceErrorBoundary>
+        <StaffPerformance />
+    </StaffPerformanceErrorBoundary>
+);
 
+export default StaffPerformanceWithBoundary;
