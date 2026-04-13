@@ -628,13 +628,11 @@ const publicConfirmBooking = async (req, res) => {
                 data: { status: 'APPROVED' }
             });
         } else if (decision === 'BATAL') {
-            await prisma.busBooking.update({
-                where: { id: parseInt(id) },
-                data: { status: 'CANCELLED' }
+            await prisma.vehicleBooking.deleteMany({
+                where: { adminNote: `[BUS_BOOKING]-${id}` }
             });
-            await prisma.vehicleBooking.updateMany({
-                where: { adminNote: `[BUS_BOOKING]-${id}` },
-                data: { status: 'CANCELLED' }
+            await prisma.busBooking.delete({
+                where: { id: parseInt(id) }
             });
         }
 
