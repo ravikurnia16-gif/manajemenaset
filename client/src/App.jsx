@@ -31,6 +31,7 @@ import BusBooking from './pages/BusBooking';
 import BusBookingPublic from './pages/BusBookingPublic';
 import BusInvoicePublic from './pages/BusInvoicePublic';
 import BusInvoiceBatchPrint from './pages/BusInvoiceBatchPrint';
+import BusConfirmationPublic from './pages/BusConfirmationPublic';
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
 import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
 import VehicleMaintenanceDetail from './pages/VehicleMaintenanceDetail';
@@ -72,6 +73,7 @@ function App() {
         <Route path="/public/booking-bus" element={<BusBookingPublic />} />
         <Route path="/public/invoice-bus/batch" element={<BusInvoiceBatchPrint />} />
         <Route path="/public/invoice-bus/:id" element={<BusInvoicePublic />} />
+        <Route path="/public/confirm-bus/:id/:token" element={<BusConfirmationPublic />} />
         <Route path="/q/:token" element={<QuickComplete />} />
 
         {/* Semua route di dalam sini diproteksi */}

@@ -519,22 +519,24 @@ const assignDriver = async (req, res) => {
     }
 };
 
-// 6. Automated Notifications (H-2)
+// 6. Automated Notifications (H-1) & Booking Confirmation Public Endpoint
 const checkBusBookingNotifications = async () => {
     try {
         const now = new Date();
-        const h2 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
-        const h2End = new Date(h2);
-        h2End.setHours(23, 59, 59, 999);
+        const h1 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const h1End = new Date(h1);
+        h1End.setHours(23, 59, 59, 999);
 
-        console.log(`[Bus Booking] Checking for trips on ${h2.toLocaleDateString('id-ID')}...`);
+        console.log(`[Bus Booking] Checking for H-1 trips on ${h1.toLocaleDateString('id-ID')}...`);
 
         const bookings = await prisma.busBooking.findMany({
             where: {
                 startDate: {
-                    gte: h2,
-                    lte: h2End
-                }
+                    gte: h1,
+                    lte: h1End
+                },
+                status: 'APPROVED',
+                isReminderSent: false
             },
             include: {
                 vehicle: true,
@@ -544,38 +546,132 @@ const checkBusBookingNotifications = async () => {
 
         if (bookings.length === 0) return;
 
-        // Find Recipients: Kabid Sarpras & Staff Manajemen Aset
-        const recipients = await prisma.user.findMany({
+        // Group by token
+        const grouped = bookings.reduce((acc, booking) => {
+            if (!booking.token) return acc;
+            if (!acc[booking.token]) acc[booking.token] = [];
+            acc[booking.token].push(booking);
+            return acc;
+        }, {});
+
+        const domainUrl = process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id';
+
+        for (const token of Object.keys(grouped)) {
+            const group = grouped[token];
+            const requesterPhone = group[0].requesterPhone;
+            const requesterName = group[0].requesterName;
+            const destination = group[0].destination;
+            const startDate = group[0].startDate;
+
+            if (!requesterPhone) continue;
+
+            let msg = `📢 *KONFIRMASI JADWAL BUS (H-1)* 🚌\n\n` +
+                `Bismillah Ustadz/Ustadzah *${(requesterName || '').toUpperCase()}*,\n\n` +
+                `Kami dari Bagian Sarpras ingin memastikan kembali rencana keberangkatan bus untuk:\n` +
+                `📍 *Tujuan*: ${destination}\n` +
+                `📅 *Jadwal*: ${new Date(startDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}\n\n`;
+
+            msg += `Berikut armada yang Ustadz/Ustadzah pesan. Mohon klik link di bawah ini untuk konfirmasi apakah jadwal masing-masing bus tetap *JADI* dilaksanakan atau *BATAL*:\n\n`;
+
+            for (const b of group) {
+                const link = `${domainUrl}/public/confirm-bus/${b.id}/${b.token}`;
+                msg += `🚌 *${b.vehicle.name}* (${b.vehicle.plateNumber})\n` +
+                       `🔗 Konfirmasi: ${link}\n\n`;
+            }
+
+            msg += `Konfirmasi Ustadz/Ustadzah sangat kami harapkan agar kami dapat menyiapkan armada dengan maksimal. Syukron.\n_Sistem Manajemen Aset_`;
+
+            try {
+                await whatsappService.sendMessage(requesterPhone, msg);
+                console.log(`[Bus Booking] H-1 Reminder sent to ${requesterName} (${requesterPhone})`);
+                
+                // Mark as sent
+                await prisma.busBooking.updateMany({
+                    where: { id: { in: group.map(b => b.id) } },
+                    data: { isReminderSent: true }
+                });
+            } catch (err) {
+                console.error(`[Bus Booking] H-1 WA Failed for ${requesterName}:`, err.message);
+            }
+        }
+    } catch (err) {
+        console.error('[Bus Booking] H-1 Notif Error:', err);
+    }
+};
+
+const publicConfirmBooking = async (req, res) => {
+    try {
+        const { id, token } = req.params;
+        const { decision } = req.body; // 'JADI' or 'BATAL'
+
+        if (!['JADI', 'BATAL'].includes(decision)) {
+            return res.status(400).json({ error: 'Keputusan tidak valid' });
+        }
+
+        const booking = await prisma.busBooking.findUnique({
+            where: { id: parseInt(id) },
+            include: { vehicle: true, driver: { select: { name: true } } }
+        });
+
+        if (!booking || booking.token !== token) {
+            return res.status(404).json({ error: 'Booking tidak ditemukan atau token tidak valid' });
+        }
+
+        if (decision === 'JADI') {
+            await prisma.busBooking.update({
+                where: { id: parseInt(id) },
+                data: { status: 'CONFIRMED' }
+            });
+            // Also update VehicleBooking if exists
+            await prisma.vehicleBooking.updateMany({
+                where: { adminNote: `[BUS_BOOKING]-${id}` },
+                data: { status: 'APPROVED' }
+            });
+        } else if (decision === 'BATAL') {
+            await prisma.busBooking.update({
+                where: { id: parseInt(id) },
+                data: { status: 'CANCELLED' }
+            });
+            await prisma.vehicleBooking.updateMany({
+                where: { adminNote: `[BUS_BOOKING]-${id}` },
+                data: { status: 'CANCELLED' }
+            });
+        }
+
+        // Notify Staff Kendaraan
+        const staffKendaraan = await prisma.user.findMany({
             where: {
-                OR: [
-                    { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } },
-                    { position: { contains: 'Manajemen Aset' } }
-                ],
+                position: { contains: 'Staff Kendaraan' },
                 phone: { not: null, not: '' }
             }
         });
 
-        if (recipients.length === 0) return;
+        if (staffKendaraan.length > 0) {
+            let staffMsg = '';
+            if (decision === 'JADI') {
+                staffMsg = `✅ *KONFIRMASI JADWAL BUS (FIX)*\n\n` +
+                    `Alhamdulillah! Pemesan *${booking.requesterName}* telah mengonfirmasi bahwa jadwal bus ke *${booking.destination}* besok *TETAP JADI*.\n\n` +
+                    `🚌 *Armada*: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
+                    `👤 *Driver*: ${booking.driver?.name || '_Belum ditentukan_'}\n\n` +
+                    `Mohon dipastikan armada dan personil dalam kondisi prima. Jazakallah Khairan.\n_Sistem Manajemen Aset_`;
+            } else {
+                staffMsg = `❌ *PEMBATALAN JADWAL BUS*\n\n` +
+                    `Informasi: Pemesan *${booking.requesterName}* telah *MEMBATALKAN* jadwal bus ke *${booking.destination}* untuk besok.\n\n` +
+                    `Armada *${booking.vehicle.name}* (${booking.vehicle.plateNumber}) kini tersedia kembali (Status: Tersedia) untuk unit lain yang membutuhkan. Syukron.\n_Sistem Manajemen Aset_`;
+            }
 
-        for (const booking of bookings) {
-            const msg = `🗓️ *PENGINGAT PERJALANAN BUS (H-2)* 🗓️\n\n` +
-                `Informasi perjalanan yang akan dilaksanakan lusa:\n\n` +
-                `🚌 *Armada*: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
-                `📍 *Tujuan*: ${booking.destination}\n` +
-                `📅 *Jadwal*: ${new Date(booking.startDate).toLocaleString('id-ID')}\n` +
-                `👤 *Supir*: ${booking.driver?.name || '_Belum ditentukan_'} ⚠️\n` +
-                `🏢 *Unit*: ${booking.unit || 'Umum'}\n\n` +
-                `Mohon pastikan persiapan armada dan personil sudah siap. Syukron.`;
-
-            for (const person of recipients) {
+            for (const staff of staffKendaraan) {
                 try {
-                    await whatsappService.sendMessage(person.phone, msg);
-                    console.log(`[Bus Booking] H-2 Notif sent to ${person.name} for trip to ${booking.destination}`);
-                } catch (e) { }
+                    await whatsappService.sendMessage(staff.phone, staffMsg);
+                } catch (err) {
+                    console.error(`[Bus Booking] Staff WA Failed for ${staff.name}:`, err.message);
+                }
             }
         }
-    } catch (err) {
-        console.error('[Bus Booking] H-2 Notif Error:', err);
+
+        res.json({ message: `Konfirmasi ${decision} berhasil dicatat.`, status: decision === 'JADI' ? 'CONFIRMED' : 'CANCELLED' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 };
 
@@ -818,5 +914,6 @@ module.exports = {
     checkBusBookingNotifications,
     checkUnpaidBusInvoices,
     completeBusBooking,
-    markBusAsPaid
+    markBusAsPaid,
+    publicConfirmBooking
 };

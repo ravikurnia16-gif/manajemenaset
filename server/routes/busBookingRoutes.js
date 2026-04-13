@@ -13,7 +13,8 @@ const {
     markBusAsPaid,
     getBusExpenseSummary,
     getBusInitialFund,
-    setBusInitialFund
+    setBusInitialFund,
+    publicConfirmBooking
 } = require('../controllers/busBookingController');
 const { verifyToken } = require('../middleware/authMiddleware');
 
@@ -22,6 +23,7 @@ router.get('/public', getPublicBusBookings);
 router.get('/public/invoice/batch', getPublicBusInvoiceBatch);
 router.get('/public/invoice/:id', getPublicBusInvoice);
 router.post('/public', createBusBooking);
+router.post('/public/confirm-bus/:id/:token', publicConfirmBooking);
 router.post('/cancel-by-token', cancelByToken);
 
 // Protected Routes

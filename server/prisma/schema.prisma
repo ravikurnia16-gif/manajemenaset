@@ -916,6 +916,7 @@ model BusBooking {
   driverId       Int?
   driver         User?    @relation("BusDriver", fields: [driverId], references: [id])
   token          String?
+  isReminderSent Boolean  @default(false)
 
   // Tracking & Billing
   status      String    @default("APPROVED") // APPROVED, COMPLETED, CANCELLED
