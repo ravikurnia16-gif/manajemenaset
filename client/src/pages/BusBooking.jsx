@@ -830,11 +830,16 @@ const BusBooking = () => {
 
 // --- Sub-Component: Revenue Dashboard ---
 const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
-    const [expenses, setExpenses] = useState({ totalFuel: 0, totalMaintenance: 0, totalExpenses: 0, fuelRecords: [], maintenanceRecords: [] });
+    const [expenses, setExpenses] = useState({ totalFuel: 0, totalMaintenance: 0, totalUnexpected: 0, totalExpenses: 0, fuelRecords: [], maintenanceRecords: [], unexpectedRecords: [] });
     const [loadingExpenses, setLoadingExpenses] = useState(true);
     const [initialFund, setInitialFund] = useState(0);
     const [editingFund, setEditingFund] = useState(false);
     const [fundInput, setFundInput] = useState('');
+    
+    // Form for unexpected expenses
+    const [showExpModal, setShowExpModal] = useState(false);
+    const [newExp, setNewExp] = useState({ description: '', amount: '', date: new Date().toISOString().split('T')[0] });
+    const [savingExp, setSavingExp] = useState(false);
 
     useEffect(() => {
         api.get('/bus-bookings/expense-summary')
@@ -852,6 +857,32 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
             setInitialFund(res.data.busInitialFund);
             setEditingFund(false);
         } catch (err) { console.error(err); }
+    };
+
+    const handleAddUnexpectedExp = async (e) => {
+        e.preventDefault();
+        try {
+            setSavingExp(true);
+            await api.post('/bus-bookings/unexpected-expenses', newExp);
+            // Refresh summary
+            const res = await api.get('/bus-bookings/expense-summary');
+            setExpenses(res.data);
+            setShowExpModal(false);
+            setNewExp({ description: '', amount: '', date: new Date().toISOString().split('T')[0] });
+        } catch (err) { 
+            alert('Gagal menyimpan: ' + (err.response?.data?.error || err.message));
+        } finally { setSavingExp(false); }
+    };
+
+    const handleDeleteUnexpectedExp = async (id) => {
+        if(!confirm('Hapus rincian pengeluaran ini?')) return;
+        try {
+            await api.delete(`/bus-bookings/unexpected-expenses/${id}`);
+            const res = await api.get('/bus-bookings/expense-summary');
+            setExpenses(res.data);
+        } catch (err) {
+            alert('Gagal menghapus: ' + (err.response?.data?.error || err.message));
+        }
     };
 
     // Hanya hitung yang sudah lunas
@@ -882,10 +913,12 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
 
     const filteredFuel = filterByMonth(expenses.fuelRecords || []);
     const filteredMaint = filterByMonth(expenses.maintenanceRecords || []);
+    const filteredUnexpected = filterByMonth(expenses.unexpectedRecords || []);
 
     const totalFuelFiltered = filteredFuel.reduce((s, f) => s + (f.cost || 0), 0);
     const totalMaintFiltered = filteredMaint.reduce((s, m) => s + (m.cost || 0), 0);
-    const totalExpensesFiltered = totalFuelFiltered + totalMaintFiltered;
+    const totalUnexpFiltered = filteredUnexpected.reduce((s, u) => s + (u.cost || 0), 0);
+    const totalExpensesFiltered = totalFuelFiltered + totalMaintFiltered + totalUnexpFiltered;
 
     // Aggregates
     const totalRev = filtered.reduce((sum, b) => sum + (b.totalBill || 0), 0);
@@ -979,7 +1012,7 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
                     <div className="absolute top-0 right-0 p-4 opacity-20"><ArrowRight size={64} /></div>
                     <div className="text-red-100 text-xs font-bold uppercase tracking-widest mb-1 relative z-10">Total Pengeluaran</div>
                     <div className="text-2xl font-black relative z-10">Rp {loadingExpenses ? '...' : totalExpensesFiltered.toLocaleString('id-ID')}</div>
-                    <div className="text-red-200/80 text-[10px] mt-1 relative z-10">BBM: Rp {totalFuelFiltered.toLocaleString('id-ID')} | Perawatan: Rp {totalMaintFiltered.toLocaleString('id-ID')}</div>
+                    <div className="text-red-200/80 text-[10px] mt-1 relative z-10">BBM: Rp {totalFuelFiltered.toLocaleString('id-ID')} | Per: Rp {totalMaintFiltered.toLocaleString('id-ID')} | Lain: Rp {totalUnexpFiltered.toLocaleString('id-ID')}</div>
                 </div>
                 <div className={`rounded-2xl p-5 text-white shadow-lg relative overflow-hidden ${sisaDana >= 0 ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-200' : 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-200'}`}>
                     <div className="absolute top-0 right-0 p-4 opacity-20"><BarChart3 size={64} /></div>
@@ -1008,6 +1041,115 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Unexpected Expenses Table/List */}
+            <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-3xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 opacity-5"><BarChart3 size={120} /></div>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3 relative z-10">
+                    <div>
+                        <h4 className="text-slate-800 font-black text-sm flex items-center gap-2">⚠️ Pengeluaran Tidak Terduga</h4>
+                        <p className="text-slate-500 text-[10px]">Biaya operasional tambahan di luar BBM dan Perawatan.</p>
+                    </div>
+                    <button 
+                        onClick={() => setShowExpModal(true)}
+                        className="bg-slate-800 text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-slate-700 transition-all shadow-lg flex items-center gap-2"
+                    >
+                        <Plus size={14} /> CATAT PENGELUARAN BARU
+                    </button>
+                </div>
+
+                <div className="space-y-3 relative z-10">
+                    {filteredUnexpected.length === 0 ? (
+                        <div className="bg-white/50 border border-dashed border-slate-300 py-6 rounded-2xl text-center text-[10px] text-slate-400 font-bold italic">
+                            Belum ada catatan pengeluaran tidak terduga untuk periode ini.
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-2">
+                            {filteredUnexpected.map(u => (
+                                <div key={u.id} className="bg-white p-3 rounded-2xl border border-slate-100 flex items-center justify-between group">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-red-50 text-red-600 rounded-lg flex items-center justify-center text-xs">💸</div>
+                                        <div>
+                                            <div className="text-[11px] font-black text-slate-800">{u.title || u.description}</div>
+                                            <div className="text-[9px] text-slate-400 font-bold">{new Date(u.date).toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'})}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-sm font-black text-slate-700">Rp {u.cost?.toLocaleString('id-ID')}</div>
+                                        <button 
+                                            onClick={() => handleDeleteUnexpectedExp(u.id)}
+                                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            <div className="flex justify-end p-2 border-t border-slate-200/50 mt-2">
+                                <div className="text-right">
+                                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total Tidak Terduga</div>
+                                    <div className="text-lg font-black text-red-600">Rp {totalUnexpFiltered.toLocaleString('id-ID')}</div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Modal Tambah Pengeluaran */}
+            {showExpModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-6 bg-slate-800 text-white flex justify-between items-center">
+                            <h3 className="font-black text-sm flex items-center gap-2">💸 Catat Pengeluaran Baru</h3>
+                            <button onClick={() => setShowExpModal(false)}><X size={20} /></button>
+                        </div>
+                        <form onSubmit={handleAddUnexpectedExp} className="p-6 space-y-4">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Nama / Deskripsi Pengeluaran</label>
+                                <input 
+                                    type="text" 
+                                    required 
+                                    placeholder="Contoh: Biaya Parkir Darurat, Tol dll"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={newExp.description}
+                                    onChange={e => setNewExp({...newExp, description: e.target.value})}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Nominal (Rp)</label>
+                                    <input 
+                                        type="number" 
+                                        required 
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={newExp.amount}
+                                        onChange={e => setNewExp({...newExp, amount: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Tanggal</label>
+                                    <input 
+                                        type="date" 
+                                        required 
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={newExp.date}
+                                        onChange={e => setNewExp({...newExp, date: e.target.value})}
+                                    />
+                                </div>
+                            </div>
+                            <button 
+                                type="submit" 
+                                disabled={savingExp}
+                                className="w-full py-4 bg-blue-600 text-white rounded-2xl text-xs font-black shadow-xl shadow-blue-100 hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                            >
+                                {savingExp ? 'Menyimpan...' : 'SIMPAN PENGELUARAN'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
 
             {/* Two Column details */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -14,6 +14,9 @@ const {
     getBusExpenseSummary,
     getBusInitialFund,
     setBusInitialFund,
+    getBusUnexpectedExpenses,
+    createBusUnexpectedExpense,
+    deleteBusUnexpectedExpense,
     publicConfirmBooking
 } = require('../controllers/busBookingController');
 const { verifyToken } = require('../middleware/authMiddleware');
@@ -36,5 +39,10 @@ router.delete('/:id', verifyToken, deleteBusBooking);
 router.put('/:id/assign-driver', verifyToken, assignDriver);
 router.put('/:id/complete', verifyToken, completeBusBooking);
 router.put('/:id/pay', verifyToken, markBusAsPaid);
+
+// Unexpected Expenses Routes
+router.get('/unexpected-expenses', verifyToken, getBusUnexpectedExpenses);
+router.post('/unexpected-expenses', verifyToken, createBusUnexpectedExpense);
+router.delete('/unexpected-expenses/:id', verifyToken, deleteBusUnexpectedExpense);
 
 module.exports = router;

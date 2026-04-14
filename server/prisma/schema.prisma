@@ -950,6 +950,15 @@ model BusBooking {
   updatedAt DateTime @updatedAt
 }
 
+model BusUnexpectedExpense {
+  id          Int      @id @default(autoincrement())
+  date        DateTime @default(now())
+  description String   @db.Text
+  amount      Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // --- MANAJEMEN RUMAH DINAS (OFFICIAL RESIDENCE) ---
 
 model OfficialResidenceUnit {
