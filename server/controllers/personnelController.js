@@ -538,7 +538,119 @@ exports.getDrivers = async (req, res) => {
             },
             orderBy: { name: 'asc' }
         });
-        res.json(drivers);
+
+        // Enrich with current trips and total trips
+        const enrichedDrivers = await Promise.all(drivers.map(async (d) => {
+            // Find active vehicle booking
+            const activeVehicleTrip = await prisma.vehicleBooking.findFirst({
+                where: { driverId: d.id, status: 'BERLANGSUNG' },
+                include: { vehicle: true }
+            });
+            // Find active bus booking (assuming CONFIRMED and within dates)
+            const now = new Date();
+            const activeBusTrip = await prisma.busBooking.findFirst({
+                where: { 
+                    driverId: d.id, 
+                    OR: [
+                        { status: 'CONFIRMED', startDate: { lte: now }, endDate: { gte: now } },
+                        { status: 'BERLANGSUNG' } // Just in case
+                    ]
+                },
+                include: { vehicle: true }
+            });
+
+            // Count total completed trips
+            const totalVehicleTrips = await prisma.vehicleBooking.count({ where: { driverId: d.id, status: 'COMPLETED' } });
+            const totalBusTrips = await prisma.busBooking.count({ where: { driverId: d.id, status: 'COMPLETED' } });
+
+            // Determine dynamic status
+            let currentStatus = d.driverStatus || 'AVAILABLE';
+            let currentTrip = null;
+
+            if (activeVehicleTrip) {
+                currentStatus = 'ON_TRIP';
+                currentTrip = { type: 'VEHICLE', ...activeVehicleTrip };
+            } else if (activeBusTrip) {
+                currentStatus = 'ON_TRIP';
+                currentTrip = { type: 'BUS', ...activeBusTrip };
+            }
+
+            // Sync dynamic status to db if needed, or just return dynamically
+            return {
+                ...d,
+                dynamicStatus: currentStatus,
+                currentTrip,
+                totalTrips: totalVehicleTrips + totalBusTrips
+            };
+        }));
+
+        res.json(enrichedDrivers);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateDriverInfo = async (req, res) => {
+    const { id } = req.params;
+    const { licenseNumber, licenseType, licenseExpiry, driverStatus } = req.body;
+    const userRole = req.user.role;
+
+    try {
+        if (!['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(userRole)) {
+            return res.status(403).json({ error: 'Akses ditolak.' });
+        }
+
+        const data = {};
+        if (licenseNumber !== undefined) data.licenseNumber = licenseNumber;
+        if (licenseType !== undefined) data.licenseType = licenseType;
+        if (licenseExpiry !== undefined) data.licenseExpiry = licenseExpiry ? new Date(licenseExpiry) : null;
+        if (driverStatus !== undefined) data.driverStatus = driverStatus;
+
+        const updated = await prisma.user.update({
+            where: { id: parseInt(id) },
+            data
+        });
+
+        res.json({ message: 'Informasi driver berhasil diperbarui', data: updated });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getDriverHistory = async (req, res) => {
+    const { id } = req.params;
+    const { month, year } = req.query; // optional pagination/filters
+
+    try {
+        let vehicleWhere = { driverId: parseInt(id) };
+        let busWhere = { driverId: parseInt(id) };
+
+        if (month && year) {
+            const startDate = new Date(year, month - 1, 1);
+            const endDate = new Date(year, month, 0, 23, 59, 59);
+            vehicleWhere.startDate = { gte: startDate, lte: endDate };
+            busWhere.startDate = { gte: startDate, lte: endDate };
+        }
+
+        const vehicleTrips = await prisma.vehicleBooking.findMany({
+            where: vehicleWhere,
+            include: { vehicle: true },
+            orderBy: { startDate: 'desc' }
+        });
+
+        const busTrips = await prisma.busBooking.findMany({
+            where: busWhere,
+            include: { vehicle: true },
+            orderBy: { startDate: 'desc' }
+        });
+
+        // Combine and sort
+        const combined = [
+            ...vehicleTrips.map(t => ({ ...t, tripType: 'VEHICLE' })),
+            ...busTrips.map(t => ({ ...t, tripType: 'BUS' }))
+        ].sort((a, b) => b.startDate - a.startDate);
+
+        res.json(combined);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

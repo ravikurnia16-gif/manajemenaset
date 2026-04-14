@@ -24,6 +24,10 @@ const VehicleBooking = () => {
     const [vSearch, setVSearch] = useState('');
     const [vTypeFilter, setVTypeFilter] = useState('ALL');
 
+    // Driver States
+    const [driverSubTab, setDriverSubTab] = useState('DATABASE'); 
+    const [selectedDriverForEdit, setSelectedDriverForEdit] = useState(null);
+
     const showToast = (message, type = 'success') => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, message, type }]);
@@ -1721,141 +1725,378 @@ const VehicleBooking = () => {
 
                 {activeTab === 'DRIVERS' && (
                     <div className="p-6 space-y-6">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div>
-                                <h3 className="text-xl font-bold text-slate-800">Daftar Sopir / Driver</h3>
-                                <p className="text-sm text-slate-500">Personel yang ditunjuk sebagai pengemudi armada.</p>
-                            </div>
-                            <div className="relative w-full md:w-64">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                <input
-                                    type="text"
-                                    placeholder="Cari nama..."
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                    onChange={(e) => {
-                                        const val = e.target.value.toLowerCase();
-                                        setDrivers(prev => prev.map(d => ({ ...d, hidden: !(d.name || '').toLowerCase().includes(val) })));
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-8">
-                            {drivers.length === 0 ? (
-                                <div className="py-20 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                                    <User className="mx-auto text-slate-200 mb-2" size={48} />
-                                    <p className="text-slate-400 font-bold">Tidak ada driver yang ditemukan.</p>
-                                </div>
-                            ) : Object.entries(
-                                drivers
-                                    .reduce((acc, d) => {
-                                        const unitName = d.unit?.name || 'UMUM / LAINNYA';
-                                        if (!acc[unitName]) acc[unitName] = [];
-                                        acc[unitName].push(d);
-                                        return acc;
-                                    }, {})
-                            ).map(([unitName, unitDrivers]) => (
-                                <div key={unitName} className="space-y-4">
-                                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
-                                        <div className="h-px bg-slate-100 flex-1"></div>
-                                        {unitName}
-                                        <div className="h-px bg-slate-100 flex-1"></div>
-                                    </h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {unitDrivers.map(d => (
-                                            <div key={d.id} className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-lg">
-                                                        {(d.name || d.username || '?').charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-slate-800">{d.name || d.username}</div>
-                                                        <div className="text-[10px] text-slate-400 font-bold uppercase">{d.unit?.name || 'UMUM'}</div>
-                                                        <div className="text-[10px] text-blue-500 font-bold mt-0.5">{d.position}</div>
-                                                    </div>
-                                                </div>
-                                                {(isSuperAdmin || isAdminAset) && (
-                                                    <button
-                                                        onClick={() => handleToggleDriver(d.id, true)}
-                                                        className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                                        title="Hapus Status Driver"
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
+                        {/* Subtabs Navigation */}
+                        <div className="flex overflow-x-auto gap-2 pb-2 hide-scrollbar border-b border-slate-100">
+                            {['DATABASE', 'ACTIVE_TRIPS', 'HISTORY', 'SETTINGS'].map(tab => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setDriverSubTab(tab)}
+                                    className={`px-4 py-2 rounded-t-xl text-sm font-bold whitespace-nowrap transition-all border-b-2 ${driverSubTab === tab ? 'border-blue-600 text-blue-600 bg-blue-50/50' : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
+                                >
+                                    {tab === 'DATABASE' && '📇 Database Driver'}
+                                    {tab === 'ACTIVE_TRIPS' && '🚚 Sedang Bertugas'}
+                                    {tab === 'HISTORY' && '📅 Histori Perjalanan'}
+                                    {tab === 'SETTINGS' && '⚙️ Pengaturan'}
+                                </button>
                             ))}
                         </div>
 
-                        {(isSuperAdmin || isAdminAset) && (
-                            <div className="pt-6 border-t border-slate-100">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
-                                    <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                                        <Plus size={16} className="text-blue-500" /> Tunjuk Driver Baru
-                                    </h4>
+                        {/* DATABASE TAB */}
+                        {driverSubTab === 'DATABASE' && (
+                            <div className="space-y-6 animate-in fade-in duration-300">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-slate-800">Database Driver</h3>
+                                        <p className="text-sm text-slate-500">Informasi profil lengkap dan ketersediaan driver.</p>
+                                    </div>
                                     <div className="relative w-full md:w-64">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                         <input
                                             type="text"
-                                            placeholder="Cari staf..."
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
-                                            value={candidateSearch}
-                                            onChange={(e) => setCandidateSearch(e.target.value)}
+                                            placeholder="Cari nama..."
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            onChange={(e) => {
+                                                const val = e.target.value.toLowerCase();
+                                                setDrivers(prev => prev.map(d => ({ ...d, hidden: !(d.name || d.username || '').toLowerCase().includes(val) })));
+                                            }}
                                         />
                                     </div>
                                 </div>
-                                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-6">
-                                    {Object.entries(
-                                        staff
-                                            .filter(s => {
-                                                const isAlreadyDriver = (s.position || '').toLowerCase().includes('sopir') || (s.position || '').toLowerCase().includes('driver');
-                                                const searchStr = `${s.name || ''} ${s.username || ''}`.toLowerCase();
-                                                const matchesSearch = searchStr.includes(candidateSearch.toLowerCase());
-                                                return !isAlreadyDriver && matchesSearch;
-                                            })
-                                            .reduce((acc, s) => {
-                                                const unitName = s.unit?.name || 'UMUM / LAINNYA';
-                                                if (!acc[unitName]) acc[unitName] = [];
-                                                acc[unitName].push(s);
-                                                return acc;
-                                            }, {})
-                                    ).map(([unitName, members]) => (
-                                        <div key={unitName} className="space-y-3">
-                                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                                <div className="h-px bg-slate-200 flex-1"></div>
-                                                {unitName}
-                                                <div className="h-px bg-slate-200 flex-1"></div>
-                                            </h5>
-                                            <div className="flex flex-wrap gap-2">
-                                                {members.map(s => (
-                                                    <button
-                                                        key={s.id}
-                                                        onClick={() => handleToggleDriver(s.id, false)}
-                                                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:border-blue-500 hover:text-blue-600 transition-all shadow-sm"
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {drivers.filter(d => !d.hidden).map(d => (
+                                        <div key={d.id} className="bg-white border flex flex-col justify-between border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
+                                            {/* Status Badge */}
+                                            <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-black tracking-wider uppercase ${d.dynamicStatus === 'ON_TRIP' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                {d.dynamicStatus === 'ON_TRIP' ? 'ON TRIP' : 'AVAILABLE'}
+                                            </div>
+                                            
+                                            <div className="flex items-start gap-4 mb-4">
+                                                <div className="w-14 h-14 shrink-0 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-blue-600 font-bold text-xl border-2 border-white shadow-sm">
+                                                    {(d.name || d.username || '?').charAt(0).toUpperCase()}
+                                                </div>
+                                                <div className="mt-1">
+                                                    <div className="font-bold text-slate-800 text-base leading-tight">{d.name || d.username}</div>
+                                                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">{d.unit?.name || 'UMUM'}</div>
+                                                    <div className="text-xs text-blue-600 font-medium mt-0.5">{d.position}</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-50 rounded-xl p-3 space-y-2 mb-4 border border-slate-100">
+                                                <div className="flex justify-between items-center text-xs">
+                                                    <span className="text-slate-500">SIM:</span>
+                                                    <span className="font-bold text-slate-700">
+                                                        {d.licenseType ? `${d.licenseType} (${d.licenseNumber || '-'})` : 'Belum diisi'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center text-xs">
+                                                    <span className="text-slate-500">Total Trip:</span>
+                                                    <span className="font-bold text-slate-700">{d.totalTrips || 0} Kali</span>
+                                                </div>
+                                                {d.phone && (
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="text-slate-500">Kontak:</span>
+                                                        <a href={`https://wa.me/${d.phone.replace(/[^0-9]/g, '').replace(/^0/, '62')}`} target="_blank" rel="noreferrer" className="text-green-600 font-bold hover:underline">
+                                                            {d.phone}
+                                                        </a>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {(isSuperAdmin || isAdminAset) && (
+                                                <div className="pt-2 border-t border-slate-100 flex justify-end">
+                                                    <button 
+                                                        onClick={() => setSelectedDriverForEdit(d)}
+                                                        className="text-xs font-bold text-blue-600 hover:text-blue-800 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
                                                     >
-                                                        + {s.name || s.username}
+                                                        Edit Profil
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ACTIVE TRIPS TAB */}
+                        {driverSubTab === 'ACTIVE_TRIPS' && (
+                            <div className="space-y-6 animate-in fade-in duration-300">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-slate-800">Sedang Bertugas</h3>
+                                        <p className="text-sm text-slate-500">Driver yang saat ini sedang dalam perjalanan aktif.</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {drivers.filter(d => d.dynamicStatus === 'ON_TRIP').length === 0 ? (
+                                        <div className="col-span-full py-16 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
+                                            <Navigation2 className="mx-auto text-slate-300 mb-3" size={40} />
+                                            <p className="text-slate-500 font-bold">Semua driver sedang standby di kantor.</p>
+                                        </div>
+                                    ) : drivers.filter(d => d.dynamicStatus === 'ON_TRIP').map(d => (
+                                        <div key={d.id} className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex items-start gap-4">
+                                            <div className="w-12 h-12 shrink-0 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-lg border-2 border-white shadow-sm">
+                                                {(d.name || d.username || '?').charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex justify-between items-start">
+                                                    <div className="font-bold text-slate-800 text-lg">{d.name || d.username}</div>
+                                                    <div className="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-1 rounded">ON TRIP</div>
+                                                </div>
+                                                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                                                    <div className="flex items-start gap-2">
+                                                        <Car size={16} className="mt-0.5 text-slate-400 shrink-0" />
+                                                        <span><span className="font-bold">{d.currentTrip?.vehicle?.name}</span> ({d.currentTrip?.vehicle?.plateNumber})</span>
+                                                    </div>
+                                                    <div className="flex items-start gap-2">
+                                                        <MapPin size={16} className="mt-0.5 text-slate-400 shrink-0" />
+                                                        <span><span className="font-bold">Tujuan:</span> {d.currentTrip?.destination}</span>
+                                                    </div>
+                                                    <div className="flex items-start gap-2">
+                                                        <Clock size={16} className="mt-0.5 text-slate-400 shrink-0" />
+                                                        <span><span className="font-bold">Berangkat:</span> {new Date(d.currentTrip?.startDate).toLocaleString('id-ID')}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* HISTORY TAB */}
+                        {driverSubTab === 'HISTORY' && (
+                            <div className="space-y-6 animate-in fade-in duration-300">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-slate-800">Histori Perjalanan</h3>
+                                        <p className="text-sm text-slate-500">Pilih driver untuk melihat riwayat perjalanan.</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                    <div className="md:col-span-1 space-y-2">
+                                        <div className="font-bold text-slate-700 text-sm mb-3">Pilih Driver:</div>
+                                        {drivers.map(d => (
+                                            <button 
+                                                key={d.id}
+                                                // Normally you'd fetch history here, for UI we just alert or open modal
+                                                onClick={() => {
+                                                    api.get(`/personnel/drivers/${d.id}/history`).then(res => {
+                                                        // Simplification: showing alert for now, you can extend this statefully
+                                                        alert(`Berhasil menarik ${res.data.length} histori untuk ${d.name}.`);
+                                                    }).catch(() => showToast('Gagal menarik histori', 'error'));
+                                                }}
+                                                className="w-full text-left px-4 py-3 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-sm font-semibold text-slate-600 transition-colors"
+                                            >
+                                                {d.name || d.username}
+                                                <div className="text-[10px] font-normal opacity-70 mt-1">{d.totalTrips || 0} perjalanan</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="md:col-span-3 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-10 flex flex-col items-center justify-center text-center">
+                                        <Navigation2 size={48} className="text-slate-300 mb-4" />
+                                        <h4 className="text-lg font-bold text-slate-500">Histori Perjalanan</h4>
+                                        <p className="text-sm text-slate-400 mt-2 max-w-sm">
+                                            Klik tombol driver di samping untuk memuat dan melihat ringkasan riwayat perjalanannya secara lengkap. (Data difetch dari API)
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* SETTINGS TAB */}
+                        {driverSubTab === 'SETTINGS' && (
+                            <div className="space-y-6 animate-in fade-in duration-300">
+                                {(isSuperAdmin || isAdminAset) ? (
+                                    <>
+                                        <div>
+                                            <h3 className="text-xl font-bold text-slate-800">Pengaturan Driver</h3>
+                                            <p className="text-sm text-slate-500">Tambah atau hapus penugasan driver dari daftar personel.</p>
+                                        </div>
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4 pt-4 border-t border-slate-100">
+                                            <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                <Plus size={16} className="text-blue-500" /> Tunjuk Driver Baru
+                                            </h4>
+                                            <div className="relative w-full md:w-64">
+                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Cari staf..."
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    value={candidateSearch}
+                                                    onChange={(e) => setCandidateSearch(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-6">
+                                            {Object.entries(
+                                                staff
+                                                    .filter(s => {
+                                                        const isAlreadyDriver = (s.position || '').toLowerCase().includes('sopir') || (s.position || '').toLowerCase().includes('driver');
+                                                        const searchStr = `${s.name || ''} ${s.username || ''}`.toLowerCase();
+                                                        const matchesSearch = searchStr.includes(candidateSearch.toLowerCase());
+                                                        return !isAlreadyDriver && matchesSearch;
+                                                    })
+                                                    .reduce((acc, s) => {
+                                                        const unitName = s.unit?.name || 'UMUM / LAINNYA';
+                                                        if (!acc[unitName]) acc[unitName] = [];
+                                                        acc[unitName].push(s);
+                                                        return acc;
+                                                    }, {})
+                                            ).map(([unitName, members]) => (
+                                                <div key={unitName} className="space-y-3">
+                                                    <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                        <div className="h-px bg-slate-200 flex-1"></div>
+                                                        {unitName}
+                                                        <div className="h-px bg-slate-200 flex-1"></div>
+                                                    </h5>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {members.map(s => (
+                                                            <button
+                                                                key={s.id}
+                                                                onClick={() => handleToggleDriver(s.id, false)}
+                                                                className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-600 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-600 transition-all shadow-sm"
+                                                            >
+                                                                + {s.name || s.username}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+
+                                            {staff.filter(s => {
+                                                const isNotDriver = !(s.position || '').toLowerCase().includes('sopir') && !(s.position || '').toLowerCase().includes('driver');
+                                                const matchesSearch = `${s.name || ''} ${s.username || ''}`.toLowerCase().includes(candidateSearch.toLowerCase());
+                                                return isNotDriver && matchesSearch;
+                                            }).length === 0 && (
+                                                <p className="text-xs text-slate-400 italic text-center py-4">Tidak ada staf yang cocok.</p>
+                                            )}
+                                        </div>
+
+                                        <div className="py-6 border-t border-slate-100">
+                                            <h4 className="text-sm font-bold text-red-600 flex items-center gap-2 mb-4">
+                                                <Trash2 size={16} /> Hapus Penugasan Driver
+                                            </h4>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                {drivers.map(d => (
+                                                    <button
+                                                        key={d.id}
+                                                        onClick={() => handleToggleDriver(d.id, true)}
+                                                        className="px-3 py-2 bg-white border border-slate-200 hover:border-red-500 hover:bg-red-50 hover:text-red-700 text-slate-600 rounded-xl text-xs font-bold transition-all text-left flex justify-between items-center group"
+                                                    >
+                                                        <span className="truncate">{d.name || d.username}</span>
+                                                        <X size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                                                     </button>
                                                 ))}
                                             </div>
                                         </div>
-                                    ))}
-
-                                    {staff.filter(s => {
-                                        const isNotDriver = !(s.position || '').toLowerCase().includes('sopir') && !(s.position || '').toLowerCase().includes('driver');
-                                        const matchesSearch = `${s.name || ''} ${s.username || ''}`.toLowerCase().includes(candidateSearch.toLowerCase());
-                                        return isNotDriver && matchesSearch;
-                                    }).length === 0 && (
-                                            <p className="text-xs text-slate-400 italic text-center py-4">Tidak ada staf yang cocok.</p>
-                                        )}
-                                </div>
+                                    </>
+                                ) : (
+                                    <div className="py-20 text-center">
+                                        <Lock size={48} className="mx-auto text-slate-200 mb-4" />
+                                        <h3 className="text-lg font-bold text-slate-600">Akses Terbatas</h3>
+                                        <p className="text-slate-400 text-sm">Hanya Admin Sarpras yang dapat mengatur penugasan driver.</p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
                 )}
             </div>
+
+            {/* Driver Edit Modal */}
+            {selectedDriverForEdit && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-start mb-6">
+                            <h3 className="text-xl font-bold text-slate-800">Edit Profil Driver</h3>
+                            <button onClick={() => setSelectedDriverForEdit(null)} className="text-slate-400 hover:text-slate-600">
+                                <XCircle size={24} />
+                            </button>
+                        </div>
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                const fd = new FormData(e.target);
+                                api.put(`/personnel/drivers/${selectedDriverForEdit.id}`, {
+                                    licenseNumber: fd.get('licenseNumber'),
+                                    licenseType: fd.get('licenseType'),
+                                    driverStatus: fd.get('driverStatus')
+                                }).then(() => {
+                                    showToast('Profil driver berhasil diperbarui');
+                                    fetchDrivers();
+                                    setSelectedDriverForEdit(null);
+                                }).catch(err => {
+                                    showToast('Gagal memperbarui profil driver', 'error');
+                                });
+                            }}
+                            className="space-y-4"
+                        >
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xl">
+                                    {(selectedDriverForEdit.name || selectedDriverForEdit.username || '?').charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <div className="font-bold text-slate-800">{selectedDriverForEdit.name || selectedDriverForEdit.username}</div>
+                                    <div className="text-xs text-slate-500">{selectedDriverForEdit.position}</div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase">Tipe SIM</label>
+                                <select 
+                                    name="licenseType" 
+                                    defaultValue={selectedDriverForEdit.licenseType || ''}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                    <option value="">Pilih Tipe SIM</option>
+                                    <option value="SIM A">SIM A</option>
+                                    <option value="SIM A Umum">SIM A Umum</option>
+                                    <option value="SIM B1">SIM B1</option>
+                                    <option value="SIM B1 Umum">SIM B1 Umum</option>
+                                    <option value="SIM B2">SIM B2</option>
+                                    <option value="SIM B2 Umum">SIM B2 Umum</option>
+                                    <option value="SIM C">SIM C</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase">Nomor SIM</label>
+                                <input 
+                                    name="licenseNumber"
+                                    type="text"
+                                    defaultValue={selectedDriverForEdit.licenseNumber || ''}
+                                    placeholder="Masukkan No. SIM..."
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase">Status Driver</label>
+                                <select 
+                                    name="driverStatus" 
+                                    defaultValue={selectedDriverForEdit.driverStatus || 'AVAILABLE'}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                    <option value="AVAILABLE">Available (Tersedia)</option>
+                                    <option value="OFF">Off / Izin / Sakit</option>
+                                    {/* ON_TRIP is automatically resolved by backend, so we don't strictly need to set it, but we can allow override if needed */}
+                                    <option value="ON_TRIP">Sedang Jalan (Manual)</option>
+                                </select>
+                            </div>
+
+                            <div className="pt-4">
+                                <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200">
+                                    Simpan Perubahan
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Action Modals */}
             {

@@ -87,6 +87,12 @@ model User {
   createdRoutines  PersonnelRoutine[] @relation("RoutineAssigner")
   personnelKPIs      PersonnelKPI[]
   pushSubscriptions  PushSubscription[]
+
+  // Driver Extensions
+  licenseNumber  String?
+  licenseType    String? // e.g., SIM A, SIM B1, SIM B2
+  licenseExpiry  DateTime?
+  driverStatus   String  @default("AVAILABLE") // AVAILABLE, ON_TRIP, OFF
 }
 
 model Notification {

@@ -30,8 +30,11 @@ router.put('/routines/:id', personnelController.updateRoutine);
 router.delete('/routines/:id', personnelController.deleteRoutine);
 
 // Drivers
+// Drivers
 router.get('/drivers', personnelController.getDrivers);
 router.post('/drivers/toggle', personnelController.toggleDriverDesignation);
+router.put('/drivers/:id', personnelController.updateDriverInfo);
+router.get('/drivers/:id/history', personnelController.getDriverHistory);
 
 // Staff List (Sarpras)
 router.get('/staff', personnelController.getStaffSarpras);
