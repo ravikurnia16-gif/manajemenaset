@@ -62,6 +62,7 @@ exports.createUnit = async (req, res) => {
 exports.updateUnit = async (req, res) => {
     try {
         const { id } = req.params;
+        const { name, code, description, phone, email, address, headName, headNip, logo } = req.body;
         // Cek apakah ada perubahan kode Unit
         const oldUnit = await prisma.unit.findUnique({ where: { id: parseInt(id) } });
 

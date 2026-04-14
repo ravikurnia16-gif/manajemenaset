@@ -23,7 +23,7 @@ exports.getAllVehicles = async (req, res) => {
         const vehicles = await prisma.vehicle.findMany({
             where,
             include: {
-                pics: { select: { id: true, name: true } },
+                pics: { select: { id: true, name: true, phone: true } },
                 bookings: {
                     where: {
                         status: { in: ['APPROVED', 'BERLANGSUNG'] },
@@ -81,7 +81,7 @@ exports.getVehicleById = async (req, res) => {
     try {
         const vehicle = await prisma.vehicle.findUnique({
             where: { id: parseInt(req.params.id) },
-            include: { pics: { select: { id: true, name: true } } }
+            include: { pics: { select: { id: true, name: true, phone: true } } }
         });
         if (!vehicle) return res.status(404).json({ error: 'Kendaraan tidak ditemukan' });
         res.json(vehicle);
