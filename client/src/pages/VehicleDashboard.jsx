@@ -99,10 +99,9 @@ const VehicleDashboard = () => {
             doc.text('Ringkasan KPI', 14, 35);
             doc.autoTable({
                 startY: 38,
-                head: [['Total Armada', 'Efisiensi (KM/L)', 'Total Biaya BBM', 'Biaya Service (Tahunan)']],
+                head: [['Total Armada', 'Total Biaya BBM', 'Biaya Service (Tahunan)']],
                 body: [[
                     data.stats.totalVehicles,
-                    (data.stats.fleetKml || 0).toFixed(1),
                     `Rp ${Math.round(data.stats.totalFuelCost || 0).toLocaleString('id-ID')}`,
                     `Rp ${Math.round(data.stats.totalServiceCostYearly || 0).toLocaleString('id-ID')}`
                 ]],
@@ -245,7 +244,6 @@ const VehicleDashboard = () => {
 
     const stats = [
         { title: "Total Armada", value: data?.stats?.totalVehicles || 0, icon: Car, color: "bg-slate-800", desc: "Unit aktif terdaftar" },
-        { title: "Efisiensi Armada", value: `${data?.stats?.fleetKml?.toFixed(1) || 0} KM/L`, icon: Gauge, color: "bg-emerald-600", desc: "Rata-rata seluruh armada" },
         { title: "Biaya BBM", value: `Rp ${Math.round(data?.stats?.totalFuelCost || 0).toLocaleString('id-ID')}`, icon: Fuel, color: "bg-indigo-600", desc: data?.isSummary ? "Total keseluruhan" : `Bulan ${data?.period}` },
         { title: "Biaya Service", value: `Rp ${Math.round(data?.stats?.totalServiceCostYearly || 0).toLocaleString('id-ID')}`, icon: Wrench, color: "bg-orange-500", desc: `Total Tahun ${new Date().getFullYear()}` },
     ];
@@ -360,7 +358,7 @@ const VehicleDashboard = () => {
             )}
 
             {/* KPI Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {stats.map((s, i) => <StatCard key={i} {...s} />)}
             </div>
 

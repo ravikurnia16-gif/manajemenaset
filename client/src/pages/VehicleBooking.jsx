@@ -25,9 +25,9 @@ const VehicleBooking = () => {
     const [vTypeFilter, setVTypeFilter] = useState('ALL');
 
     // Driver States
-    const [driverSubTab, setDriverSubTab] = useState('DATABASE'); 
+    const [driverSubTab, setDriverSubTab] = useState('DATABASE');
     const [selectedDriverForEdit, setSelectedDriverForEdit] = useState(null);
-    
+
     const [selectedHistoryDriver, setSelectedHistoryDriver] = useState(null);
     const [driverHistory, setDriverHistory] = useState([]);
     const [historyMonth, setHistoryMonth] = useState(new Date().getMonth() + 1);
@@ -84,11 +84,11 @@ const VehicleBooking = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role);
     const isAdminAset = ['ADMIN_ASET'].includes(user.role);
-    
+
     // Special Roles: Yayasan Leadership
     const yayasanPositions = ['Ketua Yayasan', 'Bendahara Yayasan', 'Sekretaris Yayasan'];
     const isYayasanLeader = yayasanPositions.includes(user.position);
-    
+
     // Head of Sarpras
     const isKabidSarpras = user.position === 'Kepala Bidang Sarana dan Prasarana';
 
@@ -268,7 +268,7 @@ const VehicleBooking = () => {
     const handleSubmitRequest = async (e) => {
         e.preventDefault();
         if (submitting) return; // Prevent double clicking
-        
+
         try {
             setSubmitting(true);
             const startStr = `${formData.startDate}T${formData.startTime}`;
@@ -297,7 +297,7 @@ const VehicleBooking = () => {
             await api.post('/vehicles/booking/request', {
                 ...formData,
                 startDate: startDateObj,
-                endDate: formData.isRented 
+                endDate: formData.isRented
                     ? new Date(startDateObj.getTime() + (parseInt(formData.rentalDays) * 24 * 60 * 60 * 1000))
                     : new Date(endStr),
                 rentalPrice: formData.isRented ? selectedVehicle?.defaultRentalPrice : null,
@@ -307,10 +307,10 @@ const VehicleBooking = () => {
             setShowBorrowModal(false);
             setActiveTab('MY_REQUESTS');
             setFormData({
-                vehicleId: '', 
-                startDate: new Date().toISOString().split('T')[0], 
-                startTime: new Date().toTimeString().split(' ')[0].slice(0, 5), 
-                endDate: new Date().toISOString().split('T')[0], 
+                vehicleId: '',
+                startDate: new Date().toISOString().split('T')[0],
+                startTime: new Date().toTimeString().split(' ')[0].slice(0, 5),
+                endDate: new Date().toISOString().split('T')[0],
                 endTime: '17:00',
                 destination: '', purpose: '', passengerCount: 1, driverId: user.id || '',
                 isRented: false, rentalDays: 1, startKm: ''
@@ -378,7 +378,7 @@ const VehicleBooking = () => {
             setActionData({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelLiters: '', fuelCondition: null });
             fetchBookings();
             fetchVehicles(); // Refresh vehicles to update last fuel condition
-            
+
             // Pop up pemberitahuan pengembalian kunci
             setTimeout(() => {
                 setShowKeyReminderModal(true);
@@ -407,12 +407,12 @@ const VehicleBooking = () => {
                 if (['APPROVED', 'PENDING'].includes(status)) return 2;
                 return 3; // COMPLETED, CANCELLED, REJECTED
             };
-            
+
             const weightA = getStatusWeight(a.status);
             const weightB = getStatusWeight(b.status);
-            
+
             if (weightA !== weightB) return weightA - weightB;
-            
+
             if (weightA <= 2) {
                 // nearest upcoming start date first
                 return new Date(a.startDate) - new Date(b.startDate);
@@ -420,7 +420,7 @@ const VehicleBooking = () => {
             // most recently finished first
             return new Date(b.startDate) - new Date(a.startDate);
         }
-        
+
         // Default for History and Approval: most recent first
         return new Date(b.createdAt || b.startDate) - new Date(a.createdAt || a.startDate);
     });
@@ -553,15 +553,15 @@ const VehicleBooking = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {(() => {
                                 const filtered = vehicles.filter(v => {
-                                    const matchSearch = (v.name || '').toLowerCase().includes(vSearch.toLowerCase()) || 
-                                                       (v.plateNumber || '').toLowerCase().includes(vSearch.toLowerCase());
+                                    const matchSearch = (v.name || '').toLowerCase().includes(vSearch.toLowerCase()) ||
+                                        (v.plateNumber || '').toLowerCase().includes(vSearch.toLowerCase());
                                     const matchType = vTypeFilter === 'ALL' || v.type === vTypeFilter;
                                     const isActive = v.status === 'ACTIVE';
                                     return matchSearch && matchType && isActive;
                                 }).sort((a, b) => {
                                     const typeA = (a.type || '').toLowerCase();
                                     const typeB = (b.type || '').toLowerCase();
-                                    
+
                                     const getPriority = (type) => {
                                         if (type.includes('mobil')) return 1;
                                         if (type.includes('bus') || type.includes('microbus') || type.includes('minibus')) return 2;
@@ -578,7 +578,7 @@ const VehicleBooking = () => {
                                             <Search size={48} className="mb-4 opacity-20" />
                                             <p className="font-bold text-lg">Tidak ada kendaraan yang cocok</p>
                                             <p className="text-sm">Coba ubah kata kunci atau filter pencarian ustadz.</p>
-                                            <button 
+                                            <button
                                                 onClick={() => { setVSearch(''); setVTypeFilter('ALL'); }}
                                                 className="mt-4 text-blue-600 font-bold text-xs hover:underline"
                                             >
@@ -646,11 +646,10 @@ const VehicleBooking = () => {
                                                     <div className="flex items-center justify-between">
                                                         <div className="text-xs font-bold text-slate-700">{v.fuelType || '-'}</div>
                                                         {v.lastFuelCondition && (
-                                                            <div className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                                                v.lastFuelCondition === 'LOW' ? 'bg-red-100 text-red-600' :
-                                                                v.lastFuelCondition === 'MEDIUM' ? 'bg-amber-100 text-amber-600' :
-                                                                'bg-green-100 text-green-600'
-                                                            }`}>
+                                                            <div className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${v.lastFuelCondition === 'LOW' ? 'bg-red-100 text-red-600' :
+                                                                    v.lastFuelCondition === 'MEDIUM' ? 'bg-amber-100 text-amber-600' :
+                                                                        'bg-green-100 text-green-600'
+                                                                }`}>
                                                                 {v.lastFuelCondition === 'LOW' ? '< 1/4' : v.lastFuelCondition === 'MEDIUM' ? '1/4 - 1/2' : '> 1/2'}
                                                             </div>
                                                         )}
@@ -691,8 +690,8 @@ const VehicleBooking = () => {
                                                     onClick={() => {
                                                         setSelectedVehicle(v);
                                                         const now = new Date();
-                                                        setFormData({ 
-                                                            ...formData, 
+                                                        setFormData({
+                                                            ...formData,
                                                             vehicleId: v.id,
                                                             startDate: now.toISOString().split('T')[0],
                                                             startTime: now.toTimeString().split(' ')[0].slice(0, 5)
@@ -763,7 +762,7 @@ const VehicleBooking = () => {
                                         if (!day) return <div key={`empty-${i}`} className="bg-slate-50/20 rounded-2xl" />;
                                         const dayEvents = getEventsForDay(day);
                                         const isToday = day === dateNow.getDate() && calMonth === dateNow.getMonth() + 1 && calYear === dateNow.getFullYear();
-                                        
+
                                         return (
                                             <div
                                                 key={day}
@@ -781,7 +780,7 @@ const VehicleBooking = () => {
                                                     </span>
                                                     {dayEvents.length > 0 && <span className="text-[9px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md">{dayEvents.length}</span>}
                                                 </div>
-                                                
+
                                                 <div className="flex-1 overflow-y-auto custom-scrollbar no-scrollbar-h space-y-1">
                                                     {dayEvents.slice(0, 3).map((ev, idx) => (
                                                         <div key={idx} className={`w-full px-1.5 py-1 text-[9px] font-bold text-white rounded cursor-pointer truncate ${vehicleColors[ev.vehicleId] || 'bg-slate-500'} hover:opacity-90`} title={`${ev.vehicle?.name || 'Mobil'} - ${ev.user?.name || 'User'}`}>
@@ -819,14 +818,13 @@ const VehicleBooking = () => {
                                                         <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                                                             <Car size={14} className="text-slate-400" /> {ev.vehicle?.name || 'Mobil'} <span className="text-[10px] text-slate-400 font-mono tracking-wider">{ev.vehicle?.plateNumber || ''}</span>
                                                         </h4>
-                                                        <div className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
-                                                            ev.status === 'BERLANGSUNG' ? 'bg-indigo-100 text-indigo-700' : 
-                                                            ev.status === 'COMPLETED' ? 'bg-slate-100 text-slate-600' : 
-                                                            'bg-green-100 text-green-700'
-                                                        }`}>
-                                                            {ev.status === 'BERLANGSUNG' ? 'Di Jalan' : 
-                                                             ev.status === 'COMPLETED' ? 'Selesai' : 
-                                                             'Disetujui'}
+                                                        <div className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${ev.status === 'BERLANGSUNG' ? 'bg-indigo-100 text-indigo-700' :
+                                                                ev.status === 'COMPLETED' ? 'bg-slate-100 text-slate-600' :
+                                                                    'bg-green-100 text-green-700'
+                                                            }`}>
+                                                            {ev.status === 'BERLANGSUNG' ? 'Di Jalan' :
+                                                                ev.status === 'COMPLETED' ? 'Selesai' :
+                                                                    'Disetujui'}
                                                         </div>
                                                     </div>
                                                     <div className="mt-2 space-y-1.5">
@@ -837,9 +835,9 @@ const VehicleBooking = () => {
                                                             <MapPin size={12} className="text-red-400" /> {ev.destination}
                                                         </div>
                                                         <div className="flex items-center gap-2 text-xs text-slate-600">
-                                                            <Clock size={12} className="text-amber-400" /> {new Date(ev.startDate).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' })}
+                                                            <Clock size={12} className="text-amber-400" /> {new Date(ev.startDate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                                             {' - '}
-                                                            {new Date(ev.endDate).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' })}
+                                                            {new Date(ev.endDate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1498,8 +1496,8 @@ const VehicleBooking = () => {
                                 <div className="bg-slate-50/50 p-4 border rounded-2xl mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                                     <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
                                         <span>Tampilkan:</span>
-                                        <select 
-                                            value={itemsPerPage} 
+                                        <select
+                                            value={itemsPerPage}
                                             onChange={(e) => setItemsPerPage(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
                                             className="bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500"
                                         >
@@ -1513,14 +1511,14 @@ const VehicleBooking = () => {
 
                                     {itemsPerPage !== 'all' && totalPages > 1 && (
                                         <div className="flex items-center gap-2">
-                                            <button 
+                                            <button
                                                 disabled={currentPage === 1}
                                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                                 className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all text-slate-600"
                                             >
                                                 <ChevronRight className="rotate-180" size={16} />
                                             </button>
-                                            
+
                                             <div className="flex items-center gap-1">
                                                 {[...Array(totalPages)].map((_, i) => (
                                                     <button
@@ -1533,7 +1531,7 @@ const VehicleBooking = () => {
                                                 )).slice(Math.max(0, currentPage - 3), Math.min(totalPages, currentPage + 2))}
                                             </div>
 
-                                            <button 
+                                            <button
                                                 disabled={currentPage === totalPages}
                                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                                 className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all text-slate-600"
@@ -1698,13 +1696,13 @@ const VehicleBooking = () => {
                                         </tbody>
                                     </table>
                                 </div>
-                                
+
                                 {/* Pagination Controls (Global for this tab) */}
                                 <div className="bg-slate-50/50 p-4 border rounded-2xl mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                                     <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
                                         <span>Tampilkan:</span>
-                                        <select 
-                                            value={itemsPerPage} 
+                                        <select
+                                            value={itemsPerPage}
                                             onChange={(e) => setItemsPerPage(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
                                             className="bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500"
                                         >
@@ -1718,14 +1716,14 @@ const VehicleBooking = () => {
 
                                     {itemsPerPage !== 'all' && totalPages > 1 && (
                                         <div className="flex items-center gap-2">
-                                            <button 
+                                            <button
                                                 disabled={currentPage === 1}
                                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                                 className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all text-slate-600"
                                             >
                                                 <ChevronRight className="rotate-180" size={16} />
                                             </button>
-                                            
+
                                             <div className="flex items-center gap-1">
                                                 {[...Array(totalPages)].map((_, i) => (
                                                     <button
@@ -1738,7 +1736,7 @@ const VehicleBooking = () => {
                                                 )).slice(Math.max(0, currentPage - 3), Math.min(totalPages, currentPage + 2))}
                                             </div>
 
-                                            <button 
+                                            <button
                                                 disabled={currentPage === totalPages}
                                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                                 className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all text-slate-600"
@@ -1802,7 +1800,7 @@ const VehicleBooking = () => {
                                             <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-black tracking-wider uppercase ${d.dynamicStatus === 'ON_TRIP' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
                                                 {d.dynamicStatus === 'ON_TRIP' ? 'ON TRIP' : 'AVAILABLE'}
                                             </div>
-                                            
+
                                             <div className="flex items-start gap-4 mb-4">
                                                 <div className="w-14 h-14 shrink-0 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-blue-600 font-bold text-xl border-2 border-white shadow-sm">
                                                     {(d.name || d.username || '?').charAt(0).toUpperCase()}
@@ -1837,7 +1835,7 @@ const VehicleBooking = () => {
 
                                             {(isSuperAdmin || isAdminAset) && (
                                                 <div className="pt-2 border-t border-slate-100 flex justify-end">
-                                                    <button 
+                                                    <button
                                                         onClick={() => setSelectedDriverForEdit(d)}
                                                         className="text-xs font-bold text-blue-600 hover:text-blue-800 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
                                                     >
@@ -1932,7 +1930,7 @@ const VehicleBooking = () => {
                                     <div className="md:col-span-1 space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                                         <div className="font-bold text-slate-700 text-sm mb-3 sticky top-0 bg-white z-10 py-2">Daftar Driver:</div>
                                         {drivers.map(d => (
-                                            <button 
+                                            <button
                                                 key={d.id}
                                                 onClick={() => setSelectedHistoryDriver(d)}
                                                 className={`w-full text-left px-4 py-3 rounded-xl transition-colors ${selectedHistoryDriver?.id === d.id ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-700'}`}
@@ -2065,7 +2063,7 @@ const VehicleBooking = () => {
                                                             {(isSuperAdmin || isAdminAset) && (
                                                                 <button
                                                                     onClick={() => {
-                                                                        if(window.confirm('Hapus histori pelanggaran ini?')) {
+                                                                        if (window.confirm('Hapus histori pelanggaran ini?')) {
                                                                             api.delete(`/personnel/violations/${v.id}`).then(() => {
                                                                                 showToast('Pelanggaran berhasil dihapus');
                                                                                 fetchDriverViolations();
@@ -2152,8 +2150,8 @@ const VehicleBooking = () => {
                                                 const matchesSearch = `${s.name || ''} ${s.username || ''}`.toLowerCase().includes(candidateSearch.toLowerCase());
                                                 return isNotDriver && matchesSearch;
                                             }).length === 0 && (
-                                                <p className="text-xs text-slate-400 italic text-center py-4">Tidak ada staf yang cocok.</p>
-                                            )}
+                                                    <p className="text-xs text-slate-400 italic text-center py-4">Tidak ada staf yang cocok.</p>
+                                                )}
                                         </div>
 
                                         <div className="py-6 border-t border-slate-100">
@@ -2227,8 +2225,8 @@ const VehicleBooking = () => {
 
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Tipe SIM</label>
-                                <select 
-                                    name="licenseType" 
+                                <select
+                                    name="licenseType"
                                     defaultValue={selectedDriverForEdit.licenseType || ''}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 >
@@ -2245,7 +2243,7 @@ const VehicleBooking = () => {
 
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Nomor SIM</label>
-                                <input 
+                                <input
                                     name="licenseNumber"
                                     type="text"
                                     defaultValue={selectedDriverForEdit.licenseNumber || ''}
@@ -2256,8 +2254,8 @@ const VehicleBooking = () => {
 
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Status Driver</label>
-                                <select 
-                                    name="driverStatus" 
+                                <select
+                                    name="driverStatus"
                                     defaultValue={selectedDriverForEdit.driverStatus || 'AVAILABLE'}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 >
@@ -2310,8 +2308,8 @@ const VehicleBooking = () => {
                         >
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Pilih Driver</label>
-                                <select 
-                                    name="driverId" 
+                                <select
+                                    name="driverId"
                                     required
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 >
@@ -2324,7 +2322,7 @@ const VehicleBooking = () => {
 
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Tanggal Kedjadian</label>
-                                <input 
+                                <input
                                     type="date"
                                     name="date"
                                     required
@@ -2335,13 +2333,13 @@ const VehicleBooking = () => {
 
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Kategori Pelanggaran</label>
-                                <select 
-                                    name="category" 
+                                <select
+                                    name="category"
                                     required
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 >
-                                    <option value="Keterlambatan">Keterlambatan</option>
-                                    <option value="Kelengkapan Atribut/SIM">Kelengkapan Atribut/SIM</option>
+                                    <option value="Tidak mengikuti Sistem Booking">Tidak mengikuti Sistem Booking</option>
+                                    <option value="Tidak Mengisi BBM">Tidak Mengisi BBM</option>
                                     <option value="Lalu Lintas / Ugal-ugalan">Lalu Lintas / Ugal-ugalan</option>
                                     <option value="Kerusakan Kendaraan (Kelalaian)">Kerusakan Kendaraan (Kelalaian)</option>
                                     <option value="Lainnya">Lainnya</option>
@@ -2350,7 +2348,7 @@ const VehicleBooking = () => {
 
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Deskripsi Kejadian</label>
-                                <textarea 
+                                <textarea
                                     name="description"
                                     required
                                     rows="3"
@@ -2361,7 +2359,7 @@ const VehicleBooking = () => {
 
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Tindakan / Sanksi</label>
-                                <input 
+                                <input
                                     type="text"
                                     name="sanction"
                                     required
@@ -2515,9 +2513,8 @@ const VehicleBooking = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => setActionData({ ...actionData, fuelCondition: 'LOW' })}
-                                                className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
-                                                    actionData.fuelCondition === 'LOW' ? 'bg-red-50 border-red-500 text-red-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                                                }`}
+                                                className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${actionData.fuelCondition === 'LOW' ? 'bg-red-50 border-red-500 text-red-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                                    }`}
                                             >
                                                 <div className={`w-3 h-3 rounded-full ${actionData.fuelCondition === 'LOW' ? 'bg-red-500' : 'bg-slate-300'}`}></div>
                                                 &lt; 1/4
@@ -2525,9 +2522,8 @@ const VehicleBooking = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => setActionData({ ...actionData, fuelCondition: 'MEDIUM' })}
-                                                className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
-                                                    actionData.fuelCondition === 'MEDIUM' ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                                                }`}
+                                                className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${actionData.fuelCondition === 'MEDIUM' ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                                    }`}
                                             >
                                                 <div className={`w-3 h-3 rounded-full ${actionData.fuelCondition === 'MEDIUM' ? 'bg-amber-500' : 'bg-slate-300'}`}></div>
                                                 1/4 - 1/2
@@ -2535,9 +2531,8 @@ const VehicleBooking = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => setActionData({ ...actionData, fuelCondition: 'HIGH' })}
-                                                className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
-                                                    actionData.fuelCondition === 'HIGH' ? 'bg-green-50 border-green-500 text-green-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                                                }`}
+                                                className={`py-2 px-1 rounded-xl border text-[10px] sm:text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${actionData.fuelCondition === 'HIGH' ? 'bg-green-50 border-green-500 text-green-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                                                    }`}
                                             >
                                                 <div className={`w-3 h-3 rounded-full ${actionData.fuelCondition === 'HIGH' ? 'bg-green-500' : 'bg-slate-300'}`}></div>
                                                 &gt; 1/2
@@ -2671,9 +2666,9 @@ const VehicleBooking = () => {
                             <p className="text-sm font-medium text-slate-500 leading-relaxed">
                                 Mohon pastikan Anda telah <strong className="text-amber-600 font-bold">mengembalikan kunci kendaraan</strong> ke Pos Satpam.
                             </p>
-                            
+
                             <div className="pt-6">
-                                <button 
+                                <button
                                     onClick={() => setShowKeyReminderModal(false)}
                                     className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-3.5 font-black transition-all shadow-xl shadow-slate-900/20 active:scale-95"
                                 >

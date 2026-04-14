@@ -1257,13 +1257,22 @@ exports.getKPILeaderboard = async (req, res) => {
         // Get all staff from Sarpras (Exact 5 Categories)
         const staff = await prisma.user.findMany({
             where: {
-                OR: [
-                    { position: { contains: 'Sarana dan Prasarana' } },
-                    { position: { contains: 'Manajemen Aset' } },
-                    { position: { contains: 'Gudang dan Logistik' } },
-                    { position: { contains: 'Teknisi' } },
-                    { position: { contains: 'Keuangan dan Administrasi' } },
-                    { position: { contains: 'Kendaraan' } }
+                AND: [
+                    {
+                        OR: [
+                            { position: { contains: 'Sarana dan Prasarana' } },
+                            { position: { contains: 'Manajemen Aset' } },
+                            { position: { contains: 'Gudang dan Logistik' } },
+                            { position: { contains: 'Teknisi' } },
+                            { position: { contains: 'Keuangan dan Administrasi' } },
+                            { position: { contains: 'Kendaraan' } }
+                        ]
+                    },
+                    {
+                        NOT: {
+                            position: { contains: 'Kepala Bidang' }
+                        }
+                    }
                 ]
             },
             select: { id: true, name: true, position: true, unitId: true }
