@@ -89,10 +89,24 @@ model User {
   pushSubscriptions  PushSubscription[]
 
   // Driver Extensions
-  licenseNumber  String?
-  licenseType    String? // e.g., SIM A, SIM B1, SIM B2
-  licenseExpiry  DateTime?
-  driverStatus   String  @default("AVAILABLE") // AVAILABLE, ON_TRIP, OFF
+  licenseNumber    String?
+  licenseType      String? // e.g., SIM A, SIM B1, SIM B2
+  licenseExpiry    DateTime?
+  driverStatus     String   @default("AVAILABLE") // AVAILABLE, ON_TRIP, OFF
+  driverViolations DriverViolation[]
+}
+
+model DriverViolation {
+  id          Int      @id @default(autoincrement())
+  driverId    Int
+  driver      User     @relation(fields: [driverId], references: [id])
+  date        DateTime
+  category    String   // e.g., Keterlambatan, Kelengkapan, Lalu Lintas, Kerusakan
+  description String   @db.Text
+  sanction    String   // e.g., Teguran Lisan, SP1, SP2
+  photoUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Notification {

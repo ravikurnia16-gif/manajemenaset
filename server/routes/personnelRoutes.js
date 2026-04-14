@@ -36,6 +36,11 @@ router.post('/drivers/toggle', personnelController.toggleDriverDesignation);
 router.put('/drivers/:id', personnelController.updateDriverInfo);
 router.get('/drivers/:id/history', personnelController.getDriverHistory);
 
+// Driver Violations
+router.get('/violations', personnelController.getDriverViolations);
+router.post('/violations', personnelController.createDriverViolation);
+router.delete('/violations/:id', personnelController.deleteDriverViolation);
+
 // Staff List (Sarpras)
 router.get('/staff', personnelController.getStaffSarpras);
 

@@ -648,9 +648,57 @@ exports.getDriverHistory = async (req, res) => {
         const combined = [
             ...vehicleTrips.map(t => ({ ...t, tripType: 'VEHICLE' })),
             ...busTrips.map(t => ({ ...t, tripType: 'BUS' }))
-        ].sort((a, b) => b.startDate - a.startDate);
+        ].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
 
         res.json(combined);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getDriverViolations = async (req, res) => {
+    try {
+        const violations = await prisma.driverViolation.findMany({
+            include: { driver: { select: { name: true, nip: true } } },
+            orderBy: { date: 'desc' }
+        });
+        res.json(violations);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createDriverViolation = async (req, res) => {
+    const { driverId, date, category, description, sanction } = req.body;
+    try {
+        // Hanya Admin / Super Admin
+        if (!['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(req.user.role)) {
+            return res.status(403).json({ error: 'Akses ditolak.' });
+        }
+
+        const newViolation = await prisma.driverViolation.create({
+            data: {
+                driverId: parseInt(driverId),
+                date: new Date(date),
+                category,
+                description,
+                sanction
+            }
+        });
+        res.json({ message: 'Pelanggaran berhasil ditambahkan', data: newViolation });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteDriverViolation = async (req, res) => {
+    const { id } = req.params;
+    try {
+        if (!['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(req.user.role)) {
+            return res.status(403).json({ error: 'Akses ditolak.' });
+        }
+        await prisma.driverViolation.delete({ where: { id: parseInt(id) } });
+        res.json({ message: 'Pelanggaran berhasil dihapus' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

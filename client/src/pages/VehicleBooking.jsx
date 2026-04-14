@@ -27,6 +27,14 @@ const VehicleBooking = () => {
     // Driver States
     const [driverSubTab, setDriverSubTab] = useState('DATABASE'); 
     const [selectedDriverForEdit, setSelectedDriverForEdit] = useState(null);
+    
+    const [selectedHistoryDriver, setSelectedHistoryDriver] = useState(null);
+    const [driverHistory, setDriverHistory] = useState([]);
+    const [historyMonth, setHistoryMonth] = useState(new Date().getMonth() + 1);
+    const [historyYear, setHistoryYear] = useState(new Date().getFullYear());
+
+    const [driverViolations, setDriverViolations] = useState([]);
+    const [showViolationAddModal, setShowViolationAddModal] = useState(false);
 
     const showToast = (message, type = 'success') => {
         const id = Date.now();
@@ -170,8 +178,24 @@ const VehicleBooking = () => {
         if (activeTab === 'DRIVERS') {
             fetchDrivers();
             fetchStaff();
+            if (driverSubTab === 'PELANGGARAN') {
+                fetchDriverViolations();
+            }
         }
-    }, [activeTab, filterVehicle, filterStartDate, filterEndDate, filterType, calMonth, calYear]);
+    }, [activeTab, driverSubTab, filterVehicle, filterStartDate, filterEndDate, filterType, calMonth, calYear]);
+
+    useEffect(() => {
+        const fetchDriverHistory = async () => {
+            if (!selectedHistoryDriver) return;
+            try {
+                const res = await api.get(`personnel/drivers/${selectedHistoryDriver.id}/history?month=${historyMonth}&year=${historyYear}`);
+                setDriverHistory(res.data);
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        fetchDriverHistory();
+    }, [selectedHistoryDriver, historyMonth, historyYear]);
 
     const fetchVehicles = async () => {
         try {
@@ -196,9 +220,16 @@ const VehicleBooking = () => {
         finally { setLoading(false); }
     };
 
+    const fetchDriverViolations = async () => {
+        try {
+            const res = await api.get('personnel/violations');
+            setDriverViolations(res.data);
+        } catch (err) { console.error(err); }
+    };
+
     const handleToggleDriver = async (userId, isCurrentlyDriver) => {
         try {
-            await api.post('personnel/drivers/toggle', { userId, isCurrentlyDriver: !isCurrentlyDriver });
+            await api.post('personnel/drivers/toggle', { userId, isDriver: !isCurrentlyDriver });
             showToast(`Status driver berhasil diperbarui.`, 'success');
             fetchDrivers();
             fetchStaff();
@@ -1727,7 +1758,7 @@ const VehicleBooking = () => {
                     <div className="p-6 space-y-6">
                         {/* Subtabs Navigation */}
                         <div className="flex overflow-x-auto gap-2 pb-2 hide-scrollbar border-b border-slate-100">
-                            {['DATABASE', 'ACTIVE_TRIPS', 'HISTORY', 'SETTINGS'].map(tab => (
+                            {['DATABASE', 'ACTIVE_TRIPS', 'HISTORY', 'PELANGGARAN', 'SETTINGS'].map(tab => (
                                 <button
                                     key={tab}
                                     onClick={() => setDriverSubTab(tab)}
@@ -1736,6 +1767,7 @@ const VehicleBooking = () => {
                                     {tab === 'DATABASE' && '📇 Database Driver'}
                                     {tab === 'ACTIVE_TRIPS' && '🚚 Sedang Bertugas'}
                                     {tab === 'HISTORY' && '📅 Histori Perjalanan'}
+                                    {tab === 'PELANGGARAN' && '⚠️ Pelanggaran'}
                                     {tab === 'SETTINGS' && '⚙️ Pengaturan'}
                                 </button>
                             ))}
@@ -1872,37 +1904,185 @@ const VehicleBooking = () => {
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                                     <div>
                                         <h3 className="text-xl font-bold text-slate-800">Histori Perjalanan</h3>
-                                        <p className="text-sm text-slate-500">Pilih driver untuk melihat riwayat perjalanan.</p>
+                                        <p className="text-sm text-slate-500">Pilih driver dan bulan untuk melihat riwayat perjalanannya.</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={historyMonth}
+                                            onChange={(e) => setHistoryMonth(parseInt(e.target.value))}
+                                            className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-bold bg-white text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            {['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'].map((m, i) => (
+                                                <option key={i + 1} value={i + 1}>{m}</option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            value={historyYear}
+                                            onChange={(e) => setHistoryYear(parseInt(e.target.value))}
+                                            className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-bold bg-white text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            {[2024, 2025, 2026].map(y => (
+                                                <option key={y} value={y}>{y}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                    <div className="md:col-span-1 space-y-2">
-                                        <div className="font-bold text-slate-700 text-sm mb-3">Pilih Driver:</div>
+                                    <div className="md:col-span-1 space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                                        <div className="font-bold text-slate-700 text-sm mb-3 sticky top-0 bg-white z-10 py-2">Daftar Driver:</div>
                                         {drivers.map(d => (
                                             <button 
                                                 key={d.id}
-                                                // Normally you'd fetch history here, for UI we just alert or open modal
-                                                onClick={() => {
-                                                    api.get(`/personnel/drivers/${d.id}/history`).then(res => {
-                                                        // Simplification: showing alert for now, you can extend this statefully
-                                                        alert(`Berhasil menarik ${res.data.length} histori untuk ${d.name}.`);
-                                                    }).catch(() => showToast('Gagal menarik histori', 'error'));
-                                                }}
-                                                className="w-full text-left px-4 py-3 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-sm font-semibold text-slate-600 transition-colors"
+                                                onClick={() => setSelectedHistoryDriver(d)}
+                                                className={`w-full text-left px-4 py-3 rounded-xl transition-colors ${selectedHistoryDriver?.id === d.id ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-700'}`}
                                             >
-                                                {d.name || d.username}
-                                                <div className="text-[10px] font-normal opacity-70 mt-1">{d.totalTrips || 0} perjalanan</div>
+                                                <div className="text-sm font-bold">{d.name || d.username}</div>
+                                                <div className={`text-[10px] font-medium mt-1 ${selectedHistoryDriver?.id === d.id ? 'text-blue-100' : 'text-slate-400'}`}>
+                                                    {d.totalTrips || 0} Total Perjalanan
+                                                </div>
                                             </button>
                                         ))}
                                     </div>
-                                    <div className="md:col-span-3 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-10 flex flex-col items-center justify-center text-center">
-                                        <Navigation2 size={48} className="text-slate-300 mb-4" />
-                                        <h4 className="text-lg font-bold text-slate-500">Histori Perjalanan</h4>
-                                        <p className="text-sm text-slate-400 mt-2 max-w-sm">
-                                            Klik tombol driver di samping untuk memuat dan melihat ringkasan riwayat perjalanannya secara lengkap. (Data difetch dari API)
-                                        </p>
+                                    <div className="md:col-span-3">
+                                        {!selectedHistoryDriver ? (
+                                            <div className="bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-10 flex flex-col items-center justify-center text-center h-full min-h-[300px]">
+                                                <Navigation2 size={48} className="text-slate-300 mb-4" />
+                                                <h4 className="text-lg font-bold text-slate-500">Pilih Driver</h4>
+                                                <p className="text-sm text-slate-400 mt-2 max-w-sm">
+                                                    Klik nama driver di panel sebelah kiri untuk memuat histori perjalanannya.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                                                <div className="bg-slate-50 p-4 border-b border-slate-200 flex justify-between items-center">
+                                                    <div className="font-bold text-slate-700 text-sm">
+                                                        Histori: <span className="text-blue-600">{selectedHistoryDriver.name || selectedHistoryDriver.username}</span>
+                                                    </div>
+                                                    <div className="text-xs font-bold text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200">
+                                                        {driverHistory.length} Perjalanan
+                                                    </div>
+                                                </div>
+                                                <div className="p-0">
+                                                    {driverHistory.length === 0 ? (
+                                                        <div className="p-10 text-center">
+                                                            <Calendar size={32} className="text-slate-300 mx-auto mb-3" />
+                                                            <p className="text-slate-500 text-sm font-medium">Tidak ada riwayat perjalanan di bulan ini.</p>
+                                                        </div>
+                                                    ) : (
+                                                        <table className="w-full text-left border-collapse">
+                                                            <thead>
+                                                                <tr className="bg-slate-50/50 text-[10px] uppercase tracking-wider text-slate-400">
+                                                                    <th className="p-4 font-bold border-b border-slate-100">Waktu</th>
+                                                                    <th className="p-4 font-bold border-b border-slate-100">Kendaraan</th>
+                                                                    <th className="p-4 font-bold border-b border-slate-100">Tujuan</th>
+                                                                    <th className="p-4 font-bold border-b border-slate-100">Tipe</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="text-sm divide-y divide-slate-100">
+                                                                {driverHistory.map((trip, idx) => (
+                                                                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                                                        <td className="p-4">
+                                                                            <div className="font-bold text-slate-700">{new Date(trip.startDate).toLocaleDateString('id-ID')}</div>
+                                                                            <div className="text-xs text-slate-400">{new Date(trip.startDate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div>
+                                                                        </td>
+                                                                        <td className="p-4">
+                                                                            <div className="font-bold text-slate-700">{trip.vehicle?.name || '-'}</div>
+                                                                            <div className="text-xs text-slate-500">{trip.vehicle?.plateNumber || '-'}</div>
+                                                                        </td>
+                                                                        <td className="p-4 text-slate-600">{trip.destination || '-'}</td>
+                                                                        <td className="p-4">
+                                                                            <span className={`px-2 py-1 rounded text-[10px] font-bold ${trip.tripType === 'BUS' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                                                {trip.tripType}
+                                                                            </span>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* PELANGGARAN TAB */}
+                        {driverSubTab === 'PELANGGARAN' && (
+                            <div className="space-y-6 animate-in fade-in duration-300">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-slate-800">Catatan Pelanggaran</h3>
+                                        <p className="text-sm text-slate-500">Database monitoring kedisiplinan pengemudi.</p>
+                                    </div>
+                                    {(isSuperAdmin || isAdminAset) && (
+                                        <button
+                                            onClick={() => setShowViolationAddModal(true)}
+                                            className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200 flex items-center gap-2 whitespace-nowrap"
+                                        >
+                                            <Plus size={16} /> Tambah Pelanggaran
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                                    {driverViolations.length === 0 ? (
+                                        <div className="py-20 text-center bg-slate-50">
+                                            <CheckCircle className="mx-auto text-emerald-300 mb-3" size={48} />
+                                            <p className="text-slate-500 font-bold">Belum ada catatan pelanggaran.</p>
+                                            <p className="text-xs text-slate-400 mt-1">Sistem kedisiplinan berjalan dengan baik.</p>
+                                        </div>
+                                    ) : (
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase">
+                                                    <th className="p-4">Tanggal</th>
+                                                    <th className="p-4">Driver</th>
+                                                    <th className="p-4">Kategori</th>
+                                                    <th className="p-4">Sanksi</th>
+                                                    <th className="p-4 text-right">Aksi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 text-sm">
+                                                {driverViolations.map((v) => (
+                                                    <tr key={v.id} className="hover:bg-slate-50">
+                                                        <td className="p-4 whitespace-nowrap font-medium text-slate-700">
+                                                            {new Date(v.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                        </td>
+                                                        <td className="p-4 font-bold text-slate-800">
+                                                            {v.driver?.name}
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-700 px-2 py-1 rounded text-xs font-bold border border-red-100">
+                                                                <AlertCircle size={12} /> {v.category}
+                                                            </div>
+                                                            <div className="text-xs text-slate-500 mt-1 max-w-xs truncate" title={v.description}>{v.description}</div>
+                                                        </td>
+                                                        <td className="p-4 font-bold text-slate-600">{v.sanction}</td>
+                                                        <td className="p-4 text-right">
+                                                            {(isSuperAdmin || isAdminAset) && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if(window.confirm('Hapus histori pelanggaran ini?')) {
+                                                                            api.delete(`/personnel/violations/${v.id}`).then(() => {
+                                                                                showToast('Pelanggaran berhasil dihapus');
+                                                                                fetchDriverViolations();
+                                                                            }).catch(() => showToast('Gagal menghapus', 'error'));
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                >
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -2091,6 +2271,108 @@ const VehicleBooking = () => {
                             <div className="pt-4">
                                 <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200">
                                     Simpan Perubahan
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Tambah Pelanggaran Modal */}
+            {showViolationAddModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-start mb-6">
+                            <h3 className="text-xl font-bold text-slate-800">Catat Pelanggaran Baru</h3>
+                            <button onClick={() => setShowViolationAddModal(false)} className="text-slate-400 hover:text-slate-600">
+                                <XCircle size={24} />
+                            </button>
+                        </div>
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                const fd = new FormData(e.target);
+                                api.post(`/personnel/violations`, {
+                                    driverId: fd.get('driverId'),
+                                    date: fd.get('date'),
+                                    category: fd.get('category'),
+                                    description: fd.get('description'),
+                                    sanction: fd.get('sanction')
+                                }).then(() => {
+                                    showToast('Pelanggaran berhasil dicatat');
+                                    fetchDriverViolations();
+                                    setShowViolationAddModal(false);
+                                }).catch(err => {
+                                    showToast('Gagal mencatat pelanggaran', 'error');
+                                });
+                            }}
+                            className="space-y-4"
+                        >
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase">Pilih Driver</label>
+                                <select 
+                                    name="driverId" 
+                                    required
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                    <option value="">-- Pilih Driver --</option>
+                                    {drivers.map(d => (
+                                        <option key={d.id} value={d.id}>{d.name || d.username}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase">Tanggal Kedjadian</label>
+                                <input 
+                                    type="date"
+                                    name="date"
+                                    required
+                                    defaultValue={new Date().toISOString().split('T')[0]}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase">Kategori Pelanggaran</label>
+                                <select 
+                                    name="category" 
+                                    required
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                    <option value="Keterlambatan">Keterlambatan</option>
+                                    <option value="Kelengkapan Atribut/SIM">Kelengkapan Atribut/SIM</option>
+                                    <option value="Lalu Lintas / Ugal-ugalan">Lalu Lintas / Ugal-ugalan</option>
+                                    <option value="Kerusakan Kendaraan (Kelalaian)">Kerusakan Kendaraan (Kelalaian)</option>
+                                    <option value="Lainnya">Lainnya</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase">Deskripsi Kejadian</label>
+                                <textarea 
+                                    name="description"
+                                    required
+                                    rows="3"
+                                    placeholder="Ceritakan kronologi singkat..."
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                ></textarea>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase">Tindakan / Sanksi</label>
+                                <input 
+                                    type="text"
+                                    name="sanction"
+                                    required
+                                    placeholder="Contoh: Teguran Lisan, SP1, Pemotongan Insentif"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+
+                            <div className="pt-4">
+                                <button type="submit" className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-200">
+                                    Simpan Pelanggaran
                                 </button>
                             </div>
                         </form>
