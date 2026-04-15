@@ -222,7 +222,7 @@ async function downloadMOUPdf(mou) {
     const root = createRoot(qrContainer);
     await new Promise((resolve) => {
       const { createElement } = require('react');
-      root.render(createElement(QRCodeLib.default, { value: qrData, size: 200, level: 'M' }));
+      root.render(createElement(QRCodeLib.default, { value: qrData, size: 200, level: 'H' }));
       setTimeout(resolve, 300);
     });
     const svgEl = qrContainer.querySelector('svg');

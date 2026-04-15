@@ -3,7 +3,11 @@ import { Database, Plus, Trash2, Building2, MapPin, Tag, Save, Edit } from 'luci
 import api from '../lib/axios';
 
 const MasterData = () => {
-    const [activeTab, setActiveTab] = useState('units');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const isAdminAset = user.role === 'ADMIN_ASET' || user.role === 'SUPER_ADMIN';
+    const isAdminUnit = user.role === 'ADMIN_UNIT';
+
+    const [activeTab, setActiveTab] = useState(isAdminAset ? 'units' : 'rooms');
     const [units, setUnits] = useState([]);
     const [rooms, setRooms] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -69,7 +73,13 @@ const MasterData = () => {
         };
         reader.readAsDataURL(file);
     };
-    const [newRoom, setNewRoom] = useState({ name: '', code: '', floor: '1', building: '', unitId: '' });
+    const [newRoom, setNewRoom] = useState({ 
+        name: '', 
+        code: '', 
+        floor: '1', 
+        building: '', 
+        unitId: (user.role === 'ADMIN_UNIT' ? user.unitId : '') 
+    });
     const [newCategory, setNewCategory] = useState({ name: '', code: '', usefulLife: 5 });
     const [editingItem, setEditingItem] = useState(null); // { type, id, data }
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -165,7 +175,13 @@ const MasterData = () => {
             } else {
                 await api.post('/master/rooms', newRoom);
             }
-            setNewRoom({ name: '', code: '', floor: '1', building: '', unitId: '' });
+            setNewRoom({ 
+                name: '', 
+                code: '', 
+                floor: '1', 
+                building: '', 
+                unitId: (user.role === 'ADMIN_UNIT' ? user.unitId : '') 
+            });
             fetchData();
         } catch (err) { alert(err.message); }
     };
@@ -221,11 +237,17 @@ const MasterData = () => {
                     address: item.address || '',
                     headName: item.headName || '',
                     headNip: item.headNip || '',
-                    logo: '' // Fallback
+                    logo: ''
                 });
             }
         }
-        if (type === 'rooms') setNewRoom({ name: item.name, code: item.code, floor: item.floor, building: item.building, unitId: item.unitId });
+        if (type === 'rooms') setNewRoom({ 
+            name: item.name, 
+            code: item.code, 
+            floor: item.floor, 
+            building: item.building, 
+            unitId: (user.role === 'ADMIN_UNIT' ? user.unitId : item.unitId)
+        });
         if (type === 'categories') setNewCategory({ name: item.name, code: item.code, usefulLife: item.usefulLife });
         setActiveTab(type);
     };
@@ -243,7 +265,13 @@ const MasterData = () => {
             headNip: '',
             logo: ''
         });
-        setNewRoom({ name: '', code: '', floor: '1', building: '', unitId: '' });
+        setNewRoom({ 
+            name: '', 
+            code: '', 
+            floor: '1', 
+            building: '', 
+            unitId: (user.role === 'ADMIN_UNIT' ? user.unitId : '') 
+        });
         setNewCategory({ name: '', code: '', usefulLife: 5 });
     };
 
@@ -260,9 +288,13 @@ const MasterData = () => {
 
             <div className="flex justify-between items-center">
                 <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100 w-fit">
-                    <button onClick={() => changeTab('units')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'units' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Unit / Divisi</button>
+                    {isAdminAset && (
+                        <button onClick={() => changeTab('units')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'units' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Unit / Divisi</button>
+                    )}
                     <button onClick={() => changeTab('rooms')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'rooms' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Ruangan</button>
-                    <button onClick={() => changeTab('categories')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'categories' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Kategori</button>
+                    {isAdminAset && (
+                        <button onClick={() => changeTab('categories')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'categories' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Kategori</button>
+                    )}
                 </div>
                 {selectedIds.size > 0 && (
                     <button onClick={handleBulkDelete} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-red-200 hover:bg-red-700 transition-all flex items-center gap-2 animate-in slide-in-from-right-5 fade-in">
@@ -283,7 +315,7 @@ const MasterData = () => {
                         )}
                     </div>
 
-                    {activeTab === 'units' && (
+                    {activeTab === 'units' && isAdminAset && (
                         <form onSubmit={handleAddUnit} className="space-y-4">
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
@@ -362,10 +394,17 @@ const MasterData = () => {
                         <form onSubmit={handleAddRoom} className="space-y-4">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-500 mb-1">Unit Induk</label>
-                                <select required value={newRoom.unitId} onChange={e => setNewRoom({ ...newRoom, unitId: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none bg-white">
-                                    <option value="">Pilih Unit</option>
+                                <select 
+                                    required 
+                                    disabled={isAdminUnit}
+                                    value={newRoom.unitId} 
+                                    onChange={e => setNewRoom({ ...newRoom, unitId: e.target.value })} 
+                                    className={`w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none bg-white ${isAdminUnit ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''}`}
+                                >
+                                    {!isAdminUnit && <option value="">Pilih Unit</option>}
                                     {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                 </select>
+                                {isAdminUnit && <p className="text-[10px] text-blue-500 mt-1 font-medium">Anda hanya dapat menambahkan ruangan untuk unit Anda.</p>}
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-slate-500 mb-1">Nama Ruangan</label>
@@ -386,7 +425,7 @@ const MasterData = () => {
                         </form>
                     )}
 
-                    {activeTab === 'categories' && (
+                    {activeTab === 'categories' && isAdminAset && (
                         <form onSubmit={handleAddCategory} className="space-y-4">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-500 mb-1">Nama Kategori</label>
@@ -434,7 +473,7 @@ const MasterData = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {activeTab === 'units' && units.map(u => (
+                                {activeTab === 'units' && isAdminAset && units.map(u => (
                                     <tr key={u.id} className="hover:bg-slate-50/50">
                                         <td className="px-6 py-3">
                                             <input
@@ -476,7 +515,7 @@ const MasterData = () => {
                                         </td>
                                     </tr>
                                 ))}
-                                {activeTab === 'categories' && categories.map(c => (
+                                {activeTab === 'categories' && isAdminAset && categories.map(c => (
                                     <tr key={c.id} className="hover:bg-slate-50/50">
                                         <td className="px-6 py-3">
                                             <input

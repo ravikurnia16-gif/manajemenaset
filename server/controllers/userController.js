@@ -166,11 +166,10 @@ exports.getSarprasStaff = async (req, res) => {
             where: {
                 OR: [
                     { position: { contains: 'Manajemen Aset' } },
-                    { position: { contains: 'Keuangan dan Administrasi' } },
-                    { position: { contains: 'Gudang' } },
-                    { position: { contains: 'Logistik' } },
-                    { position: { contains: 'Kendaraan' } },
-                    { position: { contains: 'Teknisi' } }
+                    { position: { contains: 'Keuangan dan Administrasi (Sarpras)' } },
+                    { position: { contains: 'Gudang dan Logistik' } },
+                    { position: { contains: 'Staff Kendaraan' } },
+                    { position: { contains: 'Staff Teknisi Aset' } }
                 ]
             },
             select: { id: true, name: true, username: true, position: true },

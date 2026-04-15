@@ -696,8 +696,11 @@ exports.batchImportAssets = async (req, res) => {
                 seqCache[patternPrefix]++;
                 const code = `${patternPrefix}${seqCache[patternPrefix].toString().padStart(4, '0')}`;
 
-                // 6. Specification Aggregation (DISABLED per request)
-                // const extra = ... 
+                // 6. Support Case-Insensitive Funding Source Matching
+                const SUPPORTED_FUNDING_SOURCES = ['Yayasan', 'BOS', 'Hibah', 'Pemerintah', 'Cashback', 'Mandiri', 'Lainnya'];
+                const rawSource = String(item['Sumber Dana Aset'] || '').trim();
+                const matchedSource = SUPPORTED_FUNDING_SOURCES.find(s => s.toLowerCase() === rawSource.toLowerCase());
+                const finalSource = matchedSource || rawSource || 'Lainnya';
 
                 // 7. Create Asset
                 await tx.asset.create({
@@ -713,7 +716,7 @@ exports.batchImportAssets = async (req, res) => {
                         purchaseDate: new Date(item['Tanggal Transaksi Masuk (yyyy-mm-dd)']),
                         usefulLife: parseInt(item['Umur Ekonomis Aset(tahun)']),
                         condition: String(item['Kondisi Aset']).toUpperCase().includes('RUSAK') ? 'RUSAK_RINGAN' : 'BAIK',
-                        sourceOfFunds: String(item['Sumber Dana Aset']),
+                        sourceOfFunds: finalSource,
                         picName: item['PIC (Nama Manual)'] ? String(item['PIC (Nama Manual)']) : null,
                         specification: null, // Kosongkan saat import
                         needsRoutineMaintenance: false, // Proteksi otomatis: default tidak rutin

@@ -75,7 +75,7 @@ const BusInvoiceBatchPrint = () => {
                         {/* A4 is 297mm height, margin 10mm top/btm = 277mm usable. 277/2 = 138.5mm */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 grid-rows-2 print:h-[277mm] auto-rows-min md:auto-rows-fr w-full box-border">
                             {pageInvoices.map(invoice => {
-                                const qrData = `INVOICE RESMI YDI\nRef: BUS-${invoice.id}\nLunas: ${new Date(invoice.paidAt).toLocaleDateString('id-ID')}\nTotal: Rp ${invoice.totalBill?.toLocaleString('id-ID')}`;
+                                const qrData = `${window.location.origin}/public/invoice-bus/${invoice.id}`;
                                 
                                 return (
                                     <div key={invoice.id} className="print-normalize border border-slate-200 p-6 flex flex-col relative print:h-[138.5mm] h-auto overflow-hidden">
@@ -130,10 +130,10 @@ const BusInvoiceBatchPrint = () => {
                                                 <div className="text-center relative flex flex-col items-center">
                                                     <div className="text-[7px] print:text-[6px] font-black text-slate-400 uppercase tracking-widest mb-1">Validasi Sistem</div>
                                                     <div className="bg-white p-1 border border-slate-200 rounded-lg relative shadow-sm">
-                                                        <QRCode value={qrData} size={50} />
+                                                        <QRCode value={qrData} size={80} level="H" />
                                                         <div className="absolute inset-0 flex items-center justify-center">
-                                                            <div className="bg-white p-0.5 rounded border border-slate-100">
-                                                                <img src="/Sarpras.jpeg" alt="Logo" className="w-[12px] h-[12px] object-contain rounded-sm" />
+                                                            <div className="bg-white p-1 rounded border border-slate-100">
+                                                                <img src="/Sarpras.jpeg" alt="Logo" className="w-[14px] h-[14px] object-contain rounded-sm" />
                                                             </div>
                                                         </div>
                                                     </div>
