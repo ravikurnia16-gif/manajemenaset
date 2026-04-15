@@ -370,12 +370,11 @@ const VehicleBooking = () => {
                 tripNotes: actionData.notes,
                 fuelRefill: actionData.fuelRefill,
                 fuelPrice: actionData.fuelPrice,
-                fuelLiters: actionData.fuelLiters,
                 fuelCondition: actionData.fuelCondition
             });
             showToast('Perjalanan selesai!', 'success');
             setShowActionModal(null);
-            setActionData({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelLiters: '', fuelCondition: null });
+            setActionData({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelCondition: null });
             fetchBookings();
             fetchVehicles(); // Refresh vehicles to update last fuel condition
 
@@ -2500,7 +2499,7 @@ const VehicleBooking = () => {
 
                                         {actionData.fuelRefill && (
                                             <div className="animate-in slide-in-from-top-2 duration-200 mt-4 space-y-3">
-                                                <div className="grid grid-cols-2 gap-3">
+                                                <div className="grid grid-cols-1 gap-3">
                                                     <div>
                                                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Total Biaya (Rp)</label>
                                                         <div className="relative">
@@ -2511,19 +2510,6 @@ const VehicleBooking = () => {
                                                                 placeholder="Rp 0"
                                                                 value={actionData.fuelPrice}
                                                                 onChange={e => setActionData({ ...actionData, fuelPrice: e.target.value })}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Jumlah Liter (L)</label>
-                                                        <div className="relative">
-                                                            <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                                            <input
-                                                                type="number" step="0.01"
-                                                                className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold"
-                                                                placeholder="0.00"
-                                                                value={actionData.fuelLiters}
-                                                                onChange={e => setActionData({ ...actionData, fuelLiters: e.target.value })}
                                                             />
                                                         </div>
                                                     </div>
