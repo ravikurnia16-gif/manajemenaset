@@ -181,7 +181,8 @@ exports.createProcurement = async (req, res) => {
                     qty: parseInt(item.qty),
                     unit: item.unit,
                     estPrice: parseFloat(item.estPrice || 0),
-                    fundingSource: item.fundingSource || 'Yayasan'
+                    fundingSource: item.fundingSource || 'Yayasan',
+                    categoryId: item.categoryId ? parseInt(item.categoryId) : null
                 };
 
                 let assignedUser = null;
@@ -374,7 +375,8 @@ exports.importProcurement = async (req, res) => {
                         qty: parseInt(item.qty),
                         unit: item.unit ? String(item.unit) : 'Unit',
                         estPrice: parseFloat(item.estPrice || 0),
-                        fundingSource: item.fundingSource || 'Yayasan'
+                        fundingSource: item.fundingSource || 'Yayasan',
+                        categoryId: item.categoryId ? parseInt(item.categoryId) : null
                     }
                 });
 
@@ -567,7 +569,7 @@ exports.updateStatus = async (req, res) => {
 // Update Item Detail (Vendor, Brand, Specs)
 exports.updateItemDetail = async (req, res) => {
     const { itemId } = req.params;
-    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison, assignedTo, assignedToId, assignmentNote, spec } = req.body;
+    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison, assignedTo, assignedToId, assignmentNote, spec, categoryId } = req.body;
 
     try {
         let finalVendorId = vendorId;
@@ -597,7 +599,8 @@ exports.updateItemDetail = async (req, res) => {
             assignedTo,
             assignedToId: assignedToId ? parseInt(assignedToId) : null,
             assignmentNote: assignmentNote || undefined,
-            spec: spec !== undefined ? spec : undefined
+            spec: spec !== undefined ? spec : undefined,
+            categoryId: categoryId ? parseInt(categoryId) : undefined
         };
 
         // Explicitly handle comparisonVendors
@@ -836,11 +839,18 @@ exports.processBAST = async (req, res) => {
 
                 const defaultCategory = await prisma.category.findFirst();
                 if (!defaultCategory) throw new Error('No Category found in Master Data. Please create one.');
-                const categoryCode = defaultCategory.code;
-
+                
                 for (const item of procurement.items) {
                     const qty = item.qty;
                     const unitCode = procurement.unit.code;
+
+                    // Fetch actual category for code generation (consistent with item.categoryId)
+                    const itemCategory = item.categoryId 
+                        ? await prisma.category.findUnique({ where: { id: item.categoryId } }) 
+                        : defaultCategory;
+                    
+                    if (!itemCategory) throw new Error(`Category with ID ${item.categoryId} not found.`);
+                    const categoryCode = itemCategory.code;
 
                     const patternPrefix = `${prefix}.${unitCode}.${categoryCode}.${year}.`;
 
@@ -885,8 +895,8 @@ exports.processBAST = async (req, res) => {
                                 acquisitionStatus: 'Pembelian',
                                 unitId: procurement.unitId,
                                 roomId: roomId,
-                                categoryId: defaultCategory.id,
-                                usefulLife: item.usefulLife || 4,
+                                categoryId: item.categoryId || defaultCategory.id,
+                                usefulLife: item.usefulLife || itemCategory.usefulLife || 4,
                                 vendorName: item.vendor ? item.vendor.name : null,
                                 quantity: 1,
                                 picId: picId || null

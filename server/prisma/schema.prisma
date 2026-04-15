@@ -175,6 +175,7 @@ model Category {
   usefulLife         Int // In years
   depreciationMethod String // e.g. STRAIGHT_LINE
   assets             Asset[]
+  procurementItems   ProcurementItem[]
 }
 
 model Vendor {
@@ -476,6 +477,9 @@ model ProcurementItem {
   assignedToId   Int?
   assignedToUser User?   @relation("ItemAssignee", fields: [assignedToId], references: [id])
   assignmentNote String? @db.Text
+
+  categoryId Int?
+  category   Category? @relation(fields: [categoryId], references: [id])
 }
 
 model VendorOffer {

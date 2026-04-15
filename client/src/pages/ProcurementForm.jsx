@@ -9,9 +9,10 @@ const ProcurementForm = () => {
     const navigate = useNavigate();
     const [header, setHeader] = useState({ title: '', rkbId: '', isDirectOrder: false, assignedStaffId: '', type: 'ASSET' });
     const [fundingSources, setFundingSources] = useState(['Yayasan', 'Hibah', 'Wakaf', 'Mandiri']);
+    const [categories, setCategories] = useState([]);
     const [staffList, setStaffList] = useState([]);
     const [items, setItems] = useState([
-        { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan', type: 'ASSET' }
+        { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan', type: 'ASSET', categoryId: '' }
     ]);
     const [loading, setLoading] = useState(false);
     const fileInputRef = useRef(null);
@@ -43,6 +44,10 @@ const ProcurementForm = () => {
                 })
                 .catch(err => console.error("Failed to fetch staff:", err));
         }
+
+        api.get('/master/categories')
+            .then(res => setCategories(res.data || []))
+            .catch(err => console.error("Failed to fetch categories:", err));
     }, [isAuthorizedForDirectOrder]);
 
     const handleItemChange = (index, field, value) => {
@@ -52,7 +57,7 @@ const ProcurementForm = () => {
     };
 
     const addItem = () => {
-        setItems([...items, { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan', type: 'ASSET' }]);
+        setItems([...items, { name: '', spec: '', qty: 1, unit: 'unit', estPrice: 0, fundingSource: 'Yayasan', type: 'ASSET', categoryId: '' }]);
     };
 
     const removeItem = (index) => {
@@ -92,7 +97,8 @@ const ProcurementForm = () => {
                     unit,
                     estPrice: parseFloat(row['Harga'] || row['Estimasi Harga'] || 0) || 0,
                     fundingSource: row['Sumber Dana'] || row['Funding'] || 'Mandiri',
-                    type: 'ASSET'
+                    type: 'ASSET',
+                    categoryId: ''
                 };
             });
 
@@ -127,7 +133,8 @@ const ProcurementForm = () => {
             { header: 'Jumlah', key: 'qty', width: 10 },
             { header: 'Satuan', key: 'unit', width: 10 },
             { header: 'Estimasi Harga', key: 'estPrice', width: 15 },
-            { header: 'Sumber Dana', key: 'fundingSource', width: 15 }
+            { header: 'Sumber Dana', key: 'fundingSource', width: 15 },
+            { header: 'Kategori', key: 'category', width: 15 }
         ];
 
         // Style the header
@@ -290,11 +297,18 @@ const ProcurementForm = () => {
                                                 />
                                             </div>
                                             <div className="md:col-span-1">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Tujuan</label>
-                                                <div className="bg-slate-50 border border-slate-200 p-2 rounded text-xs text-slate-500 font-bold flex items-center gap-2">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                                                    Pencatatan Aset
-                                                </div>
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Kategori Aset (Wajib)</label>
+                                                <select
+                                                    className="border border-slate-300 p-2 rounded text-sm font-semibold w-full focus:border-blue-500 outline-none bg-white"
+                                                    value={item.categoryId}
+                                                    onChange={e => handleItemChange(index, 'categoryId', e.target.value)}
+                                                    required
+                                                >
+                                                    <option value="">-- Pilih Kategori --</option>
+                                                    {categories.map(cat => (
+                                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                                    ))}
+                                                </select>
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
