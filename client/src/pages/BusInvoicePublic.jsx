@@ -23,7 +23,7 @@ const BusInvoicePublic = () => {
     if (loading) return <div className="p-10 text-center font-bold text-slate-500">Memuat Invoice...</div>;
     if (error || !invoice) return <div className="p-10 text-center font-bold text-red-500">{error}</div>;
 
-    const qrData = `INVOICE RESMI YDI\nRef: BUS-${invoice.id}\nLunas: ${new Date(invoice.paidAt).toLocaleDateString('id-ID')}\nNominal: Rp ${invoice.totalBill?.toLocaleString('id-ID')}`;
+    const qrData = `${window.location.origin}/public/invoice-bus/${invoice.id}`;
 
     return (
         <div className="min-h-screen bg-slate-100 p-4 font-sans print:bg-white print:p-0 print:min-h-0 print:block">
@@ -145,11 +145,11 @@ const BusInvoicePublic = () => {
                         <div className="text-center w-full sm:w-auto flex flex-col items-center">
                             <div className="text-[8px] print:text-[7px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tanda Tangan Digital</div>
                             <div className="bg-white p-1.5 print:p-1 inline-block border border-slate-200 rounded-xl shadow-sm relative">
-                                <QRCode value={qrData} size={75} level="H" />
+                                <QRCode value={qrData} size={80} level="H" />
                                 {/* Overlay Logo in the middle of QR */}
                                 <div className="absolute inset-0 flex items-center justify-center">
                                     <div className="bg-white p-0.5 rounded border border-slate-100">
-                                        <img src="/Sarpras.jpeg" alt="Logo" className="w-4 h-4 object-contain rounded-sm" />
+                                        <img src="/Sarpras.jpeg" alt="Logo" className="w-[14px] h-[14px] object-contain rounded-sm" />
                                     </div>
                                 </div>
                             </div>

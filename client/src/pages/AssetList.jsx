@@ -639,7 +639,9 @@ const AssetList = ({ validationMode = false }) => {
                         </div>
 
                         {/* Paper Size Selection */}
-                        <div className="bg-slate-50 p-4 border-b border-slate-100 flex flex-col gap-3">
+                        {actionModal.type === 'print' && (
+                            <>
+                                <div className="bg-slate-50 p-4 border-b border-slate-100 flex flex-col gap-3">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ukuran Kertas</label>
                             <div className="flex flex-wrap gap-2">
                                 {[
@@ -731,6 +733,8 @@ const AssetList = ({ validationMode = false }) => {
                                 </div>
                             )}
                         </div>
+                            </>
+                        )}
 
                         <div className="p-6 pt-2 flex justify-end gap-3">
                             <button
