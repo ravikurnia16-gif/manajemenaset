@@ -377,8 +377,8 @@ exports.startTrip = async (req, res) => {
             const recipients = await prisma.user.findMany({
                 where: {
                     OR: [
-                        { position: { contains: 'Sarana' } }, // Matches "Kepala Bidang Sarana..."
-                        { position: { contains: 'Kendaraan' } } // Matches "Staff Kendaraan", "Staf Kendaraan", "Pengelola Kendaraan", etc.
+                        { position: { contains: 'kepala Bidang Sarana dan Prasarana' } }, // Matches "Kepala Bidang Sarana..."
+                        { position: { contains: 'Staff Kendaraan' } } // Matches "Staff Kendaraan", "Staf Kendaraan", "Pengelola Kendaraan", etc.
                     ],
                     AND: [
                         { phone: { not: null } },
