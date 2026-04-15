@@ -51,7 +51,11 @@ exports.getAllProcurements = async (req, res) => {
         if (unitId) whereClause.unitId = parseInt(unitId);
 
         if (['ADMIN_UNIT', 'USER'].includes(user.role)) {
-            whereClause.unitId = user.unitId;
+            whereClause.OR = [
+                { unitId: user.unitId },
+                { userId: user.id },
+                { items: { some: { assignedToId: user.id } } }
+            ];
         }
 
         const procurements = await prisma.procurement.findMany({
