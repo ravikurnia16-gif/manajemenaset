@@ -74,9 +74,21 @@ exports.updateUser = async (req, res) => {
 
         const user = await prisma.user.update({
             where: { id: parseInt(id) },
-            data
+            data,
+            select: {
+                id: true,
+                username: true,
+                name: true,
+                email: true,
+                nip: true,
+                phone: true,
+                position: true,
+                role: true,
+                unitId: true,
+                unit: { select: { name: true } }
+            }
         });
-        res.json({ message: 'User updated successfully', user: { id: user.id, username: user.username, role: user.role } });
+        res.json({ message: 'User updated successfully', user });
     } catch (error) {
         if (error.code === 'P2002') {
             return res.status(400).json({ error: 'Username, Email, atau NIP sudah terdaftar' });

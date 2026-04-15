@@ -167,16 +167,9 @@ const Settings = () => {
                 phone: myProfile.phone
             });
             alert('Profil berhasil diperbarui!');
-
-            // Sync with local storage user if needed
-            const updatedUser = { ...currentUser, name: res.data.user.name, email: res.data.user.email, phone: res.data.user.phone };
-            localStorage.setItem('user', JSON.stringify(updatedUser));
-            setCurrentUser(updatedUser);
-
-            setMyProfile({
-                ...res.data.user,
-                unitName: res.data.user.unit?.name || 'GLOBAL'
-            });
+            
+            // Reload to sync with Layout and other components immediately
+            window.location.reload();
         } catch (error) {
             alert(error.response?.data?.error || 'Gagal menyimpan profil.');
         } finally {
@@ -189,8 +182,15 @@ const Settings = () => {
         try {
             if (newUser.id) {
                 // UPDATE logic
-                await api.put(`/users/${newUser.id}`, newUser);
+                const res = await api.put(`/users/${newUser.id}`, newUser);
                 alert('User berhasil diperbarui!');
+                
+                // If the updated user is the current user, sync localStorage and reload
+                if (newUser.id === currentUser.id) {
+                    localStorage.setItem('user', JSON.stringify(res.data.user));
+                    window.location.reload();
+                    return;
+                }
             } else {
                 // CREATE logic
                 await api.post('/users', newUser);
