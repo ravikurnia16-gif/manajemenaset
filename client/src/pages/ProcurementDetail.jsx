@@ -375,13 +375,13 @@ const ProcurementDetail = () => {
     const handleSaveItem = async (item, silent = false) => {
         try {
             if (!silent) setSavingItems(prev => ({ ...prev, [item.id]: true }));
-            
+
             let vendorId = item.vendorId, newVendorName = null;
             if (item.vendorId === 'OTHER') { vendorId = null; newVendorName = item.newVendorName; }
             else if (typeof item.vendorId === 'string' && item.vendorId.startsWith('CV-')) {
                 vendorId = null; newVendorName = item.vendorId.replace('CV-', '');
             }
-            
+
             await api.put(`/procurements/items/${item.id}`, {
                 fundingSource: item.fundingSource, brand: item.brand,
                 usefulLife: item.usefulLife, finalPrice: item.finalPrice,
@@ -404,10 +404,10 @@ const ProcurementDetail = () => {
                 }, 2000);
                 // fetchDetail(); // Optional if we trust optimistic state
             }
-        } catch (e) { 
+        } catch (e) {
             if (!silent) {
                 setSavingItems(prev => ({ ...prev, [item.id]: false }));
-                alert('Gagal menyimpan'); 
+                alert('Gagal menyimpan');
             }
         }
     };
@@ -1046,8 +1046,8 @@ const ProcurementDetail = () => {
                                     {/* Save button per item */}
                                     {!disabled && (
                                         <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
-                                            <Btn 
-                                                variant={savingItems[item.id] === 'done' ? 'success' : 'ghost'} 
+                                            <Btn
+                                                variant={savingItems[item.id] === 'done' ? 'success' : 'ghost'}
                                                 style={{ fontSize: 12, padding: '7px 14px', minWidth: 100 }}
                                                 onClick={() => handleSaveItem(item)}
                                                 disabled={savingItems[item.id] === true}
