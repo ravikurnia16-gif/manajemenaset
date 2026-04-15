@@ -377,12 +377,13 @@ exports.startTrip = async (req, res) => {
             const recipients = await prisma.user.findMany({
                 where: {
                     OR: [
-                        { position: 'Kepala Bidang Sarana dan Prasarana' },
-                        { position: { contains: 'Staff Kendaraan' } }
+                        { position: { contains: 'Sarana' } }, // Matches "Kepala Bidang Sarana..."
+                        { position: { contains: 'Kendaraan' } } // Matches "Staff Kendaraan", "Staf Kendaraan", "Pengelola Kendaraan", etc.
                     ],
                     AND: [
                         { phone: { not: null } },
-                        { NOT: { phone: '' } }
+                        { NOT: { phone: '' } },
+                        { NOT: { phone: '08' } }
                     ]
                 }
             });
@@ -483,8 +484,12 @@ exports.endTrip = async (req, res) => {
 
             const staffRecipients = await prisma.user.findMany({
                 where: {
-                    position: { contains: 'Staff Kendaraan' },
-                    phone: { not: null, not: '' }
+                    position: { contains: 'Kendaraan' },
+                    AND: [
+                        { phone: { not: null } },
+                        { NOT: { phone: '' } },
+                        { NOT: { phone: '08' } }
+                    ]
                 }
             });
 
