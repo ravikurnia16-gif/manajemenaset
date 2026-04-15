@@ -484,7 +484,7 @@ exports.endTrip = async (req, res) => {
 
             const staffRecipients = await prisma.user.findMany({
                 where: {
-                    position: { contains: 'Kendaraan' },
+                    position: { contains: 'Staff Kendaraan' },
                     AND: [
                         { phone: { not: null } },
                         { NOT: { phone: '' } },
@@ -676,7 +676,7 @@ exports.checkOverdueVehicleBookings = async () => {
             },
             include: {
                 user: true,
-                vehicle: true
+                vehicle: { include: { pics: true } }
             }
         });
 
@@ -687,11 +687,23 @@ exports.checkOverdueVehicleBookings = async () => {
 
         console.log(`[Job] Found ${overdueBookings.length} overdue trips. Sending reminders...`);
 
+        // Fetch Staff Kendaraan recipients once
+        const staffRecipients = await prisma.user.findMany({
+            where: {
+                position: { contains: 'Staff Kendaraan' },
+                AND: [
+                    { phone: { not: null } },
+                    { NOT: { phone: '' } },
+                    { NOT: { phone: '08' } }
+                ]
+            }
+        });
+
         for (const booking of overdueBookings) {
             const diffMs = now - new Date(booking.endDate);
             const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
 
-            // 1. System Notification (Bell)
+            // 1. System Notification (Bell) to User
             await createNotification(
                 booking.userId,
                 'Pengingat: Selesaikan Perjalanan',
@@ -700,7 +712,7 @@ exports.checkOverdueVehicleBookings = async () => {
                 '/kendaraan/peminjaman'
             );
 
-            // 2. WhatsApp Notification
+            // 2. WhatsApp Notification to User
             if (booking.user.phone) {
                 const waMsg = `⏰ *PENGINGAT PENYELESAIAN PERJALANAN*\n\n` +
                     `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
@@ -712,6 +724,31 @@ exports.checkOverdueVehicleBookings = async () => {
                     `Terima kasih.`;
 
                 await sendMessage(booking.user.phone, waMsg);
+            }
+
+            // 3. WhatsApp Notification to Staff Kendaraan & Vehicle PICs
+            const waStaffMsg = `⚠️ *PERINGATAN KETERLAMBATAN PENGEMBALIAN ARMADA*\n\n` +
+                `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
+                `Peminjam: *${booking.user.name}* (${booking.user.phone || 'No WA tidak terdaftar'})\n` +
+                `Destinasi: ${booking.destination}\n` +
+                `Waktu Seharusnya Selesai: ${new Date(booking.endDate).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}\n` +
+                `Keterlambatan: *${diffHours} jam*\n\n` +
+                `Peminjam melewati batas waktu peminjaman namun belum menekan tombol [Akhiri Perjalanan] di sistem.\n\n` +
+                `Mohon untuk menindaklanjuti atau menegur pengguna terkait.`;
+
+            // Merge Staff Kendaraan and Vehicle PICs (avoid duplicates)
+            const recipientIds = new Set(staffRecipients.map(s => s.id));
+            const picRecipients = (booking.vehicle.pics || []).filter(p => !recipientIds.has(p.id) && p.phone);
+            const allRecipients = [...staffRecipients, ...picRecipients];
+
+            for (const recipient of allRecipients) {
+                try {
+                    if (recipient.phone) {
+                        await sendMessage(recipient.phone, waStaffMsg);
+                    }
+                } catch (err) {
+                    console.error('Failed to notify staff/pic about overdue trip:', err.message);
+                }
             }
         }
     } catch (error) {
