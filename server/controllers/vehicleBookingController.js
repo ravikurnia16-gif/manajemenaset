@@ -373,20 +373,32 @@ exports.startTrip = async (req, res) => {
                 `Selisih: *${diff} KM*\n\n` +
                 `_Mohon tindak lanjuti jika terdapat indikasi penggunaan armada di luar sistem._`;
 
-            // A. Notify Kepala Bidang Sarpras & Staff Kendaraan
+            // A. Notify Kepala Bidang Sarpras & Staff Kendaraan & Vehicle PICs
             const recipients = await prisma.user.findMany({
                 where: {
                     OR: [
                         { position: 'Kepala Bidang Sarana dan Prasarana' },
                         { position: { contains: 'Staff Kendaraan' } }
                     ],
-                    phone: { not: null, not: '' }
+                    AND: [
+                        { phone: { not: null } },
+                        { NOT: { phone: '' } }
+                    ]
                 }
             });
 
-            for (const person of recipients) {
+            // Also include Vehicle PICs that are not already in recipients
+            const vehicleWithPics = await prisma.vehicle.findUnique({
+                where: { id: booking.vehicleId },
+                include: { pics: true }
+            });
+            const recipientIds = new Set(recipients.map(r => r.id));
+            const picRecipients = (vehicleWithPics?.pics || []).filter(p => !recipientIds.has(p.id) && p.phone);
+            const allRecipients = [...recipients, ...picRecipients];
+
+            for (const person of allRecipients) {
                 try {
-                    await sendMessage(person.phone, discMsg);
+                    if (person.phone) await sendMessage(person.phone, discMsg);
                     await createNotification(
                         person.id,
                         'Peringatan Diskrepansi Odometer',
@@ -395,7 +407,7 @@ exports.startTrip = async (req, res) => {
                         '/kendaraan/laporan'
                     );
                 } catch (err) {
-                    console.error(`Failed to notify ${person.position}:`, err.message);
+                    console.error(`Failed to notify ${person.position || 'PIC'}:`, err.message);
                 }
             }
         }
