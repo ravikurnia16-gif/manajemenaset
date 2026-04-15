@@ -676,7 +676,7 @@ exports.checkOverdueVehicleBookings = async () => {
             },
             include: {
                 user: true,
-                vehicle: { include: { pics: true } }
+                vehicle: true
             }
         });
 
@@ -726,28 +726,25 @@ exports.checkOverdueVehicleBookings = async () => {
                 await sendMessage(booking.user.phone, waMsg);
             }
 
-            // 3. WhatsApp Notification to Staff Kendaraan & Vehicle PICs
-            const waStaffMsg = `⚠️ *PERINGATAN KETERLAMBATAN PENGEMBALIAN ARMADA*\n\n` +
-                `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
-                `Peminjam: *${booking.user.name}* (${booking.user.phone || 'No WA tidak terdaftar'})\n` +
-                `Destinasi: ${booking.destination}\n` +
-                `Waktu Seharusnya Selesai: ${new Date(booking.endDate).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}\n` +
-                `Keterlambatan: *${diffHours} jam*\n\n` +
-                `Peminjam melewati batas waktu peminjaman namun belum menekan tombol [Akhiri Perjalanan] di sistem.\n\n` +
-                `Mohon untuk menindaklanjuti atau menegur pengguna terkait.`;
+            // 3. WhatsApp Notification to Staff Kendaraan
+            if (staffRecipients.length > 0) {
+                const waStaffMsg = `⚠️ *PERINGATAN KETERLAMBATAN PENGEMBALIAN ARMADA*\n\n` +
+                    `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
+                    `Peminjam: ${booking.user.name} (${booking.user.phone || 'No WA tidak ada'})\n` +
+                    `Destinasi: ${booking.destination}\n` +
+                    `Waktu Seharusnya Selesai: ${new Date(booking.endDate).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}\n` +
+                    `Keterlambatan: *${diffHours} jam*\n\n` +
+                    `Peminjam melewati batas waktu peminjaman namun belum menekan tombol [Akhiri Perjalanan] di sistem.\n\n`+
+                    `Mohon untuk menindaklanjuti atau menegur pengguna terkait.`;
 
-            // Merge Staff Kendaraan and Vehicle PICs (avoid duplicates)
-            const recipientIds = new Set(staffRecipients.map(s => s.id));
-            const picRecipients = (booking.vehicle.pics || []).filter(p => !recipientIds.has(p.id) && p.phone);
-            const allRecipients = [...staffRecipients, ...picRecipients];
-
-            for (const recipient of allRecipients) {
-                try {
-                    if (recipient.phone) {
-                        await sendMessage(recipient.phone, waStaffMsg);
+                for (const staff of staffRecipients) {
+                    try {
+                        if (staff.phone) {
+                            await sendMessage(staff.phone, waStaffMsg);
+                        }
+                    } catch (err) {
+                        console.error('Failed to notify staff about overdue trip:', err.message);
                     }
-                } catch (err) {
-                    console.error('Failed to notify staff/pic about overdue trip:', err.message);
                 }
             }
         }
