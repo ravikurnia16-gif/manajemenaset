@@ -833,19 +833,29 @@ exports.checkOverdueVehicleBookings = async () => {
             const diffMs = now - new Date(booking.endDate);
             const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
 
-            // 1. Notifikasi Sistem (Lonceng) ke Peminjam DIMATIKAN SESUAI REQUEST
-            // await createNotification(
-            //     booking.userId,
-            //     'Pengingat: Selesaikan Perjalanan',
-            //     `Perjalanan dengan ${booking.vehicle.name} ke ${booking.destination} seharusnya selesai pada ${new Date(booking.endDate).toLocaleString('id-ID')}.`,
-            //     'WARNING',
-            //     '/kendaraan/peminjaman'
-            // );
+            // 1. Notifikasi Sistem (Lonceng) ke Peminjam
+            await createNotification(
+                booking.userId,
+                'Pengingat: Selesaikan Perjalanan',
+                `Perjalanan dengan ${booking.vehicle.name} ke ${booking.destination} seharusnya selesai pada ${new Date(booking.endDate).toLocaleString('id-ID')}.`,
+                'WARNING',
+                '/kendaraan/peminjaman'
+            );
 
-            // 2. Notifikasi WhatsApp ke Peminjam DIMATIKAN SESUAI REQUEST
-            // if (booking.user.phone) {
-            //     const waMsg = `⏰ *PENGINGAT PENYELESAIAN PERJALANAN*\n\n` + ...
-            // }
+            // 2. Notifikasi WhatsApp ke Peminjam
+            if (booking.user.phone) {
+                const waMsg = `⏰ *PENGINGAT PENYELESAIAN PERJALANAN*\n\n` +
+                    `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
+                    `Destinasi: ${booking.destination}\n` +
+                    `Waktu Seharusnya Selesai: ${new Date(booking.endDate).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}\n` +
+                    `Sudah Lewat: *${diffHours} jam*\n\n` +
+                    `Apakah perjalanan Anda sudah selesai?\n\n` +
+                    `⚠️ Mohon segera selesaikan perjalanan melalui aplikasi Sarpras dengan menginputkan Kilometer Akhir agar armada dapat digunakan oleh pengguna lain.\n\n` +
+                    `💡 _Tips: Jika Anda mengalami kendala di perjalanan (contoh: macet), Anda dapat menekan tombol *Perpanjang* di aplikasi agar jadwal Anda diperbarui._\n\n` +
+                    `Terima kasih.`;
+
+                await sendMessage(booking.user.phone, waMsg);
+            }
 
             // 3. Notifikasi WhatsApp ke Staff Kendaraan
             if (staffRecipients.length > 0) {
@@ -939,10 +949,7 @@ exports.checkUpcomingVehicleBookings = async () => {
         if (lateBookings.length > 0) {
             startStaffRecipients = await prisma.user.findMany({
                 where: {
-                    OR: [
-                        { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } },
-                        { position: { contains: 'Staff Kendaraan' } }
-                    ],
+                    position: { contains: 'Staff Kendaraan' },
                     AND: [{ phone: { not: null } }, { NOT: { phone: '' } }, { NOT: { phone: '08' } }]
                 }
             });
@@ -952,20 +959,26 @@ exports.checkUpcomingVehicleBookings = async () => {
             const diffMs = now - new Date(booking.startDate);
             const diffMins = Math.floor(diffMs / (1000 * 60));
 
-            // Notifikasi Sistem (Lonceng) DIMATIKAN SESUAI REQUEST
-            // await createNotification(
-            //     booking.userId,
-            //     '⚠️ Pengingat: Segera Mulai Perjalanan',
-            //     `Jadwal armada ${booking.vehicle.name} Anda sudah dimulai pada ${formatWAWaktu(booking.startDate)}. Mohon segera klik 'Mulai Perjalanan'.`,
-            //     'WARNING',
-            //     '/kendaraan/peminjaman'
-            // );
+            // Notifikasi Sistem (Lonceng)
+            await createNotification(
+                booking.userId,
+                '⚠️ Pengingat: Segera Mulai Perjalanan',
+                `Jadwal armada ${booking.vehicle.name} Anda sudah dimulai pada ${formatWAWaktu(booking.startDate)}. Mohon segera klik 'Mulai Perjalanan'.`,
+                'WARNING',
+                '/kendaraan/peminjaman'
+            );
 
-            // Notifikasi WhatsApp ke Peminjam DIMATIKAN SESUAI REQUEST
-            // if (booking.user.phone) {
-            //     const msg = `🚗 *PENGINGAT MEMULAI PERJALANAN*\n\n` + ...
-            //     await sendMessage(booking.user.phone, msg);
-            // }
+            // Notifikasi WhatsApp ke Peminjam
+            if (booking.user.phone) {
+                const msg = `🚗 *PENGINGAT MEMULAI PERJALANAN*\n\n` +
+                    `📦 *Status*: TELAT MEMULAI\n` +
+                    `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
+                    `Jadwal Keberangkatan: ${formatWAWaktu(booking.startDate)}\n` +
+                    `Keterlambatan: *${diffMins} menit*\n\n` +
+                    `⚠️ Mohon segera input *KM AWAL* di aplikasi SARPRAS jika Anda sudah mulai menggunakan armada.\n\n` +
+                    `_Notifikasi ini akan dikirim setiap 30 menit sampai perjalanan dimulai._`;
+                await sendMessage(booking.user.phone, msg);
+            }
 
             // Notifikasi WhatsApp ke Staff Kendaraan
             if (startStaffRecipients.length > 0) {
