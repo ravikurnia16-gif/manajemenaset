@@ -292,6 +292,47 @@ exports.createReport = async (req, res) => {
     }
 };
 
+// Add Media
+exports.addMedia = async (req, res) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    try {
+        const report = await prisma.maintenance.findUnique({ where: { id: parseInt(id) } });
+        if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
+
+        const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(user.role);
+        if (report.userId !== user.id && !isAdmin) {
+            return res.status(403).json({ error: 'Anda tidak diizinkan menambahkan dokumentasi ke laporan ini.' });
+        }
+
+        const newMedia = req.uploadedMedia || [];
+        if (newMedia.length === 0) {
+            return res.status(400).json({ error: 'Tidak ada media yang diunggah.' });
+        }
+
+        let mergedMedia = [];
+        const existingMedia = report.media;
+        if (Array.isArray(existingMedia)) {
+            mergedMedia = [...existingMedia, ...newMedia];
+        } else {
+            mergedMedia = [...newMedia];
+        }
+
+        const updatedReport = await prisma.maintenance.update({
+            where: { id: parseInt(id) },
+            data: {
+                media: mergedMedia,
+                photo: report.photo ? report.photo : newMedia.find(m => m.type === 'IMAGE')?.url || null
+            }
+        });
+
+        res.json({ message: 'Dokumentasi tambahan berhasil disimpan.', data: updatedReport });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // Update Status (Workflow Transitions)
 exports.updateStatus = async (req, res) => {
     const { id } = req.params;

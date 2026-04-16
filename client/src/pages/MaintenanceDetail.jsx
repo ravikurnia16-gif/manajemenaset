@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2 } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
 
@@ -20,6 +20,7 @@ const MaintenanceDetail = () => {
     const [loading, setLoading] = useState(true);
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(user.role);
+    const [uploadingMedia, setUploadingMedia] = useState(false);
 
     // Modal state for actions
     const [actionModal, setActionModal] = useState({ show: false, type: '', nextStatus: '' });
@@ -106,6 +107,28 @@ const MaintenanceDetail = () => {
             showToast('Pembaruan status berhasil disimpan!');
         } catch (err) {
             showToast(err.response?.data?.error || 'Gagal mengubah status', 'error');
+        }
+    };
+
+    const handleAddMedia = async (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+
+        try {
+            setUploadingMedia(true);
+            const formData = new FormData();
+            files.forEach(file => formData.append('media', file));
+
+            await api.post(`/maintenance/${id}/media`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            showToast('Dokumentasi tambahan berhasil diunggah!');
+            fetchReport();
+        } catch (err) {
+            showToast(err.response?.data?.error || 'Gagal mengunggah dokumentasi', 'error');
+        } finally {
+            setUploadingMedia(false);
+            e.target.value = null;
         }
     };
 
@@ -264,10 +287,26 @@ const MaintenanceDetail = () => {
                 </div>
 
                 {/* Media Gallery */}
-                {(report.media || report.photo) && (
-                    <div className="pt-4 border-t border-slate-100">
-                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Media Bukti & Dokumentasi</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="pt-4 border-t border-slate-100">
+                    <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
+                        <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Media Bukti & Dokumentasi</h3>
+                        {(isAdmin || report.userId === user?.id) && (
+                            <label className={`cursor-pointer bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 ${uploadingMedia ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                {uploadingMedia ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                                {uploadingMedia ? 'Mengunggah...' : 'Upload Tambahan'}
+                                <input
+                                    type="file"
+                                    multiple
+                                    accept="image/*,video/*"
+                                    className="hidden"
+                                    onChange={handleAddMedia}
+                                    disabled={uploadingMedia}
+                                />
+                            </label>
+                        )}
+                    </div>
+                    {report.media || report.photo ? (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
                             {report.media ? (
                                 report.media.map((item, idx) => (
                                     <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-100 bg-slate-50 group">
@@ -305,8 +344,12 @@ const MaintenanceDetail = () => {
                                 </div>
                             )}
                         </div>
-                    </div>
-                )}
+                    ) : (
+                        <div className="text-sm text-slate-400 italic text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                            Belum ada dokumentasi media / foto
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Action Taken */}
