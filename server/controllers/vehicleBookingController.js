@@ -851,6 +851,7 @@ exports.checkOverdueVehicleBookings = async () => {
                     `Sudah Lewat: *${diffHours} jam*\n\n` +
                     `Apakah perjalanan Anda sudah selesai?\n\n` +
                     `⚠️ Mohon segera selesaikan perjalanan melalui aplikasi Sarpras dengan menginputkan Kilometer Akhir agar armada dapat digunakan oleh pengguna lain.\n\n` +
+                    `💡 _Tips: Jika Anda mengalami kendala di perjalanan (contoh: macet), Anda dapat menekan tombol *Perpanjang* di aplikasi agar jadwal Anda diperbarui._\n\n` +
                     `Terima kasih.`;
 
                 await sendMessage(booking.user.phone, waMsg);
