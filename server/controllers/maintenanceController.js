@@ -298,6 +298,9 @@ exports.updateStatus = async (req, res) => {
     const { status, approvalNote, validationNote, rejectionReason, technician, technicianPhone, actionTaken, completionNote, cost } = req.body;
 
     try {
+        const oldReport = await prisma.maintenance.findUnique({ where: { id: parseInt(id) } });
+        if (!oldReport) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
+
         const updateData = { status };
         if (approvalNote) updateData.approvalNote = approvalNote;
         if (validationNote) updateData.validationNote = validationNote;
@@ -327,7 +330,7 @@ exports.updateStatus = async (req, res) => {
         });
 
         // Check if status changed
-        const statusDidUnchange = report.status === status; // New logic for detail updates
+        const statusDidUnchange = oldReport.status === status; // New logic for detail updates
 
         // --- Predictive Maintenance Trigger (If Completed) ---
         if (status === 'COMPLETED' && report.type === 'ASSET' && report.assets.length > 0) {
