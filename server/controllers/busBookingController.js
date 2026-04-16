@@ -819,14 +819,7 @@ const completeBusBooking = async (req, res) => {
                 `_Sistem Manajemen Aset_`;
 
             try {
-                await waTemplateService.send('BUS_COMPLETED_FINANCE', booking.requesterPhone, {
-                    nama_pemesan: booking.requesterName,
-                    unit: booking.unit || '-',
-                    tujuan: booking.destination,
-                    tanggal: new Date(booking.startDate).toLocaleDateString('id-ID'),
-                    jarak: kmVal,
-                    tagihan: billAmount.toLocaleString('id-ID')
-                }, msg);
+                await whatsappService.sendMessage(booking.requesterPhone, msg);
             } catch (e) {
                 console.error('[Bus Billing] WA Failed:', e.message);
             }
@@ -853,14 +846,11 @@ const completeBusBooking = async (req, res) => {
                         `_Mohon dipantau pengadministrasiannya. Syukron._`;
 
                     for (const staff of finStaffs) {
-                        await waTemplateService.send('BUS_COMPLETED_FINANCE_STAFF', staff.phone, {
-                            nama_pemesan: booking.requesterName,
-                            unit: booking.unit || '-',
-                            tujuan: booking.destination,
-                            tanggal: new Date(booking.startDate).toLocaleDateString('id-ID'),
-                            jarak: kmVal,
-                            tagihan: billAmount.toLocaleString('id-ID')
-                        }, finMsg);
+                        try {
+                            await whatsappService.sendMessage(staff.phone, finMsg);
+                        } catch (err) {
+                            console.error(`[Bus Finance] WA Failed for ${staff.name}:`, err.message);
+                        }
                     }
                 }
             } catch (e) {
@@ -909,13 +899,7 @@ const markBusAsPaid = async (req, res) => {
                 `_Bagian Keuangan & Sarpras Yayasan Dar el-Iman_`;
 
             try {
-                await waTemplateService.send('BUS_COMPLETED_INVOICE', updated.requesterPhone, {
-                    nama_pemesan: updated.requesterName,
-                    tujuan: updated.destination,
-                    tanggal: new Date(updated.paidAt).toLocaleDateString('id-ID'),
-                    tagihan: updated.totalBill?.toLocaleString('id-ID'),
-                    link_invoice: invoiceLink
-                }, msg);
+                await whatsappService.sendMessage(updated.requesterPhone, msg);
             } catch (e) {
                 console.error('[Bus Finance] Invoice WA Failed:', e.message);
             }
