@@ -214,7 +214,7 @@ exports.requestBooking = async (req, res) => {
             if (initialStatus === 'APPROVED') statusText = `*Status*: Otomatis Disetujui (${isMotor ? 'Sistem' : (isYayasan ? 'Yayasan' : 'PIC')})`;
             if (initialStatus === 'BERLANGSUNG') statusText = `*Status*: BERLANGSUNG (Perjalanan sudah dimulai)`;
 
-            const msg = `${msgHeader}\n\n` +
+            let msg = `${msgHeader}\n\n` +
                 `Pemohon: ${booking.user.name}\n` +
                 `Armada: ${vehicle.name} (${vehicle.plateNumber})\n` +
                 `Driver: ${driverName}\n` +
@@ -222,6 +222,12 @@ exports.requestBooking = async (req, res) => {
                 `Tujuan: ${destination}\n` +
                 `Keperluan: ${purpose}\n\n` +
                 statusText;
+
+            if (initialStatus === 'PENDING') {
+                const domainUrl = process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id';
+                const routeStr = isRental ? 'sewa' : 'peminjaman';
+                msg += `\n\n🔗 *Tinjau & Setujui di sini:*\n${domainUrl}/kendaraan/${routeStr}`;
+            }
 
             for (const pic of vehicle.pics) {
                 if (pic.phone) {
