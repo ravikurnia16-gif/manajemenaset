@@ -515,12 +515,17 @@ const assignDriver = async (req, res) => {
         // Notify Driver (Async)
         if (booking.driver?.phone) {
             (async () => {
+                const cleanPhone = formatPhoneForWA(booking.requesterPhone);
+                const waLink = cleanPhone ? `https://wa.me/${cleanPhone}` : null;
+
                 const msg = `*PENUGASAN SUPIR BUS*\n\n` +
                     `Assalamu'alaikum ${booking.driver.name},\n\n` +
                     `Anda telah ditugaskan untuk mengendarai armada berikut:\n` +
                     `🚌 *Bus*: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
                     `📍 *Tujuan*: ${booking.destination}\n` +
                     `📅 *Jadwal*: ${new Date(booking.startDate).toLocaleString('id-ID')} s/d ${new Date(booking.endDate).toLocaleString('id-ID')}\n\n` +
+                    `👤 *Pemesan*: ${booking.requesterName}\n` +
+                    (waLink ? `📞 *WA Pemesan*: ${waLink}\n\n` : `📞 *HP Pemesan*: ${booking.requesterPhone}\n\n`) +
                     `Tugas ini sudah masuk secara otomatis ke menu *Permohonan Saya*. Silakan klik *Mulai Perjalanan* saat Anda berangkat.\n\nSyukron.`;
                 try { await whatsappService.sendMessage(booking.driver.phone, msg); } catch (e) { }
             })();

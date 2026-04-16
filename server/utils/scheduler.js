@@ -85,14 +85,21 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
-        // 4. OVERDUE REMINDERS (Multiple times daily)
+        // 4. VEHICLE BOOKING REMINDERS (Every 30 minutes)
+        // ----------------------------------------------------
+        if (minute % 30 === 0) {
+            console.log(`[Scheduler] Checking Vehicle Booking Reminders at ${hour}:${minute}...`);
+            try { await checkOverdueVehicleBookings(); } catch (e) { console.error('checkOverdueVehicleBookings failed:', e.message); }
+            try { await checkUpcomingVehicleBookings(); } catch (e) { console.error('checkUpcomingVehicleBookings failed:', e.message); }
+        }
+
+        // ----------------------------------------------------
+        // 5. PERIODIC TASKS (Every 3 hours)
         // 5:00, 8:00, 11:00, 14:00, 17:00, 20:00, 23:00
         // ----------------------------------------------------
         if ([5, 8, 11, 14, 17, 20, 23].includes(hour) && minute === 0) {
-            console.log(`[Scheduler] Executing Overdue Vehicle Reminders at ${hour}:00...`);
+            console.log(`[Scheduler] Executing Periodic Jobs at ${hour}:00...`);
             try {
-                await checkOverdueVehicleBookings();
-                await checkUpcomingVehicleBookings();
                 await checkAssignmentDeadlines();
 
                 // Specific Personnel Reminders

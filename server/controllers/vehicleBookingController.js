@@ -703,7 +703,7 @@ exports.checkOverdueVehicleBookings = async () => {
             const diffMs = now - new Date(booking.endDate);
             const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
 
-            // 1. System Notification (Bell) to User
+            // 1. Notifikasi Sistem (Lonceng) ke Peminjam
             await createNotification(
                 booking.userId,
                 'Pengingat: Selesaikan Perjalanan',
@@ -712,7 +712,7 @@ exports.checkOverdueVehicleBookings = async () => {
                 '/kendaraan/peminjaman'
             );
 
-            // 2. WhatsApp Notification to User
+            // 2. Notifikasi WhatsApp ke Peminjam
             if (booking.user.phone) {
                 const waMsg = `⏰ *PENGINGAT PENYELESAIAN PERJALANAN*\n\n` +
                     `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
@@ -726,16 +726,20 @@ exports.checkOverdueVehicleBookings = async () => {
                 await sendMessage(booking.user.phone, waMsg);
             }
 
-            // 3. WhatsApp Notification to Staff Kendaraan
+            // 3. Notifikasi WhatsApp ke Staff Kendaraan
             if (staffRecipients.length > 0) {
+                const cleanPhone = booking.user.phone ? booking.user.phone.replace(/\D/g, '').replace(/^0/, '62') : null;
+                const waLink = cleanPhone ? `https://wa.me/${cleanPhone}` : null;
+
                 const waStaffMsg = `⚠️ *PERINGATAN KETERLAMBATAN PENGEMBALIAN ARMADA*\n\n` +
                     `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
-                    `Peminjam: ${booking.user.name} (${booking.user.phone || 'No WA tidak ada'})\n` +
-                    `Destinasi: ${booking.destination}\n` +
-                    `Waktu Seharusnya Selesai: ${new Date(booking.endDate).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}\n` +
+                    `Peminjam: ${booking.user.name}\n` +
+                    (waLink ? `WA Peminjam: ${waLink}\n` : `No. HP Peminjam: ${booking.user.phone || '-'}\n`) +
+                    `Tujuan: ${booking.destination}\n` +
+                    `Batas Waktu: ${new Date(booking.endDate).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}\n` +
                     `Keterlambatan: *${diffHours} jam*\n\n` +
-                    `Peminjam melewati batas waktu peminjaman namun belum menekan tombol [Akhiri Perjalanan] di sistem.\n\n`+
-                    `Mohon untuk menindaklanjuti atau menegur pengguna terkait.`;
+                    `Peminjam melewati batas waktu peminjaman namun belum menekan tombol [Akhiri Perjalanan] di sistem.\n\n` +
+                    `Mohon untuk segera menindaklanjuti atau menghubungi peminjam yang bersangkutan.`;
 
                 for (const staff of staffRecipients) {
                     try {
@@ -753,58 +757,86 @@ exports.checkOverdueVehicleBookings = async () => {
     }
 };
 
-// 8. Automated Check for Start Reminders (Used by Scheduler)
+// 8. Pengecekan Otomatis untuk Pengingat Mulai Perjalanan (Dijalankan oleh Penjadwal)
 exports.checkUpcomingVehicleBookings = async () => {
-    console.log(`[${new Date().toLocaleString()}] [Job] Checking for not-yet-started vehicle trips...`);
+    console.log(`[${new Date().toLocaleString()}] [Job] Memeriksa Peminjaman Kendaraan (Pengingat Terus-Menerus)...`);
     try {
         const now = new Date();
+        const thirtyMinsLater = new Date(now.getTime() + 30 * 60 * 1000);
+        const fifteenMinsLater = new Date(now.getTime() + 15 * 60 * 1000);
 
-        // Find bookings that are APPROVED but passed startDate and tripStartTime is null
-        const upcomingBookings = await prisma.vehicleBooking.findMany({
+        // 1. PENGINGAT DINI (ADVANCE): Perjalanan yang akan dimulai dalam ~30 menit
+        // Ini akan memicu ketika waktu saat ini adalah 30 menit sebelum jadwal keberangkatan
+        const advanceBookings = await prisma.vehicleBooking.findMany({
             where: {
                 status: 'APPROVED',
-                startDate: { lt: now }, // Should have started
-                tripStartTime: null,   // Not started yet
+                startDate: { gte: now, lte: thirtyMinsLater },
+                tripStartTime: null
             },
-            include: {
-                user: true,
-                vehicle: true
-            }
+            include: { user: true, vehicle: true }
         });
 
-        if (upcomingBookings.length === 0) {
-            console.log('[Job] No non-started vehicle trips found.');
-            return;
+        for (const booking of advanceBookings) {
+            const diffMs = new Date(booking.startDate) - now;
+            const diffMins = Math.round(diffMs / (1000 * 60));
+
+            // Hanya kirim notifikasi jika berada dalam rentang waktu agar hanya dikirim sekali pada H-30 menit
+            if (diffMins >= 15 && diffMins <= 30) {
+                await createNotification(
+                    booking.userId,
+                    '📢 Pengingat: Perjalanan Segera Dimulai',
+                    `Armada ${booking.vehicle.name} Anda dijadwalkan berangkat dalam ${diffMins} menit lagi.`,
+                    'INFO',
+                    '/kendaraan/peminjaman'
+                );
+
+                if (booking.user.phone) {
+                    const msg = `🔔 *PENGINGAT KEBERANGKATAN KENDARAAN*\n\n` +
+                        `Bismillah Ustadz ${booking.user.name},\n\n` +
+                        `🚗 *Armada*: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
+                        `📍 *Tujuan*: ${booking.destination}\n` +
+                        `📅 *Jadwal*: ${formatWAWaktu(booking.startDate)}\n\n` +
+                        `Keberangkatan dijadwalkan dalam *${diffMins} menit lagi*. Mohon bersiap.\n\n` +
+                        `_Syukron Jazakumullah Khairan._`;
+                    await sendMessage(booking.user.phone, msg);
+                }
+            }
         }
 
-        console.log(`[Job] Found ${upcomingBookings.length} non-started trips. Sending reminders...`);
+        // 2. PENGINGAT LUPA MEMULAI (TERUS-MENERUS): Perjalanan yang jadwalnya sudah lewat
+        // Tidak ada batasan jendela waktu di sini (akan dikirim setiap 30 menit selama status masih APPROVED)
+        const lateBookings = await prisma.vehicleBooking.findMany({
+            where: {
+                status: 'APPROVED',
+                startDate: { lte: now },
+                tripStartTime: null
+            },
+            include: { user: true, vehicle: true }
+        });
 
-        for (const booking of upcomingBookings) {
+        for (const booking of lateBookings) {
             const diffMs = now - new Date(booking.startDate);
-            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffMins = Math.floor(diffMs / (1000 * 60));
 
-            // 1. System Notification (Bell)
+            // Notifikasi Sistem (Lonceng)
             await createNotification(
                 booking.userId,
-                'Pengingat: Mulai Perjalanan',
-                `Jadwal peminjaman ${booking.vehicle.name} Anda sudah mulai pada ${formatWAWaktu(booking.startDate)}. Mohon segera mulai perjalanan.`,
+                '⚠️ Pengingat: Segera Mulai Perjalanan',
+                `Jadwal armada ${booking.vehicle.name} Anda sudah dimulai pada ${formatWAWaktu(booking.startDate)}. Mohon segera klik 'Mulai Perjalanan'.`,
                 'WARNING',
                 '/kendaraan/peminjaman'
             );
 
-            // 2. WhatsApp Notification
+            // Notifikasi WhatsApp
             if (booking.user.phone) {
-                const waMsg = `🚗 *PENGINGAT MEMULAI PERJALANAN*\n\n` +
+                const msg = `🚗 *PENGINGAT MEMULAI PERJALANAN*\n\n` +
+                    `📦 *Status*: TELAT MEMULAI\n` +
                     `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
-                    `Tujuan: ${booking.destination}\n` +
                     `Jadwal Keberangkatan: ${formatWAWaktu(booking.startDate)}\n` +
-                    `Sudah Lewat: *${diffHours} jam*\n\n` +
-                    `Request peminjaman Anda sudah disetujui, namun perjalanan belum dimulai.\n\n` +
-                    `⚠️ Jika Anda akan menggunakan armada, mohon segera mulai perjalanan melalui aplikasi SARPRAS dengan menginputkan Kilometer Awal.\n\n` +
-                    `Jika tidak jadi digunakan, mohon batalkan request agar armada dapat digunakan oleh pengguna lain.\n\n` +
-                    `Terima kasih.`;
-
-                await sendMessage(booking.user.phone, waMsg);
+                    `Keterlambatan: *${diffMins} menit*\n\n` +
+                    `⚠️ Mohon segera input *KM AWAL* di aplikasi SARPRAS jika Anda sudah mulai menggunakan armada.\n\n` +
+                    `_Notifikasi ini akan dikirim setiap 30 menit sampai perjalanan dimulai._`;
+                await sendMessage(booking.user.phone, msg);
             }
         }
     } catch (error) {
