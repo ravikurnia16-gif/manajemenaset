@@ -469,7 +469,8 @@ const BusBooking = () => {
                     <BusRevenueDashboard 
                         bookings={bookings} 
                         monthFilter={revMonthFilter} 
-                        setMonthFilter={setRevMonthFilter} 
+                        setMonthFilter={setRevMonthFilter}
+                        isAdminAset={isAdminAset}
                     />
                 ) : (
                     <div className="space-y-4">
@@ -829,7 +830,7 @@ const BusBooking = () => {
 };
 
 // --- Sub-Component: Revenue Dashboard ---
-const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
+const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter, isAdminAset }) => {
     const [expenses, setExpenses] = useState({ totalFuel: 0, totalMaintenance: 0, totalUnexpected: 0, totalExpenses: 0, fuelRecords: [], maintenanceRecords: [], unexpectedRecords: [] });
     const [loadingExpenses, setLoadingExpenses] = useState(true);
     const [initialFund, setInitialFund] = useState(0);
@@ -990,13 +991,15 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
                         </div>
                     )}
                 </div>
-                {!editingFund ? (
-                    <button onClick={() => { setFundInput(initialFund.toString()); setEditingFund(true); }} className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg transition-all">✏️ Ubah</button>
-                ) : (
-                    <div className="flex gap-2">
-                        <button onClick={saveInitialFund} className="text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-lg transition-all">💾 Simpan</button>
-                        <button onClick={() => setEditingFund(false)} className="text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg transition-all">Batal</button>
-                    </div>
+                {(isAdminAset) && (
+                    !editingFund ? (
+                        <button onClick={() => { setFundInput(initialFund.toString()); setEditingFund(true); }} className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg transition-all">✏️ Ubah</button>
+                    ) : (
+                        <div className="flex gap-2">
+                            <button onClick={saveInitialFund} className="text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-lg transition-all">💾 Simpan</button>
+                            <button onClick={() => setEditingFund(false)} className="text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg transition-all">Batal</button>
+                        </div>
+                    )
                 )}
             </div>
 
@@ -1050,12 +1053,14 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
                         <h4 className="text-slate-800 font-black text-sm flex items-center gap-2">⚠️ Pengeluaran Tidak Terduga</h4>
                         <p className="text-slate-500 text-[10px]">Biaya operasional tambahan di luar BBM dan Perawatan.</p>
                     </div>
-                    <button 
-                        onClick={() => setShowExpModal(true)}
-                        className="bg-slate-800 text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-slate-700 transition-all shadow-lg flex items-center gap-2"
-                    >
-                        <Plus size={14} /> CATAT PENGELUARAN BARU
-                    </button>
+                    {isAdminAset && (
+                        <button 
+                            onClick={() => setShowExpModal(true)}
+                            className="bg-slate-800 text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-slate-700 transition-all shadow-lg flex items-center gap-2"
+                        >
+                            <Plus size={14} /> CATAT PENGELUARAN BARU
+                        </button>
+                    )}
                 </div>
 
                 <div className="space-y-3 relative z-10">
@@ -1076,12 +1081,14 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter }) => {
                                     </div>
                                     <div className="flex items-center gap-4">
                                         <div className="text-sm font-black text-slate-700">Rp {u.cost?.toLocaleString('id-ID')}</div>
-                                        <button 
-                                            onClick={() => handleDeleteUnexpectedExp(u.id)}
-                                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
+                                        {isAdminAset && (
+                                            <button 
+                                                onClick={() => handleDeleteUnexpectedExp(u.id)}
+                                                className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             ))}

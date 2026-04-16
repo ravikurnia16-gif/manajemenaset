@@ -924,6 +924,12 @@ const getBusInitialFund = async (req, res) => {
 const setBusInitialFund = async (req, res) => {
     try {
         const { amount } = req.body;
+
+        // Authorization check
+        if (!['ADMIN_ASET', 'SUPER_ADMIN'].includes(req.user.role)) {
+            return res.status(403).json({ error: 'Akses ditolak' });
+        }
+
         const updated = await prisma.setting.upsert({
             where: { id: 1 },
             update: { busInitialFund: parseFloat(amount) || 0 },
