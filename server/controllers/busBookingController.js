@@ -128,7 +128,8 @@ const createBusBooking = async (req, res) => {
                     where: {
                         OR: [
                             { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } },
-                            { position: { contains: 'Staff Manajemen Aset' } }
+                            { position: { contains: 'Staff Manajemen Aset' } },
+                            { position: { contains: 'Staff Kendaraan' } }
                         ],
                         phone: { not: null, not: '' }
                     }
@@ -960,7 +961,7 @@ const getBusUnexpectedExpenses = async (req, res) => {
 const createBusUnexpectedExpense = async (req, res) => {
     try {
         const { date, description, amount } = req.body;
-        
+
         // Authorization check
         if (!['ADMIN_ASET', 'SUPER_ADMIN'].includes(req.user.role)) {
             return res.status(403).json({ error: 'Akses ditolak' });
