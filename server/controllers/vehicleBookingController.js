@@ -115,6 +115,50 @@ exports.requestBooking = async (req, res) => {
                 if (inputKm < (vehicle.odometer || 0)) {
                     return res.status(400).json({ error: `KM Awal (${inputKm}) tidak boleh lebih kecil dari odometer (${vehicle.odometer || 0}).` });
                 }
+
+                // Discrepancy Notification for Motorcycle Auto-Start (> 1 km)
+                const currentOdometer = vehicle.odometer || 0;
+                if (inputKm - currentOdometer > 1) {
+                    const diff = inputKm - currentOdometer;
+                    const discMsg = `⚠️ *PERINGATAN DISKREPANSI ODOMETER (MOTOR)*\n\n` +
+                        `Terdapat selisih kilometer saat peminjaman motor dimulai:\n` +
+                        `Armada: *${vehicle.name} (${vehicle.plateNumber})*\n` +
+                        `Pengguna: ${currentUser.name}\n` +
+                        `KM Terakhir Sistem: ${currentOdometer}\n` +
+                        `KM Awal Input: ${inputKm}\n` +
+                        `Selisih: *${diff} KM*\n\n` +
+                        `_Mohon tindak lanjuti jika terdapat indikasi penggunaan motor di luar sistem._`;
+
+                    const recipients = await prisma.user.findMany({
+                        where: {
+                            OR: [
+                                { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } },
+                                { position: { contains: 'Staff Kendaraan' } }
+                            ],
+                            AND: [{ phone: { not: null } }, { NOT: { phone: '' } }, { NOT: { phone: '08' } }]
+                        }
+                    });
+
+                    const recipientIds = new Set(recipients.map(r => r.id));
+                    const picRecipients = (vehicle.pics || []).filter(p => !recipientIds.has(p.id) && p.phone);
+                    const allRecipients = [...recipients, ...picRecipients];
+
+                    for (const person of allRecipients) {
+                        try {
+                            if (person.phone) await sendMessage(person.phone, discMsg);
+                            await createNotification(
+                                person.id,
+                                'Peringatan Diskrepansi Odometer',
+                                `Selisih ${diff} KM pada motor ${vehicle.name} (${vehicle.plateNumber}) oleh ${currentUser.name}.`,
+                                'WARNING',
+                                '/kendaraan/laporan'
+                            );
+                        } catch (err) {
+                            console.error(`Failed to notify ${person.name || 'PIC'}:`, err.message);
+                        }
+                    }
+                }
+
                 initialStatus = 'BERLANGSUNG';
                 tripStartTime = new Date();
                 finalStartKm = inputKm;
