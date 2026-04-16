@@ -157,6 +157,9 @@ const AssetList = ({ validationMode = false }) => {
     const filteredAssets = assets; // Alias for compatibility with render
 
     const getTargetData = async () => {
+        if (targetUnitId === 'SELECTED') {
+            return assets.filter(a => selectedIds.includes(a.id));
+        }
         // For export/print purposes, we need to fetch ALL matching data, not just current page.
         // This is a simplified approach: fetch all with huge limit if needed, or handle specific export endpoint.
         // For now, let's just warn or try to fetch all.
@@ -507,6 +510,15 @@ const AssetList = ({ validationMode = false }) => {
                                 >
                                     <ArrowLeftRight size={10} /> Mutasi
                                 </button>
+                                <button
+                                    onClick={() => {
+                                        setTargetUnitId('SELECTED');
+                                        setActionModal({ isOpen: true, type: 'print' });
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[10px] sm:text-xs font-bold hover:bg-indigo-100 transition-colors border border-indigo-200"
+                                >
+                                    <QrCode size={10} /> Cetak QR {selectedIds.length}
+                                </button>
                                 {isGlobalAdmin && (
                                     <button
                                         onClick={handleBulkDelete}
@@ -555,6 +567,23 @@ const AssetList = ({ validationMode = false }) => {
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">Pilih Lingkup Data</label>
                                 <div className="space-y-2">
+                                    {/* Option 0: Selected Items */}
+                                    {selectedIds.length > 0 && (
+                                        <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-slate-50">
+                                            <input
+                                                type="radio"
+                                                name="scope"
+                                                checked={targetUnitId === 'SELECTED'}
+                                                onChange={() => setTargetUnitId('SELECTED')}
+                                                className="text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <div>
+                                                <div className="font-medium text-slate-800 text-sm">Aset yang Diceklis</div>
+                                                <div className="text-[10px] text-slate-500 italic">Hanya {selectedIds.length} aset terpilih dari tabel</div>
+                                            </div>
+                                        </label>
+                                    )}
+
                                     {/* Option 1: Current filter */}
                                     <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-slate-50">
                                         <input
