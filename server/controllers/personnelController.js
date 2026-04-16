@@ -1433,12 +1433,17 @@ exports.checkPlanDeadlines = async () => {
     today.setHours(0, 0, 0, 0);
 
     try {
-        const plans = await prisma.personnelReport.findMany({
+        const reports = await prisma.personnelReport.findMany({
             where: {
-                type: 'WEEKLY',
-                metadata: { path: ['isPlan'], equals: true }
+                type: 'WEEKLY'
             },
             include: { user: true }
+        });
+
+        // Filter for work plans (metadata.isPlan === true)
+        const plans = reports.filter(r => {
+            const meta = r.metadata || {};
+            return meta.isPlan === true;
         });
 
         const kabid = await prisma.user.findFirst({
