@@ -42,6 +42,7 @@ router.post('/booking/request', verifyToken, bookingCtrl.requestBooking);
 router.post('/booking/:id/review', verifyToken, bookingCtrl.reviewBooking);
 router.post('/booking/:id/start', verifyToken, bookingCtrl.startTrip);
 router.post('/booking/:id/end', verifyToken, bookingCtrl.endTrip);
+router.put('/booking/:id/extend', verifyToken, bookingCtrl.extendTrip);
 router.post('/booking/:id/cancel', verifyToken, bookingCtrl.cancelBooking);
 
 module.exports = router;

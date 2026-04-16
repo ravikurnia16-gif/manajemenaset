@@ -580,6 +580,86 @@ exports.endTrip = async (req, res) => {
     }
 };
 
+// 4. Perpanjang Jadwal (Extend Trip)
+exports.extendTrip = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { newEndDate, extendReason } = req.body;
+
+        if (!newEndDate || !extendReason) {
+            return res.status(400).json({ error: 'Batas Waktu Baru dan Alasan Kendala wajib diisi.' });
+        }
+
+        const booking = await prisma.vehicleBooking.findUnique({
+            where: { id: parseInt(id) },
+            include: { vehicle: true, user: true }
+        });
+
+        if (!booking) return res.status(404).json({ error: 'Peminjaman tidak ditemukan.' });
+
+        if (booking.status !== 'BERLANGSUNG') {
+            return res.status(400).json({ error: 'Hanya perjalanan yang sedang BERLANGSUNG yang dapat diperpanjang.' });
+        }
+
+        // Only the requester or admins can extend
+        const isAdmin = ['ADMIN_ASET', 'SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role) || req.user.position?.includes('Sarana');
+        if (booking.userId !== req.user.id && !isAdmin) {
+            return res.status(403).json({ error: 'Anda tidak memiliki akses untuk memperpanjang perjalanan ini.' });
+        }
+
+        const newEnd = new Date(newEndDate);
+        if (newEnd <= new Date(booking.endDate)) {
+            return res.status(400).json({ error: 'Waktu selesai baru harus lebih lama dari batas waktu sebelumnya.' });
+        }
+
+        // Tambah jeda 30 menit (Buffer Time) agar tidak dempet
+        const bufferEnd = new Date(newEnd.getTime() + 30 * 60 * 1000); 
+
+        const conflict = await prisma.vehicleBooking.findFirst({
+            where: {
+                vehicleId: booking.vehicleId,
+                id: { not: booking.id },
+                status: { in: ['APPROVED', 'PENDING', 'BERLANGSUNG'] },
+                startDate: { lt: bufferEnd },
+                endDate: { gt: booking.startDate } 
+            },
+            include: { user: { select: { name: true } } }
+        });
+
+        if (conflict) {
+            return res.status(400).json({
+                error: `Gagal memperpanjang. Jadwal bentrok/dempet dengan peminjaman oleh ${conflict.user.name} pada ${formatWAWaktu(conflict.startDate)}. Harus ada jeda minimal 30 menit.`
+            });
+        }
+
+        // Update the booking
+        const updated = await prisma.vehicleBooking.update({
+            where: { id: booking.id },
+            data: {
+                endDate: newEnd,
+                purpose: booking.purpose ? `${booking.purpose}\n\n[PERPANJANGAN: Problem di jalan]: ${extendReason}` : `[PERPANJANGAN: Problem di jalan]: ${extendReason}`
+            }
+        });
+
+        // Notify Staff if necessary? Not required, just update.
+        // We can send WA to user to confirm extension.
+        if (booking.user.phone) {
+            const msg = `✅ *PERPANJANGAN WAKTU BERHASIL*\n\n` +
+                `Jadwal pengembalian armada ${booking.vehicle.name} telah berhasil diperpanjang.\n` +
+                `Batas Waktu Baru: *${formatWAWaktu(newEnd)}*\n\n` +
+                `Semoga kendala Anda segera teratasi. Hati-hati di jalan!`;
+            
+            try {
+                await sendMessage(booking.user.phone, msg);
+            } catch(e) {}
+        }
+
+        res.json(updated);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // 5. Get Bookings (Dynamic based on tabs)
 exports.getBookings = async (req, res) => {
     try {

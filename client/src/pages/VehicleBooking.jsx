@@ -387,6 +387,29 @@ const VehicleBooking = () => {
         finally { setSubmitting(false); }
     };
 
+    const handleExtendTrip = async () => {
+        if (submitting) return;
+        try {
+            if (!actionData.newEndDate || !actionData.extendReason) {
+                showToast('Waktu perpanjangan dan alasan kendala wajib diisi', 'error');
+                return;
+            }
+            setSubmitting(true);
+            await api.put(`/vehicles/booking/${showActionModal.data.id}/extend`, {
+                newEndDate: actionData.newEndDate,
+                extendReason: actionData.extendReason
+            });
+            showToast('Jadwal pengembalian berhasil diperpanjang!', 'success');
+            setShowActionModal(null);
+            setActionData({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelCondition: null, newEndDate: '', extendReason: '' });
+            fetchBookings();
+        } catch (err) {
+            showToast('Gagal memperpanjang: ' + (err.response?.data?.error || err.message), 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const handleCancel = async (id) => {
         if (!confirm('Batalkan permohonan ini?')) return;
         try {
@@ -1388,6 +1411,18 @@ const VehicleBooking = () => {
                                                         className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                                     >
                                                         <LogIn size={16} /> Start Trip
+                                                    </button>
+                                                )}
+                                                {b.status === 'BERLANGSUNG' && (
+                                                    <button
+                                                        disabled={submitting}
+                                                        onClick={() => {
+                                                            setActionData({ ...actionData, newEndDate: '', extendReason: '' });
+                                                            setShowActionModal({ type: 'EXTEND', data: b });
+                                                        }}
+                                                        className="flex-1 py-2.5 bg-amber-500 text-white rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                                    >
+                                                        <Clock size={16} /> Perpanjang
                                                     </button>
                                                 )}
                                                 {b.status === 'BERLANGSUNG' && (
@@ -2412,6 +2447,7 @@ const VehicleBooking = () => {
                                     {showActionModal.type === 'REJECT' && 'Tolak Permohonan'}
                                     {showActionModal.type === 'START' && 'Mulai Perjalanan'}
                                     {showActionModal.type === 'END' && 'Selesai Perjalanan'}
+                                    {showActionModal.type === 'EXTEND' && 'Perpanjang Jadwal'}
                                 </h3>
                                 <button onClick={() => setShowActionModal(null)} className="text-slate-400 hover:text-slate-600">
                                     <XCircle size={24} />
@@ -2571,6 +2607,45 @@ const VehicleBooking = () => {
                                     </button>
                                 </div>
                             )}
+
+                            {showActionModal.type === 'EXTEND' && (
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-amber-50 text-amber-700 rounded-xl flex gap-3 text-sm">
+                                        <AlertCircle className="shrink-0" size={20} />
+                                        <p>Perpanjangan jadwal hanya diperbolehkan apabila <b>terjadi kendala di perjalanan</b> (misal: cuaca, macet total, kondisi khusus).</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Batas Waktu Pengembalian Baru</label>
+                                        <div className="relative">
+                                            <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                            <input
+                                                type="datetime-local"
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-amber-500 outline-none font-bold"
+                                                value={actionData.newEndDate}
+                                                onChange={e => setActionData({ ...actionData, newEndDate: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Alasan Kendala</label>
+                                        <textarea
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                                            rows={2}
+                                            placeholder="Deskripsikan alasan mengapa terlambat..."
+                                            value={actionData.extendReason}
+                                            onChange={e => setActionData({ ...actionData, extendReason: e.target.value })}
+                                        />
+                                    </div>
+                                    <button
+                                        disabled={!actionData.newEndDate || !actionData.extendReason || submitting}
+                                        onClick={handleExtendTrip}
+                                        className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 disabled:opacity-50 transition-all shadow-lg shadow-amber-200"
+                                    >
+                                        Ajukan Perpanjangan
+                                    </button>
+                                </div>
+                            )}
+
                         </div>
                     </div>
                 )
