@@ -1045,6 +1045,74 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter, isAdminAse
                 </div>
             </div>
 
+            {/* Fuel Expenses List */}
+            <div className="mb-8 p-6 bg-orange-50/50 border border-orange-100 rounded-3xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 opacity-5"><BarChart3 size={120} /></div>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3 relative z-10">
+                    <div>
+                        <h4 className="text-orange-800 font-black text-sm flex items-center gap-2">⛽ Riwayat Pengisian BBM</h4>
+                        <p className="text-orange-600/70 text-[10px]">Tercatat otomatis dari penyelesaian perjalanan bus.</p>
+                    </div>
+                </div>
+
+                <div className="space-y-3 relative z-10">
+                    {filteredFuel.length === 0 ? (
+                        <div className="bg-white/50 border border-dashed border-orange-200 py-6 rounded-2xl text-center text-[10px] text-orange-400 font-bold italic">
+                            Belum ada catatan BBM untuk periode ini.
+                        </div>
+                    ) : (
+                        <div className="max-h-64 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                            {filteredFuel.map((f, i) => (
+                                <div key={i} className="bg-white p-3 rounded-2xl border border-orange-100 flex items-center justify-between shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center text-xs">⛽</div>
+                                        <div>
+                                            <div className="text-[11px] font-black text-slate-800">{f.title || 'Pengisian BBM'}</div>
+                                            <div className="text-[9px] text-slate-400 font-bold">{new Date(f.date).toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'})}</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-sm font-black text-orange-600">Rp {f.cost?.toLocaleString('id-ID')}</div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Maintenance Expenses List */}
+            <div className="mb-8 p-6 bg-violet-50/50 border border-violet-100 rounded-3xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 opacity-5"><BarChart3 size={120} /></div>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3 relative z-10">
+                    <div>
+                        <h4 className="text-violet-800 font-black text-sm flex items-center gap-2">🔧 Riwayat Perawatan & Perbaikan</h4>
+                        <p className="text-violet-600/70 text-[10px]">Tercatat otomatis dari riwayat perbaikan/servis kendaraan.</p>
+                    </div>
+                </div>
+
+                <div className="space-y-3 relative z-10">
+                    {filteredMaint.length === 0 ? (
+                        <div className="bg-white/50 border border-dashed border-violet-200 py-6 rounded-2xl text-center text-[10px] text-violet-400 font-bold italic">
+                            Belum ada catatan perawatan untuk periode ini.
+                        </div>
+                    ) : (
+                        <div className="max-h-64 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                            {filteredMaint.map((m, i) => (
+                                <div key={i} className="bg-white p-3 rounded-2xl border border-violet-100 flex items-center justify-between shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-violet-100 text-violet-600 rounded-lg flex items-center justify-center text-xs">🔧</div>
+                                        <div>
+                                            <div className="text-[11px] font-black text-slate-800">{m.title || 'Perbaikan / Perawatan'}</div>
+                                            <div className="text-[9px] text-slate-400 font-bold">{new Date(m.date).toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'})}</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-sm font-black text-violet-600">Rp {m.cost?.toLocaleString('id-ID')}</div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Unexpected Expenses Table/List */}
             <div className="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-3xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-6 opacity-5"><BarChart3 size={120} /></div>

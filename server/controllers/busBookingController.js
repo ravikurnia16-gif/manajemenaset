@@ -276,7 +276,7 @@ const getBusExpenseSummary = async (req, res) => {
                 fuelRefill: true,
                 fuelPrice: { gt: 0 }
             },
-            select: { fuelPrice: true, startDate: true, vehicleId: true }
+            select: { fuelPrice: true, startDate: true, vehicle: { select: { name: true } } }
         });
 
         // 3. Perawatan: Dari VehicleService (Service Kendaraan)
@@ -285,7 +285,7 @@ const getBusExpenseSummary = async (req, res) => {
                 vehicleId: { in: busVehicleIds },
                 cost: { gt: 0 }
             },
-            select: { cost: true, date: true, description: true, type: true }
+            select: { cost: true, date: true, description: true, type: true, vehicle: { select: { name: true } } }
         });
 
         // 4. Unexpected Expenses: Biaya tidak terduga di luar BBM & Perawatan
@@ -303,11 +303,11 @@ const getBusExpenseSummary = async (req, res) => {
             totalMaintenance,
             totalUnexpected,
             totalExpenses: totalFuel + totalMaintenance + totalUnexpected,
-            fuelRecords: vehicleBookingFuel.map(f => ({ cost: f.fuelPrice, date: f.startDate })),
+            fuelRecords: vehicleBookingFuel.map(f => ({ cost: f.fuelPrice, date: f.startDate, title: `BBM ${f.vehicle?.name || ''}`.trim() })),
             maintenanceRecords: serviceRecords.map(m => ({
                 cost: m.cost,
                 date: m.date,
-                title: m.description || m.type
+                title: `[${m.type}] ${m.vehicle?.name || 'Bus'} - ${m.description || ''}`.trim()
             })),
             unexpectedRecords: unexpectedExpenses.map(u => ({
                 id: u.id,
