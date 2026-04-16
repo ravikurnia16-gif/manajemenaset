@@ -75,6 +75,9 @@ export const LabelPrint = React.forwardRef(({ asset, size = 'small', institute }
                 <div style={{ fontSize: config.room, textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {asset?.room?.name || '-'}
                 </div>
+                <div style={{ fontSize: config.name, textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '1px', marginBottom: '1px', fontWeight: '800' }}>
+                    {asset?.name || '-'}
+                </div>
                 <div style={{ fontSize: config.code, fontFamily: "'Courier New', monospace", letterSpacing: '1px', textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.2 }}>
                     {asset?.code || '-'}
                 </div>
@@ -199,6 +202,11 @@ export const BatchLabelPrint = React.forwardRef(({ assets, institute, layout = '
                                 {/* Room */}
                                 <div style={{ fontSize: config.room, textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {asset.room?.name || '-'}
+                                </div>
+
+                                {/* Asset Name */}
+                                <div style={{ fontSize: config.name, textAlign: 'center', width: '100%', flexShrink: 0, lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '1px', marginBottom: '1px', fontWeight: '800' }}>
+                                    {asset.name || '-'}
                                 </div>
 
                                 {/* Asset Code */}
