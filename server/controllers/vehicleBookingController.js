@@ -864,6 +864,19 @@ exports.checkUpcomingVehicleBookings = async () => {
             include: { user: true, vehicle: true }
         });
 
+        let startStaffRecipients = [];
+        if (lateBookings.length > 0) {
+            startStaffRecipients = await prisma.user.findMany({
+                where: {
+                    OR: [
+                        { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } },
+                        { position: { contains: 'Staff Kendaraan' } }
+                    ],
+                    AND: [{ phone: { not: null } }, { NOT: { phone: '' } }, { NOT: { phone: '08' } }]
+                }
+            });
+        }
+
         for (const booking of lateBookings) {
             const diffMs = now - new Date(booking.startDate);
             const diffMins = Math.floor(diffMs / (1000 * 60));
@@ -877,7 +890,7 @@ exports.checkUpcomingVehicleBookings = async () => {
                 '/kendaraan/peminjaman'
             );
 
-            // Notifikasi WhatsApp
+            // Notifikasi WhatsApp ke Peminjam
             if (booking.user.phone) {
                 const msg = `🚗 *PENGINGAT MEMULAI PERJALANAN*\n\n` +
                     `📦 *Status*: TELAT MEMULAI\n` +
@@ -887,6 +900,32 @@ exports.checkUpcomingVehicleBookings = async () => {
                     `⚠️ Mohon segera input *KM AWAL* di aplikasi SARPRAS jika Anda sudah mulai menggunakan armada.\n\n` +
                     `_Notifikasi ini akan dikirim setiap 30 menit sampai perjalanan dimulai._`;
                 await sendMessage(booking.user.phone, msg);
+            }
+
+            // Notifikasi WhatsApp ke Staff Kendaraan
+            if (startStaffRecipients.length > 0) {
+                const cleanPhone = booking.user.phone ? booking.user.phone.replace(/\D/g, '').replace(/^0/, '62') : null;
+                const waLink = cleanPhone ? `https://wa.me/${cleanPhone}` : null;
+
+                const waStaffMsg = `⚠️ *INFO KETERLAMBATAN MULAI PERJALANAN*\n\n` +
+                    `Terdapat armada yang belum dimulai perjalanannya di sistem, padahal jadwal peminjaman sudah lewat:\n\n` +
+                    `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
+                    `Peminjam: ${booking.user.name}\n` +
+                    (waLink ? `WA Peminjam: ${waLink}\n` : `No. HP Peminjam: ${booking.user.phone || '-'}\n`) +
+                    `Tujuan: ${booking.destination}\n` +
+                    `Jadwal Keberangkatan: ${formatWAWaktu(booking.startDate)}\n` +
+                    `Keterlambatan: *${diffMins} menit*\n\n` +
+                    `Mohon untuk menegur peminjam yang bersangkutan agar segera input *KM Awal*.`;
+
+                for (const staff of startStaffRecipients) {
+                    try {
+                        if (staff.phone) {
+                            await sendMessage(staff.phone, waStaffMsg);
+                        }
+                    } catch (err) {
+                        console.error('Failed to notify staff about delayed start:', err.message);
+                    }
+                }
             }
         }
     } catch (error) {
