@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, User, LayoutDashboard } from 'lucide-react';
 import api from '../lib/axios';
 
 const LoginPage = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const redirectUrl = searchParams.get('redirect') || '/dashboard';
     const [formData, setFormData] = useState({ username: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -25,7 +27,7 @@ const LoginPage = () => {
             localStorage.setItem('user', JSON.stringify(user));
             localStorage.setItem('token', token);
 
-            navigate('/dashboard');
+            navigate(redirectUrl);
         } catch (error) {
             setError(error.response?.data?.error || 'Username atau password salah');
         } finally {

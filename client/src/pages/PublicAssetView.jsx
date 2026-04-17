@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Package, Calendar, Tag, DollarSign, Home, Building2, MapPin, Info, TrendingDown, Hourglass, CheckCircle2, Box, X } from 'lucide-react';
+import { Package, Calendar, Tag, DollarSign, Home, Building2, MapPin, Info, TrendingDown, Hourglass, CheckCircle2, Box, X, Wrench } from 'lucide-react';
 
 // Help helper for media URLs (manually since we don't import the lib here to keep it standalone if needed, 
 // but it's better to use the same logic as elsewhere)
@@ -22,7 +22,17 @@ const PublicAssetView = () => {
     const [asset, setAsset] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const navigate = useNavigate();
     const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const handleActionClick = (path) => {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            navigate(`/login?redirect=${encodeURIComponent(path)}`);
+        } else {
+            navigate(path);
+        }
+    };
 
     useEffect(() => {
         const fetchAsset = async () => {
@@ -133,6 +143,26 @@ const PublicAssetView = () => {
                         <DetailItem icon={Calendar} label="Tanggal Perolehan" value={new Date(asset.purchaseDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} />
                         <DetailItem icon={Building2} label="Vendor / Pemasok" value={asset.vendor} color="indigo" />
                         <DetailItem icon={Tag} label="Sumber Dana" value={asset.sourceOfFunds} color="emerald" />
+                    </div>
+
+                    {/* Quick Actions (Borrow & Maintenance) */}
+                    <div className="grid grid-cols-2 gap-3 mt-6 pt-6 border-t border-slate-100 relative z-10">
+                        <button
+                            onClick={() => handleActionClick(`/peminjaman?assetId=${asset.id}`)}
+                            className="bg-indigo-600 text-white rounded-2xl py-3.5 font-bold shadow-lg shadow-indigo-200 flex flex-col items-center gap-1 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={['Rusak Berat', 'Dihapuskan', 'Sedang Diperbaiki'].includes(asset.condition)}
+                        >
+                            <Package size={20} />
+                            <span className="text-xs">Pinjam Aset</span>
+                        </button>
+                        <button
+                            onClick={() => handleActionClick(`/pemeliharaan/input?assetId=${asset.id}`)}
+                            className="bg-orange-500 text-white rounded-2xl py-3.5 font-bold shadow-lg shadow-orange-200 flex flex-col items-center gap-1 hover:bg-orange-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={['Dihapuskan'].includes(asset.condition)}
+                        >
+                            <Wrench size={20} />
+                            <span className="text-xs">Pemeliharaan</span>
+                        </button>
                     </div>
                 </div>
 
