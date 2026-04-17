@@ -560,12 +560,10 @@ const PlanItem = ({ item, idx, onUpdate, isKabid }) => {
                     {isDone ? <CheckSquare size={20} /> : <Square size={20} />}
                 </button>
                 <span className={`flex-1 text-xs font-bold min-w-0 ${isDone ? 'text-emerald-700 line-through decoration-emerald-200' : 'text-slate-700'}`}>{item.activity}</span>
-                {!isKabid && !editing ? (
+                {!editing ? (
                     <button onClick={() => setEditing(true)} className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${isDone ? 'bg-emerald-100 text-emerald-700' : localPct > 0 ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
                         {localPct}%
                     </button>
-                ) : isKabid ? (
-                    <span className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black ${isDone ? 'bg-emerald-100 text-emerald-700' : localPct > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-400'}`}>{localPct}%</span>
                 ) : null}
             </div>
             {/* Progress bar */}
@@ -573,7 +571,7 @@ const PlanItem = ({ item, idx, onUpdate, isKabid }) => {
                 <div className={`h-full ${pctColor} rounded-full transition-all duration-500`} style={{ width: `${localPct}%` }} />
             </div>
             {/* Inline editor */}
-            {editing && !isKabid && (
+            {editing && (
                 <div className="mt-3 ml-8 flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-100 animate-in fade-in duration-200">
                     <input type="range" min="0" max="100" step="5" value={localPct || 0} onChange={e => setLocalPct(e.target.value)}
                         className="flex-1 h-1.5 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600" />
@@ -652,8 +650,8 @@ const TaskChecklist = ({ assignment, onUpdate, isAssignee, isAdmin }) => {
                                 </button>
                                 <span className={`flex-1 text-xs font-bold ${isDone ? 'text-emerald-700 line-through decoration-emerald-200' : 'text-slate-700'}`}>{item.text}</span>
                                 
-                                {!isAdmin && isAssignee && !isEditing ? (
-                                    <button onClick={() => setEditingIdx(idx) || setLocalPct(pct)} className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${isDone ? 'bg-emerald-100 text-emerald-700' : pct > 0 ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                                {!isEditing ? (
+                                    <button onClick={() => { setEditingIdx(idx); setLocalPct(pct); }} className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${isDone ? 'bg-emerald-100 text-emerald-700' : pct > 0 ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
                                         {pct}%
                                     </button>
                                 ) : (
