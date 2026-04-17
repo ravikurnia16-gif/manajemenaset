@@ -142,7 +142,7 @@ const StaffPerformance = () => {
     // Modals
     const [showRencanaModal, setShowRencanaModal] = useState(false);
     const [showTugasModal, setShowTugasModal] = useState(false);
-    const [showInsidentalModal, setShowInsidentalModal] = useState(false);
+    const [showDailyModal, setShowDailyModal] = useState(false);
     const [showRutinitasModal, setShowRutinitasModal] = useState(false);
     const [editingPlan, setEditingPlan] = useState(null);
 
@@ -271,14 +271,22 @@ const StaffPerformance = () => {
         finally { setSubmitting(false); }
     };
 
-    const handleCreateInsidental = async (formData) => {
+    const handleCreateDailyReport = async (formData) => {
         setSubmitting(true);
         try {
             await api.post('/personnel/reports', {
-                type: 'DAILY', category: 'UMUM', content: formData.activity, date: today(),
-                metadata: { items: [{ activity: formData.activity, status: formData.status || 'SELESAI', percentage: formData.status === 'SELESAI' ? 100 : (formData.percentage || 50) }], startTime: formData.time }
+                type: 'DAILY', 
+                category: 'UMUM', 
+                content: formData.items[0]?.activity || 'Laporan Harian', 
+                date: formData.date || today(),
+                metadata: { 
+                    items: formData.items,
+                    startTime: formData.startTime,
+                    endTime: formData.endTime,
+                    timestamp: new Date().toISOString()
+                }
             });
-            setShowInsidentalModal(false); await fetchDailyLogs();
+            setShowDailyModal(false); await fetchDailyLogs();
         } catch (err) { alert(err.response?.data?.error || 'Gagal menyimpan laporan'); }
         finally { setSubmitting(false); }
     };
@@ -370,8 +378,8 @@ const StaffPerformance = () => {
                             </button>
                         )}
                         {activeTab === 'LAPORAN' && (
-                            <button onClick={() => setShowInsidentalModal(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-2 active:scale-95">
-                                <Plus size={14} strokeWidth={3} />Insidental
+                            <button onClick={() => setShowDailyModal(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-2 active:scale-95">
+                                <Plus size={14} strokeWidth={3} />Laporan Harian
                             </button>
                         )}
                     </div>
@@ -398,7 +406,7 @@ const StaffPerformance = () => {
             {/* ─── MODALS ─── */}
             <RencanaFormModal open={showRencanaModal} onClose={() => { setShowRencanaModal(false); setEditingPlan(null); }} onSubmit={handleCreatePlan} submitting={submitting} editing={editingPlan} />
             <TugasFormModal open={showTugasModal} onClose={() => setShowTugasModal(false)} onSubmit={handleCreateTask} submitting={submitting} staffList={staffList} />
-            <InsidentalFormModal open={showInsidentalModal} onClose={() => setShowInsidentalModal(false)} onSubmit={handleCreateInsidental} submitting={submitting} />
+            <DailyActivityFormModal open={showDailyModal} onClose={() => setShowDailyModal(false)} onSubmit={handleCreateDailyReport} submitting={submitting} />
             <RutinitasFormModal open={showRutinitasModal} onClose={() => setShowRutinitasModal(false)} onSubmit={async (formData) => {
                 setSubmitting(true);
                 try {
@@ -800,7 +808,11 @@ const LaporanTab = ({ logs, isKabid }) => {
                                 <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all">
                                     <div className="flex items-center gap-2 mb-2">
                                         {sourceTag(log)}
-                                        <span className="text-[9px] font-bold text-slate-300 tracking-wider">{fmtTime(log.metadata?.timestamp || log.createdAt)}</span>
+                                        <span className="text-[9px] font-bold text-slate-300 tracking-wider">
+                                            {log.metadata?.startTime && log.metadata?.endTime 
+                                                ? `${log.metadata.startTime} — ${log.metadata.endTime}`
+                                                : fmtTime(log.metadata?.timestamp || log.createdAt)}
+                                        </span>
                                         {isKabid && log.user && <span className="text-[9px] font-black text-indigo-500 uppercase">{log.user.name}</span>}
                                     </div>
                                     <p className="text-xs font-bold text-slate-700 leading-relaxed">{log.content || log.metadata?.sourceTitle || '-'}</p>
@@ -1076,46 +1088,83 @@ const TugasFormModal = ({ open, onClose, onSubmit, submitting, staffList }) => {
     );
 };
 
-const InsidentalFormModal = ({ open, onClose, onSubmit, submitting }) => {
-    const [activity, setActivity] = useState('');
-    const [status, setStatus] = useState('SELESAI');
-    const [time, setTime] = useState(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
+const DailyActivityFormModal = ({ open, onClose, onSubmit, submitting }) => {
+    const [date, setDate] = useState(today());
+    const [startTime, setStartTime] = useState('');
+    const [endTime, setEndTime] = useState('');
+    const [items, setItems] = useState([{ activity: '', status: 'SELESAI' }]);
 
     useEffect(() => {
-        if (open) { setActivity(''); setStatus('SELESAI'); setTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })); }
+        if (open) { 
+            setDate(today()); 
+            setStartTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })); 
+            setEndTime('');
+            setItems([{ activity: '', status: 'SELESAI' }]); 
+        }
     }, [open]);
+
+    const addItem = () => setItems([...items, { activity: '', status: 'SELESAI' }]);
+    const removeItem = idx => setItems(items.filter((_, i) => i !== idx));
+    const updateItem = (idx, field, val) => { const n = [...items]; n[idx][field] = val; setItems(n); };
 
     const submit = e => {
         e.preventDefault();
-        if (!activity.trim()) return alert('Isi deskripsi aktivitas');
-        onSubmit({ activity, status, time });
+        const validItems = items.filter(i => i.activity.trim());
+        if (validItems.length === 0) return alert('Silakan isi setidaknya satu aktivitas');
+        onSubmit({ items: validItems, date, startTime, endTime });
     };
 
     return (
-        <Modal open={open} onClose={onClose} title="Laporan Insidental" icon={Flag}>
-            <form onSubmit={submit} className="space-y-5">
+        <Modal open={open} onClose={onClose} title="Laporan Aktivitas Harian" icon={Flag} wide>
+            <form onSubmit={submit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📅 Tanggal</label>
+                        <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">🕒 Jam Mulai</label>
+                        <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">🕒 Jam Selesai</label>
+                        <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                    </div>
+                </div>
+
                 <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📝 Apa yang dikerjakan?</label>
-                    <textarea value={activity} onChange={e => setActivity(e.target.value)} rows={3} placeholder="Misal: Perbaikan AC bocor di Ruang Kepala" autoFocus
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">🕒 Jam</label>
-                        <input type="time" value={time} onChange={e => setTime(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">📝 Daftar Kegiatan</label>
+                    <div className="space-y-3">
+                        {items.map((it, idx) => (
+                            <div key={idx} className="flex gap-3 items-start animate-in slide-in-from-right-2 duration-300">
+                                <div className="flex-1 space-y-2">
+                                    <textarea value={it.activity} onChange={e => updateItem(idx, 'activity', e.target.value)} rows={2} placeholder="Sebutkan apa yang dikerjakan..."
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                                    <div className="flex gap-2">
+                                        {['SELESAI', 'PROSES', 'PENDING'].map(s => (
+                                            <button key={s} type="button" onClick={() => updateItem(idx, 'status', s)}
+                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black transition-all ${it.status === s ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
+                                                {s}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                {items.length > 1 && (
+                                    <button type="button" onClick={() => removeItem(idx)} className="p-2 text-rose-300 hover:text-rose-500 mt-2 transition-colors">
+                                        <Trash2 size={18} />
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                        <button type="button" onClick={addItem} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-[10px] font-black text-slate-400 uppercase tracking-widest hover:border-indigo-200 hover:text-indigo-500 transition-all flex items-center justify-center gap-2">
+                            <Plus size={16} />Tambah Kegiatan
+                        </button>
                     </div>
-                    <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📊 Status</label>
-                        <select value={status} onChange={e => setStatus(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none">
-                            <option value="SELESAI">Selesai</option>
-                            <option value="PROSES">Sedang Dikerjakan</option>
-                            <option value="PENDING">Menunggu</option>
-                        </select>
-                    </div>
                 </div>
-                <button type="submit" disabled={submitting} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
+
+                <button type="submit" disabled={submitting} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
                     {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                    {submitting ? 'Menyimpan...' : 'Simpan Laporan'}
+                    {submitting ? 'Menyimpan...' : 'Simpan Laporan Harian'}
                 </button>
             </form>
         </Modal>
