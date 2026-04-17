@@ -1,5 +1,6 @@
 import { useState, useEffect, Component } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import {
     Calendar, FileText, ClipboardList, Trophy, Plus, X, ChevronDown,
     ChevronUp, CheckSquare, Square, CheckCircle, Clock, Zap, AlertCircle,
     MapPin, Loader2, Target, Timer, TrendingUp, Sparkles, Users,
