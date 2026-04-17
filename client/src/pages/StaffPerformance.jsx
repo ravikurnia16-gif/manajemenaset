@@ -138,6 +138,8 @@ const StaffPerformance = () => {
     const [dailyLogs, setDailyLogs] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
     const [staffList, setStaffList] = useState([]);
+    const [pageSize, setPageSize] = useState(20);
+    const [pagination, setPagination] = useState({ total: 0, totalPages: 1, currentPage: 1 });
 
     // Modals
     const [showRencanaModal, setShowRencanaModal] = useState(false);
@@ -179,41 +181,54 @@ const StaffPerformance = () => {
 
     useEffect(() => { if (urlTab && urlTab !== activeTab && validTabs.includes(urlTab)) setActiveTab(urlTab); }, [urlTab]);
     useEffect(() => { fetchStaff(); fetchRoutineTemplates(); }, []);
-    useEffect(() => { fetchTabData(); }, [activeTab, filterStaff, filterPeriod]);
+    useEffect(() => { 
+        setPagination(prev => ({ ...prev, currentPage: 1 })); 
+        fetchTabData(1, pageSize); 
+    }, [activeTab, filterStaff, filterPeriod, pageSize]);
 
     const fetchStaff = async () => { try { const r = await api.get('/personnel/staff'); setStaffList(r.data || []); } catch {} };
     const fetchRoutineTemplates = async () => { try { const r = await api.get('/personnel/routines'); setRoutineTemplates(r.data || []); } catch {} };
 
-    const fetchTabData = async () => {
+    const fetchTabData = async (page = pagination.currentPage, limit = pageSize) => {
         setLoading(true);
         try {
-            if (activeTab === 'RENCANA_TUGAS') { await fetchPlans(); await fetchAllAssignments(); }
-            else if (activeTab === 'RUTINITAS') await fetchAllAssignments();
-            else if (activeTab === 'LAPORAN') await fetchDailyLogs();
+            if (activeTab === 'RENCANA_TUGAS') { await fetchPlans(page, limit); await fetchAllAssignments(page, limit); }
+            else if (activeTab === 'RUTINITAS') await fetchAllAssignments(page, limit);
+            else if (activeTab === 'LAPORAN') await fetchDailyLogs(page, limit);
             else if (activeTab === 'KPI') await fetchKPI();
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
 
-    const fetchPlans = async () => {
-        const params = { type: 'WEEKLY', userId: filterStaff !== 'ALL' ? filterStaff : undefined };
+    const fetchPlans = async (page = 1, limit = pageSize) => {
+        const params = { type: 'WEEKLY', userId: filterStaff !== 'ALL' ? filterStaff : undefined, page, limit };
         const res = await api.get('/personnel/reports', { params });
-        const data = (Array.isArray(res.data) ? res.data : []).filter(r => r.metadata?.isPlan);
+        const resData = res.data?.data || (Array.isArray(res.data) ? res.data : []);
+        const data = resData.filter(r => r.metadata?.isPlan);
         setPlans(data);
+        if (activeTab === 'RENCANA_TUGAS' && res.data?.total !== undefined) {
+            setPagination({ total: res.data.total, totalPages: res.data.totalPages, currentPage: res.data.page });
+        }
     };
 
-    const fetchAllAssignments = async () => {
-        const params = { userId: filterStaff !== 'ALL' ? filterStaff : undefined };
+    const fetchAllAssignments = async (page = 1, limit = pageSize) => {
+        const params = { userId: filterStaff !== 'ALL' ? filterStaff : undefined, page, limit };
         const res = await api.get('/personnel/assignments', { params });
-        const all = res.data || [];
-        setAssignments(all.filter(a => !a.routineId && !a.title?.startsWith('[RUTIN]')));
-        setRoutineAssignments(all.filter(a => a.routineId || a.title?.startsWith('[RUTIN]')));
+        const resData = res.data?.data || (Array.isArray(res.data) ? res.data : []);
+        setAssignments(resData.filter(a => !a.routineId && !a.title?.startsWith('[RUTIN]')));
+        setRoutineAssignments(resData.filter(a => a.routineId || a.title?.startsWith('[RUTIN]')));
+        if (res.data?.total !== undefined) {
+            setPagination({ total: res.data.total, totalPages: res.data.totalPages, currentPage: res.data.page });
+        }
     };
 
-    const fetchDailyLogs = async () => {
-        const params = { type: 'DAILY', userId: filterStaff !== 'ALL' ? filterStaff : undefined, limit: 200 };
+    const fetchDailyLogs = async (page = 1, limit = pageSize) => {
+        const params = { type: 'DAILY', userId: filterStaff !== 'ALL' ? filterStaff : undefined, page, limit };
         const res = await api.get('/personnel/reports', { params });
-        setDailyLogs(Array.isArray(res.data) ? res.data : []);
+        setDailyLogs(res.data?.data || (Array.isArray(res.data) ? res.data : []));
+        if (res.data?.total !== undefined) {
+            setPagination({ total: res.data.total, totalPages: res.data.totalPages, currentPage: res.data.page });
+        }
     };
 
     const fetchKPI = async () => {
@@ -377,6 +392,16 @@ const StaffPerformance = () => {
                                 <Plus size={14} strokeWidth={3} />Rutinitas
                             </button>
                         )}
+                        <div className="flex items-center gap-2 px-3 py-2 bg-slate-100/50 rounded-xl border border-slate-200/50">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest hidden md:inline">Tampilkan:</span>
+                            <select value={pageSize} onChange={e => setPageSize(e.target.value === 'all' ? 'all' : parseInt(e.target.value))} className="bg-transparent border-none text-[10px] font-black text-slate-600 outline-none cursor-pointer">
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                                <option value="all">Semua</option>
+                            </select>
+                        </div>
+
                         {activeTab === 'LAPORAN' && (
                             <button onClick={() => setShowDailyModal(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-2 active:scale-95">
                                 <Plus size={14} strokeWidth={3} />Laporan Harian
@@ -398,6 +423,25 @@ const StaffPerformance = () => {
                             {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments.filter(a => inDateRange(a.createdAt))} templates={routineTemplates} onUpdate={handleUpdateAssignment} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
                             {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs.filter(l => inDateRange(l.date))} isKabid={isKabid} />}
                             {activeTab === 'KPI' && <KPITab leaderboard={leaderboard} />}
+
+                            {activeTab !== 'KPI' && pageSize !== 'all' && pagination.totalPages > 1 && (
+                                <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        Menampilkan {(pagination.currentPage - 1) * pageSize + 1} — {Math.min(pagination.currentPage * pageSize, pagination.total)} dari {pagination.total} data
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <button disabled={pagination.currentPage <= 1} onClick={() => fetchTabData(pagination.currentPage - 1)} 
+                                            className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all">
+                                            Sebelumnya
+                                        </button>
+                                        <span className="px-3 text-[10px] font-black text-indigo-600">{pagination.currentPage} / {pagination.totalPages}</span>
+                                        <button disabled={pagination.currentPage >= pagination.totalPages} onClick={() => fetchTabData(pagination.currentPage + 1)} 
+                                            className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-600 hover:bg-slate-50 disabled:opacity-30 transition-all">
+                                            Berikutnya
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </>
                     )}
                 </div>

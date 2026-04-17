@@ -310,11 +310,24 @@ exports.getReports = async (req, res) => {
         };
 
         if (limit && limit !== 'all') {
-            queryOptions.take = parseInt(limit);
+            const take = parseInt(limit);
+            const page = parseInt(req.query.page) || 1;
+            queryOptions.take = take;
+            queryOptions.skip = (page - 1) * take;
         }
 
-        const reports = await prisma.personnelReport.findMany(queryOptions);
-        res.json(reports);
+        const [reports, total] = await Promise.all([
+            prisma.personnelReport.findMany(queryOptions),
+            prisma.personnelReport.count({ where })
+        ]);
+
+        res.json({
+            data: reports,
+            total,
+            page: parseInt(req.query.page) || 1,
+            limit: limit === 'all' ? total : parseInt(limit),
+            totalPages: limit === 'all' ? 1 : Math.ceil(total / parseInt(limit))
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -473,12 +486,24 @@ exports.getAssignments = async (req, res) => {
         };
 
         if (limit && limit !== 'all') {
-            queryOptions.take = parseInt(limit);
+            const take = parseInt(limit);
+            const page = parseInt(req.query.page) || 1;
+            queryOptions.take = take;
+            queryOptions.skip = (page - 1) * take;
         }
 
-        const assignments = await prisma.personnelAssignment.findMany(queryOptions);
+        const [assignments, total] = await Promise.all([
+            prisma.personnelAssignment.findMany(queryOptions),
+            prisma.personnelAssignment.count({ where })
+        ]);
 
-        res.json(assignments);
+        res.json({
+            data: assignments,
+            total,
+            page: parseInt(req.query.page) || 1,
+            limit: limit === 'all' ? total : parseInt(limit),
+            totalPages: limit === 'all' ? 1 : Math.ceil(total / (parseInt(limit) || 1))
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
