@@ -122,9 +122,9 @@ const ScoreBar = ({ label, score, color, icon: Icon }) => (
 // ============================================
 const StaffPerformance = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-    const validTabs = ['RENCANA', 'TUGAS', 'RUTINITAS', 'LAPORAN', 'KPI'];
+    const validTabs = ['RENCANA_TUGAS', 'RUTINITAS', 'LAPORAN', 'KPI'];
     const urlTab = searchParams.get('tab')?.toUpperCase();
-    const initialTab = validTabs.includes(urlTab) ? urlTab : 'RENCANA';
+    const initialTab = validTabs.includes(urlTab) ? urlTab : 'RENCANA_TUGAS';
 
     const [activeTab, setActiveTab] = useState(initialTab);
     const [loading, setLoading] = useState(false);
@@ -157,8 +157,7 @@ const StaffPerformance = () => {
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
     const tabConfig = [
-        { key: 'RENCANA', label: 'Rencana', icon: Calendar },
-        { key: 'TUGAS', label: 'Tugas', icon: ClipboardList },
+        { key: 'RENCANA_TUGAS', label: 'Rencana & Tugas', icon: ListChecks },
         { key: 'RUTINITAS', label: 'Rutinitas', icon: RotateCcw },
         { key: 'LAPORAN', label: 'Laporan', icon: FileText },
         { key: 'KPI', label: 'KPI', icon: Trophy, adminOnly: true },
@@ -176,8 +175,8 @@ const StaffPerformance = () => {
     const fetchTabData = async () => {
         setLoading(true);
         try {
-            if (activeTab === 'RENCANA') await fetchPlans();
-            else if (activeTab === 'TUGAS' || activeTab === 'RUTINITAS') await fetchAllAssignments();
+            if (activeTab === 'RENCANA_TUGAS') { await fetchPlans(); await fetchAllAssignments(); }
+            else if (activeTab === 'RUTINITAS') await fetchAllAssignments();
             else if (activeTab === 'LAPORAN') await fetchDailyLogs();
             else if (activeTab === 'KPI') await fetchKPI();
         } catch (err) { console.error(err); }
@@ -328,15 +327,17 @@ const StaffPerformance = () => {
                         )}
                     </div>
                     <div className="flex gap-2">
-                        {activeTab === 'RENCANA' && (
-                            <button onClick={() => { setEditingPlan(null); setShowRencanaModal(true); }} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2 active:scale-95">
-                                <Plus size={14} strokeWidth={3} />Buat Rencana
-                            </button>
-                        )}
-                        {activeTab === 'TUGAS' && isKabid && (
-                            <button onClick={() => setShowTugasModal(true)} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2 active:scale-95">
-                                <Plus size={14} strokeWidth={3} />Buat Tugas
-                            </button>
+                        {activeTab === 'RENCANA_TUGAS' && (
+                            <>
+                                <button onClick={() => { setEditingPlan(null); setShowRencanaModal(true); }} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2 active:scale-95">
+                                    <Plus size={14} strokeWidth={3} />Rencana
+                                </button>
+                                {isKabid && (
+                                    <button onClick={() => setShowTugasModal(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-2 active:scale-95">
+                                        <Plus size={14} strokeWidth={3} />Tugas
+                                    </button>
+                                )}
+                            </>
                         )}
                         {activeTab === 'LAPORAN' && (
                             <button onClick={() => setShowInsidentalModal(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-2 active:scale-95">
@@ -355,8 +356,7 @@ const StaffPerformance = () => {
                         </div>
                     ) : (
                         <>
-                            {activeTab === 'RENCANA' && <RencanaTab plans={plans} onUpdateItem={handleUpdatePlanItem} onEdit={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} isKabid={isKabid} />}
-                            {activeTab === 'TUGAS' && <TugasTab assignments={assignments} onUpdate={handleUpdateAssignment} userId={user.id} isKabid={isKabid} />}
+                            {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans} assignments={assignments} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} userId={user.id} isKabid={isKabid} />}
                             {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments} templates={routineTemplates} onUpdate={handleUpdateAssignment} userId={user.id} />}
                             {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs} isKabid={isKabid} />}
                             {activeTab === 'KPI' && <KPITab leaderboard={leaderboard} />}
@@ -376,61 +376,119 @@ const StaffPerformance = () => {
 };
 
 // ============================================
-// TAB: RENCANA
+// TAB: RENCANA & TUGAS (COMBINED)
 // ============================================
-const RencanaTab = ({ plans, onUpdateItem, onEdit, isKabid }) => {
+const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignment, onEditPlan, userId, isKabid }) => {
     const [expanded, setExpanded] = useState([]);
     const toggle = id => setExpanded(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
 
-    if (plans.length === 0) return <EmptyState icon={Calendar} message="Belum ada rencana kerja" />;
+    const totalItems = plans.length + assignments.length;
 
     return (
-        <div className="space-y-4">
-            {plans.map(plan => {
-                const items = plan.metadata?.items || [];
-                const completed = items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
-                const pct = items.length > 0 ? Math.round((completed / items.length) * 100) : 0;
-                const isOpen = expanded.includes(plan.id);
-                const isPending = items.some(i => (i.percentage || 0) < 100);
+        <div className="space-y-8">
+            {totalItems === 0 && <EmptyState icon={ListChecks} message="Belum ada rencana atau tugas" />}
 
-                return (
-                    <div key={plan.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
-                        <div className="p-5 flex items-center justify-between cursor-pointer gap-4" onClick={() => toggle(plan.id)}>
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                                <ProgressRing pct={pct} size={52} />
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <Badge className={pct === 100 ? 'bg-emerald-100 text-emerald-700' : isPending ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'}>
-                                            {pct === 100 ? 'Selesai' : 'Berjalan'}
-                                        </Badge>
-                                        {isKabid && <span className="text-[9px] font-bold text-slate-400 uppercase">{plan.user?.name}</span>}
-                                    </div>
-                                    <h3 className="text-sm font-black text-slate-800 uppercase italic truncate">{plan.metadata?.title || 'Rencana Kerja'}</h3>
-                                    <p className="text-[10px] font-bold text-slate-400 mt-0.5 flex items-center gap-2">
-                                        <Calendar size={11} className="text-indigo-400" />
-                                        {fmtDate(plan.metadata?.startDate, { day: '2-digit', month: 'short' })} – {fmtDate(plan.metadata?.endDate, { day: '2-digit', month: 'short' })}
-                                        <span className="text-slate-300">•</span>
-                                        <span>{completed}/{items.length} item</span>
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button onClick={e => { e.stopPropagation(); onEdit(plan); }} className="p-2 hover:bg-indigo-50 rounded-lg text-slate-300 hover:text-indigo-600 transition-all"><FileText size={16} /></button>
-                                <div className={`p-2 rounded-xl transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                    {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                </div>
-                            </div>
-                        </div>
-                        {isOpen && (
-                            <div className="border-t border-slate-50 p-5 bg-slate-50/40 space-y-2 animate-in slide-in-from-top-2 duration-200">
-                                {items.map((item, idx) => (
-                                    <PlanItem key={idx} item={item} idx={idx} onUpdate={(updates) => onUpdateItem(plan, idx, updates)} isKabid={isKabid} />
-                                ))}
-                            </div>
-                        )}
+            {/* ── SECTION: RENCANA ── */}
+            {plans.length > 0 && (
+                <div>
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center text-white"><Calendar size={14} /></div>
+                        <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Rencana Kerja</h3>
+                        <Badge className="bg-indigo-100 text-indigo-600">{plans.length}</Badge>
                     </div>
-                );
-            })}
+                    <div className="space-y-3">
+                        {plans.map(plan => {
+                            const items = plan.metadata?.items || [];
+                            const completed = items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
+                            const pct = items.length > 0 ? Math.round((completed / items.length) * 100) : 0;
+                            const isOpen = expanded.includes(`plan-${plan.id}`);
+                            return (
+                                <div key={plan.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
+                                    <div className="p-5 flex items-center justify-between cursor-pointer gap-4" onClick={() => toggle(`plan-${plan.id}`)}>
+                                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                                            <ProgressRing pct={pct} size={52} />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <Badge className={pct === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+                                                        {pct === 100 ? 'Selesai' : 'Berjalan'}
+                                                    </Badge>
+                                                    <Badge className="bg-indigo-50 text-indigo-500">Rencana</Badge>
+                                                    {isKabid && <span className="text-[9px] font-bold text-slate-400 uppercase">{plan.user?.name}</span>}
+                                                </div>
+                                                <h3 className="text-sm font-black text-slate-800 uppercase italic truncate">{plan.metadata?.title || 'Rencana Kerja'}</h3>
+                                                <p className="text-[10px] font-bold text-slate-400 mt-0.5 flex items-center gap-2">
+                                                    <Calendar size={11} className="text-indigo-400" />
+                                                    {fmtDate(plan.metadata?.startDate, { day: '2-digit', month: 'short' })} – {fmtDate(plan.metadata?.endDate, { day: '2-digit', month: 'short' })}
+                                                    <span className="text-slate-300">•</span>
+                                                    <span>{completed}/{items.length} item</span>
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={e => { e.stopPropagation(); onEditPlan(plan); }} className="p-2 hover:bg-indigo-50 rounded-lg text-slate-300 hover:text-indigo-600 transition-all"><FileText size={16} /></button>
+                                            <div className={`p-2 rounded-xl transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                                {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {isOpen && (
+                                        <div className="border-t border-slate-50 p-5 bg-slate-50/40 space-y-2 animate-in slide-in-from-top-2 duration-200">
+                                            {items.map((item, idx) => (
+                                                <PlanItem key={idx} item={item} idx={idx} onUpdate={(updates) => onUpdatePlanItem(plan, idx, updates)} isKabid={isKabid} />
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* ── SECTION: TUGAS DARI KABID ── */}
+            {assignments.length > 0 && (
+                <div>
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-8 h-8 bg-emerald-600 rounded-xl flex items-center justify-center text-white"><ClipboardList size={14} /></div>
+                        <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Tugas dari Pimpinan</h3>
+                        <Badge className="bg-emerald-100 text-emerald-600">{assignments.length}</Badge>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                        {assignments.map((a, idx) => {
+                            const isOpen = expanded.includes(`task-${a.id}`);
+                            const sc = statusCfg[a.status] || statusCfg.PENDING;
+                            const pc = priorityCfg[a.priority] || priorityCfg.MEDIUM;
+                            const isAssignee = a.assigneeId === userId;
+                            return (
+                                <div key={a.id} className={`border-b border-slate-50 ${idx % 2 ? 'bg-slate-50/30' : ''} transition-all`}>
+                                    <div className="p-4 md:p-5 flex items-center gap-4 cursor-pointer" onClick={() => toggle(`task-${a.id}`)}>
+                                        <ProgressRing pct={a.progressPercentage || 0} size={44} />
+                                        <div className="flex-1 min-w-0 space-y-1">
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                <Badge className={pc.color}>{pc.label}</Badge>
+                                                <Badge className={sc.color}>{sc.label}</Badge>
+                                                <Badge className="bg-emerald-50 text-emerald-500">Tugas</Badge>
+                                            </div>
+                                            <h3 className="text-sm font-black text-slate-800 italic uppercase truncate">{a.title}</h3>
+                                            <div className="flex flex-wrap items-center gap-3 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                                <span className="flex items-center gap-1"><Users size={11} className="text-indigo-400" />{a.assignee?.name}</span>
+                                                {a.location && <span className="flex items-center gap-1"><MapPin size={11} />{a.location}</span>}
+                                                {a.dueDate && <span className="flex items-center gap-1"><Clock size={11} />{fmtDate(a.dueDate, { day: '2-digit', month: 'short' })}</span>}
+                                            </div>
+                                        </div>
+                                        <div className={`p-2 rounded-xl transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                            {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                        </div>
+                                    </div>
+                                    {isOpen && (
+                                        <TaskChecklist assignment={a} onUpdate={onUpdateAssignment} isAssignee={isAssignee} isAdmin={isKabid} />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -461,76 +519,6 @@ const PlanItem = ({ item, idx, onUpdate, isKabid }) => {
                     <input type="range" min="0" max="100" step="10" value={localPct} onChange={e => setLocalPct(parseInt(e.target.value))} onMouseUp={commit} onTouchEnd={commit}
                         className="w-20 h-1 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600" />
                     <span className="text-[10px] font-black text-indigo-600 w-8 text-right">{localPct}%</span>
-                </div>
-            )}
-        </div>
-    );
-};
-
-// ============================================
-// TAB: TUGAS
-// ============================================
-const TugasTab = ({ assignments, onUpdate, userId, isKabid }) => {
-    const [expanded, setExpanded] = useState([]);
-    const toggle = id => setExpanded(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
-
-    const stats = {
-        total: assignments.length,
-        pending: assignments.filter(a => a.status === 'PENDING').length,
-        progress: assignments.filter(a => a.status === 'IN_PROGRESS').length,
-        done: assignments.filter(a => a.status === 'COMPLETED').length,
-    };
-
-    return (
-        <div className="space-y-5">
-            {/* Stats Row */}
-            <div className="grid grid-cols-4 gap-3">
-                {[
-                    { label: 'Total', val: stats.total, cls: 'bg-white border-slate-100 text-slate-800' },
-                    { label: 'Menunggu', val: stats.pending, cls: 'bg-amber-50 border-amber-100 text-amber-600' },
-                    { label: 'Proses', val: stats.progress, cls: 'bg-indigo-50 border-indigo-100 text-indigo-600' },
-                    { label: 'Selesai', val: stats.done, cls: 'bg-emerald-50 border-emerald-100 text-emerald-600' },
-                ].map(s => (
-                    <div key={s.label} className={`p-4 rounded-2xl border text-center ${s.cls}`}>
-                        <p className="text-[8px] font-black uppercase tracking-widest opacity-60">{s.label}</p>
-                        <p className="text-xl font-black tracking-tighter">{s.val}</p>
-                    </div>
-                ))}
-            </div>
-            {/* List */}
-            {assignments.length === 0 ? <EmptyState icon={ClipboardList} message="Belum ada tugas" /> : (
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    {assignments.map((a, idx) => {
-                        const isOpen = expanded.includes(a.id);
-                        const sc = statusCfg[a.status] || statusCfg.PENDING;
-                        const pc = priorityCfg[a.priority] || priorityCfg.MEDIUM;
-                        const isAssignee = a.assigneeId === userId;
-                        return (
-                            <div key={a.id} className={`border-b border-slate-50 ${idx % 2 ? 'bg-slate-50/30' : ''} transition-all`}>
-                                <div className="p-4 md:p-5 flex items-center gap-4 cursor-pointer" onClick={() => toggle(a.id)}>
-                                    <ProgressRing pct={a.progressPercentage || 0} size={44} />
-                                    <div className="flex-1 min-w-0 space-y-1">
-                                        <div className="flex flex-wrap items-center gap-1.5">
-                                            <Badge className={pc.color}>{pc.label}</Badge>
-                                            <Badge className={sc.color}>{sc.label}</Badge>
-                                        </div>
-                                        <h3 className="text-sm font-black text-slate-800 italic uppercase truncate">{a.title}</h3>
-                                        <div className="flex flex-wrap items-center gap-3 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                                            <span className="flex items-center gap-1"><Users size={11} className="text-indigo-400" />{a.assignee?.name}</span>
-                                            {a.location && <span className="flex items-center gap-1"><MapPin size={11} />{a.location}</span>}
-                                            {a.dueDate && <span className="flex items-center gap-1"><Clock size={11} />{fmtDate(a.dueDate, { day: '2-digit', month: 'short' })}</span>}
-                                        </div>
-                                    </div>
-                                    <div className={`p-2 rounded-xl transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                        {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                    </div>
-                                </div>
-                                {isOpen && (
-                                    <TaskChecklist assignment={a} onUpdate={onUpdate} isAssignee={isAssignee} isAdmin={isKabid} />
-                                )}
-                            </div>
-                        );
-                    })}
                 </div>
             )}
         </div>
