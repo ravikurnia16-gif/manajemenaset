@@ -82,25 +82,67 @@ const syncPlanToCalendar = async (report, user) => {
 };
 
 // Auto-log activity to daily report (called when updating plans/tasks/routines)
+// Auto-log activity to daily report (called when updating plans/tasks/routines)
 const autoLogActivity = async (userId, source, sourceId, sourceTitle, description, percentage) => {
     try {
-        await prisma.personnelReport.create({
-            data: {
+        const now = new Date();
+        const todayStart = new Date(now.setHours(0, 0, 0, 0));
+        const todayEnd = new Date(now.setHours(23, 59, 59, 999));
+        const currentTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+        // Check if an entry for this item already exists for today
+        const existingLog = await prisma.personnelReport.findFirst({
+            where: {
                 userId: parseInt(userId),
                 type: 'DAILY',
                 category: 'AUTO_LOG',
-                content: description,
-                date: new Date(),
+                date: {
+                    gte: todayStart,
+                    lte: todayEnd
+                },
                 metadata: {
-                    autoLog: true,
-                    source,
-                    sourceId,
-                    sourceTitle,
-                    progressPercentage: percentage,
-                    timestamp: new Date().toISOString()
+                    path: ['sourceId'],
+                    equals: sourceId
                 }
             }
         });
+
+        if (existingLog) {
+            // Update existing log
+            await prisma.personnelReport.update({
+                where: { id: existingLog.id },
+                data: {
+                    content: description,
+                    metadata: {
+                        ...existingLog.metadata,
+                        progressPercentage: percentage,
+                        endTime: currentTime,
+                        timestamp: new Date().toISOString()
+                    }
+                }
+            });
+        } else {
+            // Create new log
+            await prisma.personnelReport.create({
+                data: {
+                    userId: parseInt(userId),
+                    type: 'DAILY',
+                    category: 'AUTO_LOG',
+                    content: description,
+                    date: new Date(),
+                    metadata: {
+                        autoLog: true,
+                        source,
+                        sourceId,
+                        sourceTitle,
+                        progressPercentage: percentage,
+                        startTime: currentTime,
+                        endTime: currentTime,
+                        timestamp: new Date().toISOString()
+                    }
+                }
+            });
+        }
     } catch (err) {
         console.error('[AutoLog] Failed:', err.message);
     }
