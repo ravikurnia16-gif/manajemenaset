@@ -538,8 +538,9 @@ const PlanItem = ({ item, idx, onUpdate, isKabid }) => {
     useEffect(() => setLocalPct(item.percentage || 0), [item.percentage]);
     const isDone = localPct === 100 || item.status === 'SELESAI';
 
-    const commit = (pct) => {
-        const clamped = Math.min(100, Math.max(0, pct));
+    const commit = (pctVal) => {
+        const val = typeof pctVal === 'string' ? (parseInt(pctVal) || 0) : pctVal;
+        const clamped = Math.min(100, Math.max(0, val));
         setLocalPct(clamped);
         if (clamped !== (item.percentage || 0)) onUpdate({ percentage: clamped, status: clamped === 100 ? 'SELESAI' : clamped > 0 ? 'PROSES' : 'PENDING' });
         setEditing(false);
@@ -574,9 +575,11 @@ const PlanItem = ({ item, idx, onUpdate, isKabid }) => {
             {/* Inline editor */}
             {editing && !isKabid && (
                 <div className="mt-3 ml-8 flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-100 animate-in fade-in duration-200">
-                    <input type="range" min="0" max="100" step="5" value={localPct} onChange={e => setLocalPct(parseInt(e.target.value))}
+                    <input type="range" min="0" max="100" step="5" value={localPct || 0} onChange={e => setLocalPct(e.target.value)}
                         className="flex-1 h-1.5 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600" />
-                    <input type="number" min="0" max="100" step="5" value={localPct} onChange={e => setLocalPct(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                    <input type="number" min="0" max="100" step="1" value={localPct} onChange={e => setLocalPct(e.target.value === '' ? '' : Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                        autoFocus
+                        onKeyDown={e => e.key === 'Enter' && commit(localPct)}
                         className="w-14 px-2 py-1 text-center text-[11px] font-black text-indigo-700 bg-white border border-indigo-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-200" />
                     <span className="text-[10px] font-black text-slate-400">%</span>
                     <button onClick={() => commit(localPct)} className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black rounded-lg hover:bg-indigo-700 transition-all uppercase tracking-widest">
@@ -597,9 +600,10 @@ const TaskChecklist = ({ assignment, onUpdate, isAssignee, isAdmin }) => {
     const [localPct, setLocalPct] = useState(0);
     const items = Array.isArray(assignment.items) ? assignment.items : [];
 
-    const updateItemProgress = async (idx, pct) => {
+    const updateItemProgress = async (idx, pctVal) => {
+        const val = typeof pctVal === 'string' ? (parseInt(pctVal) || 0) : pctVal;
         const newItems = [...items];
-        const clamped = Math.min(100, Math.max(0, pct));
+        const clamped = Math.min(100, Math.max(0, val));
         newItems[idx] = { ...newItems[idx], percentage: clamped, isDone: clamped === 100 };
         
         // Calculate new overall average progress
@@ -664,10 +668,12 @@ const TaskChecklist = ({ assignment, onUpdate, isAssignee, isAdmin }) => {
 
                             {/* Inline Editor */}
                             {isEditing && (
-                                <div className="mt-3 ml-8 flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-100 animate-in fade-in duration-200">
-                                    <input type="range" min="0" max="100" step="5" value={localPct} onChange={e => setLocalPct(parseInt(e.target.value))}
+                                <div className="mt-3 ml-8 flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-100 animate-in fade-in duration-200" onClick={e => e.stopPropagation()}>
+                                    <input type="range" min="0" max="100" step="5" value={localPct || 0} onChange={e => setLocalPct(e.target.value)}
                                         className="flex-1 h-1.5 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600" />
-                                    <input type="number" min="0" max="100" step="1" value={localPct} onChange={e => setLocalPct(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    <input type="number" min="0" max="100" step="1" value={localPct} onChange={e => setLocalPct(e.target.value === '' ? '' : Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                                        autoFocus
+                                        onKeyDown={e => e.key === 'Enter' && updateItemProgress(idx, localPct)}
                                         className="w-14 px-2 py-1 text-center text-[11px] font-black text-indigo-700 bg-white border border-indigo-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-200" />
                                     <button onClick={() => updateItemProgress(idx, localPct)} className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black rounded-lg hover:bg-indigo-700 transition-all uppercase tracking-widest">OK</button>
                                     <button onClick={() => setEditingIdx(null)} className="p-1 text-slate-400 hover:text-rose-500 transition-colors"><X size={14} /></button>

@@ -143,8 +143,17 @@ exports.updateReport = async (req, res) => {
         if (metadata?.isPlan && metadata?.items) {
             const planTitle = metadata.title || 'Rencana Kerja';
             const items = metadata.items || [];
+            const avgPct = items.length > 0 ? Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length) : 0;
             const done = items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
-            autoLogActivity(user.id, 'RENCANA', parseInt(id), planTitle, `Update rencana: ${planTitle} (${done}/${items.length} selesai)`, items.length > 0 ? Math.round((done / items.length) * 100) : 0);
+            
+            autoLogActivity(
+                user.id, 
+                'RENCANA', 
+                parseInt(id), 
+                planTitle, 
+                `Update rencana: ${planTitle} - Progres ${avgPct}% (${done}/${items.length} item selesai)`, 
+                avgPct
+            );
         }
 
         res.json({ message: 'Laporan berhasil diperbarui', data: updated });
