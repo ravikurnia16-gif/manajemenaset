@@ -1367,15 +1367,20 @@ exports.getKPILeaderboard = async (req, res) => {
         // [SEC] Authorization Check: Refetch user to ensure fresh data
         const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
         const userPosition = (currentUser?.position || '').toLowerCase();
-        
+
         // Lenient matching: Must have "Kepala Bidang" AND ("Sarana dan Prasarana" OR "Sarpras")
         const isKabidTitle = userPosition.includes('kepala bidang');
         const isSarprasUnit = userPosition.includes('sarana dan prasarana') || userPosition.includes('sarpras');
-        const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || (isKabidTitle && isSarprasUnit);
+        
+        // TEMPORARY: Allow role-based access if position check fails but it's a known KEPALA_BIDANG
+        const isAdminRole = currentUser?.role === 'SUPER_ADMIN';
+        const isAuthorized = isAdminRole || (isKabidTitle && isSarprasUnit) || currentUser?.role === 'KEPALA_BIDANG';
 
         if (!isAuthorized) {
-            console.warn(`[AUTH-KPI] Unauthorized access: User=${currentUser?.username}, Role=${currentUser?.role}, Pos=${currentUser?.position}`);
-            return res.status(403).json({ error: 'Akses ditolak. Fitur ini hanya untuk Kepala Bidang Sarana dan Prasarana.' });
+            console.warn(`[AUTH-KPI] Unauthorized: User=${currentUser?.username}, Role=${currentUser?.role}, Pos=[${currentUser?.position}]`);
+            return res.status(403).json({ 
+                error: `Akses ditolak. Jabatan Anda Terdeteksi: "${currentUser?.position || 'Kosong'}", Role: "${currentUser?.role}". Silakan hubungi admin untuk update jabatan.` 
+            });
         }
 
         // Start and end of specified month
@@ -2012,15 +2017,17 @@ exports.getPersonnelAISummary = async (req, res) => {
         // [SEC] Authorization Check: Refetch user to ensure fresh data
         const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
         const userPosition = (currentUser?.position || '').toLowerCase();
-        
+
         // Lenient matching for AISummary
         const isKabidTitle = userPosition.includes('kepala bidang');
         const isSarprasUnit = userPosition.includes('sarana dan prasarana') || userPosition.includes('sarpras');
-        const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || (isKabidTitle && isSarprasUnit);
+        const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || (isKabidTitle && isSarprasUnit) || currentUser?.role === 'KEPALA_BIDANG';
 
         if (!isAuthorized) {
-            console.warn(`[AUTH-AI] Unauthorized access: User=${currentUser?.username}, Pos=${currentUser?.position}`);
-            return res.status(403).json({ error: 'Hanya Kepala Bidang Sarana dan Prasarana atau Admin yang dapat mengakses ringkasan AI.' });
+            console.warn(`[AUTH-AI] Unauthorized: User=${currentUser?.username}, Pos=[${currentUser?.position}]`);
+            return res.status(403).json({ 
+                error: `Akses ditolak. Jabatan Di database: "${currentUser?.position || 'Kosong'}".` 
+            });
         }
 
         // 1. Fetch Data for Context
