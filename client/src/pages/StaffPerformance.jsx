@@ -143,6 +143,7 @@ const StaffPerformance = () => {
     const [showRencanaModal, setShowRencanaModal] = useState(false);
     const [showTugasModal, setShowTugasModal] = useState(false);
     const [showInsidentalModal, setShowInsidentalModal] = useState(false);
+    const [showRutinitasModal, setShowRutinitasModal] = useState(false);
     const [editingPlan, setEditingPlan] = useState(null);
 
     // Filters
@@ -339,6 +340,11 @@ const StaffPerformance = () => {
                                 )}
                             </>
                         )}
+                        {activeTab === 'RUTINITAS' && isAdmin && (
+                            <button onClick={() => setShowRutinitasModal(true)} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest hover:bg-emerald-700 transition-all flex items-center gap-2 active:scale-95">
+                                <Plus size={14} strokeWidth={3} />Rutinitas
+                            </button>
+                        )}
                         {activeTab === 'LAPORAN' && (
                             <button onClick={() => setShowInsidentalModal(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-2 active:scale-95">
                                 <Plus size={14} strokeWidth={3} />Insidental
@@ -357,7 +363,7 @@ const StaffPerformance = () => {
                     ) : (
                         <>
                             {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans} assignments={assignments} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} userId={user.id} isKabid={isKabid} />}
-                            {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments} templates={routineTemplates} onUpdate={handleUpdateAssignment} userId={user.id} />}
+                            {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments} templates={routineTemplates} onUpdate={handleUpdateAssignment} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
                             {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs} isKabid={isKabid} />}
                             {activeTab === 'KPI' && <KPITab leaderboard={leaderboard} />}
                         </>
@@ -369,6 +375,15 @@ const StaffPerformance = () => {
             <RencanaFormModal open={showRencanaModal} onClose={() => { setShowRencanaModal(false); setEditingPlan(null); }} onSubmit={handleCreatePlan} submitting={submitting} editing={editingPlan} />
             <TugasFormModal open={showTugasModal} onClose={() => setShowTugasModal(false)} onSubmit={handleCreateTask} submitting={submitting} staffList={staffList} />
             <InsidentalFormModal open={showInsidentalModal} onClose={() => setShowInsidentalModal(false)} onSubmit={handleCreateInsidental} submitting={submitting} />
+            <RutinitasFormModal open={showRutinitasModal} onClose={() => setShowRutinitasModal(false)} onSubmit={async (formData) => {
+                setSubmitting(true);
+                try {
+                    await api.post('/personnel/routines', formData);
+                    setShowRutinitasModal(false);
+                    await fetchRoutineTemplates(); await fetchAllAssignments();
+                } catch (err) { alert(err.response?.data?.error || 'Gagal membuat rutinitas'); }
+                finally { setSubmitting(false); }
+            }} submitting={submitting} staffList={staffList} />
 
             <style dangerouslySetInnerHTML={{ __html: `.no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}` }} />
         </div>
@@ -573,7 +588,7 @@ const TaskChecklist = ({ assignment, onUpdate, isAssignee, isAdmin }) => {
 // ============================================
 // TAB: RUTINITAS
 // ============================================
-const RutinitasTab = ({ assignments, templates, onUpdate, userId }) => {
+const RutinitasTab = ({ assignments, templates, onUpdate, userId, isKabid, isAdmin }) => {
     const [expanded, setExpanded] = useState([]);
     const toggle = id => setExpanded(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
 
@@ -583,11 +598,14 @@ const RutinitasTab = ({ assignments, templates, onUpdate, userId }) => {
     const freqLabel = { DAILY: 'Harian', WEEKLY: 'Mingguan', MONTHLY: 'Bulanan' };
     const freqColor = { DAILY: 'bg-blue-100 text-blue-700', WEEKLY: 'bg-purple-100 text-purple-700', MONTHLY: 'bg-teal-100 text-teal-700' };
 
-    if (assignments.length === 0) return <EmptyState icon={RotateCcw} message="Belum ada rutinitas aktif" />;
+    // Filter: Kabid sees all, Admin Aset / staff sees only their own
+    const filtered = isKabid ? assignments : assignments.filter(a => a.assigneeId === userId);
+
+    if (filtered.length === 0) return <EmptyState icon={RotateCcw} message="Belum ada rutinitas aktif" />;
 
     // Group by frequency
     const grouped = { DAILY: [], WEEKLY: [], MONTHLY: [] };
-    assignments.forEach(a => { const f = getFreq(a); (grouped[f] || grouped.DAILY).push(a); });
+    filtered.forEach(a => { const f = getFreq(a); (grouped[f] || grouped.DAILY).push(a); });
 
     return (
         <div className="space-y-6">
@@ -611,7 +629,10 @@ const RutinitasTab = ({ assignments, templates, onUpdate, userId }) => {
                                         <ProgressRing pct={pct} size={44} />
                                         <div className="flex-1 min-w-0">
                                             <h4 className="text-sm font-black text-slate-800 italic uppercase truncate">{a.title.replace('[RUTIN] ', '')}</h4>
-                                            <p className="text-[10px] font-bold text-slate-400 mt-0.5">{done}/{items.length} selesai • {fmtDate(a.createdAt, { day: '2-digit', month: 'short' })}</p>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                {isKabid && a.assignee && <span className="text-[9px] font-black text-indigo-500 uppercase">{a.assignee.name}</span>}
+                                                <p className="text-[10px] font-bold text-slate-400">{done}/{items.length} selesai • {fmtDate(a.createdAt, { day: '2-digit', month: 'short' })}</p>
+                                            </div>
                                         </div>
                                         <Badge className={pct === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>{pct === 100 ? 'Lunas' : 'Aktif'}</Badge>
                                         <div className={`p-1.5 rounded-lg transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
@@ -619,7 +640,7 @@ const RutinitasTab = ({ assignments, templates, onUpdate, userId }) => {
                                         </div>
                                     </div>
                                     {isOpen && (
-                                        <TaskChecklist assignment={a} onUpdate={onUpdate} isAssignee={isAssignee} isAdmin={false} />
+                                        <TaskChecklist assignment={a} onUpdate={onUpdate} isAssignee={isAssignee} isAdmin={isKabid} />
                                     )}
                                 </div>
                             );
@@ -987,6 +1008,127 @@ const InsidentalFormModal = ({ open, onClose, onSubmit, submitting }) => {
                 <button type="submit" disabled={submitting} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
                     {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                     {submitting ? 'Menyimpan...' : 'Simpan Laporan'}
+                </button>
+            </form>
+        </Modal>
+    );
+};
+
+// ============================================
+// FORM MODAL: RUTINITAS
+// ============================================
+const RutinitasFormModal = ({ open, onClose, onSubmit, submitting, staffList }) => {
+    const [title, setTitle] = useState('');
+    const [assigneeId, setAssigneeId] = useState('');
+    const [frequency, setFrequency] = useState('DAILY');
+    const [dayOfWeek, setDayOfWeek] = useState(1);
+    const [dayOfMonth, setDayOfMonth] = useState(1);
+    const [priority, setPriority] = useState('MEDIUM');
+    const [location, setLocation] = useState('');
+    const [description, setDescription] = useState('');
+    const [items, setItems] = useState([{ text: '' }]);
+
+    useEffect(() => {
+        if (open) { setTitle(''); setAssigneeId(''); setFrequency('DAILY'); setDayOfWeek(1); setDayOfMonth(1); setPriority('MEDIUM'); setLocation(''); setDescription(''); setItems([{ text: '' }]); }
+    }, [open]);
+
+    const addItem = () => setItems([...items, { text: '' }]);
+    const removeItem = idx => setItems(items.filter((_, i) => i !== idx));
+    const updateItem = (idx, val) => { const n = [...items]; n[idx].text = val; setItems(n); };
+
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+    const submit = e => {
+        e.preventDefault();
+        if (!title.trim()) return alert('Judul rutinitas wajib diisi');
+        if (!assigneeId) return alert('Pilih staf penanggung jawab');
+        onSubmit({
+            title, assigneeId: parseInt(assigneeId), frequency, priority, location,
+            description,
+            dayOfWeek: frequency === 'WEEKLY' ? parseInt(dayOfWeek) : undefined,
+            dayOfMonth: frequency === 'MONTHLY' ? parseInt(dayOfMonth) : undefined,
+            items: items.filter(i => i.text.trim()).map(i => ({ text: i.text, isDone: false }))
+        });
+    };
+
+    return (
+        <Modal open={open} onClose={onClose} title="Buat Rutinitas Baru" icon={RotateCcw} wide>
+            <form onSubmit={submit} className="space-y-5">
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📝 Judul Rutinitas</label>
+                    <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Misal: Pengecekan Panel Listrik Harian"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">👤 Penanggung Jawab</label>
+                        <select value={assigneeId} onChange={e => setAssigneeId(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none">
+                            <option value="">Pilih Staf</option>
+                            {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">🔄 Frekuensi</label>
+                        <select value={frequency} onChange={e => setFrequency(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none">
+                            <option value="DAILY">Harian</option>
+                            <option value="WEEKLY">Mingguan</option>
+                            <option value="MONTHLY">Bulanan</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">⚡ Prioritas</label>
+                        <select value={priority} onChange={e => setPriority(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none">
+                            <option value="LOW">Rendah</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="HIGH">Tinggi</option>
+                        </select>
+                    </div>
+                </div>
+                {frequency === 'WEEKLY' && (
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📅 Hari Pelaksanaan</label>
+                        <select value={dayOfWeek} onChange={e => setDayOfWeek(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none">
+                            {days.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                        </select>
+                    </div>
+                )}
+                {frequency === 'MONTHLY' && (
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📅 Tanggal Pelaksanaan</label>
+                        <select value={dayOfMonth} onChange={e => setDayOfMonth(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none">
+                            {Array.from({ length: 28 }, (_, i) => i + 1).map(d => <option key={d} value={d}>Tanggal {d}</option>)}
+                        </select>
+                    </div>
+                )}
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📍 Lokasi</label>
+                    <input type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Gedung A Lt.1"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                </div>
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">📋 Checklist Pekerjaan</label>
+                    <div className="space-y-2">
+                        {items.map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-slate-300 w-6 text-center">{idx + 1}.</span>
+                                <input type="text" value={item.text} onChange={e => updateItem(idx, e.target.value)} placeholder="Deskripsikan langkah pekerjaan..."
+                                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                                {items.length > 1 && <button type="button" onClick={() => removeItem(idx)} className="p-2 text-rose-300 hover:text-rose-500"><Trash2 size={16} /></button>}
+                            </div>
+                        ))}
+                        <button type="button" onClick={addItem} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 hover:text-indigo-500 hover:border-indigo-200 transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                            <Plus size={14} />Tambah Item
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📝 Catatan</label>
+                    <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} placeholder="Catatan tambahan..."
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                </div>
+                <button type="submit" disabled={submitting} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black tracking-widest hover:bg-emerald-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
+                    {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                    {submitting ? 'Menyimpan...' : 'Simpan Rutinitas'}
                 </button>
             </form>
         </Modal>
