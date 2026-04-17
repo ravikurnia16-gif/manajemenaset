@@ -133,10 +133,25 @@ const SummaryCard = ({ title, value, icon: Icon, color, desc }) => (
 );
 
 const SummaryTab = ({ leaderboard, assignments, plans, dailyLogs }) => {
-    if (leaderboard.length === 0) return <EmptyState icon={LayoutDashboard} message="Menunggu data performa tim..." />;
+    const hasLeaderboard = leaderboard.length > 0;
+    const totalTasks = [...assignments, ...plans].length;
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+
+            {/* Top info banner if no KPI data */}
+            {!hasLeaderboard && (
+                <div className="flex items-center gap-4 bg-amber-50 border border-amber-200 p-5 rounded-2xl">
+                    <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+                        <AlertCircle size={20} className="text-amber-500" />
+                    </div>
+                    <div>
+                        <p className="text-[11px] font-black text-amber-700 uppercase tracking-widest mb-0.5">Data KPI Belum Tersedia</p>
+                        <p className="text-xs font-bold text-amber-600/80">KPI dihitung otomatis berdasarkan tugas yang diselesaikan. Minta staf menyelesaikan penugasan agar data muncul.</p>
+                    </div>
+                </div>
+            )}
+
             {/* Staff Progress Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm relative overflow-hidden">
@@ -144,22 +159,29 @@ const SummaryTab = ({ leaderboard, assignments, plans, dailyLogs }) => {
                     <h3 className="text-sm font-black text-slate-800 uppercase italic tracking-tight mb-8 flex items-center gap-2">
                         <Target size={18} className="text-indigo-500" /> Progres Capaian Staf
                     </h3>
-                    <div className="space-y-6">
-                        {leaderboard.map((item, idx) => (
-                            <div key={item.userId} className="group">
-                                <div className="flex justify-between items-center mb-2">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-400 italic">#{idx+1}</div>
-                                        <span className="text-xs font-black text-slate-700 uppercase italic">{item.name}</span>
+                    {hasLeaderboard ? (
+                        <div className="space-y-6">
+                            {leaderboard.map((item, idx) => (
+                                <div key={item.userId} className="group">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-400 italic">#{idx+1}</div>
+                                            <span className="text-xs font-black text-slate-700 uppercase italic">{item.name}</span>
+                                        </div>
+                                        <span className="text-[10px] font-black text-indigo-600">{item.scores?.completion || 0}%</span>
                                     </div>
-                                    <span className="text-[10px] font-black text-indigo-600">{item.scores?.completion || 0}%</span>
+                                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-gradient-to-r from-indigo-500 to-blue-400 rounded-full transition-all duration-1000 ease-out group-hover:from-indigo-600 shadow-sm" style={{ width: `${item.scores?.completion || 0}%` }} />
+                                    </div>
                                 </div>
-                                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-gradient-to-r from-indigo-500 to-blue-400 rounded-full transition-all duration-1000 ease-out group-hover:from-indigo-600 shadow-sm" style={{ width: `${item.scores?.completion || 0}%` }} />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="py-10 text-center">
+                            <BarChart3 size={36} className="mx-auto text-slate-200 mb-3" />
+                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Belum ada data KPI bulan ini</p>
+                        </div>
+                    )}
                 </div>
 
                 <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm relative overflow-hidden">
@@ -167,30 +189,68 @@ const SummaryTab = ({ leaderboard, assignments, plans, dailyLogs }) => {
                     <h3 className="text-sm font-black text-slate-800 uppercase italic tracking-tight mb-8 flex items-center gap-2">
                         <Timer size={18} className="text-emerald-500" /> Analisa Ketepatan Waktu
                     </h3>
-                    <div className="space-y-6">
-                        {leaderboard.map((item) => (
-                            <div key={item.userId} className="group">
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-xs font-black text-slate-700 uppercase italic">{item.name}</span>
-                                    <span className="text-[10px] font-black text-emerald-600">{item.scores?.punctuality || 0}%</span>
+                    {hasLeaderboard ? (
+                        <div className="space-y-6">
+                            {leaderboard.map((item) => (
+                                <div key={item.userId} className="group">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-xs font-black text-slate-700 uppercase italic">{item.name}</span>
+                                        <span className="text-[10px] font-black text-emerald-600">{item.scores?.punctuality || 0}%</span>
+                                    </div>
+                                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-1000 ease-out group-hover:from-emerald-600 shadow-sm" style={{ width: `${item.scores?.punctuality || 0}%` }} />
+                                    </div>
                                 </div>
-                                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-1000 ease-out group-hover:from-emerald-600 shadow-sm" style={{ width: `${item.scores?.punctuality || 0}%` }} />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="py-10 text-center">
+                            <Timer size={36} className="mx-auto text-slate-200 mb-3" />
+                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Belum ada data ketepatan waktu</p>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Recent Highlights / Activity Feed */}
+            {/* Penugasan Aktif Summary */}
+            {totalTasks > 0 && (
+                <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm">
+                    <h3 className="text-sm font-black text-slate-800 uppercase italic tracking-tight mb-6 flex items-center gap-2">
+                        <ClipboardList size={18} className="text-blue-500" /> Penugasan Aktif Tim
+                        <Badge className="bg-blue-100 text-blue-600 ml-1">{totalTasks}</Badge>
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {[...assignments.slice(0, 3), ...plans.slice(0, 3)].slice(0, 6).map((item, idx) => {
+                            const sc = statusCfg[item.status] || statusCfg.PENDING;
+                            const Icon = sc.icon;
+                            const pct = item.progressPercentage || (() => {
+                                const items = item.metadata?.items || [];
+                                const done = items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
+                                return items.length > 0 ? Math.round((done / items.length) * 100) : 0;
+                            })();
+                            return (
+                                <div key={item.id || idx} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/50">
+                                    <div className={`p-2 rounded-lg ${sc.color}`}><Icon size={14} /></div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[11px] font-black text-slate-700 uppercase italic truncate">{item.title || item.metadata?.title || 'Penugasan'}</p>
+                                        <p className="text-[9px] font-bold text-slate-400">{item.assignee?.name || item.user?.name || '—'}</p>
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-500 shrink-0">{pct}%</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Recent Activity Feed */}
             <div className="bg-slate-900 p-8 rounded-[40px] shadow-2xl shadow-indigo-200/20 text-white relative overflow-hidden border border-white/5">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-[80px] -mr-32 -mt-32" />
                 <div className="flex items-center justify-between mb-8">
                     <h3 className="text-sm font-black uppercase italic tracking-widest flex items-center gap-3">
-                        <Zap size={18} className="text-amber-400" /> Ringkasan Pelaksanaan Progres
+                        <Zap size={18} className="text-amber-400" /> Laporan Harian Terbaru
                     </h3>
-                    <Badge className="bg-white/10 text-indigo-300">Terakhir Diperbarui: Baru Saja</Badge>
+                    <Badge className="bg-white/10 text-indigo-300">{dailyLogs.length} Laporan</Badge>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -209,8 +269,9 @@ const SummaryTab = ({ leaderboard, assignments, plans, dailyLogs }) => {
                         </div>
                     ))}
                     {dailyLogs.length === 0 && (
-                        <div className="md:col-span-2 py-8 text-center text-slate-500 text-[10px] font-black uppercase tracking-widest italic opacity-50">
-                            Belum ada laporan harian terbaru
+                        <div className="md:col-span-2 py-10 text-center">
+                            <Activity size={36} className="mx-auto text-slate-600 mb-3" />
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Belum ada laporan harian terbaru</p>
                         </div>
                     )}
                 </div>
