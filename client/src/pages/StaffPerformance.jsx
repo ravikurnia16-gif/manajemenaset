@@ -4,7 +4,7 @@ import {
     Calendar, FileText, ClipboardList, Trophy, Plus, X, ChevronDown,
     ChevronUp, CheckSquare, Square, CheckCircle, Clock, Zap, AlertCircle,
     MapPin, Loader2, Target, Timer, TrendingUp, Sparkles, Users,
-    Activity, Crown, Medal, Send, Trash2, RotateCcw, Tag,
+    Activity, Crown, Medal, Send, Trash2, RotateCcw, Tag, Edit3,
     ShieldCheck, MessageSquare, ListChecks, Flag
 } from 'lucide-react';
 import api from '../lib/axios';
