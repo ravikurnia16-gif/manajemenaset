@@ -118,6 +118,243 @@ const ScoreBar = ({ label, score, color, icon: Icon }) => (
     </div>
 );
 
+const SummarySection = ({ title, icon: Icon, color, count, children, emptyMsg }) => (
+    <div className="bg-white rounded-[28px] border border-slate-100 shadow-sm overflow-hidden">
+        <div className={`px-6 py-4 border-b border-slate-100 flex items-center gap-3`}>
+            <div className={`w-9 h-9 rounded-xl ${color} flex items-center justify-center shrink-0`}>
+                <Icon size={16} className="text-white" />
+            </div>
+            <div className="flex-1">
+                <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-widest">{title}</h3>
+            </div>
+            <span className={`text-[10px] font-black px-3 py-1 rounded-full ${color.replace('bg-', 'bg-').replace(/-(\d+)$/, '-100')} text-slate-600`}>{count} Item</span>
+        </div>
+        <div className="divide-y divide-slate-50">
+            {count === 0
+                ? <div className="py-8 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest italic">{emptyMsg || 'Belum ada data'}</div>
+                : children
+            }
+        </div>
+    </div>
+);
+
+const statusCfgSmall = {
+    'PENDING':     { label: 'Menunggu', cls: 'bg-amber-100 text-amber-700' },
+    'IN_PROGRESS': { label: 'Proses',   cls: 'bg-indigo-100 text-indigo-700' },
+    'COMPLETED':   { label: 'Selesai',  cls: 'bg-emerald-100 text-emerald-700' },
+    'OVERDUE':     { label: 'Terlambat',cls: 'bg-rose-100 text-rose-700' },
+};
+
+const SummaryTab = ({ assignments, plans, routineAssignments, dailyLogs }) => {
+
+    // ── Tugas ──
+    const activeTasks = assignments.filter(a => a.status !== 'COMPLETED');
+    const doneTasks   = assignments.filter(a => a.status === 'COMPLETED');
+
+    // ── Rencana ──
+    const activePlans = plans.filter(p => {
+        const items = p.metadata?.items || [];
+        const pct = items.length > 0 ? items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length / items.length * 100 : 0;
+        return pct < 100;
+    });
+    const donePlans = plans.filter(p => {
+        const items = p.metadata?.items || [];
+        const pct = items.length > 0 ? items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length / items.length * 100 : 0;
+        return pct >= 100;
+    });
+
+    // ── Rutinitas ──
+    const recentRoutines = routineAssignments.slice(0, 15);
+    const uniqueRoutineNames = [...new Map(recentRoutines.map(r => [r.title?.replace('[RUTIN] ',''), r])).values()];
+
+    // ── Laporan Harian ──
+    const recentLogs = dailyLogs.slice(0, 10);
+
+    return (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+
+            {/* ── TUGAS ── */}
+            <SummarySection title="Penugasan" icon={ClipboardList} color="bg-indigo-500" count={assignments.length} emptyMsg="Belum ada penugasan">
+                {activeTasks.length > 0 && (
+                    <div>
+                        <p className="px-6 pt-4 pb-1 text-[9px] font-black text-indigo-400 uppercase tracking-widest">Sedang Berlangsung ({activeTasks.length})</p>
+                        {activeTasks.map(a => {
+                            const sc = statusCfgSmall[a.status] || statusCfgSmall.PENDING;
+                            const pct = a.progressPercentage || 0;
+                            const items = Array.isArray(a.items) ? a.items : [];
+                            return (
+                                <div key={a.id} className="px-6 py-3 flex items-start gap-3 hover:bg-slate-50/50 transition-all">
+                                    <ProgressRing pct={pct} size={36} strokeWidth={3} />
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${sc.cls}`}>{sc.label}</span>
+                                            <span className="text-[10px] font-black text-slate-700 uppercase italic truncate">{a.title}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-[9px] font-bold text-slate-400">
+                                            <span className="flex items-center gap-1"><Users size={10} />{a.assignee?.name || '—'}</span>
+                                            {a.dueDate && <span className="flex items-center gap-1"><Clock size={10} />Deadline: {fmtDate(a.dueDate, { day:'2-digit', month:'short' })}</span>}
+                                        </div>
+                                        {items.length > 0 && (
+                                            <div className="mt-2 space-y-0.5">
+                                                {items.slice(0, 3).map((it, i) => (
+                                                    <div key={i} className="flex items-center gap-1.5">
+                                                        {it.isDone || it.percentage === 100
+                                                            ? <CheckCircle size={10} className="text-emerald-400 shrink-0" />
+                                                            : <Square size={10} className="text-slate-300 shrink-0" />}
+                                                        <span className={`text-[9px] font-bold ${it.isDone || it.percentage === 100 ? 'text-emerald-600 line-through' : 'text-slate-500'}`}>{it.text}</span>
+                                                        {it.percentage > 0 && it.percentage < 100 && <span className="text-[8px] text-indigo-400 font-black">{it.percentage}%</span>}
+                                                    </div>
+                                                ))}
+                                                {items.length > 3 && <span className="text-[8px] text-slate-300 font-bold">+{items.length - 3} item lainnya</span>}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+                {doneTasks.length > 0 && (
+                    <div>
+                        <p className="px-6 pt-4 pb-1 text-[9px] font-black text-emerald-400 uppercase tracking-widest">Selesai ({doneTasks.length})</p>
+                        {doneTasks.map(a => (
+                            <div key={a.id} className="px-6 py-2.5 flex items-center gap-3 bg-emerald-50/30 hover:bg-emerald-50/60 transition-all">
+                                <CheckCircle size={16} className="text-emerald-400 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                    <span className="text-[10px] font-black text-emerald-700 uppercase italic line-through truncate block">{a.title}</span>
+                                    <span className="text-[9px] font-bold text-slate-400">{a.assignee?.name || '—'}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </SummarySection>
+
+            {/* ── RENCANA ── */}
+            <SummarySection title="Rencana Kerja" icon={Calendar} color="bg-violet-500" count={plans.length} emptyMsg="Belum ada rencana kerja">
+                {activePlans.length > 0 && (
+                    <div>
+                        <p className="px-6 pt-4 pb-1 text-[9px] font-black text-violet-400 uppercase tracking-widest">Dalam Progres ({activePlans.length})</p>
+                        {activePlans.map(p => {
+                            const items = p.metadata?.items || [];
+                            const done = items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
+                            const pct = items.length > 0 ? Math.round((done / items.length) * 100) : 0;
+                            return (
+                                <div key={p.id} className="px-6 py-3 hover:bg-slate-50/50 transition-all">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[10px] font-black text-slate-700 uppercase italic">{p.metadata?.title || 'Rencana Kerja'}</span>
+                                        <span className="text-[10px] font-black text-violet-600 shrink-0 ml-2">{pct}%</span>
+                                    </div>
+                                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden mb-2">
+                                        <div className="h-full bg-gradient-to-r from-violet-500 to-purple-400 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+                                    </div>
+                                    <div className="space-y-0.5">
+                                        {items.map((it, i) => (
+                                            <div key={i} className="flex items-center gap-1.5">
+                                                {it.percentage === 100 || it.status === 'SELESAI'
+                                                    ? <CheckCircle size={10} className="text-emerald-400 shrink-0" />
+                                                    : it.percentage > 0
+                                                        ? <Zap size={10} className="text-amber-400 shrink-0" />
+                                                        : <Square size={10} className="text-slate-300 shrink-0" />}
+                                                <span className={`text-[9px] font-bold ${it.percentage === 100 || it.status === 'SELESAI' ? 'text-emerald-600 line-through' : 'text-slate-500'}`}>{it.activity}</span>
+                                                {it.percentage > 0 && it.percentage < 100 && <span className="text-[8px] text-amber-500 font-black">{it.percentage}%</span>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-[8px] font-bold text-slate-300 mt-1">{fmtDate(p.metadata?.startDate, {day:'2-digit', month:'short'})} — {fmtDate(p.metadata?.endDate, {day:'2-digit', month:'short'})} • {p.user?.name || '—'}</p>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+                {donePlans.length > 0 && (
+                    <div>
+                        <p className="px-6 pt-4 pb-1 text-[9px] font-black text-emerald-400 uppercase tracking-widest">Selesai ({donePlans.length})</p>
+                        {donePlans.map(p => (
+                            <div key={p.id} className="px-6 py-2.5 flex items-center gap-3 bg-emerald-50/30">
+                                <CheckCircle size={14} className="text-emerald-400 shrink-0" />
+                                <div>
+                                    <span className="text-[10px] font-black text-emerald-700 uppercase italic line-through">{p.metadata?.title || 'Rencana Kerja'}</span>
+                                    <p className="text-[8px] font-bold text-slate-400">{p.user?.name || '—'}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </SummarySection>
+
+            {/* ── RUTINITAS ── */}
+            <SummarySection title="Rutinitas Tim" icon={RotateCcw} color="bg-emerald-500" count={uniqueRoutineNames.length} emptyMsg="Belum ada rutinitas terdaftar">
+                {uniqueRoutineNames.map((r, idx) => {
+                    const sc = statusCfgSmall[r.status] || statusCfgSmall.PENDING;
+                    const items = Array.isArray(r.items) ? r.items : [];
+                    return (
+                        <div key={r.id || idx} className="px-6 py-3 flex items-start gap-3 hover:bg-slate-50/50 transition-all">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><RotateCcw size={14} className="text-emerald-500" /></div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${sc.cls}`}>{sc.label}</span>
+                                    <span className="text-[10px] font-black text-slate-700 uppercase italic">{r.title?.replace('[RUTIN] ','')}</span>
+                                </div>
+                                <div className="flex flex-wrap gap-3 text-[9px] font-bold text-slate-400">
+                                    <span className="flex items-center gap-1"><Users size={10} />{r.assignee?.name || '—'}</span>
+                                    {r.location && <span className="flex items-center gap-1"><MapPin size={10} />{r.location}</span>}
+                                </div>
+                                {items.length > 0 && (
+                                    <div className="mt-1.5 space-y-0.5">
+                                        {items.slice(0, 3).map((it, i) => (
+                                            <div key={i} className="flex items-center gap-1.5">
+                                                {it.isDone ? <CheckCircle size={9} className="text-emerald-400" /> : <Square size={9} className="text-slate-300" />}
+                                                <span className={`text-[9px] font-bold ${it.isDone ? 'text-emerald-600 line-through' : 'text-slate-500'}`}>{it.text}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </SummarySection>
+
+            {/* ── LAPORAN HARIAN ── */}
+            <SummarySection title="Laporan Harian" icon={Flag} color="bg-rose-500" count={recentLogs.length} emptyMsg="Belum ada laporan harian">
+                {recentLogs.map((log, idx) => {
+                    const items = log.metadata?.items || [];
+                    return (
+                        <div key={log.id || idx} className="px-6 py-4 hover:bg-slate-50/50 transition-all">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center shrink-0"><Flag size={12} className="text-rose-400" /></div>
+                                <div>
+                                    <span className="text-[10px] font-black text-slate-700">{log.user?.name || 'Staf'}</span>
+                                    <span className="text-[9px] font-bold text-slate-400 ml-2">• {fmtDate(log.date)}</span>
+                                    {log.metadata?.startTime && <span className="text-[9px] font-bold text-slate-400 ml-2">{log.metadata.startTime}{log.metadata.endTime ? ` – ${log.metadata.endTime}` : ''}</span>}
+                                </div>
+                            </div>
+                            {items.length > 0 ? (
+                                <div className="ml-9 space-y-1">
+                                    {items.map((it, i) => (
+                                        <div key={i} className="flex items-start gap-2">
+                                            <span className={`mt-0.5 shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded ${
+                                                it.status === 'SELESAI' ? 'bg-emerald-100 text-emerald-600'
+                                                : it.status === 'PROSES' ? 'bg-amber-100 text-amber-600'
+                                                : 'bg-slate-100 text-slate-500'
+                                            }`}>{it.status || 'SELESAI'}</span>
+                                            <p className="text-[10px] font-bold text-slate-600 leading-relaxed">{it.activity}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="ml-9 text-[10px] font-bold text-slate-500 italic">{log.content || 'Tidak ada detail kegiatan'}</p>
+                            )}
+                        </div>
+                    );
+                })}
+            </SummarySection>
+
+        </div>
+    );
+};
+
 const SummaryCard = ({ title, value, icon: Icon, color, desc }) => (
     <div className="bg-white p-6 rounded-[28px] border border-slate-100 shadow-sm flex items-start justify-between relative overflow-hidden group hover:shadow-md transition-all">
         <div className={`absolute -right-4 -top-4 w-24 h-24 ${color} opacity-5 rounded-full blur-2xl group-hover:scale-150 transition-all duration-700`} />
@@ -358,7 +595,7 @@ const StaffPerformance = () => {
     const fetchTabData = async (page = pagination.currentPage, limit = pageSize) => {
         setLoading(true);
         try {
-            if (activeTab === 'RINGKASAN') { await fetchKPI(); await fetchPlans(1, 5); await fetchAllAssignments(1, 5); }
+            if (activeTab === 'RINGKASAN') { await fetchKPI(); await fetchPlans(1, 20); await fetchAllAssignments(1, 20); await fetchDailyLogs(1, 20); }
             else if (activeTab === 'RENCANA_TUGAS') { await fetchPlans(page, limit); await fetchAllAssignments(page, limit); }
             else if (activeTab === 'RUTINITAS') await fetchAllAssignments(page, limit);
             else if (activeTab === 'LAPORAN') await fetchDailyLogs(page, limit);
@@ -620,7 +857,7 @@ const StaffPerformance = () => {
                         </div>
                     ) : (
                         <>
-                              {activeTab === 'RINGKASAN' && <SummaryTab leaderboard={leaderboard} assignments={assignments} plans={plans} dailyLogs={dailyLogs} />}
+                              {activeTab === 'RINGKASAN' && <SummaryTab assignments={assignments} plans={plans} routineAssignments={routineAssignments} dailyLogs={dailyLogs} />}
                               {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans.filter(p => inDateRange(p.metadata?.startDate || p.date))} assignments={assignments.filter(a => inDateRange(a.startDate || a.createdAt))} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} userId={user.id} isKabid={isKabid} />}
                               {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments.filter(a => inDateRange(a.createdAt))} templates={routineTemplates} onUpdate={handleUpdateAssignment} onDeleteRoutine={handleDeleteRoutine} onEditRoutine={(t) => { setEditingRoutine(t); setShowRutinitasModal(true); }} onEditAssignment={(a) => { setEditingAssignment(a); setShowTugasModal(true); }} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
                               {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs.filter(l => inDateRange(l.date))} isKabid={isKabid} />}
