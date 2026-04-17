@@ -415,7 +415,10 @@ const StaffPerformance = () => {
                 status: filterStatus !== 'ALL' ? filterStatus : undefined
             };
             const res = await api.get('/personnel/assignments', { params });
-            setAssignments(res.data || []);
+            const data = res.data || [];
+            // Filter out routines from assignments
+            const nonRoutineAssignments = data.filter(a => !a.routineId && !a.title.startsWith('[RUTIN]'));
+            setAssignments(nonRoutineAssignments);
         } catch (err) {
             console.error(err);
         } finally {
