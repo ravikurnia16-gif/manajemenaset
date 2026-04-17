@@ -420,17 +420,22 @@ const SummaryCard = ({ title, value, icon: Icon, color, desc }) => (
 );
 
 
-
 // ============================================
 // MAIN COMPONENT
 // ============================================
 const StaffPerformance = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const user = safeParseUser();
-    const userRole = user.role || '';
-    const userPosition = typeof user.position === 'string' ? user.position : '';
-    const isKabid = ['SUPER_ADMIN', 'KEPALA_BIDANG'].includes(userRole) || userPosition.includes('Kepala Bidang Sarana dan Prasarana');
-    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KEPALA_BIDANG'].includes(userRole) || isKabid;
+    const userRole = user?.role || '';
+    const userPosition = (user?.position || '').toLowerCase();
+    
+    // Only allow specific position or SUPER_ADMIN for sensitive tabs
+    const isTargetKabid = userPosition === 'kepala bidang sarana dan prasarana';
+    const isKabid = userRole === 'SUPER_ADMIN' || isTargetKabid;
+    const isAdmin = isKabid; // For this page, Admin visibility matches Kabid visibility for Summary/KPI
+    
+    // Staff list for filter (Kabid/Admin see all, Staff see only theirs)
+    const canFilterStaff = isKabid || ['ADMIN_ASET', 'BIDANG_IT'].includes(userRole);
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
     const validTabs = isAdmin ? ['RINGKASAN', 'RENCANA_TUGAS', 'RUTINITAS', 'LAPORAN', 'KPI'] : ['RENCANA_TUGAS', 'RUTINITAS', 'LAPORAN'];

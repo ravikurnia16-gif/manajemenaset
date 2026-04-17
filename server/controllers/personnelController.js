@@ -1364,11 +1364,10 @@ exports.getKPILeaderboard = async (req, res) => {
         const targetMonth = month ? parseInt(month) : new Date().getMonth() + 1;
         const targetYear = year ? parseInt(year) : new Date().getFullYear();
 
-        // [SEC] Authorization Check: Only Kabid Sarpras or Tech Admins
+        // [SEC] Authorization Check: ONLY Specific Position and SUPER_ADMIN
         const user = req.user;
-        const isAuthorized = user.role === 'SUPER_ADMIN' || 
-                            user.role === 'KEPALA_BIDANG' || 
-                            (user.position && user.position.toLowerCase().includes('kepala bidang') && user.position.toLowerCase().includes('sarana dan prasarana'));
+        const isTargetKabid = user.position && user.position.toLowerCase() === 'kepala bidang sarana dan prasarana';
+        const isAuthorized = user.role === 'SUPER_ADMIN' || isTargetKabid;
 
         if (!isAuthorized) {
             return res.status(403).json({ error: 'Akses ditolak. Fitur ini hanya untuk Kepala Bidang Sarana dan Prasarana.' });
@@ -1996,13 +1995,13 @@ exports.sendWeeklyReportReminder = async () => {
  */
 exports.getPersonnelAISummary = async (req, res) => {
     try {
-        // Only allow Kabid or Admin
+        // Only allow specific Kabid or Super Admin
         const user = req.user;
-        const isAuthorized = user.role === 'SUPER_ADMIN' || user.role === 'KEPALA_BIDANG' || 
-                            (user.position && user.position.toLowerCase().includes('kepala bidang sarana dan prasarana'));
+        const isTargetKabid = user.position && user.position.toLowerCase() === 'kepala bidang sarana dan prasarana';
+        const isAuthorized = user.role === 'SUPER_ADMIN' || isTargetKabid;
         
         if (!isAuthorized) {
-            return res.status(403).json({ error: 'Hanya Kepala Bidang atau Admin yang dapat mengakses ringkasan AI.' });
+            return res.status(403).json({ error: 'Hanya Kepala Bidang Sarana dan Prasarana atau Admin yang dapat mengakses ringkasan AI.' });
         }
 
         // 1. Fetch Data for Context
