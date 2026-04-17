@@ -1502,7 +1502,13 @@ exports.sendDailyPersonnelSummary = async () => {
         }
 
         const kabid = await prisma.user.findFirst({
-            where: { position: 'Kepala Bidang Sarana dan Prasarana' }
+            where: { 
+                OR: [
+                    { position: 'Kepala Bidang Sarana dan Prasarana' },
+                    { role: 'KEPALA_BIDANG' },
+                    { position: { contains: 'Kepala Bidang Sarana dan Prasarana', mode: 'insensitive' } }
+                ]
+            }
         });
 
         if (!kabid?.phone) return;
@@ -1791,6 +1797,7 @@ exports.checkMissingReportsWeekly = async () => {
                 OR: [
                     { position: { contains: 'Sarana dan Prasarana' } },
                     { position: { contains: 'Manajemen Aset' } },
+                    { position: { contains: 'Manajamen Aset' } },
                     { position: { contains: 'Gudang dan Logistik' } },
                     { position: { contains: 'Teknisi' } },
                     { position: { contains: 'Keuangan dan Administrasi' } },
@@ -1940,6 +1947,7 @@ exports.sendWeeklyReportReminder = async () => {
                 OR: [
                     { position: { contains: 'Sarana dan Prasarana' } },
                     { position: { contains: 'Manajemen Aset' } },
+                    { position: { contains: 'Manajamen Aset' } },
                     { position: { contains: 'Gudang dan Logistik' } },
                     { position: { contains: 'Teknisi' } },
                     { position: { contains: 'Keuangan dan Administrasi' } },
