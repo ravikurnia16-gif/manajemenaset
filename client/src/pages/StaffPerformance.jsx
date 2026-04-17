@@ -1,11 +1,11 @@
 import { useState, useEffect, Component } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import {
     Calendar, FileText, ClipboardList, Trophy, Plus, X, ChevronDown,
     ChevronUp, CheckSquare, Square, CheckCircle, Clock, Zap, AlertCircle,
     MapPin, Loader2, Target, Timer, TrendingUp, Sparkles, Users,
     Activity, Crown, Medal, Send, Trash2, RotateCcw, Tag, Edit3,
-    ShieldCheck, MessageSquare, ListChecks, Flag
+    ShieldCheck, MessageSquare, ListChecks, Flag, LayoutDashboard,
+    PieChart as PieIcon, BarChart3
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -117,14 +117,122 @@ const ScoreBar = ({ label, score, color, icon: Icon }) => (
     </div>
 );
 
+const SummaryCard = ({ title, value, icon: Icon, color, desc }) => (
+    <div className="bg-white p-6 rounded-[28px] border border-slate-100 shadow-sm flex items-start justify-between relative overflow-hidden group hover:shadow-md transition-all">
+        <div className={`absolute -right-4 -top-4 w-24 h-24 ${color} opacity-5 rounded-full blur-2xl group-hover:scale-150 transition-all duration-700`} />
+        <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
+            <h3 className="text-3xl font-black text-slate-800 italic tracking-tighter mb-2">{value}</h3>
+            {desc && <p className="text-[9px] font-bold text-slate-400/80 uppercase tracking-tight">{desc}</p>}
+        </div>
+        <div className={`p-3.5 rounded-2xl ${color} bg-opacity-10 text-white shadow-sm transition-transform group-hover:rotate-12`}>
+            <Icon size={22} className={color.replace('bg-', 'text-')} />
+        </div>
+    </div>
+);
+
+const SummaryTab = ({ leaderboard, assignments, plans, dailyLogs }) => {
+    if (leaderboard.length === 0) return <EmptyState icon={LayoutDashboard} message="Menunggu data performa tim..." />;
+
+    return (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {/* Staff Progress Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-8 opacity-[0.03] text-indigo-900"><BarChart3 size={120} /></div>
+                    <h3 className="text-sm font-black text-slate-800 uppercase italic tracking-tight mb-8 flex items-center gap-2">
+                        <Target size={18} className="text-indigo-500" /> Progres Capaian Staf
+                    </h3>
+                    <div className="space-y-6">
+                        {leaderboard.map((item, idx) => (
+                            <div key={item.userId} className="group">
+                                <div className="flex justify-between items-center mb-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-400 italic">#{idx+1}</div>
+                                        <span className="text-xs font-black text-slate-700 uppercase italic">{item.name}</span>
+                                    </div>
+                                    <span className="text-[10px] font-black text-indigo-600">{item.scores?.completion || 0}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-gradient-to-r from-indigo-500 to-blue-400 rounded-full transition-all duration-1000 ease-out group-hover:from-indigo-600 shadow-sm" style={{ width: `${item.scores?.completion || 0}%` }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-8 opacity-[0.03] text-emerald-900"><Sparkles size={120} /></div>
+                    <h3 className="text-sm font-black text-slate-800 uppercase italic tracking-tight mb-8 flex items-center gap-2">
+                        <Timer size={18} className="text-emerald-500" /> Analisa Ketepatan Waktu
+                    </h3>
+                    <div className="space-y-6">
+                        {leaderboard.map((item) => (
+                            <div key={item.userId} className="group">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-xs font-black text-slate-700 uppercase italic">{item.name}</span>
+                                    <span className="text-[10px] font-black text-emerald-600">{item.scores?.punctuality || 0}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-1000 ease-out group-hover:from-emerald-600 shadow-sm" style={{ width: `${item.scores?.punctuality || 0}%` }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Recent Highlights / Activity Feed */}
+            <div className="bg-slate-900 p-8 rounded-[40px] shadow-2xl shadow-indigo-200/20 text-white relative overflow-hidden border border-white/5">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-[80px] -mr-32 -mt-32" />
+                <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-sm font-black uppercase italic tracking-widest flex items-center gap-3">
+                        <Zap size={18} className="text-amber-400" /> Ringkasan Pelaksanaan Progres
+                    </h3>
+                    <Badge className="bg-white/10 text-indigo-300">Terakhir Diperbarui: Baru Saja</Badge>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {dailyLogs.slice(0, 4).map((log, idx) => (
+                        <div key={idx} className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/10 group hover:bg-white/10 transition-all">
+                            <div className="flex items-start gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0"><FileText size={18} /></div>
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">{log.user?.name || 'Staf'}</span>
+                                        <span className="text-[8px] font-bold text-slate-500">• {fmtDate(log.date)}</span>
+                                    </div>
+                                    <p className="text-[11px] font-bold text-slate-300 line-clamp-2 leading-relaxed">{log.content || log.metadata?.sourceTitle || 'Laporan tanpa keterangan'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    {dailyLogs.length === 0 && (
+                        <div className="md:col-span-2 py-8 text-center text-slate-500 text-[10px] font-black uppercase tracking-widest italic opacity-50">
+                            Belum ada laporan harian terbaru
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
 const StaffPerformance = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-    const validTabs = ['RENCANA_TUGAS', 'RUTINITAS', 'LAPORAN', 'KPI'];
+    const user = safeParseUser();
+    const userRole = user.role || '';
+    const userPosition = typeof user.position === 'string' ? user.position : '';
+    const isKabid = userRole === 'SUPER_ADMIN' || userPosition.includes('Kepala Bidang Sarana dan Prasarana');
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(userRole) || isKabid;
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+    const validTabs = isAdmin ? ['RINGKASAN', 'RENCANA_TUGAS', 'RUTINITAS', 'LAPORAN', 'KPI'] : ['RENCANA_TUGAS', 'RUTINITAS', 'LAPORAN'];
     const urlTab = searchParams.get('tab')?.toUpperCase();
-    const initialTab = validTabs.includes(urlTab) ? urlTab : 'RENCANA_TUGAS';
+    const initialTab = validTabs.includes(urlTab) ? urlTab : (isAdmin ? 'RINGKASAN' : 'RENCANA_TUGAS');
 
     const [activeTab, setActiveTab] = useState(initialTab);
     const [loading, setLoading] = useState(false);
@@ -165,14 +273,8 @@ const StaffPerformance = () => {
         return true;
     };
 
-    const user = safeParseUser();
-    const userRole = user.role || '';
-    const userPosition = typeof user.position === 'string' ? user.position : '';
-    const isKabid = userRole === 'SUPER_ADMIN' || userPosition.includes('Kepala Bidang Sarana dan Prasarana');
-    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(userRole) || isKabid;
-    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-
     const tabConfig = [
+        { key: 'RINGKASAN', label: 'Ringkasan', icon: LayoutDashboard, adminOnly: true },
         { key: 'RENCANA_TUGAS', label: 'Rencana & Tugas', icon: ListChecks },
         { key: 'RUTINITAS', label: 'Rutinitas', icon: RotateCcw },
         { key: 'LAPORAN', label: 'Laporan', icon: FileText },
@@ -194,7 +296,8 @@ const StaffPerformance = () => {
     const fetchTabData = async (page = pagination.currentPage, limit = pageSize) => {
         setLoading(true);
         try {
-            if (activeTab === 'RENCANA_TUGAS') { await fetchPlans(page, limit); await fetchAllAssignments(page, limit); }
+            if (activeTab === 'RINGKASAN') { await fetchKPI(); await fetchPlans(1, 5); await fetchAllAssignments(1, 5); }
+            else if (activeTab === 'RENCANA_TUGAS') { await fetchPlans(page, limit); await fetchAllAssignments(page, limit); }
             else if (activeTab === 'RUTINITAS') await fetchAllAssignments(page, limit);
             else if (activeTab === 'LAPORAN') await fetchDailyLogs(page, limit);
             else if (activeTab === 'KPI') await fetchKPI();
@@ -353,6 +456,27 @@ const StaffPerformance = () => {
                     </div>
                 </div>
 
+                {/* ─── SUMMARY CARDS (Dashboard Row) ─── */}
+                {isAdmin && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                        {(() => {
+                            const totalPlanned = leaderboard.reduce((acc, curr) => acc + (curr.stats?.total || 0), 0);
+                            const totalDone = leaderboard.reduce((acc, curr) => acc + (curr.stats?.completed || 0), 0);
+                            const avgPct = totalPlanned > 0 ? Math.round((totalDone / totalPlanned) * 100) : 0;
+                            const avgPunctual = leaderboard.length > 0 ? Math.round(leaderboard.reduce((acc, curr) => acc + (curr.scores?.punctuality || 0), 0) / leaderboard.length) : 0;
+                            
+                            return (
+                                <>
+                                    <SummaryCard title="Total Penugasan" value={totalPlanned} icon={ClipboardList} color="bg-indigo-500" desc="Rencana + Tugas + Rutin" />
+                                    <SummaryCard title="Rata-rata Progres" value={`${avgPct}%`} icon={Zap} color="bg-amber-500" desc="Ketercapaian Kumulatif Tim" />
+                                    <SummaryCard title="Ketepatan Waktu" value={`${avgPunctual}%`} icon={Timer} color="bg-emerald-500" desc="Selesai Sebelum Deadline" />
+                                    <SummaryCard title="Aktivitas Harian" value={dailyLogs.length} icon={Activity} color="bg-blue-500" desc="Laporan masuk periode ini" />
+                                </>
+                            );
+                        })()}
+                    </div>
+                )}
+
                 {/* ─── TOOLBAR ─── */}
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-white/60 backdrop-blur-xl p-3 rounded-2xl border border-slate-200/50 shadow-sm">
                     <div className="flex items-center gap-3">
@@ -434,10 +558,11 @@ const StaffPerformance = () => {
                         </div>
                     ) : (
                         <>
-                             {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans.filter(p => inDateRange(p.metadata?.startDate || p.date))} assignments={assignments.filter(a => inDateRange(a.startDate || a.createdAt))} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} userId={user.id} isKabid={isKabid} />}
-                             {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments.filter(a => inDateRange(a.createdAt))} templates={routineTemplates} onUpdate={handleUpdateAssignment} onDeleteRoutine={handleDeleteRoutine} onEditRoutine={(t) => { setEditingRoutine(t); setShowRutinitasModal(true); }} onEditAssignment={(a) => { setEditingAssignment(a); setShowTugasModal(true); }} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
-                             {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs.filter(l => inDateRange(l.date))} isKabid={isKabid} />}
-                             {activeTab === 'KPI' && <KPITab leaderboard={leaderboard} />}
+                              {activeTab === 'RINGKASAN' && <SummaryTab leaderboard={leaderboard} assignments={assignments} plans={plans} dailyLogs={dailyLogs} />}
+                              {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans.filter(p => inDateRange(p.metadata?.startDate || p.date))} assignments={assignments.filter(a => inDateRange(a.startDate || a.createdAt))} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} userId={user.id} isKabid={isKabid} />}
+                              {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments.filter(a => inDateRange(a.createdAt))} templates={routineTemplates} onUpdate={handleUpdateAssignment} onDeleteRoutine={handleDeleteRoutine} onEditRoutine={(t) => { setEditingRoutine(t); setShowRutinitasModal(true); }} onEditAssignment={(a) => { setEditingAssignment(a); setShowTugasModal(true); }} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
+                              {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs.filter(l => inDateRange(l.date))} isKabid={isKabid} />}
+                              {activeTab === 'KPI' && <KPITab leaderboard={leaderboard} />}
 
                              {activeTab !== 'KPI' && pageSize !== 'all' && pagination.totalPages > 1 && (
                                 <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
