@@ -3,6 +3,7 @@ const prisma = new PrismaClient();
 const whatsappService = require('../services/whatsappService');
 const { sendPushToUser, sendPushToKabid } = require('../services/pushService');
 const { createNotification } = require('./notificationController');
+const aiService = require('../services/aiService');
 
 // Helper to check if user belongs to 'Sarana dan Prasarana' unit
 const isSarprasUnit = async (unitId) => {
@@ -1969,5 +1970,85 @@ exports.sendWeeklyReportReminder = async () => {
         }
     } catch (err) {
         console.error('[Personnel] Weekly Reminder Error:', err.message);
+    }
+};
+
+/**
+ * GENERATE NARRATIVE AI SUMMARY FOR KABID
+ * Aggregates recent activities and uses AI to summarize them into a narrative.
+ */
+exports.getPersonnelAISummary = async (req, res) => {
+    try {
+        // Only allow Kabid or Admin
+        const user = req.user;
+        const isAuthorized = user.role === 'SUPER_ADMIN' || (user.position && user.position.includes('Kepala Bidang Sarana dan Prasarana'));
+        
+        if (!isAuthorized) {
+            return res.status(403).json({ error: 'Hanya Kepala Bidang atau Admin yang dapat mengakses ringkasan AI.' });
+        }
+
+        // 1. Fetch Data for Context
+        const last7Days = new Date();
+        last7Days.setDate(last7Days.getDate() - 7);
+
+        // A. Recent Assignments
+        const assignments = await prisma.personnelAssignment.findMany({
+            where: {
+                createdAt: { gte: last7Days },
+                routineId: null // Skip routines here, handle separately
+            },
+            include: { assignee: { select: { name: true } } },
+            orderBy: { createdAt: 'desc' },
+            take: 15
+        });
+
+        // B. Recent Plans (Weekly Reports with isPlan: true)
+        const plans = await prisma.personnelReport.findMany({
+            where: {
+                type: 'WEEKLY',
+                date: { gte: last7Days },
+                metadata: { path: ['isPlan'], equals: true }
+            },
+            include: { user: { select: { name: true } } },
+            orderBy: { date: 'desc' },
+            take: 10
+        });
+
+        // C. Active Routines
+        const routines = await prisma.personnelRoutine.findMany({
+            where: { isActive: true },
+            include: { assignee: { select: { name: true } } },
+            take: 10
+        });
+
+        // D. Recent Daily Logs
+        const dailyLogs = await prisma.personnelReport.findMany({
+            where: {
+                type: 'DAILY',
+                date: { gte: last7Days }
+            },
+            include: { user: { select: { name: true } } },
+            orderBy: { date: 'desc' },
+            take: 15
+        });
+
+        // 2. Map data for AI
+        const context = {
+            tasks: assignments,
+            plans,
+            routines,
+            dailyLogs: dailyLogs.map(l => ({
+                user: l.user,
+                content: l.content || (l.metadata?.items ? l.metadata.items.map(i => i.activity).join(', ') : 'Laporan rutin')
+            }))
+        };
+
+        // 3. Generate Summary
+        const summary = await aiService.generatePersonnelSummary(context);
+
+        res.json({ summary });
+    } catch (err) {
+        console.error('[AI Summary Error]', err.message);
+        res.status(500).json({ error: 'Gagal menghasilkan ringkasan AI: ' + err.message });
     }
 };

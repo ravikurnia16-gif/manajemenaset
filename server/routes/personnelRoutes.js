@@ -19,6 +19,9 @@ router.put('/assignments/:id/status', personnelController.updateAssignmentStatus
 router.post('/assignments/:id/request-extension', personnelController.requestExtension);
 router.post('/assignments/:id/handle-extension', personnelController.handleExtension);
 
+// AI Summary
+router.get('/ai-summary', personnelController.getPersonnelAISummary);
+
 // Dashboard
 router.get('/dashboard', verifyToken, personnelController.getPersonnelDashboard);
 router.get('/kpi-leaderboard', personnelController.getKPILeaderboard);

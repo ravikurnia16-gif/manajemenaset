@@ -138,6 +138,53 @@ const SummarySection = ({ title, icon: Icon, color, count, children, emptyMsg })
     </div>
 );
 
+const AISummaryCard = ({ summary, loading }) => (
+    <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-800 rounded-[32px] p-8 shadow-2xl relative overflow-hidden border border-white/10 group">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-[80px] -mr-32 -mt-32 animate-pulse" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/10 rounded-full blur-[60px] -ml-24 -mb-24" />
+        
+        <div className="relative z-10">
+            <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 flex items-center justify-center border border-indigo-400/30">
+                        <Sparkles size={20} className="text-indigo-300 animate-pulse" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-black text-white uppercase italic tracking-widest">Analisa Pintar (AI)</h3>
+                        <p className="text-[10px] font-bold text-indigo-300/70 uppercase">Ringkasan Eksekutif Terkini</p>
+                    </div>
+                </div>
+                {loading && <Loader2 size={16} className="animate-spin text-indigo-300/50" />}
+            </div>
+
+            {loading ? (
+                <div className="space-y-3">
+                    <div className="h-3 w-3/4 bg-white/5 rounded-full animate-pulse" />
+                    <div className="h-3 w-full bg-white/5 rounded-full animate-pulse" />
+                    <div className="h-3 w-5/6 bg-white/5 rounded-full animate-pulse" />
+                </div>
+            ) : summary ? (
+                <div className="prose prose-invert prose-sm max-w-none">
+                    <p className="text-slate-300 text-xs leading-relaxed font-medium italic whitespace-pre-wrap">
+                        {summary}
+                    </p>
+                </div>
+            ) : (
+                <p className="text-slate-500 text-xs italic font-bold uppercase tracking-widest text-center py-4">Gagal memuat ringkasan AI</p>
+            )}
+
+            <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest italic">Berdasarkan data 7 hari terakhir</p>
+                <div className="flex gap-1">
+                    <div className="w-1 h-1 rounded-full bg-indigo-500/50" />
+                    <div className="w-1 h-1 rounded-full bg-indigo-500/30" />
+                    <div className="w-1 h-1 rounded-full bg-indigo-500/10" />
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
 const statusCfgSmall = {
     'PENDING':     { label: 'Menunggu', cls: 'bg-amber-100 text-amber-700' },
     'IN_PROGRESS': { label: 'Proses',   cls: 'bg-indigo-100 text-indigo-700' },
@@ -145,7 +192,7 @@ const statusCfgSmall = {
     'OVERDUE':     { label: 'Terlambat',cls: 'bg-rose-100 text-rose-700' },
 };
 
-const SummaryTab = ({ assignments, plans, routineAssignments, dailyLogs }) => {
+const SummaryTab = ({ assignments, plans, routineAssignments, dailyLogs, aiSummary, aiSummaryLoading }) => {
 
     // ── Tugas ──
     const activeTasks = assignments.filter(a => a.status !== 'COMPLETED');
@@ -172,6 +219,9 @@ const SummaryTab = ({ assignments, plans, routineAssignments, dailyLogs }) => {
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+
+            {/* ── AI SUMMARY ── */}
+            <AISummaryCard summary={aiSummary} loading={aiSummaryLoading} />
 
             {/* ── TUGAS ── */}
             <SummarySection title="Penugasan" icon={ClipboardList} color="bg-indigo-500" count={assignments.length} emptyMsg="Belum ada penugasan">
@@ -369,153 +419,7 @@ const SummaryCard = ({ title, value, icon: Icon, color, desc }) => (
     </div>
 );
 
-const SummaryTab = ({ leaderboard, assignments, plans, dailyLogs }) => {
-    const hasLeaderboard = leaderboard.length > 0;
-    const totalTasks = [...assignments, ...plans].length;
 
-    return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-
-            {/* Top info banner if no KPI data */}
-            {!hasLeaderboard && (
-                <div className="flex items-center gap-4 bg-amber-50 border border-amber-200 p-5 rounded-2xl">
-                    <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
-                        <AlertCircle size={20} className="text-amber-500" />
-                    </div>
-                    <div>
-                        <p className="text-[11px] font-black text-amber-700 uppercase tracking-widest mb-0.5">Data KPI Belum Tersedia</p>
-                        <p className="text-xs font-bold text-amber-600/80">KPI dihitung otomatis berdasarkan tugas yang diselesaikan. Minta staf menyelesaikan penugasan agar data muncul.</p>
-                    </div>
-                </div>
-            )}
-
-            {/* Staff Progress Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-8 opacity-[0.03] text-indigo-900"><BarChart3 size={120} /></div>
-                    <h3 className="text-sm font-black text-slate-800 uppercase italic tracking-tight mb-8 flex items-center gap-2">
-                        <Target size={18} className="text-indigo-500" /> Progres Capaian Staf
-                    </h3>
-                    {hasLeaderboard ? (
-                        <div className="space-y-6">
-                            {leaderboard.map((item, idx) => (
-                                <div key={item.userId} className="group">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-400 italic">#{idx+1}</div>
-                                            <span className="text-xs font-black text-slate-700 uppercase italic">{item.name}</span>
-                                        </div>
-                                        <span className="text-[10px] font-black text-indigo-600">{item.scores?.completion || 0}%</span>
-                                    </div>
-                                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-gradient-to-r from-indigo-500 to-blue-400 rounded-full transition-all duration-1000 ease-out group-hover:from-indigo-600 shadow-sm" style={{ width: `${item.scores?.completion || 0}%` }} />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="py-10 text-center">
-                            <BarChart3 size={36} className="mx-auto text-slate-200 mb-3" />
-                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Belum ada data KPI bulan ini</p>
-                        </div>
-                    )}
-                </div>
-
-                <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-8 opacity-[0.03] text-emerald-900"><Sparkles size={120} /></div>
-                    <h3 className="text-sm font-black text-slate-800 uppercase italic tracking-tight mb-8 flex items-center gap-2">
-                        <Timer size={18} className="text-emerald-500" /> Analisa Ketepatan Waktu
-                    </h3>
-                    {hasLeaderboard ? (
-                        <div className="space-y-6">
-                            {leaderboard.map((item) => (
-                                <div key={item.userId} className="group">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="text-xs font-black text-slate-700 uppercase italic">{item.name}</span>
-                                        <span className="text-[10px] font-black text-emerald-600">{item.scores?.punctuality || 0}%</span>
-                                    </div>
-                                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-1000 ease-out group-hover:from-emerald-600 shadow-sm" style={{ width: `${item.scores?.punctuality || 0}%` }} />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="py-10 text-center">
-                            <Timer size={36} className="mx-auto text-slate-200 mb-3" />
-                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Belum ada data ketepatan waktu</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Penugasan Aktif Summary */}
-            {totalTasks > 0 && (
-                <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm">
-                    <h3 className="text-sm font-black text-slate-800 uppercase italic tracking-tight mb-6 flex items-center gap-2">
-                        <ClipboardList size={18} className="text-blue-500" /> Penugasan Aktif Tim
-                        <Badge className="bg-blue-100 text-blue-600 ml-1">{totalTasks}</Badge>
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {[...assignments.slice(0, 3), ...plans.slice(0, 3)].slice(0, 6).map((item, idx) => {
-                            const sc = statusCfg[item.status] || statusCfg.PENDING;
-                            const Icon = sc.icon;
-                            const pct = item.progressPercentage || (() => {
-                                const items = item.metadata?.items || [];
-                                const done = items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
-                                return items.length > 0 ? Math.round((done / items.length) * 100) : 0;
-                            })();
-                            return (
-                                <div key={item.id || idx} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50/50">
-                                    <div className={`p-2 rounded-lg ${sc.color}`}><Icon size={14} /></div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-[11px] font-black text-slate-700 uppercase italic truncate">{item.title || item.metadata?.title || 'Penugasan'}</p>
-                                        <p className="text-[9px] font-bold text-slate-400">{item.assignee?.name || item.user?.name || '—'}</p>
-                                    </div>
-                                    <span className="text-[10px] font-black text-slate-500 shrink-0">{pct}%</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-
-            {/* Recent Activity Feed */}
-            <div className="bg-slate-900 p-8 rounded-[40px] shadow-2xl shadow-indigo-200/20 text-white relative overflow-hidden border border-white/5">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-[80px] -mr-32 -mt-32" />
-                <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-sm font-black uppercase italic tracking-widest flex items-center gap-3">
-                        <Zap size={18} className="text-amber-400" /> Laporan Harian Terbaru
-                    </h3>
-                    <Badge className="bg-white/10 text-indigo-300">{dailyLogs.length} Laporan</Badge>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {dailyLogs.slice(0, 4).map((log, idx) => (
-                        <div key={idx} className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/10 group hover:bg-white/10 transition-all">
-                            <div className="flex items-start gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0"><FileText size={18} /></div>
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">{log.user?.name || 'Staf'}</span>
-                                        <span className="text-[8px] font-bold text-slate-500">• {fmtDate(log.date)}</span>
-                                    </div>
-                                    <p className="text-[11px] font-bold text-slate-300 line-clamp-2 leading-relaxed">{log.content || log.metadata?.sourceTitle || 'Laporan tanpa keterangan'}</p>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                    {dailyLogs.length === 0 && (
-                        <div className="md:col-span-2 py-10 text-center">
-                            <Activity size={36} className="mx-auto text-slate-600 mb-3" />
-                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Belum ada laporan harian terbaru</p>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
 
 // ============================================
 // MAIN COMPONENT
@@ -544,6 +448,8 @@ const StaffPerformance = () => {
     const [routineTemplates, setRoutineTemplates] = useState([]);
     const [dailyLogs, setDailyLogs] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
+    const [aiSummary, setAiSummary] = useState('');
+    const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
     const [staffList, setStaffList] = useState([]);
     const [pageSize, setPageSize] = useState(20);
     const [pagination, setPagination] = useState({ total: 0, totalPages: 1, currentPage: 1 });
@@ -592,10 +498,29 @@ const StaffPerformance = () => {
     const fetchStaff = async () => { try { const r = await api.get('/personnel/staff'); setStaffList(r.data || []); } catch {} };
     const fetchRoutineTemplates = async () => { try { const r = await api.get('/personnel/routines'); setRoutineTemplates(r.data || []); } catch {} };
 
+    const fetchAISummary = async () => {
+        setAiSummaryLoading(true);
+        try {
+            const r = await api.get('/personnel/ai-summary');
+            setAiSummary(r.data.summary);
+        } catch (err) {
+            console.error('AI Summary Error:', err);
+            setAiSummary('Terjadi kesalahan saat memuat ringkasan AI.');
+        } finally {
+            setAiSummaryLoading(false);
+        }
+    };
+
     const fetchTabData = async (page = pagination.currentPage, limit = pageSize) => {
         setLoading(true);
         try {
-            if (activeTab === 'RINGKASAN') { await fetchKPI(); await fetchPlans(1, 20); await fetchAllAssignments(1, 20); await fetchDailyLogs(1, 20); }
+            if (activeTab === 'RINGKASAN') { 
+                await fetchKPI(); 
+                await fetchPlans(1, 20); 
+                await fetchAllAssignments(1, 20); 
+                await fetchDailyLogs(1, 20); 
+                fetchAISummary(); // Non-blocking
+            }
             else if (activeTab === 'RENCANA_TUGAS') { await fetchPlans(page, limit); await fetchAllAssignments(page, limit); }
             else if (activeTab === 'RUTINITAS') await fetchAllAssignments(page, limit);
             else if (activeTab === 'LAPORAN') await fetchDailyLogs(page, limit);
@@ -857,7 +782,7 @@ const StaffPerformance = () => {
                         </div>
                     ) : (
                         <>
-                              {activeTab === 'RINGKASAN' && <SummaryTab assignments={assignments} plans={plans} routineAssignments={routineAssignments} dailyLogs={dailyLogs} />}
+                              {activeTab === 'RINGKASAN' && <SummaryTab assignments={assignments} plans={plans} routineAssignments={routineAssignments} dailyLogs={dailyLogs} aiSummary={aiSummary} aiSummaryLoading={aiSummaryLoading} />}
                               {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans.filter(p => inDateRange(p.metadata?.startDate || p.date))} assignments={assignments.filter(a => inDateRange(a.startDate || a.createdAt))} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} userId={user.id} isKabid={isKabid} />}
                               {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments.filter(a => inDateRange(a.createdAt))} templates={routineTemplates} onUpdate={handleUpdateAssignment} onDeleteRoutine={handleDeleteRoutine} onEditRoutine={(t) => { setEditingRoutine(t); setShowRutinitasModal(true); }} onEditAssignment={(a) => { setEditingAssignment(a); setShowTugasModal(true); }} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
                               {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs.filter(l => inDateRange(l.date))} isKabid={isKabid} />}
