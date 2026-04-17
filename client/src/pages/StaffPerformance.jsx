@@ -227,8 +227,8 @@ const StaffPerformance = () => {
     const user = safeParseUser();
     const userRole = user.role || '';
     const userPosition = typeof user.position === 'string' ? user.position : '';
-    const isKabid = userRole === 'SUPER_ADMIN' || userPosition.includes('Kepala Bidang Sarana dan Prasarana');
-    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(userRole) || isKabid;
+    const isKabid = ['SUPER_ADMIN', 'KEPALA_BIDANG'].includes(userRole) || userPosition.includes('Kepala Bidang Sarana dan Prasarana');
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KEPALA_BIDANG'].includes(userRole) || isKabid;
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
     const validTabs = isAdmin ? ['RINGKASAN', 'RENCANA_TUGAS', 'RUTINITAS', 'LAPORAN', 'KPI'] : ['RENCANA_TUGAS', 'RUTINITAS', 'LAPORAN'];
