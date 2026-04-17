@@ -428,6 +428,33 @@ const StaffPerformance = () => {
 const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignment, onEditPlan, userId, isKabid }) => {
     const [expanded, setExpanded] = useState([]);
     const toggle = id => setExpanded(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
+    const sortedPlans = [...plans].sort((a, b) => {
+        const aItems = a.metadata?.items || [];
+        const aCompleted = aItems.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
+        const aPct = aItems.length > 0 ? Math.round((aCompleted / aItems.length) * 100) : 0;
+        
+        const bItems = b.metadata?.items || [];
+        const bCompleted = bItems.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
+        const bPct = bItems.length > 0 ? Math.round((bCompleted / bItems.length) * 100) : 0;
+
+        const aDone = aPct === 100;
+        const bDone = bPct === 100;
+        if (aDone !== bDone) return aDone ? 1 : -1;
+        
+        const aDate = new Date(a.metadata?.startDate || a.date);
+        const bDate = new Date(b.metadata?.startDate || b.date);
+        return bDate - aDate;
+    });
+
+    const sortedAssignments = [...assignments].sort((a, b) => {
+        const aDone = a.status === 'COMPLETED';
+        const bDone = b.status === 'COMPLETED';
+        if (aDone !== bDone) return aDone ? 1 : -1;
+        
+        const aDate = new Date(a.startDate || a.createdAt);
+        const bDate = new Date(b.startDate || b.createdAt);
+        return bDate - aDate;
+    });
 
     const totalItems = plans.length + assignments.length;
 
@@ -444,7 +471,7 @@ const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignm
                         <Badge className="bg-indigo-100 text-indigo-600">{plans.length}</Badge>
                     </div>
                     <div className="space-y-3">
-                        {plans.map(plan => {
+                        {sortedPlans.map(plan => {
                             const items = plan.metadata?.items || [];
                             const completed = items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
                             const pct = items.length > 0 ? Math.round((completed / items.length) * 100) : 0;
@@ -501,7 +528,7 @@ const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignm
                         <Badge className="bg-emerald-100 text-emerald-600">{assignments.length}</Badge>
                     </div>
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                        {assignments.map((a, idx) => {
+                        {sortedAssignments.map((a, idx) => {
                             const isOpen = expanded.includes(`task-${a.id}`);
                             const sc = statusCfg[a.status] || statusCfg.PENDING;
                             const pc = priorityCfg[a.priority] || priorityCfg.MEDIUM;
