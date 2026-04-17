@@ -846,6 +846,7 @@ exports.getAssetPublic = async (req, res) => {
             brand: asset.brand || '-',
             specification: asset.specification || '-',
             condition: asset.condition,
+            isLendable: asset.isLendable || false,
             purchaseDate: asset.purchaseDate,
             price: asset.price,
             sourceOfFunds: asset.sourceOfFunds || 'Mandiri',

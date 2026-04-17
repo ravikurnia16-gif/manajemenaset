@@ -148,15 +148,17 @@ const PublicAssetView = () => {
                     </div>
 
                     {/* Quick Actions (Borrow & Maintenance) */}
-                    <div className="grid grid-cols-2 gap-3 mt-6 pt-6 border-t border-slate-100 relative z-10">
-                        <button
-                            onClick={() => handleActionClick(`/peminjaman?assetId=${asset.id}`)}
-                            className="bg-indigo-600 text-white rounded-2xl py-3.5 font-bold shadow-lg shadow-indigo-200 flex flex-col items-center gap-1 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={['Rusak Berat', 'Dihapuskan', 'Sedang Diperbaiki'].includes(asset.condition)}
-                        >
-                            <Package size={20} />
-                            <span className="text-xs">Pinjam Aset</span>
-                        </button>
+                    <div className={`grid ${asset.isLendable ? 'grid-cols-2' : 'grid-cols-1'} gap-3 mt-6 pt-6 border-t border-slate-100 relative z-10`}>
+                        {asset.isLendable && (
+                            <button
+                                onClick={() => handleActionClick(`/peminjaman?assetId=${asset.id}`)}
+                                className="bg-indigo-600 text-white rounded-2xl py-3.5 font-bold shadow-lg shadow-indigo-200 flex flex-col items-center gap-1 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={['Rusak Berat', 'Dihapuskan', 'Sedang Diperbaiki'].includes(asset.condition)}
+                            >
+                                <Package size={20} />
+                                <span className="text-xs">Pinjam Aset</span>
+                            </button>
+                        )}
                         <button
                             onClick={() => handleActionClick(`/pemeliharaan/input?assetId=${asset.id}`)}
                             className="bg-orange-500 text-white rounded-2xl py-3.5 font-bold shadow-lg shadow-orange-200 flex flex-col items-center gap-1 hover:bg-orange-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
