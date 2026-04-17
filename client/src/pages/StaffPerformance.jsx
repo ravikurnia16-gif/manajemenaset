@@ -534,12 +534,15 @@ const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignm
 
 const PlanItem = ({ item, idx, onUpdate, isKabid }) => {
     const [localPct, setLocalPct] = useState(item.percentage || 0);
+    const [editing, setEditing] = useState(false);
     useEffect(() => setLocalPct(item.percentage || 0), [item.percentage]);
     const isDone = localPct === 100 || item.status === 'SELESAI';
 
-    const commit = () => {
-        const clamped = Math.min(100, Math.max(0, localPct));
-        if (clamped !== (item.percentage || 0)) onUpdate({ percentage: clamped, status: clamped === 100 ? 'SELESAI' : 'PROSES' });
+    const commit = (pct) => {
+        const clamped = Math.min(100, Math.max(0, pct));
+        setLocalPct(clamped);
+        if (clamped !== (item.percentage || 0)) onUpdate({ percentage: clamped, status: clamped === 100 ? 'SELESAI' : clamped > 0 ? 'PROSES' : 'PENDING' });
+        setEditing(false);
     };
     const toggleDone = () => {
         const newPct = isDone ? 0 : 100;
@@ -547,17 +550,41 @@ const PlanItem = ({ item, idx, onUpdate, isKabid }) => {
         onUpdate({ percentage: newPct, status: newPct === 100 ? 'SELESAI' : 'PENDING' });
     };
 
+    const pctColor = isDone ? 'bg-emerald-500' : localPct > 50 ? 'bg-indigo-500' : localPct > 0 ? 'bg-amber-500' : 'bg-slate-200';
+
     return (
-        <div className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${isDone ? 'bg-emerald-50/50 border-emerald-100' : 'bg-white border-slate-100'}`}>
-            <button onClick={toggleDone} className={`shrink-0 transition-all active:scale-90 ${isDone ? 'text-emerald-500' : 'text-slate-300 hover:text-indigo-400'}`}>
-                {isDone ? <CheckSquare size={20} /> : <Square size={20} />}
-            </button>
-            <span className={`flex-1 text-xs font-bold min-w-0 truncate ${isDone ? 'text-emerald-700 line-through decoration-emerald-200' : 'text-slate-700'}`}>{item.activity}</span>
-            {!isKabid && (
-                <div className="flex items-center gap-2 shrink-0">
-                    <input type="range" min="0" max="100" step="10" value={localPct} onChange={e => setLocalPct(parseInt(e.target.value))} onMouseUp={commit} onTouchEnd={commit}
-                        className="w-20 h-1 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600" />
-                    <span className="text-[10px] font-black text-indigo-600 w-8 text-right">{localPct}%</span>
+        <div className={`p-3 rounded-xl border transition-all ${isDone ? 'bg-emerald-50/50 border-emerald-100' : 'bg-white border-slate-100'}`}>
+            <div className="flex items-center gap-3">
+                <button onClick={toggleDone} className={`shrink-0 transition-all active:scale-90 ${isDone ? 'text-emerald-500' : 'text-slate-300 hover:text-indigo-400'}`}>
+                    {isDone ? <CheckSquare size={20} /> : <Square size={20} />}
+                </button>
+                <span className={`flex-1 text-xs font-bold min-w-0 ${isDone ? 'text-emerald-700 line-through decoration-emerald-200' : 'text-slate-700'}`}>{item.activity}</span>
+                {!isKabid && !editing ? (
+                    <button onClick={() => setEditing(true)} className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${isDone ? 'bg-emerald-100 text-emerald-700' : localPct > 0 ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                        {localPct}%
+                    </button>
+                ) : isKabid ? (
+                    <span className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black ${isDone ? 'bg-emerald-100 text-emerald-700' : localPct > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-400'}`}>{localPct}%</span>
+                ) : null}
+            </div>
+            {/* Progress bar */}
+            <div className="mt-2 ml-8 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className={`h-full ${pctColor} rounded-full transition-all duration-500`} style={{ width: `${localPct}%` }} />
+            </div>
+            {/* Inline editor */}
+            {editing && !isKabid && (
+                <div className="mt-3 ml-8 flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-100 animate-in fade-in duration-200">
+                    <input type="range" min="0" max="100" step="5" value={localPct} onChange={e => setLocalPct(parseInt(e.target.value))}
+                        className="flex-1 h-1.5 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600" />
+                    <input type="number" min="0" max="100" step="5" value={localPct} onChange={e => setLocalPct(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                        className="w-14 px-2 py-1 text-center text-[11px] font-black text-indigo-700 bg-white border border-indigo-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-200" />
+                    <span className="text-[10px] font-black text-slate-400">%</span>
+                    <button onClick={() => commit(localPct)} className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black rounded-lg hover:bg-indigo-700 transition-all uppercase tracking-widest">
+                        Simpan
+                    </button>
+                    <button onClick={() => { setLocalPct(item.percentage || 0); setEditing(false); }} className="p-1 text-slate-400 hover:text-rose-500 transition-colors">
+                        <X size={14} />
+                    </button>
                 </div>
             )}
         </div>
