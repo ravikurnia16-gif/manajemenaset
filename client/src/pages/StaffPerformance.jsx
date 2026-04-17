@@ -147,6 +147,8 @@ const StaffPerformance = () => {
     const [showDailyModal, setShowDailyModal] = useState(false);
     const [showRutinitasModal, setShowRutinitasModal] = useState(false);
     const [editingPlan, setEditingPlan] = useState(null);
+    const [editingRoutine, setEditingRoutine] = useState(null);
+    const [editingAssignment, setEditingAssignment] = useState(null);
 
     // Filters
     const [filterStaff, setFilterStaff] = useState('ALL');
@@ -238,7 +240,12 @@ const StaffPerformance = () => {
 
     // --- HANDLERS ---
     const handleUpdateAssignment = async (id, data) => {
-        try { await api.put(`/personnel/assignments/${id}/status`, data); await fetchAllAssignments(); } catch { alert('Gagal memperbarui'); }
+        try { await api.put(`/personnel/assignments/${id}/status`, data); await fetchAllAssignments(pagination.currentPage, pageSize); } catch { alert('Gagal memperbarui'); }
+    };
+
+    const handleDeleteRoutine = async (id) => {
+        if (!confirm('Hapus rutinitas ini? Jadwal yang sudah tercipta tidak akan terhapus, namun tidak akan ada jadwal baru lagi.')) return;
+        try { await api.delete(`/personnel/routines/${id}`); await fetchRoutineTemplates(); } catch { alert('Gagal menghapus'); }
     };
 
     const handleUpdatePlanItem = async (plan, itemIdx, updates) => {
@@ -275,14 +282,22 @@ const StaffPerformance = () => {
     const handleCreateTask = async (formData) => {
         setSubmitting(true);
         try {
-            await api.post('/personnel/assignments', {
-                assigneeId: formData.assigneeId, title: formData.title, description: formData.notes || '',
-                category: 'UMUM', priority: formData.priority, location: formData.location,
-                startDate: formData.startDate, dueDate: formData.dueDate,
-                items: formData.items.filter(i => i.text.trim()).map(i => ({ text: i.text, isDone: false, percentage: 0 }))
-            });
-            setShowTugasModal(false); await fetchAllAssignments();
-        } catch (err) { alert(err.response?.data?.error || 'Gagal membuat tugas'); }
+            if (editingAssignment || formData.id) {
+                const id = editingAssignment?.id || formData.id;
+                await api.put(`/personnel/assignments/${id}/status`, {
+                    ...formData,
+                    description: formData.description || formData.notes
+                });
+            } else {
+                await api.post('/personnel/assignments', {
+                    ...formData,
+                    description: formData.description || formData.notes,
+                    items: formData.items.map(it => ({ ...it, isDone: false, percentage: 0 }))
+                });
+            }
+            setShowTugasModal(false); setEditingAssignment(null);
+            await fetchAllAssignments(pagination.currentPage, pageSize);
+        } catch (err) { alert(err.response?.data?.error || 'Gagal menyimpan tugas'); }
         finally { setSubmitting(false); }
     };
 
@@ -419,12 +434,12 @@ const StaffPerformance = () => {
                         </div>
                     ) : (
                         <>
-                            {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans.filter(p => inDateRange(p.metadata?.startDate || p.date))} assignments={assignments.filter(a => inDateRange(a.startDate || a.createdAt))} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} userId={user.id} isKabid={isKabid} />}
-                            {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments.filter(a => inDateRange(a.createdAt))} templates={routineTemplates} onUpdate={handleUpdateAssignment} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
-                            {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs.filter(l => inDateRange(l.date))} isKabid={isKabid} />}
-                            {activeTab === 'KPI' && <KPITab leaderboard={leaderboard} />}
+                             {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans.filter(p => inDateRange(p.metadata?.startDate || p.date))} assignments={assignments.filter(a => inDateRange(a.startDate || a.createdAt))} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} userId={user.id} isKabid={isKabid} />}
+                             {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments.filter(a => inDateRange(a.createdAt))} templates={routineTemplates} onUpdate={handleUpdateAssignment} onDeleteRoutine={handleDeleteRoutine} onEditRoutine={(t) => { setEditingRoutine(t); setShowRutinitasModal(true); }} onEditAssignment={(a) => { setEditingAssignment(a); setShowTugasModal(true); }} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
+                             {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs.filter(l => inDateRange(l.date))} isKabid={isKabid} />}
+                             {activeTab === 'KPI' && <KPITab leaderboard={leaderboard} />}
 
-                            {activeTab !== 'KPI' && pageSize !== 'all' && pagination.totalPages > 1 && (
+                             {activeTab !== 'KPI' && pageSize !== 'all' && pagination.totalPages > 1 && (
                                 <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                         Menampilkan {(pagination.currentPage - 1) * pageSize + 1} — {Math.min(pagination.currentPage * pageSize, pagination.total)} dari {pagination.total} data
@@ -449,17 +464,21 @@ const StaffPerformance = () => {
 
             {/* ─── MODALS ─── */}
             <RencanaFormModal open={showRencanaModal} onClose={() => { setShowRencanaModal(false); setEditingPlan(null); }} onSubmit={handleCreatePlan} submitting={submitting} editing={editingPlan} />
-            <TugasFormModal open={showTugasModal} onClose={() => setShowTugasModal(false)} onSubmit={handleCreateTask} submitting={submitting} staffList={staffList} />
+            <TugasFormModal open={showTugasModal} onClose={() => { setShowTugasModal(false); setEditingAssignment(null); }} onSubmit={handleCreateTask} submitting={submitting} staffList={staffList} editing={editingAssignment} />
             <DailyActivityFormModal open={showDailyModal} onClose={() => setShowDailyModal(false)} onSubmit={handleCreateDailyReport} submitting={submitting} />
-            <RutinitasFormModal open={showRutinitasModal} onClose={() => setShowRutinitasModal(false)} onSubmit={async (formData) => {
+            <RutinitasFormModal open={showRutinitasModal} onClose={() => { setShowRutinitasModal(false); setEditingRoutine(null); }} onSubmit={async (formData) => {
                 setSubmitting(true);
                 try {
-                    await api.post('/personnel/routines', formData);
-                    setShowRutinitasModal(false);
-                    await fetchRoutineTemplates(); await fetchAllAssignments();
-                } catch (err) { alert(err.response?.data?.error || 'Gagal membuat rutinitas'); }
+                    if (editingRoutine) {
+                        await api.put(`/personnel/routines/${editingRoutine.id}`, formData);
+                    } else {
+                        await api.post('/personnel/routines', formData);
+                    }
+                    setShowRutinitasModal(false); setEditingRoutine(null);
+                    await fetchRoutineTemplates(); await fetchAllAssignments(pagination.currentPage, pageSize);
+                } catch (err) { alert(err.response?.data?.error || 'Gagal menyimpan rutinitas'); }
                 finally { setSubmitting(false); }
-            }} submitting={submitting} />
+            }} submitting={submitting} editing={editingRoutine} />
 
             <style dangerouslySetInnerHTML={{ __html: `.no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}` }} />
         </div>
@@ -775,8 +794,9 @@ const TaskChecklist = ({ assignment, onUpdate, isAssignee, isAdmin }) => {
 // ============================================
 // TAB: RUTINITAS
 // ============================================
-const RutinitasTab = ({ assignments, templates, onUpdate, userId, isKabid, isAdmin }) => {
+const RutinitasTab = ({ assignments, templates, onUpdate, onDeleteRoutine, onEditRoutine, onEditAssignment, userId, isKabid, isAdmin }) => {
     const [expanded, setExpanded] = useState([]);
+    const [showTemplates, setShowTemplates] = useState(false);
     const toggle = id => setExpanded(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
 
     const freqMap = {};
@@ -787,56 +807,103 @@ const RutinitasTab = ({ assignments, templates, onUpdate, userId, isKabid, isAdm
 
     // Filter: Kabid sees all, Admin Aset / staff sees only their own
     const filtered = isKabid ? assignments : assignments.filter(a => a.assigneeId === userId);
-
-    if (filtered.length === 0) return <EmptyState icon={RotateCcw} message="Belum ada rutinitas aktif" />;
-
-    // Group by frequency
-    const grouped = { DAILY: [], WEEKLY: [], MONTHLY: [] };
-    filtered.forEach(a => { const f = getFreq(a); (grouped[f] || grouped.DAILY).push(a); });
+    const myTemplates = isKabid ? templates : templates.filter(t => t.assigneeId === userId);
 
     return (
         <div className="space-y-6">
-            {Object.entries(grouped).filter(([, list]) => list.length > 0).map(([freq, list]) => (
-                <div key={freq}>
-                    <div className="flex items-center gap-2 mb-3">
-                        <RotateCcw size={14} className="text-indigo-400" />
-                        <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{freqLabel[freq]}</h3>
-                        <Badge className={freqColor[freq]}>{list.length}</Badge>
+            {myTemplates.length > 0 && (
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/50">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 bg-slate-200 rounded-lg flex items-center justify-center text-slate-500"><RotateCcw size={12} /></div>
+                            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Kelola Aturan Rutinitas</h3>
+                        </div>
+                        <button onClick={() => setShowTemplates(!showTemplates)} className="text-[9px] font-black text-indigo-600 uppercase tracking-widest hover:underline">
+                            {showTemplates ? 'Sembunyikan' : 'Lihat Semua'}
+                        </button>
                     </div>
-                    <div className="space-y-3">
-                        {list.map(a => {
-                            const items = Array.isArray(a.items) ? a.items : [];
-                            const done = items.filter(i => i.isDone).length;
-                            const pct = items.length > 0 ? Math.round(done / items.length * 100) : (a.progressPercentage || 0);
-                            const isOpen = expanded.includes(a.id);
-                            const isAssignee = a.assigneeId === userId;
-                            return (
-                                <div key={a.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                                    <div className="p-4 flex items-center gap-4 cursor-pointer" onClick={() => toggle(a.id)}>
-                                        <ProgressRing pct={pct} size={44} />
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="text-sm font-black text-slate-800 italic uppercase truncate">{a.title.replace('[RUTIN] ', '')}</h4>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                {isKabid && a.assignee && <span className="text-[9px] font-black text-indigo-500 uppercase">{a.assignee.name}</span>}
-                                                <p className="text-[10px] font-bold text-slate-400">{done}/{items.length} selesai • {fmtDate(a.createdAt, { day: '2-digit', month: 'short' })}</p>
-                                            </div>
-                                        </div>
-                                        <Badge className={pct === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>{pct === 100 ? 'Lunas' : 'Aktif'}</Badge>
-                                        <div className={`p-1.5 rounded-lg transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                            {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    
+                    {showTemplates && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 animate-in slide-in-from-top-2 duration-300">
+                            {myTemplates.map(t => (
+                                <div key={t.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between gap-4">
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-black text-slate-700 truncate">{t.title}</p>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <Badge className={freqColor[t.frequency]}>{freqLabel[t.frequency]}</Badge>
+                                            {isKabid && t.assignee && <span className="text-[8px] font-bold text-slate-400 capitalize">{t.assignee.name}</span>}
                                         </div>
                                     </div>
-                                    {isOpen && (
-                                        <TaskChecklist assignment={a} onUpdate={onUpdate} isAssignee={isAssignee} isAdmin={isKabid} />
-                                    )}
+                                    <div className="flex items-center gap-1">
+                                        <button onClick={() => onEditRoutine(t)} className="p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition-all"><Edit3 size={14} /></button>
+                                        <button onClick={() => onDeleteRoutine(t.id)} className="p-2 text-rose-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={14} /></button>
+                                    </div>
                                 </div>
-                            );
-                        })}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
-            ))}
+            )}
+
+            {filtered.length === 0 ? (
+                <EmptyState icon={RotateCcw} message="Belum ada rutinitas aktif" />
+            ) : (
+                Object.entries(grouped(filtered, getFreq)).filter(([, list]) => list.length > 0).map(([freq, list]) => (
+                    <div key={freq}>
+                        <div className="flex items-center gap-2 mb-3">
+                            <RotateCcw size={14} className="text-indigo-400" />
+                            <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{freqLabel[freq]}</h3>
+                            <Badge className={freqColor[freq]}>{list.length}</Badge>
+                        </div>
+                        <div className="space-y-3">
+                            {list.map(a => {
+                                const items = Array.isArray(a.items) ? a.items : [];
+                                const done = items.filter(i => i.isDone).length;
+                                const pct = items.length > 0 ? Math.round(done / items.length * 100) : (a.progressPercentage || 0);
+                                const isOpen = expanded.includes(a.id);
+                                const isAssignee = a.assigneeId === userId;
+                                return (
+                                    <div key={a.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                                        <div className="p-4 flex items-center gap-4 cursor-pointer" onClick={() => toggle(a.id)}>
+                                            <ProgressRing pct={pct} size={44} />
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <h4 className="text-sm font-black text-slate-800 italic uppercase truncate">{a.title.replace('[RUTIN] ', '')}</h4>
+                                                    {(isAssignee || isKabid) && (
+                                                        <button onClick={(e) => { e.stopPropagation(); onEditAssignment(a); }} className="p-1 text-slate-300 hover:text-indigo-500 transition-colors">
+                                                            <Edit3 size={12} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    {isKabid && a.assignee && <span className="text-[9px] font-black text-indigo-500 uppercase">{a.assignee.name}</span>}
+                                                    <p className="text-[10px] font-bold text-slate-400">{done}/{items.length} selesai • {fmtDate(a.createdAt, { day: '2-digit', month: 'short' })}</p>
+                                                </div>
+                                            </div>
+                                            <Badge className={pct === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>{pct === 100 ? 'Lunas' : 'Aktif'}</Badge>
+                                            <div className={`p-1.5 rounded-lg transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                                {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                            </div>
+                                        </div>
+                                        {isOpen && (
+                                            <TaskChecklist assignment={a} onUpdate={onUpdate} isAssignee={isAssignee} isAdmin={isKabid} />
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))
+            )}
         </div>
     );
+};
+
+// Helper for grouping
+const grouped = (list, getFreq) => {
+    const g = { DAILY: [], WEEKLY: [], MONTHLY: [] };
+    list.forEach(a => { const f = getFreq(a); (g[f] || g.DAILY).push(a); });
+    return g;
 };
 
 // ============================================
@@ -1069,7 +1136,7 @@ const RencanaFormModal = ({ open, onClose, onSubmit, submitting, editing }) => {
     );
 };
 
-const TugasFormModal = ({ open, onClose, onSubmit, submitting, staffList }) => {
+const TugasFormModal = ({ open, onClose, onSubmit, submitting, staffList, editing }) => {
     const [title, setTitle] = useState('');
     const [assigneeId, setAssigneeId] = useState('');
     const [priority, setPriority] = useState('MEDIUM');
@@ -1080,8 +1147,21 @@ const TugasFormModal = ({ open, onClose, onSubmit, submitting, staffList }) => {
     const [items, setItems] = useState([{ text: '' }]);
 
     useEffect(() => {
-        if (open) { setTitle(''); setAssigneeId(''); setPriority('MEDIUM'); setStartDate(today()); setDueDate(''); setLocation(''); setNotes(''); setItems([{ text: '' }]); }
-    }, [open]);
+        if (open) { 
+            if (editing) {
+                setTitle(editing.title || '');
+                setAssigneeId(editing.assigneeId || '');
+                setPriority(editing.priority || 'MEDIUM');
+                setStartDate(editing.startDate ? new Date(editing.startDate).toISOString().split('T')[0] : today());
+                setDueDate(editing.dueDate ? new Date(editing.dueDate).toISOString().split('T')[0] : '');
+                setLocation(editing.location || '');
+                setNotes(editing.description || '');
+                setItems(Array.isArray(editing.items) ? editing.items : [{ text: '' }]);
+            } else {
+                setTitle(''); setAssigneeId(''); setPriority('MEDIUM'); setStartDate(today()); setDueDate(''); setLocation(''); setNotes(''); setItems([{ text: '' }]); 
+            }
+        }
+    }, [open, editing]);
 
     const addItem = () => setItems([...items, { text: '' }]);
     const removeItem = idx => setItems(items.filter((_, i) => i !== idx));
@@ -1152,7 +1232,7 @@ const TugasFormModal = ({ open, onClose, onSubmit, submitting, staffList }) => {
                 </div>
                 <button type="submit" disabled={submitting} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black tracking-widest hover:bg-slate-800 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
                     {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                    {submitting ? 'Mengirim...' : 'Delegasikan Tugas'}
+                    {submitting ? 'Menyimpan...' : (editing ? 'Simpan Perubahan' : 'Delegasikan Tugas')}
                 </button>
             </form>
         </Modal>
@@ -1245,7 +1325,7 @@ const DailyActivityFormModal = ({ open, onClose, onSubmit, submitting }) => {
 // ============================================
 // FORM MODAL: RUTINITAS
 // ============================================
-const RutinitasFormModal = ({ open, onClose, onSubmit, submitting }) => {
+const RutinitasFormModal = ({ open, onClose, onSubmit, submitting, editing }) => {
     const [title, setTitle] = useState('');
     const [frequency, setFrequency] = useState('DAILY');
     const [dayOfWeek, setDayOfWeek] = useState(1);
@@ -1256,8 +1336,21 @@ const RutinitasFormModal = ({ open, onClose, onSubmit, submitting }) => {
     const [items, setItems] = useState([{ text: '' }]);
 
     useEffect(() => {
-        if (open) { setTitle(''); setFrequency('DAILY'); setDayOfWeek(1); setDayOfMonth(1); setPriority('MEDIUM'); setLocation(''); setDescription(''); setItems([{ text: '' }]); }
-    }, [open]);
+        if (open) { 
+            if (editing) {
+                setTitle(editing.title || '');
+                setFrequency(editing.frequency || 'DAILY');
+                setDayOfWeek(editing.dayOfWeek || 0);
+                setDayOfMonth(editing.dayOfMonth || 1);
+                setPriority(editing.priority || 'MEDIUM');
+                setLocation(editing.location || '');
+                setDescription(editing.description || '');
+                setItems(Array.isArray(editing.items) ? editing.items : [{ text: '' }]);
+            } else {
+                setTitle(''); setFrequency('DAILY'); setDayOfWeek(1); setDayOfMonth(1); setPriority('MEDIUM'); setLocation(''); setDescription(''); setItems([{ text: '' }]); 
+            }
+        }
+    }, [open, editing]);
 
     const addItem = () => setItems([...items, { text: '' }]);
     const removeItem = idx => setItems(items.filter((_, i) => i !== idx));
@@ -1347,7 +1440,7 @@ const RutinitasFormModal = ({ open, onClose, onSubmit, submitting }) => {
                 </div>
                 <button type="submit" disabled={submitting} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black tracking-widest hover:bg-emerald-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
                     {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                    {submitting ? 'Menyimpan...' : 'Simpan Rutinitas'}
+                    {submitting ? 'Menyimpan...' : (editing ? 'Simpan Perubahan' : 'Simpan Rutinitas')}
                 </button>
             </form>
         </Modal>

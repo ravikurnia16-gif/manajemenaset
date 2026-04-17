@@ -511,7 +511,7 @@ exports.getAssignments = async (req, res) => {
 
 exports.updateAssignmentStatus = async (req, res) => {
     const { id } = req.params;
-    const { status, progressPercentage, notes, items } = req.body;
+    const { status, progressPercentage, notes, items, title, description } = req.body;
     const user = req.user;
 
     try {
@@ -528,6 +528,8 @@ exports.updateAssignmentStatus = async (req, res) => {
         }
 
         const data = {};
+        if (title) data.title = title;
+        if (description !== undefined) data.description = description;
 
         // Handle logical items/checklist update
         if (items) {
