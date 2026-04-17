@@ -593,14 +593,31 @@ const PlanItem = ({ item, idx, onUpdate, isKabid }) => {
 
 const TaskChecklist = ({ assignment, onUpdate, isAssignee, isAdmin }) => {
     const [newText, setNewText] = useState('');
+    const [editingIdx, setEditingIdx] = useState(null);
+    const [localPct, setLocalPct] = useState(0);
     const items = Array.isArray(assignment.items) ? assignment.items : [];
 
-    const toggleItem = async (idx) => {
+    const updateItemProgress = async (idx, pct) => {
         const newItems = [...items];
-        newItems[idx] = { ...newItems[idx], isDone: !newItems[idx].isDone, percentage: newItems[idx].isDone ? 0 : 100 };
+        const clamped = Math.min(100, Math.max(0, pct));
+        newItems[idx] = { ...newItems[idx], percentage: clamped, isDone: clamped === 100 };
+        
+        // Calculate new overall average progress
+        const avgPct = Math.round(newItems.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / newItems.length);
         const allDone = newItems.every(i => i.isDone);
-        const pct = Math.round(newItems.filter(i => i.isDone).length / newItems.length * 100);
-        await onUpdate(assignment.id, { items: newItems, status: allDone ? 'COMPLETED' : 'IN_PROGRESS', progressPercentage: pct });
+        
+        await onUpdate(assignment.id, { 
+            items: newItems, 
+            status: allDone ? 'COMPLETED' : avgPct > 0 ? 'IN_PROGRESS' : 'PENDING', 
+            progressPercentage: avgPct 
+        });
+        setEditingIdx(null);
+    };
+
+    const toggleItem = async (idx) => {
+        const item = items[idx];
+        const newPct = item.isDone ? 0 : 100;
+        await updateItemProgress(idx, newPct);
     };
 
     const addItem = async () => {
@@ -616,15 +633,51 @@ const TaskChecklist = ({ assignment, onUpdate, isAssignee, isAdmin }) => {
                 <div className="bg-white p-4 rounded-xl border border-slate-100 text-xs text-slate-600 italic">{assignment.description}</div>
             )}
             <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">✅ Checklist Pekerjaan</p>
-            {items.map((item, idx) => (
-                <div key={idx} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${item.isDone ? 'bg-emerald-50/50 border-emerald-100' : 'bg-white border-slate-100'}`}>
-                    <button onClick={() => (isAssignee || isAdmin) && toggleItem(idx)} className={`shrink-0 ${item.isDone ? 'text-emerald-500' : 'text-slate-300'}`}>
-                        {item.isDone ? <CheckSquare size={20} /> : <Square size={20} />}
-                    </button>
-                    <span className={`flex-1 text-xs font-bold ${item.isDone ? 'text-emerald-700 line-through' : 'text-slate-700'}`}>{item.text}</span>
-                    <span className="text-[9px] font-black text-slate-300">{item.isDone ? '100%' : '0%'}</span>
-                </div>
-            ))}
+            <div className="space-y-2">
+                {items.map((item, idx) => {
+                    const isDone = item.isDone || item.percentage === 100;
+                    const pct = item.percentage || 0;
+                    const isEditing = editingIdx === idx;
+                    const barColor = isDone ? 'bg-emerald-500' : pct > 50 ? 'bg-indigo-500' : pct > 0 ? 'bg-amber-500' : 'bg-slate-200';
+
+                    return (
+                        <div key={idx} className={`p-3 rounded-xl border transition-all ${isDone ? 'bg-emerald-50/50 border-emerald-100' : 'bg-white border-slate-100'}`}>
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => (isAssignee || isAdmin) && toggleItem(idx)} className={`shrink-0 transition-all active:scale-90 ${isDone ? 'text-emerald-500' : 'text-slate-300 hover:text-indigo-400'}`}>
+                                    {isDone ? <CheckSquare size={20} /> : <Square size={20} />}
+                                </button>
+                                <span className={`flex-1 text-xs font-bold ${isDone ? 'text-emerald-700 line-through decoration-emerald-200' : 'text-slate-700'}`}>{item.text}</span>
+                                
+                                {!isAdmin && isAssignee && !isEditing ? (
+                                    <button onClick={() => setEditingIdx(idx) || setLocalPct(pct)} className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${isDone ? 'bg-emerald-100 text-emerald-700' : pct > 0 ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                                        {pct}%
+                                    </button>
+                                ) : (
+                                    <span className={`shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black ${isDone ? 'bg-emerald-100 text-emerald-700' : pct > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-400'}`}>{pct}%</span>
+                                )}
+                            </div>
+                            
+                            {/* Progress bar */}
+                            <div className="mt-2 ml-8 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div className={`h-full ${barColor} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+                            </div>
+
+                            {/* Inline Editor */}
+                            {isEditing && (
+                                <div className="mt-3 ml-8 flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-100 animate-in fade-in duration-200">
+                                    <input type="range" min="0" max="100" step="5" value={localPct} onChange={e => setLocalPct(parseInt(e.target.value))}
+                                        className="flex-1 h-1.5 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600" />
+                                    <input type="number" min="0" max="100" step="1" value={localPct} onChange={e => setLocalPct(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                                        className="w-14 px-2 py-1 text-center text-[11px] font-black text-indigo-700 bg-white border border-indigo-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-200" />
+                                    <button onClick={() => updateItemProgress(idx, localPct)} className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black rounded-lg hover:bg-indigo-700 transition-all uppercase tracking-widest">OK</button>
+                                    <button onClick={() => setEditingIdx(null)} className="p-1 text-slate-400 hover:text-rose-500 transition-colors"><X size={14} /></button>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
             {(isAssignee || isAdmin) && (
                 <div className="flex gap-2 p-3 bg-white/50 rounded-xl border border-dashed border-slate-200">
                     <input type="text" value={newText} onChange={e => setNewText(e.target.value)} placeholder="Tambah tahapan pekerjaan..." className="flex-1 bg-transparent border-none text-[10px] font-bold text-slate-700 outline-none placeholder:text-slate-300"
