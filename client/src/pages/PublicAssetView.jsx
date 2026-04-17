@@ -140,9 +140,10 @@ const PublicAssetView = () => {
                     <p className="text-slate-500 font-medium mb-6">{asset.brand} &bull; {asset.category}</p>
 
                     <div className="grid grid-cols-1 gap-3">
+                        <DetailItem icon={Tag} label="Merk / Tipe" value={asset.brand} color="blue" />
                         <DetailItem icon={Calendar} label="Tanggal Perolehan" value={new Date(asset.purchaseDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} />
                         <DetailItem icon={Building2} label="Vendor / Pemasok" value={asset.vendor} color="indigo" />
-                        <DetailItem icon={Tag} label="Sumber Dana" value={asset.sourceOfFunds} color="emerald" />
+                        <DetailItem icon={DollarSign} label="Sumber Dana" value={asset.sourceOfFunds} color="emerald" />
                     </div>
 
                     {/* Quick Actions (Borrow & Maintenance) */}
