@@ -502,11 +502,6 @@ exports.updateStatus = async (req, res) => {
 
                 setTimeout(async () => {
                     try {
-                        let extDetail = '';
-                        if (status === 'ASSIGNED' && selectedTechPhone) extDetail += `\n📞 *Kontak Petugas* : wa.me/${selectedTechPhone.replace(/^0/, '62')}\n`;
-                        if (status === 'REJECTED' && rejectionReason) extDetail += `\n*Alasan:* ${rejectionReason}\n`;
-                        if (status === 'COMPLETED' && actionTaken) extDetail += `\n*Tindakan:* ${actionTaken}\n`;
-
                         await whatsappService.sendMessage(submitter.phone, msg);
                         console.log(`[WA] Status notif sent to ${submitter.username}`);
                     } catch (e) {
@@ -530,7 +525,10 @@ exports.quickComplete = async (req, res) => {
     try {
         const report = await prisma.maintenance.findUnique({
             where: { quickToken: token },
-            include: { assets: true }
+            include: { 
+                assets: true,
+                user: { select: { name: true, phone: true, username: true } }
+            }
         });
 
         if (!report) {
@@ -564,6 +562,42 @@ exports.quickComplete = async (req, res) => {
         }
 
         res.json({ message: 'Laporan berhasil diperbarui!', data: updatedReport });
+
+        // --- Notifications (Async) ---
+        (async () => {
+            try {
+                // 1. In-App Notification to Pelapor
+                if (report.userId) {
+                    await createNotification(
+                        report.userId,
+                        'Pemeliharaan Selesai',
+                        `Laporan "${report.title}" telah diselesaikan via Quick Link.`,
+                        'SUCCESS',
+                        `/pemeliharaan/${report.id}`
+                    );
+                }
+
+                // 2. WhatsApp Notification to Pelapor
+                if (report.user?.phone) {
+                    const msg = `*Info Laporan Pemeliharaan*\n\n` +
+                        `Ustadz/Ustadzah *${report.user.name || report.user.username}*,\n\n` +
+                        `Laporan Anda *"${report.title}"* (${report.code})\n` +
+                        `Status terbaru: *Selesai ✅✅✅*\n\n` +
+                        `*Tindakan:* ${actionTaken || 'Dikerjakan via Quick Link'}\n\n` +
+                        `Syukron jazakumullahu khairan.`;
+
+                    setTimeout(async () => {
+                        try {
+                            await whatsappService.sendMessage(report.user.phone, msg);
+                        } catch (e) {
+                            console.error('[WA] QuickComplete notif error:', e);
+                        }
+                    }, 5000); // 5s delay for quick link
+                }
+            } catch (err) {
+                console.error('QuickComplete Notification Error:', err);
+            }
+        })();
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Wrench, Save, ArrowLeft, Search } from 'lucide-react';
 import api from '../lib/axios';
 import { compressImage } from '../lib/media';
@@ -12,6 +12,8 @@ const MaintenanceForm = () => {
     const [assetSearch, setAssetSearch] = useState('');
     const [showAssetDropdown, setShowAssetDropdown] = useState(false);
     const dropdownRef = useRef(null);
+    const [searchParams] = useSearchParams();
+    const assetIdParam = searchParams.get('assetId');
 
     const [user] = useState(JSON.parse(localStorage.getItem('user') || '{}'));
     const [showAllSelected, setShowAllSelected] = useState(false);
@@ -38,6 +40,31 @@ const MaintenanceForm = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Effect to handle assetId from URL params (QR Scan Redirect)
+    useEffect(() => {
+        if (assetIdParam && !form.title) {
+            const fetchPreSelectedAsset = async () => {
+                try {
+                    const res = await api.get(`/assets/${assetIdParam}`);
+                    const asset = res.data;
+                    if (asset) {
+                        setForm(prev => ({
+                            ...prev,
+                            targetDept: 'SARPRAS',
+                            type: 'ASSET',
+                            selectedAssets: [{ id: asset.id, label: `${asset.code} - ${asset.name}` }]
+                        }));
+                        setStep(1);
+                        setAssetSearch('');
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch pre-selected asset:', err);
+                }
+            };
+            fetchPreSelectedAsset();
+        }
+    }, [assetIdParam]);
 
     useEffect(() => {
         if (form.type === 'ASSET') {
