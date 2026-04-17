@@ -22,7 +22,7 @@ const syncPlanToCalendar = async (report, user) => {
         if (!report.metadata?.title || !report.metadata?.startDate) return;
 
         const title = `[RENCANA: ${user.name || user.username}] ${report.metadata.title}`;
-        
+
         let itemsDesc = '';
         if (report.metadata.items && Array.isArray(report.metadata.items)) {
             itemsDesc = report.metadata.items.map((it, idx) => `${idx + 1}. ${it.activity || it.text || it.name}`).join('\n');
@@ -188,13 +188,13 @@ exports.updateReport = async (req, res) => {
             const items = metadata.items || [];
             const avgPct = items.length > 0 ? Math.round(items.reduce((acc, curr) => acc + (curr.percentage || 0), 0) / items.length) : 0;
             const done = items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
-            
+
             autoLogActivity(
-                user.id, 
-                'RENCANA', 
-                parseInt(id), 
-                planTitle, 
-                `Update rencana: ${planTitle} - Progres ${avgPct}% (${done}/${items.length} item selesai)`, 
+                user.id,
+                'RENCANA',
+                parseInt(id),
+                planTitle,
+                `Update rencana: ${planTitle} - Progres ${avgPct}% (${done}/${items.length} item selesai)`,
                 avgPct
             );
         }
@@ -246,7 +246,7 @@ exports.createReport = async (req, res) => {
                                     // Update the item in the original plan
                                     updatedPlanMetadata.items[idx].status = item.status || 'PROSES';
                                     updatedPlanMetadata.items[idx].percentage = parseInt(item.percentage) || 0;
-                                    
+
                                     await prisma.personnelReport.update({
                                         where: { id: originalPlan.id },
                                         data: { metadata: updatedPlanMetadata }
@@ -291,9 +291,9 @@ exports.getReports = async (req, res) => {
         // Access Control: 
         // - SUPER_ADMIN, KEPALA_BIDANG, and ADMIN_ASET (within Sarpras) can see all reports or filter by staff.
         // - All other roles see ONLY their own.
-        const canSeeAll = user.role === 'SUPER_ADMIN' || 
-                         user.role === 'KEPALA_BIDANG' || 
-                         (user.role === 'ADMIN_ASET' && await isSarprasUnit(user.unitId));
+        const canSeeAll = user.role === 'SUPER_ADMIN' ||
+            user.role === 'KEPALA_BIDANG' ||
+            (user.role === 'ADMIN_ASET' && await isSarprasUnit(user.unitId));
 
         if (canSeeAll) {
             if (userId && userId !== 'all' && userId !== 'ALL') {
@@ -465,7 +465,7 @@ exports.getAssignments = async (req, res) => {
 
         // Role-based visibility
         const canSeeAllAssignments = ['SUPER_ADMIN', 'BIDANG_IT', 'KEPALA_BIDANG'].includes(user.role);
-        
+
         if (!canSeeAllAssignments) {
             where.OR = [
                 { assigneeId: user.id },
@@ -675,8 +675,8 @@ exports.getDrivers = async (req, res) => {
             // Find active bus booking (assuming CONFIRMED and within dates)
             const now = new Date();
             const activeBusTrip = await prisma.busBooking.findFirst({
-                where: { 
-                    driverId: d.id, 
+                where: {
+                    driverId: d.id,
                     OR: [
                         { status: 'CONFIRMED', startDate: { lte: now }, endDate: { gte: now } },
                         { status: 'BERLANGSUNG' } // Just in case
@@ -1364,12 +1364,15 @@ exports.getKPILeaderboard = async (req, res) => {
         const targetMonth = month ? parseInt(month) : new Date().getMonth() + 1;
         const targetYear = year ? parseInt(year) : new Date().getFullYear();
 
-        // [SEC] Authorization Check: ONLY Specific Position and SUPER_ADMIN
-        const user = req.user;
-        const isTargetKabid = user.position && user.position.toLowerCase() === 'kepala bidang sarana dan prasarana';
-        const isAuthorized = user.role === 'SUPER_ADMIN' || isTargetKabid;
+        // [SEC] Authorization Check: Refetch user to ensure fresh data
+        const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const userPosition = (currentUser?.position || '').toLowerCase();
+        
+        const isTargetKabid = userPosition.includes('kepala bidang') && userPosition.includes('sarana dan prasarana');
+        const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || isTargetKabid;
 
         if (!isAuthorized) {
+            console.log(`[AUTH-KPI] Access denied for user ${currentUser?.username}. Position: ${userPosition}`);
             return res.status(403).json({ error: 'Akses ditolak. Fitur ini hanya untuk Kepala Bidang Sarana dan Prasarana.' });
         }
 
@@ -1383,20 +1386,20 @@ exports.getKPILeaderboard = async (req, res) => {
                 AND: [
                     {
                         OR: [
-                            { position: { contains: 'Sarana dan Prasarana' } },
-                            { position: { contains: 'Manajemen Aset' } },
-                            { position: { contains: 'Manajamen Aset' } }, // Handle typo
-                            { position: { contains: 'Gudang dan Logistik' } },
-                            { position: { contains: 'Teknisi' } },
-                            { position: { contains: 'Keuangan dan Administrasi' } },
-                            { position: { contains: 'Kendaraan' } },
-                            { unitId: user.unitId } // Fallback: Same unit
+                            { position: { contains: 'sarana dan prasarana', mode: 'insensitive' } },
+                            { position: { contains: 'manajemen aset', mode: 'insensitive' } },
+                            { position: { contains: 'manajamen aset', mode: 'insensitive' } },
+                            { position: { contains: 'gudang dan logistik', mode: 'insensitive' } },
+                            { position: { contains: 'teknisi', mode: 'insensitive' } },
+                            { position: { contains: 'keuangan', mode: 'insensitive' } },
+                            { position: { contains: 'kendaraan', mode: 'insensitive' } },
+                            { unitId: currentUser.unitId } // Fallback: Same unit
                         ]
                     },
                     {
                         NOT: {
                             OR: [
-                                { position: { contains: 'Kepala Bidang' } },
+                                { position: { contains: 'kepala bidang', mode: 'insensitive' } },
                                 { role: 'SUPER_ADMIN' }
                             ]
                         }
@@ -1501,7 +1504,7 @@ exports.sendDailyPersonnelSummary = async () => {
         }
 
         const kabid = await prisma.user.findFirst({
-            where: { 
+            where: {
                 OR: [
                     { position: 'Kepala Bidang Sarana dan Prasarana' },
                     { role: 'KEPALA_BIDANG' },
@@ -1707,7 +1710,7 @@ exports.reviewReport = async (req, res) => {
         }
 
         // Update metadata with review data
-        const updatedMetadata = { 
+        const updatedMetadata = {
             ...(report.metadata || {}),
             items,
             review: {
@@ -1930,15 +1933,15 @@ exports.checkMissingReportsWeekly = async () => {
  */
 exports.sendWeeklyReportReminder = async () => {
     console.log(`[${new Date().toLocaleString('id-ID')}] [Personnel] Sending Weekly Report Reminder to Staff...`);
-    
+
     // Range: Mon-Fri
     const now = new Date();
     const fri = new Date(now);
     const mon = new Date(now);
     mon.setDate(now.getDate() - 4); // Mon
-    
-    mon.setHours(0,0,0,0);
-    fri.setHours(23,59,59,999);
+
+    mon.setHours(0, 0, 0, 0);
+    fri.setHours(23, 59, 59, 999);
 
     try {
         const staff = await prisma.user.findMany({
@@ -1995,13 +1998,16 @@ exports.sendWeeklyReportReminder = async () => {
  */
 exports.getPersonnelAISummary = async (req, res) => {
     try {
-        // Only allow specific Kabid or Super Admin
-        const user = req.user;
-        const isTargetKabid = user.position && user.position.toLowerCase() === 'kepala bidang sarana dan prasarana';
-        const isAuthorized = user.role === 'SUPER_ADMIN' || isTargetKabid;
+        // [SEC] Authorization Check: Refetch user to ensure fresh data
+        const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const userPosition = (currentUser?.position || '').toLowerCase();
         
+        const isTargetKabid = userPosition.includes('kepala bidang') && userPosition.includes('sarana dan prasarana');
+        const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || isTargetKabid;
+
         if (!isAuthorized) {
-            return res.status(403).json({ error: 'Hanya Kepala Bidang Sarana dan Prasarana atau Admin yang dapat mengakses ringkasan AI.' });
+            console.log(`[AUTH] Access denied for user ${currentUser?.username}. Position: ${userPosition}`);
+            return res.status(403).json({ error: 'Akses ditolak. Fitur ini hanya untuk Kepala Bidang Sarana dan Prasarana.' });
         }
 
         // 1. Fetch Data for Context

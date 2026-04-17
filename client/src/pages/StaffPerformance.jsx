@@ -430,7 +430,7 @@ const StaffPerformance = () => {
     const userPosition = (user?.position || '').toLowerCase();
     
     // Only allow specific position or SUPER_ADMIN for sensitive tabs
-    const isTargetKabid = userPosition === 'kepala bidang sarana dan prasarana';
+    const isTargetKabid = userPosition.includes('kepala bidang') && userPosition.includes('sarana dan prasarana');
     const isKabid = userRole === 'SUPER_ADMIN' || isTargetKabid;
     const isAdmin = isKabid; // For this page, Admin visibility matches Kabid visibility for Summary/KPI
     
