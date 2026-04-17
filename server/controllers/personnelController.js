@@ -289,10 +289,14 @@ exports.getReports = async (req, res) => {
         }
 
         // Access Control: 
-        // - SUPER_ADMIN can see all reports or filter by staff (userId).
-        // - All other roles (ADMIN_ASET, BIDANG_IT, etc.) see ONLY their own.
-        if (user.role === 'SUPER_ADMIN') {
-            if (userId && userId !== 'all') {
+        // - SUPER_ADMIN, KEPALA_BIDANG, and ADMIN_ASET (within Sarpras) can see all reports or filter by staff.
+        // - All other roles see ONLY their own.
+        const canSeeAll = user.role === 'SUPER_ADMIN' || 
+                         user.role === 'KEPALA_BIDANG' || 
+                         (user.role === 'ADMIN_ASET' && await isSarprasUnit(user.unitId));
+
+        if (canSeeAll) {
+            if (userId && userId !== 'all' && userId !== 'ALL') {
                 where.userId = parseInt(userId);
             }
         } else {
@@ -460,7 +464,9 @@ exports.getAssignments = async (req, res) => {
         const where = {};
 
         // Role-based visibility
-        if (!['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role)) {
+        const canSeeAllAssignments = ['SUPER_ADMIN', 'BIDANG_IT', 'KEPALA_BIDANG'].includes(user.role);
+        
+        if (!canSeeAllAssignments) {
             where.OR = [
                 { assigneeId: user.id },
                 { assignerId: user.id }
@@ -1981,7 +1987,8 @@ exports.getPersonnelAISummary = async (req, res) => {
     try {
         // Only allow Kabid or Admin
         const user = req.user;
-        const isAuthorized = user.role === 'SUPER_ADMIN' || (user.position && user.position.includes('Kepala Bidang Sarana dan Prasarana'));
+        const isAuthorized = user.role === 'SUPER_ADMIN' || user.role === 'KEPALA_BIDANG' || 
+                            (user.position && user.position.toLowerCase().includes('kepala bidang sarana dan prasarana'));
         
         if (!isAuthorized) {
             return res.status(403).json({ error: 'Hanya Kepala Bidang atau Admin yang dapat mengakses ringkasan AI.' });
