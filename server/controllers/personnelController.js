@@ -1365,14 +1365,12 @@ exports.getKPILeaderboard = async (req, res) => {
         const targetYear = year ? parseInt(year) : new Date().getFullYear();
 
         // [SEC] Authorization Check: Only Kabid Sarpras or Tech Admins
-        const userId = req.user.id;
-        const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+        const user = req.user;
+        const isAuthorized = user.role === 'SUPER_ADMIN' || 
+                            user.role === 'KEPALA_BIDANG' || 
+                            (user.position && user.position.toLowerCase().includes('kepala bidang') && user.position.toLowerCase().includes('sarana dan prasarana'));
 
-        const isKabidSarpras = currentUser?.position?.toLowerCase().includes('kepala bidang') &&
-            currentUser?.position?.toLowerCase().includes('sarana dan prasarana');
-        const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(currentUser?.role);
-
-        if (!isKabidSarpras && !isTechAdmin) {
+        if (!isAuthorized) {
             return res.status(403).json({ error: 'Akses ditolak. Fitur ini hanya untuk Kepala Bidang Sarana dan Prasarana.' });
         }
 
@@ -1380,7 +1378,7 @@ exports.getKPILeaderboard = async (req, res) => {
         const startDate = new Date(targetYear, targetMonth - 1, 1);
         const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
 
-        // Get all staff from Sarpras (Exact 5 Categories)
+        // Get all staff from Sarpras (Broadened for variations)
         const staff = await prisma.user.findMany({
             where: {
                 AND: [
@@ -1388,15 +1386,20 @@ exports.getKPILeaderboard = async (req, res) => {
                         OR: [
                             { position: { contains: 'Sarana dan Prasarana' } },
                             { position: { contains: 'Manajemen Aset' } },
+                            { position: { contains: 'Manajamen Aset' } }, // Handle typo
                             { position: { contains: 'Gudang dan Logistik' } },
                             { position: { contains: 'Teknisi' } },
                             { position: { contains: 'Keuangan dan Administrasi' } },
-                            { position: { contains: 'Kendaraan' } }
+                            { position: { contains: 'Kendaraan' } },
+                            { unitId: user.unitId } // Fallback: Same unit
                         ]
                     },
                     {
                         NOT: {
-                            position: { contains: 'Kepala Bidang' }
+                            OR: [
+                                { position: { contains: 'Kepala Bidang' } },
+                                { role: 'SUPER_ADMIN' }
+                            ]
                         }
                     }
                 ]

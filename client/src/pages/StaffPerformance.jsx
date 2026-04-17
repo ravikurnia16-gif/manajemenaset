@@ -561,8 +561,13 @@ const StaffPerformance = () => {
     };
 
     const fetchKPI = async () => {
-        const res = await api.get(`/personnel/kpi-leaderboard?month=${filterPeriod.month}&year=${filterPeriod.year}`);
-        setLeaderboard(res.data.leaderboard || []);
+        try {
+            const res = await api.get(`/personnel/kpi-leaderboard?month=${filterPeriod.month}&year=${filterPeriod.year}`);
+            setLeaderboard(res.data.leaderboard || []);
+        } catch (err) {
+            console.error('Fetch KPI Error:', err);
+            setLeaderboard([]);
+        }
     };
 
     // --- HANDLERS ---
