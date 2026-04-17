@@ -149,6 +149,17 @@ const StaffPerformance = () => {
     // Filters
     const [filterStaff, setFilterStaff] = useState('ALL');
     const [filterPeriod, setFilterPeriod] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
+    const [filterDate, setFilterDate] = useState({ start: '', end: '' });
+
+    // Helper: filter data by date range
+    const inDateRange = (dateStr) => {
+        if (!filterDate.start && !filterDate.end) return true;
+        if (!dateStr) return true;
+        const d = new Date(dateStr).toISOString().split('T')[0];
+        if (filterDate.start && d < filterDate.start) return false;
+        if (filterDate.end && d > filterDate.end) return false;
+        return true;
+    };
 
     const user = safeParseUser();
     const userRole = user.role || '';
@@ -326,6 +337,19 @@ const StaffPerformance = () => {
                                 </select>
                             </div>
                         )}
+                        {['RENCANA_TUGAS', 'RUTINITAS', 'LAPORAN'].includes(activeTab) && (
+                            <div className="flex items-center gap-2 bg-white px-2 py-1.5 rounded-xl border border-slate-100 shadow-sm">
+                                <Calendar size={13} className="text-indigo-400 shrink-0" />
+                                <input type="date" value={filterDate.start} onChange={e => setFilterDate({ ...filterDate, start: e.target.value })} className="bg-transparent border-none text-[10px] font-black text-slate-600 focus:ring-0 cursor-pointer w-[110px]" title="Dari tanggal" />
+                                <span className="text-[9px] font-black text-slate-300">—</span>
+                                <input type="date" value={filterDate.end} onChange={e => setFilterDate({ ...filterDate, end: e.target.value })} className="bg-transparent border-none text-[10px] font-black text-slate-600 focus:ring-0 cursor-pointer w-[110px]" title="Sampai tanggal" />
+                                {(filterDate.start || filterDate.end) && (
+                                    <button onClick={() => setFilterDate({ start: '', end: '' })} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-rose-500 transition-colors" title="Reset filter">
+                                        <X size={12} />
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                     <div className="flex gap-2">
                         {activeTab === 'RENCANA_TUGAS' && (
@@ -362,9 +386,9 @@ const StaffPerformance = () => {
                         </div>
                     ) : (
                         <>
-                            {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans} assignments={assignments} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} userId={user.id} isKabid={isKabid} />}
-                            {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments} templates={routineTemplates} onUpdate={handleUpdateAssignment} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
-                            {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs} isKabid={isKabid} />}
+                            {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans.filter(p => inDateRange(p.metadata?.startDate || p.date))} assignments={assignments.filter(a => inDateRange(a.startDate || a.createdAt))} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} userId={user.id} isKabid={isKabid} />}
+                            {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments.filter(a => inDateRange(a.createdAt))} templates={routineTemplates} onUpdate={handleUpdateAssignment} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
+                            {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs.filter(l => inDateRange(l.date))} isKabid={isKabid} />}
                             {activeTab === 'KPI' && <KPITab leaderboard={leaderboard} />}
                         </>
                     )}
