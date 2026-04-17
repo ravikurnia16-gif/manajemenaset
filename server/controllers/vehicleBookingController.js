@@ -935,7 +935,7 @@ exports.checkUpcomingVehicleBookings = async () => {
         }
 
         // 2. PENGINGAT LUPA MEMULAI (TERUS-MENERUS): Perjalanan yang jadwalnya sudah lewat
-        // Tidak ada batasan jendela waktu di sini (akan dikirim setiap 30 menit selama status masih APPROVED)
+        // Tidak ada batasan jendela waktu di sini (akan dikirim setiap jam selama status masih APPROVED)
         const lateBookings = await prisma.vehicleBooking.findMany({
             where: {
                 status: 'APPROVED',
@@ -976,7 +976,7 @@ exports.checkUpcomingVehicleBookings = async () => {
                     `Jadwal Keberangkatan: ${formatWAWaktu(booking.startDate)}\n` +
                     `Keterlambatan: *${diffMins} menit*\n\n` +
                     `⚠️ Mohon segera input *KM AWAL* di aplikasi SARPRAS jika Anda sudah mulai menggunakan armada.\n\n` +
-                    `_Notifikasi ini akan dikirim setiap 30 menit sampai perjalanan dimulai._`;
+                    `_Notifikasi ini akan dikirim setiap 1 jam sampai perjalanan dimulai._`;
                 await sendMessage(booking.user.phone, msg);
             }
 

@@ -85,10 +85,10 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
-        // 4. VEHICLE BOOKING REMINDERS (Every 30 minutes)
+        // 4. VEHICLE BOOKING REMINDERS (Every 1 hour, between 05:00 and 23:00)
         // ----------------------------------------------------
-        if (minute % 30 === 0) {
-            console.log(`[Scheduler] Checking Vehicle Booking Reminders at ${hour}:${minute}...`);
+        if (hour >= 5 && hour < 23 && minute === 0) {
+            console.log(`[Scheduler] Checking Vehicle Booking Reminders at ${hour}:00...`);
             try { await checkOverdueVehicleBookings(); } catch (e) { console.error('checkOverdueVehicleBookings failed:', e.message); }
             try { await checkUpcomingVehicleBookings(); } catch (e) { console.error('checkUpcomingVehicleBookings failed:', e.message); }
         }
