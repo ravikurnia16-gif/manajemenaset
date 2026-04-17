@@ -1368,11 +1368,13 @@ exports.getKPILeaderboard = async (req, res) => {
         const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
         const userPosition = (currentUser?.position || '').toLowerCase();
         
-        const isTargetKabid = userPosition.includes('kepala bidang') && userPosition.includes('sarana dan prasarana');
-        const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || isTargetKabid;
+        // Lenient matching: Must have "Kepala Bidang" AND ("Sarana dan Prasarana" OR "Sarpras")
+        const isKabidTitle = userPosition.includes('kepala bidang');
+        const isSarprasUnit = userPosition.includes('sarana dan prasarana') || userPosition.includes('sarpras');
+        const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || (isKabidTitle && isSarprasUnit);
 
         if (!isAuthorized) {
-            console.log(`[AUTH-KPI] Access denied for user ${currentUser?.username}. Position: ${userPosition}`);
+            console.warn(`[AUTH-KPI] Unauthorized access: User=${currentUser?.username}, Role=${currentUser?.role}, Pos=${currentUser?.position}`);
             return res.status(403).json({ error: 'Akses ditolak. Fitur ini hanya untuk Kepala Bidang Sarana dan Prasarana.' });
         }
 
@@ -1387,13 +1389,16 @@ exports.getKPILeaderboard = async (req, res) => {
                     {
                         OR: [
                             { position: { contains: 'sarana dan prasarana', mode: 'insensitive' } },
+                            { position: { contains: 'sarpras', mode: 'insensitive' } },
                             { position: { contains: 'manajemen aset', mode: 'insensitive' } },
                             { position: { contains: 'manajamen aset', mode: 'insensitive' } },
-                            { position: { contains: 'gudang dan logistik', mode: 'insensitive' } },
+                            { position: { contains: 'gudang', mode: 'insensitive' } },
+                            { position: { contains: 'logistik', mode: 'insensitive' } },
                             { position: { contains: 'teknisi', mode: 'insensitive' } },
                             { position: { contains: 'keuangan', mode: 'insensitive' } },
+                            { position: { contains: 'administrasi', mode: 'insensitive' } },
                             { position: { contains: 'kendaraan', mode: 'insensitive' } },
-                            { unitId: currentUser.unitId } // Fallback: Same unit
+                            { unitId: currentUser.unitId || undefined } // Fallback: Same unit
                         ]
                     },
                     {
@@ -1412,9 +1417,15 @@ exports.getKPILeaderboard = async (req, res) => {
         const leaderboard = [];
 
         for (const s of staff) {
-            // Get all assignments (Tugas + Rutinitas)
+            // Get all assignments relevant to this month (Due in this month OR created in this month)
             const assignments = await prisma.personnelAssignment.findMany({
-                where: { assigneeId: s.id, createdAt: { gte: startDate, lte: endDate } }
+                where: { 
+                    assigneeId: s.id, 
+                    OR: [
+                        { dueDate: { gte: startDate, lte: endDate } },
+                        { createdAt: { gte: startDate, lte: endDate } }
+                    ]
+                }
             });
 
             // Get plans (Rencana)
@@ -2002,12 +2013,14 @@ exports.getPersonnelAISummary = async (req, res) => {
         const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
         const userPosition = (currentUser?.position || '').toLowerCase();
         
-        const isTargetKabid = userPosition.includes('kepala bidang') && userPosition.includes('sarana dan prasarana');
-        const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || isTargetKabid;
+        // Lenient matching for AISummary
+        const isKabidTitle = userPosition.includes('kepala bidang');
+        const isSarprasUnit = userPosition.includes('sarana dan prasarana') || userPosition.includes('sarpras');
+        const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || (isKabidTitle && isSarprasUnit);
 
         if (!isAuthorized) {
-            console.log(`[AUTH] Access denied for user ${currentUser?.username}. Position: ${userPosition}`);
-            return res.status(403).json({ error: 'Akses ditolak. Fitur ini hanya untuk Kepala Bidang Sarana dan Prasarana.' });
+            console.warn(`[AUTH-AI] Unauthorized access: User=${currentUser?.username}, Pos=${currentUser?.position}`);
+            return res.status(403).json({ error: 'Hanya Kepala Bidang Sarana dan Prasarana atau Admin yang dapat mengakses ringkasan AI.' });
         }
 
         // 1. Fetch Data for Context

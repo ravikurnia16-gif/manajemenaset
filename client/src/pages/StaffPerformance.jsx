@@ -429,12 +429,13 @@ const StaffPerformance = () => {
     const userRole = user?.role || '';
     const userPosition = (user?.position || '').toLowerCase();
     
-    // Only allow specific position or SUPER_ADMIN for sensitive tabs
-    const isTargetKabid = userPosition.includes('kepala bidang') && userPosition.includes('sarana dan prasarana');
-    const isKabid = userRole === 'SUPER_ADMIN' || isTargetKabid;
-    const isAdmin = isKabid; // For this page, Admin visibility matches Kabid visibility for Summary/KPI
+    // Lenient matching for UI tabs
+    const isKabidTitle = userPosition.includes('kepala bidang');
+    const isSarprasUnit = userPosition.includes('sarana dan prasarana') || userPosition.includes('sarpras');
+    const isKabid = userRole === 'SUPER_ADMIN' || (isKabidTitle && isSarprasUnit);
+    const isAdmin = isKabid; 
     
-    // Staff list for filter (Kabid/Admin see all, Staff see only theirs)
+    // Staff list for filter
     const canFilterStaff = isKabid || ['ADMIN_ASET', 'BIDANG_IT'].includes(userRole);
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
