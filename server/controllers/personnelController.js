@@ -1132,7 +1132,7 @@ exports.createRoutine = async (req, res) => {
         const routine = await prisma.personnelRoutine.create({
             data: {
                 assignerId: user.id,
-                assigneeId: parseInt(assigneeId),
+                assigneeId: assigneeId ? parseInt(assigneeId) : user.id,
                 title,
                 description,
                 category: category || 'UMUM',

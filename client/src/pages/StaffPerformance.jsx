@@ -407,7 +407,7 @@ const StaffPerformance = () => {
                     await fetchRoutineTemplates(); await fetchAllAssignments();
                 } catch (err) { alert(err.response?.data?.error || 'Gagal membuat rutinitas'); }
                 finally { setSubmitting(false); }
-            }} submitting={submitting} staffList={staffList} />
+            }} submitting={submitting} />
 
             <style dangerouslySetInnerHTML={{ __html: `.no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}` }} />
         </div>
@@ -1041,9 +1041,8 @@ const InsidentalFormModal = ({ open, onClose, onSubmit, submitting }) => {
 // ============================================
 // FORM MODAL: RUTINITAS
 // ============================================
-const RutinitasFormModal = ({ open, onClose, onSubmit, submitting, staffList }) => {
+const RutinitasFormModal = ({ open, onClose, onSubmit, submitting }) => {
     const [title, setTitle] = useState('');
-    const [assigneeId, setAssigneeId] = useState('');
     const [frequency, setFrequency] = useState('DAILY');
     const [dayOfWeek, setDayOfWeek] = useState(1);
     const [dayOfMonth, setDayOfMonth] = useState(1);
@@ -1053,7 +1052,7 @@ const RutinitasFormModal = ({ open, onClose, onSubmit, submitting, staffList }) 
     const [items, setItems] = useState([{ text: '' }]);
 
     useEffect(() => {
-        if (open) { setTitle(''); setAssigneeId(''); setFrequency('DAILY'); setDayOfWeek(1); setDayOfMonth(1); setPriority('MEDIUM'); setLocation(''); setDescription(''); setItems([{ text: '' }]); }
+        if (open) { setTitle(''); setFrequency('DAILY'); setDayOfWeek(1); setDayOfMonth(1); setPriority('MEDIUM'); setLocation(''); setDescription(''); setItems([{ text: '' }]); }
     }, [open]);
 
     const addItem = () => setItems([...items, { text: '' }]);
@@ -1065,9 +1064,8 @@ const RutinitasFormModal = ({ open, onClose, onSubmit, submitting, staffList }) 
     const submit = e => {
         e.preventDefault();
         if (!title.trim()) return alert('Judul rutinitas wajib diisi');
-        if (!assigneeId) return alert('Pilih staf penanggung jawab');
         onSubmit({
-            title, assigneeId: parseInt(assigneeId), frequency, priority, location,
+            title, frequency, priority, location,
             description,
             dayOfWeek: frequency === 'WEEKLY' ? parseInt(dayOfWeek) : undefined,
             dayOfMonth: frequency === 'MONTHLY' ? parseInt(dayOfMonth) : undefined,
@@ -1083,14 +1081,7 @@ const RutinitasFormModal = ({ open, onClose, onSubmit, submitting, staffList }) 
                     <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Misal: Pengecekan Panel Listrik Harian"
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">👤 Penanggung Jawab</label>
-                        <select value={assigneeId} onChange={e => setAssigneeId(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none">
-                            <option value="">Pilih Staf</option>
-                            {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">🔄 Frekuensi</label>
                         <select value={frequency} onChange={e => setFrequency(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none">
