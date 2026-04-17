@@ -81,6 +81,31 @@ const syncPlanToCalendar = async (report, user) => {
     }
 };
 
+// Auto-log activity to daily report (called when updating plans/tasks/routines)
+const autoLogActivity = async (userId, source, sourceId, sourceTitle, description, percentage) => {
+    try {
+        await prisma.personnelReport.create({
+            data: {
+                userId: parseInt(userId),
+                type: 'DAILY',
+                category: 'AUTO_LOG',
+                content: description,
+                date: new Date(),
+                metadata: {
+                    autoLog: true,
+                    source,
+                    sourceId,
+                    sourceTitle,
+                    progressPercentage: percentage,
+                    timestamp: new Date().toISOString()
+                }
+            }
+        });
+    } catch (err) {
+        console.error('[AutoLog] Failed:', err.message);
+    }
+};
+
 // --- REPORTS ---
 
 exports.updateReport = async (req, res) => {
@@ -113,6 +138,14 @@ exports.updateReport = async (req, res) => {
 
         // Sync to calendar
         await syncPlanToCalendar(updated, user);
+
+        // Auto-log plan updates to daily report
+        if (metadata?.isPlan && metadata?.items) {
+            const planTitle = metadata.title || 'Rencana Kerja';
+            const items = metadata.items || [];
+            const done = items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
+            autoLogActivity(user.id, 'RENCANA', parseInt(id), planTitle, `Update rencana: ${planTitle} (${done}/${items.length} selesai)`, items.length > 0 ? Math.round((done / items.length) * 100) : 0);
+        }
 
         res.json({ message: 'Laporan berhasil diperbarui', data: updated });
     } catch (error) {
@@ -489,6 +522,14 @@ exports.updateAssignmentStatus = async (req, res) => {
         });
 
         res.json(updated);
+
+        // Auto-log to daily report
+        const logSource = assignment.routineId ? 'RUTINITAS' : 'TUGAS';
+        const pct = updated.progressPercentage || 0;
+        const logDesc = pct === 100
+            ? `Menyelesaikan ${logSource.toLowerCase()}: ${assignment.title.replace('[RUTIN] ', '')}`
+            : `Update ${logSource.toLowerCase()}: ${assignment.title.replace('[RUTIN] ', '')} → ${pct}%`;
+        autoLogActivity(user.id, logSource, assignment.id, assignment.title.replace('[RUTIN] ', ''), logDesc, pct);
     } catch (error) {
         console.error("Update Assignment Status Error:", error);
         res.status(500).json({ error: error.message });
@@ -1281,36 +1322,44 @@ exports.getKPILeaderboard = async (req, res) => {
         const leaderboard = [];
 
         for (const s of staff) {
+            // Get all assignments (Tugas + Rutinitas)
             const assignments = await prisma.personnelAssignment.findMany({
-                where: {
-                    assigneeId: s.id,
-                    createdAt: { gte: startDate, lte: endDate }
-                }
+                where: { assigneeId: s.id, createdAt: { gte: startDate, lte: endDate } }
             });
 
-            const total = assignments.length;
-            const completed = assignments.filter(a => a.status === 'COMPLETED').length;
-            const punctual = assignments.filter(a => a.status === 'COMPLETED' && a.actualCompletionDate <= a.dueDate).length;
-
-            // Report Count (Daily Reports)
-            const reports = await prisma.personnelReport.findMany({
-                where: {
-                    userId: s.id,
-                    type: 'DAILY',
-                    date: { gte: startDate, lte: endDate }
-                }
+            // Get plans (Rencana)
+            const planReports = await prisma.personnelReport.findMany({
+                where: { userId: s.id, type: 'WEEKLY', date: { gte: startDate, lte: endDate } }
             });
-            const reportCount = reports.length;
+            const plans = planReports.filter(r => r.metadata?.isPlan === true);
+            let planItemsTotal = 0, planItemsCompleted = 0;
+            plans.forEach(p => {
+                const items = p.metadata?.items || [];
+                planItemsTotal += items.length;
+                planItemsCompleted += items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
+            });
 
-            // Scoring Logic
-            // 1. Completion Rate (0-100)
-            const completionRate = total > 0 ? (completed / total) * 100 : 0;
-            // 2. Punctuality Rate (0-100)
-            const punctualityRate = completed > 0 ? (punctual / completed) * 100 : 0;
-            // 3. Report Rate (Target 20 reports/month)
-            const reportRate = Math.min((reportCount / 20) * 100, 100);
+            // Assignment stats
+            const completedAssignments = assignments.filter(a => a.status === 'COMPLETED').length;
+            const punctualAssignments = assignments.filter(a =>
+                a.status === 'COMPLETED' && a.actualCompletionDate && a.dueDate &&
+                new Date(a.actualCompletionDate) <= new Date(a.dueDate)
+            ).length;
 
-            const averageScore = (completionRate * 0.4) + (punctualityRate * 0.4) + (reportRate * 0.2);
+            // Combined scheduled work score
+            const totalScheduled = assignments.length + planItemsTotal;
+            const completedScheduled = completedAssignments + planItemsCompleted;
+            const scheduledScore = totalScheduled > 0 ? (completedScheduled / totalScheduled) * 100 : 0;
+            const punctualityScore = completedAssignments > 0 ? (punctualAssignments / completedAssignments) * 100 : 0;
+
+            // Insidental reports (non-auto, non-plan daily reports)
+            const insidentalCount = await prisma.personnelReport.count({
+                where: { userId: s.id, type: 'DAILY', date: { gte: startDate, lte: endDate }, NOT: { category: 'AUTO_LOG' } }
+            });
+            const insidentalScore = Math.min((insidentalCount / 5) * 100, 100);
+
+            // Final: 50% completion + 20% punctuality + 30% insidental
+            const averageScore = (scheduledScore * 0.5) + (punctualityScore * 0.2) + (insidentalScore * 0.3);
 
             let grade = 'D';
             if (averageScore >= 85) grade = 'A';
@@ -1321,12 +1370,8 @@ exports.getKPILeaderboard = async (req, res) => {
                 userId: s.id,
                 name: s.name,
                 position: s.position,
-                stats: { total, completed, punctual, reports: reportCount },
-                scores: {
-                    completion: Math.round(completionRate),
-                    punctuality: Math.round(punctualityRate),
-                    report: Math.round(reportRate)
-                },
+                stats: { total: totalScheduled, completed: completedScheduled, punctual: punctualAssignments, inspidenalReports: insidentalCount, planItems: planItemsTotal },
+                scores: { completion: Math.round(scheduledScore), punctuality: Math.round(punctualityScore), insidental: Math.round(insidentalScore) },
                 averageScore: Math.round(averageScore * 10) / 10,
                 grade
             });

@@ -1,44 +1,31 @@
 import { useState, useEffect, Component } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { 
-    Calendar, FileText, FileCheck, Trophy, Plus, Search, 
-    Filter, LayoutDashboard, TrendingUp, Users, Activity, 
-    Clock, Zap, AlertCircle, MapPin, Tag, 
-    ArrowRight, MoreVertical, Flag, Loader2, X, ChevronDown, 
-    ChevronUp, CheckSquare, Square, Target, Timer, Award,
-    Medal, Crown, Send, Trash2, Sparkles, Download, ListChecks,
-    ClipboardCheck, History, ClipboardList, ShieldCheck, CheckCircle, 
-    MessageSquare
+import {
+    Calendar, FileText, ClipboardList, Trophy, Plus, X, ChevronDown,
+    ChevronUp, CheckSquare, Square, CheckCircle, Clock, Zap, AlertCircle,
+    MapPin, Loader2, Target, Timer, TrendingUp, Sparkles, Users,
+    Activity, Crown, Medal, Send, Trash2, RotateCcw, Tag,
+    ShieldCheck, MessageSquare, ListChecks, Flag
 } from 'lucide-react';
 import api from '../lib/axios';
 
-// --- ERROR BOUNDARY ---
+// ============================================
+// ERROR BOUNDARY
+// ============================================
 class StaffPerformanceErrorBoundary extends Component {
-    constructor(props) {
-        super(props);
-        this.state = { hasError: false, error: null };
-    }
-    static getDerivedStateFromError(error) {
-        return { hasError: true, error };
-    }
-    componentDidCatch(error, errorInfo) {
-        console.error('StaffPerformance crashed:', error, errorInfo);
-    }
+    constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+    static getDerivedStateFromError(error) { return { hasError: true, error }; }
+    componentDidCatch(error, info) { console.error('StaffPerformance crashed:', error, info); }
     render() {
         if (this.state.hasError) {
             return (
-                <div style={{ padding: '40px', textAlign: 'center', fontFamily: 'sans-serif' }}>
-                    <h2 style={{ color: '#EF4444', marginBottom: '16px' }}>⚠️ Terjadi Kesalahan</h2>
-                    <p style={{ color: '#64748B', marginBottom: '8px' }}>Dashboard gagal dimuat. Detail error:</p>
-                    <pre style={{ background: '#F1F5F9', padding: '16px', borderRadius: '12px', textAlign: 'left', fontSize: '12px', overflow: 'auto', maxHeight: '200px', color: '#334155' }}>
-                        {this.state.error?.toString()}
-                    </pre>
-                    <button 
-                        onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
-                        style={{ marginTop: '16px', padding: '12px 24px', background: '#6366F1', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}
-                    >
-                        Muat Ulang Halaman
-                    </button>
+                <div className="min-h-screen flex items-center justify-center p-8">
+                    <div className="text-center max-w-md">
+                        <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4"><AlertCircle size={32} className="text-rose-500" /></div>
+                        <h2 className="text-xl font-black text-slate-800 mb-2">Terjadi Kesalahan</h2>
+                        <pre className="text-xs text-slate-500 bg-slate-50 p-4 rounded-xl mb-4 text-left overflow-auto max-h-32">{this.state.error?.toString()}</pre>
+                        <button onClick={() => { this.setState({ hasError: false }); window.location.reload(); }} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all">Muat Ulang</button>
+                    </div>
                 </div>
             );
         }
@@ -46,1739 +33,981 @@ class StaffPerformanceErrorBoundary extends Component {
     }
 }
 
-const safeParseUser = () => {
-    try {
-        const raw = localStorage.getItem('user');
-        if (!raw) return {};
-        const parsed = JSON.parse(raw);
-        return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch (e) {
-        console.error('Failed to parse user from localStorage:', e);
-        return {};
-    }
-};
+// ============================================
+// UTILITIES
+// ============================================
+const safeParseUser = () => { try { const r = localStorage.getItem('user'); if (!r) return {}; const p = JSON.parse(r); return p && typeof p === 'object' ? p : {}; } catch { return {}; } };
+const fmtDate = (d, opts = { day: 'numeric', month: 'short', year: 'numeric' }) => { if (!d) return '-'; const dt = new Date(d); return isNaN(dt) ? '-' : dt.toLocaleDateString('id-ID', opts); };
+const fmtTime = (d) => { if (!d) return ''; const dt = new Date(d); return isNaN(dt) ? '' : dt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); };
+const today = () => new Date().toISOString().split('T')[0];
 
-// --- SHARED COMPONENTS ---
-
-const safeFormatDate = (dateStr, options = { day: 'numeric', month: 'short', year: 'numeric' }) => {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return '-';
-    try {
-        return date.toLocaleDateString('id-ID', options);
-    } catch (e) {
-        return '-';
-    }
-};
-
-const safeFormatDateTime = (dateStr) => {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return '-';
-    try {
-        return date.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
-        return '-';
-    }
-};
-
-const StatusBadge = ({ status, config }) => {
-    const c = config[status] || { label: status, color: 'bg-slate-100 text-slate-600', icon: AlertCircle };
-    const Icon = c.icon;
+// ============================================
+// SHARED UI COMPONENTS
+// ============================================
+const Modal = ({ open, onClose, title, icon: Icon, children, wide }) => {
+    if (!open) return null;
     return (
-        <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm border border-white/20 ${c.color}`}>
-            <Icon size={12} strokeWidth={2.5} />
-            {c.label}
-        </span>
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 bg-black/30 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
+            <div className={`bg-white rounded-3xl shadow-2xl w-full ${wide ? 'max-w-3xl' : 'max-w-2xl'} animate-in zoom-in-95 fade-in duration-300 my-4`} onClick={e => e.stopPropagation()}>
+                <div className="sticky top-0 bg-white/95 backdrop-blur-md px-6 py-5 border-b border-slate-100 flex items-center justify-between rounded-t-3xl z-10">
+                    <div className="flex items-center gap-3">
+                        {Icon && <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center"><Icon size={20} className="text-indigo-600" /></div>}
+                        <h2 className="text-base font-black text-slate-900 uppercase italic tracking-tight">{title}</h2>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600"><X size={20} /></button>
+                </div>
+                <div className="p-6">{children}</div>
+            </div>
+        </div>
     );
 };
 
-const PriorityBadge = ({ priority, config }) => {
-    const c = config[priority] || { label: priority, color: 'bg-slate-100 text-slate-500' };
+const ProgressRing = ({ pct = 0, size = 48, strokeWidth = 4 }) => {
+    const r = (size - strokeWidth) / 2;
+    const circ = 2 * Math.PI * r;
+    const offset = circ - (circ * Math.min(pct, 100)) / 100;
+    const color = pct >= 100 ? 'text-emerald-500' : pct > 50 ? 'text-indigo-500' : pct > 0 ? 'text-amber-500' : 'text-slate-200';
     return (
-        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border border-white/10 ${c.color}`}>
-            {c.label}
-        </span>
+        <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+            <svg className="w-full h-full -rotate-90" viewBox={`0 0 ${size} ${size}`}>
+                <circle cx={size / 2} cy={size / 2} r={r} stroke="currentColor" strokeWidth={strokeWidth} fill="transparent" className="text-slate-100" />
+                <circle cx={size / 2} cy={size / 2} r={r} stroke="currentColor" strokeWidth={strokeWidth} fill="transparent" strokeDasharray={circ} strokeDashoffset={offset} className={`${color} transition-all duration-700 ease-out`} strokeLinecap="round" />
+            </svg>
+            <span className="absolute text-[10px] font-black text-slate-800 italic">{Math.round(pct)}%</span>
+        </div>
     );
 };
 
-// --- KPI COMPONENTS ---
+const EmptyState = ({ icon: Icon = FileText, message = 'Belum ada data' }) => (
+    <div className="py-20 text-center">
+        <Icon size={48} className="mx-auto text-slate-200 mb-4" />
+        <p className="text-[11px] font-black text-slate-300 uppercase tracking-widest">{message}</p>
+    </div>
+);
+
+const Badge = ({ children, className = '' }) => (
+    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${className}`}>{children}</span>
+);
+
+const statusCfg = {
+    'PENDING': { label: 'Menunggu', color: 'bg-amber-100 text-amber-700', icon: Clock },
+    'IN_PROGRESS': { label: 'Proses', color: 'bg-indigo-100 text-indigo-700', icon: Zap },
+    'COMPLETED': { label: 'Selesai', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
+    'OVERDUE': { label: 'Terlambat', color: 'bg-rose-100 text-rose-700', icon: AlertCircle }
+};
+const priorityCfg = {
+    'LOW': { label: 'Rendah', color: 'bg-slate-100 text-slate-500' },
+    'MEDIUM': { label: 'Medium', color: 'bg-blue-50 text-blue-600' },
+    'HIGH': { label: 'Tinggi', color: 'bg-rose-50 text-rose-600' },
+    'URGENT': { label: 'Urgent', color: 'bg-rose-600 text-white' }
+};
 
 const ScoreBar = ({ label, score, color, icon: Icon }) => (
     <div className="space-y-2">
-        <div className="flex justify-between items-center px-1">
+        <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-                <div className={`p-1.5 rounded-lg ${color.replace('bg-', 'bg-').replace('-500', '-50')} border ${color.replace('bg-', 'border-').replace('-500', '-100')}`}>
-                    <Icon size={12} className={color.replace('bg-', 'text-')} />
-                </div>
+                <div className={`p-1.5 rounded-lg bg-opacity-10 ${color.replace('bg-', 'bg-')}`}><Icon size={12} className={color.replace('bg-', 'text-')} /></div>
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
             </div>
             <span className={`text-[11px] font-black ${color.replace('bg-', 'text-')}`}>{score}%</span>
         </div>
-        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner flex">
-            <div 
-                className={`h-full transition-all duration-1000 ease-out fill-mode-forwards ${color} shadow-[0_0_8px_rgba(0,0,0,0.1)]`} 
-                style={{ width: `${score}%` }} 
-            />
+        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div className={`h-full transition-all duration-1000 ease-out ${color} rounded-full`} style={{ width: `${score}%` }} />
         </div>
     </div>
 );
 
-const RankBadge = ({ rank }) => {
-    if (rank === 0) return <Crown className="text-amber-400 drop-shadow-lg" size={28} strokeWidth={2.5} />;
-    if (rank === 1) return <Medal className="text-slate-400 drop-shadow-md" size={24} strokeWidth={2.5} />;
-    if (rank === 2) return <Medal className="text-amber-700/60 drop-shadow-sm" size={20} strokeWidth={2.5} />;
-    return <span className="text-sm font-black text-slate-300 italic">#{rank + 1}</span>;
-};
-
-// --- SUB-TASK ITEM ---
-
-const SubTaskItem = ({ item, idx, progressVal, isDone, updating, isAssignee, canAssign, toggleItemStatus, updateItemProgress, appendItemNote }) => {
-    const [localVal, setLocalVal] = useState(progressVal);
-    const [newNote, setNewNote] = useState('');
-    const [showNoteInput, setShowNoteInput] = useState(false);
-
-    useEffect(() => {
-        setLocalVal(progressVal);
-    }, [progressVal]);
-
-    const commitProgress = () => {
-        const clamped = Math.min(100, Math.max(0, localVal));
-        if (clamped !== progressVal) {
-            updateItemProgress(idx, clamped);
-        }
-    };
-
-    const handleAddNote = () => {
-        if (!newNote.trim()) return;
-        appendItemNote(idx, newNote);
-        setNewNote('');
-        setShowNoteInput(false);
-    };
-
-    const logs = Array.isArray(item.logs) ? item.logs : [];
-
-    return (
-        <div className={`p-4 rounded-2xl border transition-all shadow-sm ${isDone ? 'bg-emerald-50/30 border-emerald-100' : 'bg-white border-slate-100'}`}>
-            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                <div className="flex items-start gap-4 flex-1 min-w-0">
-                    <button
-                        onClick={() => toggleItemStatus(idx)}
-                        disabled={updating}
-                        className={`mt-0.5 shrink-0 transition-transform active:scale-90 ${isDone ? 'text-emerald-500' : 'text-slate-300'}`}
-                    >
-                        {isDone ? <CheckSquare size={22} strokeWidth={2.5} /> : <Square size={22} strokeWidth={2.5} />}
-                    </button>
-                    <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-bold leading-tight ${isDone ? 'text-emerald-700 line-through decoration-emerald-200' : 'text-slate-700'}`}>
-                            {item.text}
-                        </p>
-                        
-                        {logs.length > 0 && (
-                            <div className="mt-2 space-y-2 pl-2 border-l-2 border-slate-100">
-                                {logs.map((log, lIdx) => (
-                                    <div key={lIdx} className="group/log">
-                                        <p className="text-[10px] font-medium text-slate-500 leading-relaxed italic">"{log.text}"</p>
-                                        <p className="text-[8px] font-black text-slate-300 uppercase tracking-tighter mt-0.5">
-                                            {safeFormatDateTime(log.timestamp)}
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {(isAssignee || canAssign) && (
-                            <div className="mt-2">
-                                {!showNoteInput ? (
-                                    <button onClick={() => setShowNoteInput(true)} className="text-[9px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-widest flex items-center gap-1.5 transition-colors">
-                                        <Plus size={10} strokeWidth={3} /> Tambah Catatan
-                                    </button>
-                                ) : (
-                                    <div className="space-y-2 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                                        <textarea value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Tulis progres atau kendala..." className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none h-16 transition-all" autoFocus />
-                                        <div className="flex gap-2">
-                                            <button onClick={handleAddNote} disabled={!newNote.trim() || updating} className="px-3 py-1 bg-indigo-600 text-white text-[9px] font-black rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-sm">SIMPAN</button>
-                                            <button onClick={() => setShowNoteInput(false)} className="px-3 py-1 bg-slate-100 text-slate-500 text-[9px] font-black rounded-lg hover:bg-slate-200 transition-all">BATAL</button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </div>
-                <div className="flex items-center gap-3 md:w-32 self-start md:self-center mt-2 md:mt-0 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                    <input type="number" min="0" max="100" value={localVal} onChange={(e) => setLocalVal(parseInt(e.target.value) || 0)} onBlur={commitProgress} className="w-12 bg-transparent text-center text-xs font-black text-indigo-700 outline-none" disabled={updating || (!isAssignee && !canAssign)} />
-                    <span className="text-[10px] font-black text-slate-300">%</span>
-                    {canAssign && (
-                        <button 
-                            onClick={() => toggleItemStatus(idx)}
-                            className="p-1 px-2 text-rose-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                            title="Hapus Tahapan (Hanya Super Admin)"
-                        >
-                            <Trash2 size={14} />
-                        </button>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// --- MAIN HUB ---
-
+// ============================================
+// MAIN COMPONENT
+// ============================================
 const StaffPerformance = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const validTabs = ['RENCANA', 'TUGAS', 'RUTINITAS', 'LAPORAN', 'KPI'];
     const urlTab = searchParams.get('tab')?.toUpperCase();
-    const validTabs = ['RENCANA', 'LAPORAN', 'PENUGASAN', 'KPI'];
-    const initialTab = validTabs.includes(urlTab) ? urlTab : 'LAPORAN';
+    const initialTab = validTabs.includes(urlTab) ? urlTab : 'RENCANA';
 
     const [activeTab, setActiveTab] = useState(initialTab);
-    const [loading, setLoading] = useState(true);
-    const [reports, setReports] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+
+    // Data
+    const [plans, setPlans] = useState([]);
     const [assignments, setAssignments] = useState([]);
+    const [routineAssignments, setRoutineAssignments] = useState([]);
+    const [routineTemplates, setRoutineTemplates] = useState([]);
+    const [dailyLogs, setDailyLogs] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
     const [staffList, setStaffList] = useState([]);
-    const [showForm, setShowForm] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
-    
-    // UI State for Source Selection
-    const [activeSourceCategory, setActiveSourceCategory] = useState(null); // 'PLAN', 'ROUTINE', 'TASK'
-    const [availableSourceTitles, setAvailableSourceTitles] = useState([]);
 
-    // Data for Import Hub (User specific)
-    const [userPlans, setUserPlans] = useState([]);
-    const [userAssignments, setUserAssignments] = useState([]);
-    const [userRoutines, setUserRoutines] = useState([]);
-    const [userDailyReports, setUserDailyReports] = useState([]);
-    
-    // Kabid Stats
-    const [kabidStats, setKabidStats] = useState({
-        totalPlannedItems: 0,
-        completedPlannedItems: 0,
-        pendingReviews: 0,
-        incidentalCount: 0
-    });
-
-    // Sub-item Selection State
-    const [previewSource, setPreviewSource] = useState(null); // Source for item picker
-    const [selectedItemsIndices, setSelectedItemsIndices] = useState([]); // Indices for sub-tasks
-
+    // Modals
+    const [showRencanaModal, setShowRencanaModal] = useState(false);
+    const [showTugasModal, setShowTugasModal] = useState(false);
+    const [showInsidentalModal, setShowInsidentalModal] = useState(false);
+    const [editingPlan, setEditingPlan] = useState(null);
 
     // Filters
     const [filterStaff, setFilterStaff] = useState('ALL');
-    const [filterStatus, setFilterStatus] = useState('ALL');
     const [filterPeriod, setFilterPeriod] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
 
     const user = safeParseUser();
     const userRole = user.role || '';
     const userPosition = typeof user.position === 'string' ? user.position : '';
-    const userUnitName = typeof user.unit?.name === 'string' ? user.unit.name : '';
-    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(userRole) || 
-                    (userPosition.toLowerCase().includes('kepala bidang') && userUnitName.toLowerCase().includes('sarana dan prasarana'));
     const isKabid = userRole === 'SUPER_ADMIN' || userPosition.includes('Kepala Bidang Sarana dan Prasarana');
-
-    // Form State (Consolidated)
-    const [form, setForm] = useState({
-        id: null,
-        startTime: '08:00',
-        endTime: '17:00',
-        title: '',
-        assigneeId: '',
-        priority: 'MEDIUM',
-        location: '',
-        generalItems: activeTab === 'RENCANA' ? [{ activity: '', status: 'PENDING', percentage: 0, note: '' }] : [{ activity: '', status: 'SELESAI', percentage: 100, note: '' }],
-        isPlan: activeTab === 'RENCANA'
-    });
-
-    const statusConfig = {
-        'PENDING': { label: 'MENUNGGU', color: 'bg-amber-500 text-white shadow-amber-200', icon: Clock },
-        'IN_PROGRESS': { label: 'PROSES', color: 'bg-indigo-500 text-white shadow-indigo-200', icon: Zap },
-        'COMPLETED': { label: 'SELESAI', color: 'bg-emerald-500 text-white shadow-emerald-200', icon: CheckCircle },
-        'OVERDUE': { label: 'TERLAMBAT', color: 'bg-rose-500 text-white shadow-rose-200', icon: AlertCircle }
-    };
-
-    const priorityConfig = {
-        'LOW': { label: 'RENDAH', color: 'bg-slate-100 text-slate-500' },
-        'MEDIUM': { label: 'MEDIUM', color: 'bg-indigo-50 text-indigo-600' },
-        'HIGH': { label: 'TINGGI', color: 'bg-rose-50 text-rose-600' },
-        'URGENT': { label: 'URGENT', color: 'bg-rose-600 text-white shadow-lg shadow-rose-200' }
-    };
-
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(userRole) || isKabid;
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
-    const changeTab = (tab) => {
-        setActiveTab(tab);
-        setSearchParams({ tab });
-        setShowForm(false);
-    };
+    const tabConfig = [
+        { key: 'RENCANA', label: 'Rencana', icon: Calendar },
+        { key: 'TUGAS', label: 'Tugas', icon: ClipboardList },
+        { key: 'RUTINITAS', label: 'Rutinitas', icon: RotateCcw },
+        { key: 'LAPORAN', label: 'Laporan', icon: FileText },
+        { key: 'KPI', label: 'KPI', icon: Trophy, adminOnly: true },
+    ];
 
-    useEffect(() => {
-        if (urlTab && urlTab !== activeTab && validTabs.includes(urlTab)) {
-            setActiveTab(urlTab);
-        }
-    }, [urlTab]);
+    const changeTab = (t) => { setActiveTab(t); setSearchParams({ tab: t }); };
 
-    useEffect(() => {
-        fetchInitialData();
-    }, []);
+    useEffect(() => { if (urlTab && urlTab !== activeTab && validTabs.includes(urlTab)) setActiveTab(urlTab); }, [urlTab]);
+    useEffect(() => { fetchStaff(); fetchRoutineTemplates(); }, []);
+    useEffect(() => { fetchTabData(); }, [activeTab, filterStaff, filterPeriod]);
 
-    useEffect(() => {
-        fetchData();
-    }, [activeTab, filterStaff, filterStatus, filterPeriod]);
+    const fetchStaff = async () => { try { const r = await api.get('/personnel/staff'); setStaffList(r.data || []); } catch {} };
+    const fetchRoutineTemplates = async () => { try { const r = await api.get('/personnel/routines'); setRoutineTemplates(r.data || []); } catch {} };
 
-    const fetchData = async () => {
-        if (activeTab === 'LAPORAN' || activeTab === 'RENCANA') await fetchReports();
-        if (activeTab === 'PENUGASAN') await fetchAssignments();
-        if (activeTab === 'KPI') await fetchKPI();
-    };
-
-    const fetchInitialData = async () => {
-        try {
-            const [staffRes, routineRes, assignmentRes, planRes, dailyRes] = await Promise.all([
-                api.get('/personnel/staff'),
-                api.get('/personnel/routines'),
-                api.get('/personnel/assignments', { params: { userId: user.id } }),
-                api.get('/personnel/reports', { params: { userId: user.id, type: 'WEEKLY' } }),
-                api.get('/personnel/reports', { params: { userId: user.id, type: 'DAILY', limit: 100 } })
-            ]);
-            setStaffList(staffRes.data || []);
-            setUserRoutines(routineRes.data?.filter(r => r.assigneeId === user.id) || []);
-            setUserAssignments(assignmentRes.data || []);
-            setUserPlans(Array.isArray(planRes.data) ? planRes.data : (planRes.data?.data || []));
-            setUserDailyReports(Array.isArray(dailyRes.data) ? dailyRes.data : (dailyRes.data?.data || []));
-        } catch (err) {
-            console.error('Failed to fetch initial data:', err);
-        }
-    };
-
-    const fetchReports = async () => {
+    const fetchTabData = async () => {
         setLoading(true);
         try {
-            const params = {
-                userId: filterStaff !== 'ALL' ? filterStaff : undefined,
-                type: activeTab === 'RENCANA' ? 'WEEKLY' : 'DAILY'
-            };
-            const res = await api.get('/personnel/reports', { params });
-            const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
-            
-            // Filter by isPlan metadata for RENCANA vs LAPORAN
-            const filtered = data.filter(r => {
-                const isPlan = r.metadata?.isPlan;
-                return activeTab === 'RENCANA' ? isPlan : !isPlan;
-            });
-            
-            setReports(filtered);
-
-            // CALCULATE KABID STATS (Only if Kabid)
-            if (isKabid) {
-                let plannedTotal = 0;
-                let plannedDone = 0;
-                let pendingRev = 0;
-                let incidental = 0;
-
-                data.forEach(r => {
-                    const items = r.metadata?.items || [];
-                    const isPlan = r.metadata?.isPlan;
-                    const reviewStatus = r.metadata?.review?.status || 'PENDING';
-                    
-                    if (reviewStatus === 'PENDING') pendingRev++;
-
-                    items.forEach(it => {
-                        if (it.planId) {
-                            plannedTotal++;
-                            if (it.percentage === 100 || it.status === 'SELESAI') plannedDone++;
-                        } else if (!isPlan) {
-                            incidental++;
-                        }
-                    });
-                });
-
-                setKabidStats({
-                    totalPlannedItems: plannedTotal,
-                    completedPlannedItems: plannedDone,
-                    pendingReviews: pendingRev,
-                    incidentalCount: incidental
-                });
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
+            if (activeTab === 'RENCANA') await fetchPlans();
+            else if (activeTab === 'TUGAS' || activeTab === 'RUTINITAS') await fetchAllAssignments();
+            else if (activeTab === 'LAPORAN') await fetchDailyLogs();
+            else if (activeTab === 'KPI') await fetchKPI();
+        } catch (err) { console.error(err); }
+        finally { setLoading(false); }
     };
 
-    const fetchAssignments = async () => {
-        setLoading(true);
-        try {
-            const params = { 
-                userId: filterStaff !== 'ALL' ? filterStaff : undefined,
-                status: filterStatus !== 'ALL' ? filterStatus : undefined
-            };
-            const res = await api.get('/personnel/assignments', { params });
-            const data = res.data || [];
-            // Filter out routines from assignments
-            const nonRoutineAssignments = data.filter(a => !a.routineId && !a.title.startsWith('[RUTIN]'));
-            setAssignments(nonRoutineAssignments);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
+    const fetchPlans = async () => {
+        const params = { type: 'WEEKLY', userId: filterStaff !== 'ALL' ? filterStaff : undefined };
+        const res = await api.get('/personnel/reports', { params });
+        const data = (Array.isArray(res.data) ? res.data : []).filter(r => r.metadata?.isPlan);
+        setPlans(data);
+    };
+
+    const fetchAllAssignments = async () => {
+        const params = { userId: filterStaff !== 'ALL' ? filterStaff : undefined };
+        const res = await api.get('/personnel/assignments', { params });
+        const all = res.data || [];
+        setAssignments(all.filter(a => !a.routineId && !a.title?.startsWith('[RUTIN]')));
+        setRoutineAssignments(all.filter(a => a.routineId || a.title?.startsWith('[RUTIN]')));
+    };
+
+    const fetchDailyLogs = async () => {
+        const params = { type: 'DAILY', userId: filterStaff !== 'ALL' ? filterStaff : undefined, limit: 200 };
+        const res = await api.get('/personnel/reports', { params });
+        setDailyLogs(Array.isArray(res.data) ? res.data : []);
     };
 
     const fetchKPI = async () => {
-        setLoading(true);
+        const res = await api.get(`/personnel/kpi-leaderboard?month=${filterPeriod.month}&year=${filterPeriod.year}`);
+        setLeaderboard(res.data.leaderboard || []);
+    };
+
+    // --- HANDLERS ---
+    const handleUpdateAssignment = async (id, data) => {
+        try { await api.put(`/personnel/assignments/${id}/status`, data); await fetchAllAssignments(); } catch { alert('Gagal memperbarui'); }
+    };
+
+    const handleUpdatePlanItem = async (plan, itemIdx, updates) => {
+        const updatedItems = [...(plan.metadata?.items || [])];
+        updatedItems[itemIdx] = { ...updatedItems[itemIdx], ...updates };
+        if (updates.percentage === 100) updatedItems[itemIdx].status = 'SELESAI';
         try {
-            const res = await api.get(`/personnel/kpi-leaderboard?month=${filterPeriod.month}&year=${filterPeriod.year}`);
-            setLeaderboard(res.data.leaderboard || []);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
+            await api.put(`/personnel/reports/${plan.id}`, {
+                type: plan.type, category: plan.category, content: plan.content,
+                date: plan.date, metadata: { ...plan.metadata, items: updatedItems }
+            });
+            await fetchPlans();
+        } catch { alert('Gagal memperbarui rencana'); }
     };
 
-    // --- SUBMIT LOGIC ---
-
-    const addGeneralItem = (activity = '', note = '', status = null, percentage = null) => {
-        const defaultStatus = status || 'PENDING';
-        const defaultPercentage = percentage !== null ? percentage : 0;
-        
-        setForm({
-            ...form,
-            generalItems: [...form.generalItems, { activity, status: defaultStatus, percentage: defaultPercentage, note }]
-        });
-    };
-
-    const removeGeneralItem = (index) => {
-        const newItems = form.generalItems.filter((_, i) => i !== index);
-        setForm({ ...form, generalItems: newItems });
-    };
-
-    const handleGeneralItemChange = (index, field, value) => {
-        const newItems = [...form.generalItems];
-        newItems[index][field] = value;
-        if (field === 'status' && value === 'SELESAI') {
-            newItems[index].percentage = 100;
-        }
-        setForm({ ...form, generalItems: newItems });
-    };
-
-    const handleSourceCategorySelect = (category) => {
-        setActiveSourceCategory(category);
-        setPreviewSource(null);
-        setSelectedItemsIndices([]);
-        let titles = [];
-
-        if (category === 'PLAN') {
-            titles = userPlans.map(p => ({ 
-                id: p.id, 
-                title: p.metadata?.title || `Rencana ${safeFormatDate(p.date)}`,
-                items: (p.metadata?.items || []).map((it, idx) => ({ ...it, originalIdx: idx }))
-            }));
-        } else if (category === 'ROUTINE') {
-            titles = userRoutines.filter(r => r.isActive).map(r => ({ 
-                id: r.id, 
-                title: r.title,
-                items: Array.isArray(r.items) ? r.items : [] 
-            }));
-        } else if (category === 'TASK') {
-            titles = userAssignments.filter(a => a.status === 'IN_PROGRESS' || a.status === 'PENDING').map(t => ({ 
-                id: t.id, 
-                title: t.title,
-                items: Array.isArray(t.items) ? t.items.map(i => ({ activity: i.text, percentage: i.percentage || 0, status: i.isDone ? 'SELESAI' : 'PROSES' })) : []
-            }));
-        } else if (category === 'DAILY_HISTORY') {
-            titles = userDailyReports.map(r => ({
-                id: r.id,
-                title: `Laporan ${safeFormatDate(r.date)}`,
-                items: (r.metadata?.items || []).map((it, idx) => ({ ...it, originalIdx: idx }))
-            }));
-        }
-
-        setAvailableSourceTitles(titles);
-    };
-
-    const handleToggleImportItem = (idx) => {
-        setSelectedItemsIndices(prev => 
-            prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
-        );
-    };
-
-    const handleReviewReport = async (id, status, feedback, verifiedItemIndices) => {
-        if (submitting) return;
+    const handleCreatePlan = async (formData) => {
         setSubmitting(true);
         try {
-            await api.post(`/personnel/reports/${id}/review`, { status, feedback, verifiedItemIndices });
-            alert('Tinjauan berhasil disimpan');
-            fetchReports();
-        } catch (err) {
-            console.error(err);
-            alert('Gagal mengirim tinjauan: ' + (err.response?.data?.error || err.message));
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    const importFromSelectedSource = () => {
-        if (!previewSource || selectedItemsIndices.length === 0) return;
-
-        const prefix = activeSourceCategory === 'PLAN' ? '[RENCANA]' 
-                     : activeSourceCategory === 'ROUTINE' ? '[RUTIN]' 
-                     : activeSourceCategory === 'TASK' ? '[TUGAS]'
-                     : '[RIWAYAT]';
-        
-        const sourceItems = previewSource.items.filter((_, idx) => selectedItemsIndices.includes(idx));
-
-        const newItems = sourceItems.map(item => ({
-            activity: `${item.activity || item.text || 'Aktivitas'}`, // Removed duplicate prefix because it will be added in description if needed, better clean title
-            status: item.status || 'PROSES',
-            percentage: item.percentage || 0,
-            note: `Diambil dari ${prefix} ${previewSource.title}`,
-            planId: activeSourceCategory === 'PLAN' ? previewSource.id : undefined,
-            planItemIndex: activeSourceCategory === 'PLAN' ? item.originalIdx : undefined
-        }));
-
-        setForm(prev => ({
-            ...prev,
-            generalItems: [...prev.generalItems.filter(i => i.activity.trim()), ...newItems]
-        }));
-
-        // Reset Selection Hub
-        setActiveSourceCategory(null);
-        setAvailableSourceTitles([]);
-        setPreviewSource(null);
-        setSelectedItemsIndices([]);
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        const validItems = form.generalItems.filter(it => it.activity.trim());
-        if (validItems.length === 0) return alert('Input minimal satu aktivitas');
-
-        try {
-            setSubmitting(true);
-            const itemsList = validItems
-                .map(it => {
-                    const progress = it.status !== 'SELESAI' ? ` [${it.percentage}%]` : '';
-                    const note = it.note && isNaN(it.note) ? ` - ${it.note}` : '';
-                    return `- ${it.activity} (${it.status})${progress}${note}`;
-                })
-                .join('\n');
-
-            const isPlan = activeTab === 'RENCANA';
-            const isTask = activeTab === 'PENUGASAN';
-
-            if (isTask) {
-                const taskData = {
-                    assigneeId: form.assigneeId,
-                    title: form.title || 'Penugasan Hub',
-                    description: form.content,
-                    category: form.category,
-                    priority: form.priority,
-                    location: form.location,
-                    startDate: form.startDate,
-                    dueDate: form.dueDate,
-                    items: validItems.map(it => ({ text: it.activity, isDone: false, percentage: 0 }))
-                };
-                if (!taskData.assigneeId) return alert('Pilih staf penerima tugas');
-                await api.post('/personnel/assignments', taskData);
-                fetchAssignments();
-                setShowForm(false);
-                resetForm();
-                alert('Penugasan berhasil dikirim');
-                return;
-            }
-
-            const title = isPlan ? (form.title || 'RENCANA KERJA') : 'LAPORAN AKTIVITAS';
-            const timeHeader = isPlan ? `📅 Periode: ${form.startDate} s/d ${form.endDate}` : `🕒 Jam: ${form.startTime}-${form.endTime}`;
-            const details = `${timeHeader}\n📋 ${title}:\n${itemsList}\n\n📝 Catatan tambahan: ${form.content || '-'}`;
-
             const payload = {
-                ...form,
-                date: isPlan ? form.startDate : form.date,
-                type: isPlan ? 'WEEKLY' : 'DAILY',
-                details: details.replace(/\*/g, ''),
+                type: 'WEEKLY', category: 'UMUM', content: formData.notes || '',
+                date: formData.startDate,
                 metadata: {
-                    startTime: isPlan ? '-' : form.startTime,
-                    endTime: isPlan ? '-' : form.endTime,
-                    startDate: form.startDate,
-                    endDate: form.endDate,
-                    isPlan: isPlan,
-                    title: form.title,
-                    items: validItems
+                    isPlan: true, title: formData.title, startDate: formData.startDate, endDate: formData.endDate,
+                    items: formData.items.filter(i => i.activity.trim()).map(i => ({ activity: i.activity, status: 'PENDING', percentage: 0 }))
                 }
             };
-
-            if (form.id) {
-                await api.put(`/personnel/reports/${form.id}`, payload);
-            } else {
-                await api.post('/personnel/reports', payload);
-            }
-
-            setShowForm(false);
-            resetForm();
-            fetchReports();
-            alert(`${isPlan ? 'Rencana' : 'Laporan'} berhasil ${form.id ? 'diperbarui' : 'dikirim'}`);
-        } catch (err) {
-            alert(err.response?.data?.error || 'Gagal mengirim data');
-        } finally {
-            setSubmitting(false);
-        }
+            if (editingPlan) await api.put(`/personnel/reports/${editingPlan.id}`, payload);
+            else await api.post('/personnel/reports', payload);
+            setShowRencanaModal(false); setEditingPlan(null); await fetchPlans();
+        } catch (err) { alert(err.response?.data?.error || 'Gagal menyimpan rencana'); }
+        finally { setSubmitting(false); }
     };
 
-    const resetForm = () => {
-        setForm({
-            id: null,
-            type: 'DAILY',
-            category: 'UMUM',
-            content: '',
-            date: new Date().toISOString().split('T')[0],
-            startDate: new Date().toISOString().split('T')[0],
-            endDate: new Date().toISOString().split('T')[0],
-            dueDate: '',
-            startTime: '08:00',
-            endTime: '17:00',
-            title: '',
-            assigneeId: '',
-            priority: 'MEDIUM',
-            location: '',
-            generalItems: [{ activity: '', status: 'PENDING', percentage: 0, note: '' }],
-            isPlan: activeTab === 'RENCANA'
-        });
-    };
-
-    const handleEditReport = (r) => {
-        const isPlan = r.metadata?.isPlan;
-        setForm({
-            id: r.id,
-            type: r.type || (isPlan ? 'WEEKLY' : 'DAILY'),
-            category: r.category || 'UMUM',
-            content: r.content || '',
-            date: new Date(r.date || new Date()).toISOString().split('T')[0],
-            startDate: r.metadata?.startDate || new Date().toISOString().split('T')[0],
-            endDate: r.metadata?.endDate || new Date().toISOString().split('T')[0],
-            startTime: r.metadata?.startTime || '08:00',
-            endTime: r.metadata?.endTime || '17:00',
-            title: r.metadata?.title || 'RENCANA KERJA',
-            assigneeId: '',
-            priority: 'MEDIUM',
-            location: '',
-            generalItems: r.metadata?.items || [{ activity: '', status: isPlan ? 'PENDING' : 'SELESAI', percentage: isPlan ? 0 : 100, note: '' }],
-            isPlan: isPlan
-        });
-        setShowForm(true);
-        if (isPlan && activeTab !== 'RENCANA') changeTab('RENCANA');
-        else if (!isPlan && activeTab !== 'LAPORAN') changeTab('LAPORAN');
-    };
-
-    const handleUpdateAssignment = async (id, data) => {
+    const handleCreateTask = async (formData) => {
+        setSubmitting(true);
         try {
-            await api.put(`/personnel/assignments/${id}/status`, data);
-            fetchAssignments();
-        } catch (err) {
-            alert('Gagal update tugas');
-        }
+            await api.post('/personnel/assignments', {
+                assigneeId: formData.assigneeId, title: formData.title, description: formData.notes || '',
+                category: 'UMUM', priority: formData.priority, location: formData.location,
+                startDate: formData.startDate, dueDate: formData.dueDate,
+                items: formData.items.filter(i => i.text.trim()).map(i => ({ text: i.text, isDone: false, percentage: 0 }))
+            });
+            setShowTugasModal(false); await fetchAllAssignments();
+        } catch (err) { alert(err.response?.data?.error || 'Gagal membuat tugas'); }
+        finally { setSubmitting(false); }
     };
 
+    const handleCreateInsidental = async (formData) => {
+        setSubmitting(true);
+        try {
+            await api.post('/personnel/reports', {
+                type: 'DAILY', category: 'UMUM', content: formData.activity, date: today(),
+                metadata: { items: [{ activity: formData.activity, status: formData.status || 'SELESAI', percentage: formData.status === 'SELESAI' ? 100 : (formData.percentage || 50) }], startTime: formData.time }
+            });
+            setShowInsidentalModal(false); await fetchDailyLogs();
+        } catch (err) { alert(err.response?.data?.error || 'Gagal menyimpan laporan'); }
+        finally { setSubmitting(false); }
+    };
+
+    // --- RENDER ---
     return (
         <div className="p-4 md:p-8 bg-[#F8FAFC] min-h-screen pt-20 pb-24">
-            <div className="max-w-7xl mx-auto space-y-8">
-                
-                {/* Header Hub */}
+            <div className="max-w-7xl mx-auto space-y-6">
+
+                {/* ─── HEADER ─── */}
                 <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6 md:p-10 rounded-[32px] md:rounded-[48px] shadow-2xl shadow-indigo-200/20 relative overflow-hidden border border-white/5">
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] -mr-48 -mt-48 opacity-50 animate-pulse" />
-                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[80px] -ml-32 -mb-32 opacity-30" />
-                    
-                    <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-                        <div className="flex items-center gap-4 md:gap-6">
-                            <div className="w-14 h-14 md:w-20 md:h-20 bg-white/10 backdrop-blur-xl rounded-[20px] md:rounded-[28px] flex items-center justify-center shadow-2xl border border-white/10 group-hover:rotate-6 transition-transform">
-                                <TrendingUp className="text-indigo-400 group-hover:text-white transition-colors" size={28} md:size={40} />
+                    <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] -mr-48 -mt-48 animate-pulse" />
+                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[80px] -ml-32 -mb-32" />
+                    <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 md:w-16 md:h-16 bg-white/10 backdrop-blur-xl rounded-2xl flex items-center justify-center border border-white/10">
+                                <TrendingUp className="text-indigo-400" size={28} />
                             </div>
                             <div>
-                                <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-white tracking-tighter uppercase italic flex items-center gap-2">
-                                    KINERJA <span className="text-indigo-400">STAF</span>
-                                    <Sparkles size={18} className="text-indigo-400/50 hidden md:block" />
+                                <h1 className="text-2xl md:text-3xl font-black text-white tracking-tighter uppercase italic">
+                                    Kinerja <span className="text-indigo-400">Staf</span>
                                 </h1>
-                                <p className="text-[9px] md:text-[11px] font-black text-indigo-200/60 tracking-[0.25em] uppercase mt-1 md:mt-2">Sistem Monitoring & Performa Terintegrasi</p>
+                                <p className="text-[10px] font-black text-indigo-300/50 tracking-[0.25em] uppercase mt-1">Monitoring & Performa Terintegrasi</p>
                             </div>
                         </div>
-                        
-                        <div className="w-full md:w-auto flex overflow-x-auto no-scrollbar items-center gap-2 md:gap-3 bg-white/5 backdrop-blur-md p-1.5 md:p-2.5 rounded-[24px] md:rounded-[32px] border border-white/10 snap-x">
-                            {['RENCANA', 'LAPORAN', 'PENUGASAN', 'KPI'].filter(t => t !== 'KPI' || user.role === 'SUPER_ADMIN').map((tab) => (
-                                <button
-                                    key={tab}
-                                    onClick={() => changeTab(tab)}
-                                    className={`snap-center shrink-0 px-5 md:px-7 py-3 md:py-3.5 rounded-xl md:rounded-[24px] text-[10px] md:text-[11px] font-black tracking-widest transition-all duration-300 relative group overflow-hidden ${activeTab === tab ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-                                >
-                                    <span className="relative z-10">{tab === 'RENCANA' ? 'RENCANA' : tab === 'LAPORAN' ? 'LAPORAN' : tab === 'PENUGASAN' ? 'TUGAS' : 'KPI'}</span>
+                        <div className="flex overflow-x-auto no-scrollbar items-center gap-1.5 bg-white/5 backdrop-blur-md p-1.5 rounded-2xl border border-white/10">
+                            {tabConfig.filter(t => !t.adminOnly || isAdmin).map(tab => (
+                                <button key={tab.key} onClick={() => changeTab(tab.key)}
+                                    className={`shrink-0 px-4 md:px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all flex items-center gap-2 ${activeTab === tab.key ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
+                                    <tab.icon size={14} />{tab.label}
                                 </button>
                             ))}
                         </div>
                     </div>
                 </div>
 
-                {/* Main Content Hub */}
-                <div className="space-y-6">
-                    {/* Kabid Professional Insights Card */}
-                    {isKabid && !showForm && (
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-4 duration-1000">
-                            <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-200/40 relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-50 rounded-bl-[40px] -mr-4 -mt-4 transition-all group-hover:w-24 group-hover:h-24" />
-                                <Target className="text-indigo-500 mb-4 relative z-10" size={24} />
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 relative z-10">Efektivitas Rencana</p>
-                                <div className="flex items-end gap-2 relative z-10">
-                                    <h4 className="text-3xl font-black text-slate-900 tracking-tighter italic">
-                                        {kabidStats.totalPlannedItems > 0 ? Math.round((kabidStats.completedPlannedItems / kabidStats.totalPlannedItems) * 100) : 0}%
-                                    </h4>
-                                    <p className="text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-tighter">Target Tercapai</p>
-                                </div>
+                {/* ─── TOOLBAR ─── */}
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-white/60 backdrop-blur-xl p-3 rounded-2xl border border-slate-200/50 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        {isKabid && (
+                            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-100 shadow-sm min-w-[180px]">
+                                <Users size={14} className="text-indigo-400" />
+                                <select className="bg-transparent border-none text-[10px] font-black text-slate-600 focus:ring-0 w-full cursor-pointer uppercase tracking-wider" value={filterStaff} onChange={e => setFilterStaff(e.target.value)}>
+                                    <option value="ALL">Semua Staf</option>
+                                    {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select>
                             </div>
-                            <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-200/40 relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-50 rounded-bl-[40px] -mr-4 -mt-4 transition-all group-hover:w-24 group-hover:h-24" />
-                                <Zap className="text-emerald-500 mb-4 relative z-10" size={24} />
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 relative z-10">Antrean Verifikasi</p>
-                                <div className="flex items-end gap-2 relative z-10">
-                                    <h4 className="text-3xl font-black text-slate-900 tracking-tighter italic">{kabidStats.pendingReviews}</h4>
-                                    <p className="text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-tighter">Laporan</p>
-                                </div>
+                        )}
+                        {activeTab === 'KPI' && (
+                            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-100 shadow-sm">
+                                <select className="bg-transparent border-none text-[10px] font-black text-slate-600 focus:ring-0 cursor-pointer uppercase tracking-wider" value={filterPeriod.month} onChange={e => setFilterPeriod({ ...filterPeriod, month: parseInt(e.target.value) })}>
+                                    {months.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                                </select>
+                                <select className="bg-transparent border-none text-[10px] font-black text-slate-600 focus:ring-0 cursor-pointer" value={filterPeriod.year} onChange={e => setFilterPeriod({ ...filterPeriod, year: parseInt(e.target.value) })}>
+                                    {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
                             </div>
-                            <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-200/40 relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 w-20 h-20 bg-amber-50 rounded-bl-[40px] -mr-4 -mt-4 transition-all group-hover:w-24 group-hover:h-24" />
-                                <Activity className="text-amber-500 mb-4 relative z-10" size={24} />
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 relative z-10">Beban Insidental</p>
-                                <div className="flex items-end gap-2 relative z-10">
-                                    <h4 className="text-3xl font-black text-slate-900 tracking-tighter italic">{kabidStats.incidentalCount}</h4>
-                                    <p className="text-[10px] font-bold text-slate-400 mb-1.5 uppercase tracking-tighter">Aktivitas Dadakan</p>
-                                </div>
-                            </div>
-                            <div className="bg-indigo-600 p-6 rounded-[32px] shadow-xl shadow-indigo-200 relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-bl-[40px] -mr-4 -mt-4 transition-all group-hover:scale-110" />
-                                <Trophy className="text-indigo-200 mb-4 relative z-10" size={24} />
-                                <p className="text-[9px] font-black text-indigo-200/60 uppercase tracking-widest mb-1 relative z-10">Departemen Score</p>
-                                <div className="flex items-end gap-2 relative z-10">
-                                    <h4 className="text-3xl font-black text-white tracking-tighter italic">A+</h4>
-                                    <p className="text-[10px] font-bold text-indigo-300 mb-1.5 uppercase tracking-tighter">Healthy Status</p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    {/* Filter & Action Row */}
-                    {!showForm && (
-                        <div className="flex flex-col md:flex-row flex-wrap md:items-center justify-between gap-4 bg-white/50 backdrop-blur-xl p-3 md:p-4 rounded-[28px] md:rounded-[32px] border border-slate-200/40 shadow-sm">
-                            <div className="flex overflow-x-auto no-scrollbar items-center gap-3 md:gap-4 md:flex-1 pb-1 md:pb-0">
-                                {isKabid && (
-                                    <div className="flex items-center gap-2 bg-white px-3 py-2.5 md:px-4 md:py-2.5 rounded-xl md:rounded-2xl border border-slate-100 shadow-sm min-w-[170px] md:min-w-[240px] shrink-0">
-                                        <Users size={14} className="text-indigo-400" />
-                                        <select 
-                                            className="bg-transparent border-none text-[10px] md:text-[11px] font-black text-slate-600 focus:ring-0 w-full cursor-pointer uppercase tracking-wider p-0 m-0"
-                                            value={filterStaff}
-                                            onChange={(e) => setFilterStaff(e.target.value)}
-                                        >
-                                            <option value="ALL">SEMUA STAF</option>
-                                            {staffList.map(s => <option key={s.id} value={s.id}>{s.name || s.username}</option>)}
-                                        </select>
-                                    </div>
-                                )}
-                                {activeTab === 'PENUGASAN' && (
-                                    <div className="flex items-center gap-2 bg-white px-3 md:px-4 py-2 md:py-2.5 rounded-xl md:rounded-2xl border border-slate-100 shadow-sm shrink-0">
-                                        <Tag size={14} className="text-emerald-400" />
-                                        <select 
-                                            className="bg-transparent border-none text-[10px] md:text-[11px] font-black text-slate-600 focus:ring-0 cursor-pointer uppercase tracking-wider"
-                                            value={filterStatus}
-                                            onChange={(e) => setFilterStatus(e.target.value)}
-                                        >
-                                            <option value="ALL">SEMUA STATUS</option>
-                                            <option value="PENDING">MENUNGGU</option>
-                                            <option value="IN_PROGRESS">PROSES</option>
-                                            <option value="COMPLETED">SELESAI</option>
-                                        </select>
-                                    </div>
-                                )}
-                                {activeTab === 'KPI' && (
-                                    <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-slate-100 shadow-sm">
-                                        <select 
-                                            className="bg-transparent border-none text-[11px] font-black text-slate-600 focus:ring-0 cursor-pointer uppercase tracking-wider"
-                                            value={filterPeriod.month}
-                                            onChange={(e) => setFilterPeriod({...filterPeriod, month: parseInt(e.target.value)})}
-                                        >
-                                            {months.map((m, idx) => <option key={m} value={idx + 1}>{m}</option>)}
-                                        </select>
-                                        <select 
-                                            className="bg-transparent border-none text-[11px] font-black text-slate-600 focus:ring-0 cursor-pointer uppercase tracking-wider"
-                                            value={filterPeriod.year}
-                                            onChange={(e) => setFilterPeriod({...filterPeriod, year: parseInt(e.target.value)})}
-                                        >
-                                            {[2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
-                                        </select>
-                                    </div>
-                                )}
-                            </div>
+                        )}
+                    </div>
+                    <div className="flex gap-2">
+                        {activeTab === 'RENCANA' && (
+                            <button onClick={() => { setEditingPlan(null); setShowRencanaModal(true); }} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2 active:scale-95">
+                                <Plus size={14} strokeWidth={3} />Buat Rencana
+                            </button>
+                        )}
+                        {activeTab === 'TUGAS' && isKabid && (
+                            <button onClick={() => setShowTugasModal(true)} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2 active:scale-95">
+                                <Plus size={14} strokeWidth={3} />Buat Tugas
+                            </button>
+                        )}
+                        {activeTab === 'LAPORAN' && (
+                            <button onClick={() => setShowInsidentalModal(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-2 active:scale-95">
+                                <Plus size={14} strokeWidth={3} />Insidental
+                            </button>
+                        )}
+                    </div>
+                </div>
 
-                            {(activeTab !== 'KPI' && (activeTab !== 'PENUGASAN' || user.role === 'SUPER_ADMIN')) && (
-                                <button 
-                                    onClick={() => { resetForm(); setShowForm(true); }}
-                                    className="bg-slate-900 text-white px-6 md:px-8 py-3 md:py-3.5 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-black tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-95 flex items-center justify-center gap-2 shrink-0"
-                                >
-                                    <Plus size={14} md:size={16} strokeWidth={3} /> 
-                                    {activeTab === 'RENCANA' ? 'BUAT RENCANA' : activeTab === 'LAPORAN' ? 'BUAT LAPORAN' : 'TAMBAH TUGAS'}
-                                </button>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Dynamic View: Form or List */}
-                    {showForm ? (
-                        <div className="bg-white rounded-[48px] p-8 md:p-12 border border-indigo-100 shadow-2xl shadow-indigo-100/30 animate-in slide-in-from-top-4 duration-500 max-w-5xl mx-auto">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
-                                <div className="flex items-center gap-6">
-                                    <div className="w-16 h-16 bg-indigo-600 text-white rounded-[24px] flex items-center justify-center shadow-2xl shadow-indigo-200 ring-8 ring-indigo-50">
-                                        {activeTab === 'RENCANA' ? <Calendar size={28} /> : activeTab === 'PENUGASAN' ? <ClipboardList size={28} /> : <FileText size={28} />}
-                                    </div>
-                                    <div>
-                                        <h2 className="text-3xl font-black text-slate-900 italic uppercase">
-                                            {activeTab === 'RENCANA' ? 'Input Rencana Kerja' : activeTab === 'PENUGASAN' ? 'Input Penugasan Baru' : 'Input Laporan Harian'}
-                                        </h2>
-                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest mt-1">Lengkapi rincian aktivitas Anda</p>
-                                    </div>
-                                </div>
-                                <button onClick={() => setShowForm(false)} className="self-start md:self-center p-3 bg-slate-50 text-slate-400 hover:text-rose-500 rounded-2xl hover:bg-rose-50 transition-all">
-                                    <X size={24} strokeWidth={2.5} />
-                                </button>
-                            </div>
-
-                            <form onSubmit={handleSubmit} className="space-y-12">
-                                {activeTab === 'RENCANA' ? (
-                                    <>
-                                        <div className="md:col-span-3 space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">📝 Judul Rencana Kerja</label>
-                                            <input 
-                                                type="text" 
-                                                value={form.title} 
-                                                onChange={e => setForm({...form, title: e.target.value})} 
-                                                placeholder="Misal: Perbaikan Instalasi Listrik Gedung B"
-                                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-3xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all" 
-                                            />
-                                        </div>
-                                        <FormGroup label="📅 Tanggal Mulai">
-                                            <input type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} className="form-input" />
-                                        </FormGroup>
-                                        <FormGroup label="📅 Tanggal Selesai">
-                                            <input type="date" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} className="form-input" />
-                                        </FormGroup>
-                                        <div className="hidden md:block"></div>
-                                    </>
-                                ) : activeTab === 'PENUGASAN' ? (
-                                    <>
-                                        <div className="md:col-span-3 space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">📝 Judul Penugasan</label>
-                                            <input 
-                                                type="text" 
-                                                value={form.title} 
-                                                onChange={e => setForm({...form, title: e.target.value})} 
-                                                placeholder="Misal: Pengecekan Panel Listrik Utama"
-                                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-3xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all" 
-                                            />
-                                        </div>
-                                        <FormGroup label="👤 Penerima Tugas (Staf)">
-                                            <select 
-                                                className="form-input uppercase"
-                                                value={form.assigneeId}
-                                                onChange={(e) => setForm({...form, assigneeId: e.target.value})}
-                                            >
-                                                <option value="">PILIH STAF</option>
-                                                {staffList.map(s => <option key={s.id} value={s.id}>{s.name || s.username}</option>)}
-                                            </select>
-                                        </FormGroup>
-                                        <FormGroup label="⚡ Prioritas">
-                                            <select 
-                                                className="form-input"
-                                                value={form.priority}
-                                                onChange={(e) => setForm({...form, priority: e.target.value})}
-                                            >
-                                                <option value="LOW">RENDAH</option>
-                                                <option value="MEDIUM">MEDIUM</option>
-                                                <option value="HIGH">TINGGI</option>
-                                                <option value="URGENT">URGENT</option>
-                                            </select>
-                                        </FormGroup>
-                                        <FormGroup label="📅 Tanggal Mulai">
-                                            <input 
-                                                type="date" 
-                                                value={form.startDate} 
-                                                onChange={e => setForm({...form, startDate: e.target.value})} 
-                                                className="form-input" 
-                                            />
-                                        </FormGroup>
-                                        <FormGroup label="📅 Tanggal Akhir (Deadline)">
-                                            <input 
-                                                type="date" 
-                                                value={form.dueDate} 
-                                                onChange={e => setForm({...form, dueDate: e.target.value})} 
-                                                className="form-input" 
-                                            />
-                                        </FormGroup>
-                                        <FormGroup label="📍 Lokasi">
-                                            <input 
-                                                type="text" 
-                                                value={form.location} 
-                                                onChange={e => setForm({...form, location: e.target.value})} 
-                                                placeholder="Misal: Gedung A Lt. 1"
-                                                className="form-input"
-                                            />
-                                        </FormGroup>
-                                    </>
-                                ) : (
-                                    <>
-                                        <FormGroup label="📅 Tanggal Target">
-                                            <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="form-input" />
-                                        </FormGroup>
-                                        <FormGroup label="🕒 Mulai Jam">
-                                            <input type="time" value={form.startTime} onChange={e => setForm({...form, startTime: e.target.value})} className="form-input" />
-                                        </FormGroup>
-                                        <FormGroup label="🕒 Selesai Jam">
-                                            <input type="time" value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})} className="form-input" />
-                                        </FormGroup>
-                                    </>
-                                )}
-
-                                <div className="space-y-6">
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                        <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[.25em] flex items-center gap-2">
-                                            <ListChecks size={18} className="text-indigo-500" /> {activeTab === 'PENUGASAN' ? 'Checklist Pekerjaan' : 'Rincian Aktivitas'}
-                                        </h3>
-                                        <div className="flex flex-wrap gap-2">
-                                            {activeTab === 'LAPORAN' && (
-                                                <div className="flex flex-col gap-4 w-full">
-                                                    <div className="flex flex-wrap gap-2">
-                                                        <button 
-                                                            type="button" 
-                                                            onClick={() => handleSourceCategorySelect('PLAN')} 
-                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeSourceCategory === 'PLAN' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
-                                                        >
-                                                            <Sparkles size={14} /> Ambil dari Rencana Kerja
-                                                        </button>
-                                                        <button 
-                                                            type="button" 
-                                                            onClick={() => handleSourceCategorySelect('ROUTINE')} 
-                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeSourceCategory === 'ROUTINE' ? 'bg-amber-600 text-white shadow-lg' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'}`}
-                                                        >
-                                                            <Timer size={14} /> Ambil dari Rutinitas
-                                                        </button>
-                                                        <button 
-                                                            type="button" 
-                                                            onClick={() => handleSourceCategorySelect('TASK')} 
-                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeSourceCategory === 'TASK' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
-                                                        >
-                                                            <ClipboardCheck size={14} /> Ambil dari Penugasan
-                                                        </button>
-                                                        <button 
-                                                            type="button" 
-                                                            onClick={() => handleSourceCategorySelect('DAILY_HISTORY')} 
-                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeSourceCategory === 'DAILY_HISTORY' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                                        >
-                                                            <History size={14} /> Ambil dari Laporan Lama
-                                                        </button>
-                                                    </div>
-
-                                                    {activeSourceCategory && (
-                                                        <div className="bg-slate-50 p-6 rounded-[32px] border border-slate-200 animate-in zoom-in-95 duration-200">
-                                                            <div className="flex items-center justify-between mb-4 px-2">
-                                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                                                    <LayoutDashboard size={14} className="text-slate-400" />
-                                                                    {previewSource ? `Pilih Item dari: ${previewSource.title}` : `Pilih Judul ${activeSourceCategory === 'PLAN' ? 'Rencana Kerja' : activeSourceCategory === 'ROUTINE' ? 'Rutinitas' : activeSourceCategory === 'TASK' ? 'Penugasan' : 'Laporan Lama'}`}
-                                                                </h4>
-                                                                <button onClick={() => { setActiveSourceCategory(null); setPreviewSource(null); }} className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Tutup</button>
-                                                            </div>
-
-                                                            {!previewSource ? (
-                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                                    {availableSourceTitles.length === 0 ? (
-                                                                        <div className="col-span-2 py-8 text-center text-[10px] font-black text-slate-300 uppercase italic">Tidak ada data ditemukan</div>
-                                                                    ) : (
-                                                                        availableSourceTitles.map(src => (
-                                                                            <button
-                                                                                key={src.id}
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    setPreviewSource(src);
-                                                                                    setSelectedItemsIndices([]);
-                                                                                }}
-                                                                                className="flex items-center justify-between p-4 bg-white border border-slate-100 hover:border-indigo-400 rounded-2xl text-left transition-all group"
-                                                                            >
-                                                                                <div className="flex-1 min-w-0">
-                                                                                    <p className="text-xs font-bold text-slate-700 uppercase truncate">{src.title}</p>
-                                                                                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mt-1">{src.items?.length || 0} ITEM AKTIVITAS</p>
-                                                                                </div>
-                                                                                <ArrowRight size={14} className="text-slate-200 group-hover:text-indigo-500 transition-colors" />
-                                                                            </button>
-                                                                        ))
-                                                                    )}
-                                                                </div>
-                                                            ) : (
-                                                                <div className="space-y-3 animate-in fade-in slide-in-from-right-4 duration-300">
-                                                                    <div className="max-h-[300px] overflow-y-auto pr-2 space-y-2 no-scrollbar">
-                                                                        {previewSource.items.map((it, idx) => (
-                                                                            <div 
-                                                                                key={idx}
-                                                                                onClick={() => handleToggleImportItem(idx)}
-                                                                                className={`flex items-center gap-4 p-4 rounded-2xl border transition-all cursor-pointer ${selectedItemsIndices.includes(idx) ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100 hover:border-slate-300'}`}
-                                                                            >
-                                                                                <div className={`shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${selectedItemsIndices.includes(idx) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-200'}`}>
-                                                                                    {selectedItemsIndices.includes(idx) && <CheckSquare size={12} className="text-white" />}
-                                                                                </div>
-                                                                                <div className="flex-1 min-w-0">
-                                                                                    <p className={`text-xs font-bold ${selectedItemsIndices.includes(idx) ? 'text-indigo-900' : 'text-slate-600'}`}>{it.activity || it.text || 'Aktivitas'}</p>
-                                                                                    <div className="flex items-center gap-2 mt-1">
-                                                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Progres: {it.percentage || 0}%</span>
-                                                                                        {it.status && <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${it.status === 'SELESAI' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{it.status}</span>}
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                    <div className="flex gap-2 pt-4">
-                                                                        <button 
-                                                                            type="button" 
-                                                                            onClick={importFromSelectedSource}
-                                                                            disabled={selectedItemsIndices.length === 0}
-                                                                            className="flex-1 py-3 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-800 disabled:opacity-50 transition-all shadow-lg"
-                                                                        >
-                                                                            Impor {selectedItemsIndices.length} Item Terpilih
-                                                                        </button>
-                                                                        <button 
-                                                                            type="button" 
-                                                                            onClick={() => { setPreviewSource(null); setSelectedItemsIndices([]); }}
-                                                                            className="px-6 py-3 bg-white text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 border border-slate-200 transition-all"
-                                                                        >
-                                                                            Kembali
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        {form.generalItems.map((item, idx) => (
-                                            <div key={idx} className="group relative p-6 bg-slate-50/50 rounded-[32px] border border-slate-200/60 hover:border-indigo-200 hover:bg-white transition-all">
-                                                <div className="flex flex-col md:flex-row gap-6">
-                                                    <div className="flex-1">
-                                                        <input 
-                                                            placeholder={activeTab === 'RENCANA' ? "Sebutkan tahapan rencana kerja..." : activeTab === 'PENUGASAN' ? "Deskripsikan langkah/item pekerjaan..." : "Apa yang akan/telah Anda kerjakan?"}
-                                                            value={item.activity}
-                                                            onChange={e => handleGeneralItemChange(idx, 'activity', e.target.value)}
-                                                            className="w-full bg-transparent border-none text-sm font-bold text-slate-700 placeholder:text-slate-300 focus:ring-0"
-                                                        />
-                                                    </div>
-                                                    <div className="flex gap-4">
-                                                                                        <div className="flex flex-col gap-2">
-                                                            <select 
-                                                                value={item.status}
-                                                                onChange={e => handleGeneralItemChange(idx, 'status', e.target.value)}
-                                                                className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest border-none cursor-pointer ${item.status === 'SELESAI' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
-                                                            >
-                                                                <option value="SELESAI">SELESAI</option>
-                                                                <option value="PROSES">PROSES</option>
-                                                                <option value="PENDING">PENDING</option>
-                                                            </select>
-                                                            {item.status !== 'PENDING' && (
-                                                                <div className="flex items-center gap-2 px-2">
-                                                                    <input 
-                                                                        type="range" min="0" max="100" step="10"
-                                                                        value={item.percentage}
-                                                                        onChange={e => handleGeneralItemChange(idx, 'percentage', e.target.value)}
-                                                                        className="w-20 h-1 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600"
-                                                                    />
-                                                                    <span className="text-[9px] font-black text-indigo-600 w-6">{item.percentage}%</span>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        {form.generalItems.length > 1 && (
-                                                            <button type="button" onClick={() => removeGeneralItem(idx)} className="p-2 text-rose-300 hover:text-rose-500 transition-colors self-start">
-                                                                <Trash2 size={18} />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                {activeTab === 'LAPORAN' && (
-                                                    <input 
-                                                        placeholder="Tambahkan catatan detail jika perlu..."
-                                                        value={item.note && isNaN(item.note) ? item.note : ''}
-                                                        onChange={e => handleGeneralItemChange(idx, 'note', e.target.value)}
-                                                        className="w-full bg-transparent border-none text-[10px] font-medium text-slate-400 italic mt-2 focus:ring-0"
-                                                    />
-                                                )}
-                                            </div>
-                                        ))}
-                                        <button type="button" onClick={() => addGeneralItem()} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-[32px] text-slate-400 hover:text-indigo-500 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all flex items-center justify-center gap-2">
-                                            <Plus size={18} strokeWidth={3} />
-                                            <span className="text-[10px] font-black uppercase tracking-widest">Tambah Rincian Lagi</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[.25em]">📝 Catatan Tambahan</h3>
-                                    <textarea 
-                                        value={form.content}
-                                        onChange={e => setForm({...form, content: e.target.value})}
-                                        rows={4}
-                                        className="w-full p-6 bg-slate-50 border border-slate-200 rounded-[32px] text-sm font-medium focus:ring-4 focus:ring-indigo-100 outline-none transition-all placeholder:text-slate-300"
-                                        placeholder="Tuliskan hal penting lainnya..."
-                                    />
-                                </div>
-
-                                <div className="flex justify-end pt-8">
-                                    <button 
-                                        type="submit" 
-                                        disabled={submitting}
-                                        className="bg-indigo-600 text-white px-12 py-5 rounded-[28px] text-sm font-black tracking-widest hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-200 active:scale-95 flex items-center gap-3 disabled:opacity-50"
-                                    >
-                                        {submitting ? <Loader2 className="animate-spin" /> : <Send size={20} />}
-                                        {submitting ? 'SEDANG MENGIRIM...' : activeTab === 'RENCANA' ? 'KIRIM RENCANA KERJA' : activeTab === 'PENUGASAN' ? 'DELEGASIKAN TUGAS SEKARANG' : 'KIRIM LAPORAN RESMI'}
-                                    </button>
-                                </div>
-                            </form>
+                {/* ─── CONTENT ─── */}
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {loading ? (
+                        <div className="py-32 flex flex-col items-center gap-4">
+                            <Loader2 className="animate-spin text-indigo-500" size={40} />
+                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Memuat data...</p>
                         </div>
                     ) : (
-                        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-                            {loading ? (
-                                <div className="py-40 flex flex-col items-center gap-4">
-                                    <Loader2 className="animate-spin text-indigo-600" size={48} strokeWidth={2.5} />
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Mengkalkulasi Performa...</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-8">
-                                    {activeTab === 'KPI' && user.role === 'SUPER_ADMIN' ? (
-                                        <KPITab leaderboard={leaderboard} />
-                                    ) : activeTab === 'PENUGASAN' ? (
-                                        <div className="space-y-6">
-                                            {/* Summary Stats Row */}
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                <div className="bg-white p-4 rounded-[24px] border border-slate-100 shadow-sm flex flex-col gap-1 items-center justify-center text-center">
-                                                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Total Tugas</p>
-                                                    <p className="text-xl font-black text-slate-900 tracking-tighter">{assignments.length}</p>
-                                                </div>
-                                                <div className="bg-amber-50 p-4 rounded-[24px] border border-amber-100 shadow-sm flex flex-col gap-1 items-center justify-center text-center">
-                                                    <p className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Menunggu</p>
-                                                    <p className="text-xl font-black text-amber-600 tracking-tighter">{assignments.filter(a => a?.status === 'PENDING').length}</p>
-                                                </div>
-                                                <div className="bg-indigo-50 p-4 rounded-[24px] border border-indigo-100 shadow-sm flex flex-col gap-1 items-center justify-center text-center">
-                                                    <p className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Proses</p>
-                                                    <p className="text-xl font-black text-indigo-600 tracking-tighter">{assignments.filter(a => a?.status === 'IN_PROGRESS').length}</p>
-                                                </div>
-                                                <div className="bg-emerald-50 p-4 rounded-[24px] border border-emerald-100 shadow-sm flex flex-col gap-1 items-center justify-center text-center">
-                                                    <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Selesai</p>
-                                                    <p className="text-xl font-black text-emerald-600 tracking-tighter">{assignments.filter(a => a?.status === 'COMPLETED').length}</p>
-                                                </div>
-                                            </div>
-                                            
-                                            <AssignmentTab 
-                                                assignments={assignments} 
-                                                statusConfig={statusConfig} 
-                                                priorityConfig={priorityConfig}
-                                                handleUpdate={handleUpdateAssignment}
-                                                userId={user.id}
-                                                isAdmin={isAdmin}
-                                                fetchData={fetchAssignments}
-                                            />
-                                        </div>
-                                    ) : (
-                                        <ReportTab 
-                                            reports={reports} 
-                                            type={activeTab}
-                                            user={user}
-                                            handleEditReport={handleEditReport}
-                                            handleReviewReport={handleReviewReport}
-                                            isKabid={isKabid}
-                                            submitting={submitting}
-                                        />
-                                    )}
-                                </div>
-                            )}
-                        </div>
+                        <>
+                            {activeTab === 'RENCANA' && <RencanaTab plans={plans} onUpdateItem={handleUpdatePlanItem} onEdit={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} isKabid={isKabid} />}
+                            {activeTab === 'TUGAS' && <TugasTab assignments={assignments} onUpdate={handleUpdateAssignment} userId={user.id} isKabid={isKabid} />}
+                            {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments} templates={routineTemplates} onUpdate={handleUpdateAssignment} userId={user.id} />}
+                            {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs} isKabid={isKabid} />}
+                            {activeTab === 'KPI' && <KPITab leaderboard={leaderboard} />}
+                        </>
                     )}
                 </div>
             </div>
-            
-            <style dangerouslySetInnerHTML={{ __html: `
-                .form-input {
-                    width: 100%;
-                    padding: 0.875rem 1.25rem;
-                    background-color: #F8FAFC;
-                    border: 2px solid #F1F5F9;
-                    border-radius: 1.25rem;
-                    font-size: 0.875rem;
-                    font-weight: 700;
-                    color: #1E293B;
-                    outline: none;
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                }
-                .form-input:focus {
-                    border-color: #6366F1;
-                    background-color: #FFFFFF;
-                    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
-                }
-                .no-scrollbar::-webkit-scrollbar {
-                    display: none;
-                }
-                .no-scrollbar {
-                    -ms-overflow-style: none;  /* IE and Edge */
-                    scrollbar-width: none;  /* Firefox */
-                }
-            `}} />
+
+            {/* ─── MODALS ─── */}
+            <RencanaFormModal open={showRencanaModal} onClose={() => { setShowRencanaModal(false); setEditingPlan(null); }} onSubmit={handleCreatePlan} submitting={submitting} editing={editingPlan} />
+            <TugasFormModal open={showTugasModal} onClose={() => setShowTugasModal(false)} onSubmit={handleCreateTask} submitting={submitting} staffList={staffList} />
+            <InsidentalFormModal open={showInsidentalModal} onClose={() => setShowInsidentalModal(false)} onSubmit={handleCreateInsidental} submitting={submitting} />
+
+            <style dangerouslySetInnerHTML={{ __html: `.no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}` }} />
         </div>
     );
 };
 
-// --- TAB HELPERS ---
+// ============================================
+// TAB: RENCANA
+// ============================================
+const RencanaTab = ({ plans, onUpdateItem, onEdit, isKabid }) => {
+    const [expanded, setExpanded] = useState([]);
+    const toggle = id => setExpanded(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
 
-const FormGroup = ({ label, children }) => (
-    <div className="space-y-3">
-        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{label}</label>
-        {children}
-    </div>
-);
+    if (plans.length === 0) return <EmptyState icon={Calendar} message="Belum ada rencana kerja" />;
 
-// --- TAB COMPONENTS ---
+    return (
+        <div className="space-y-4">
+            {plans.map(plan => {
+                const items = plan.metadata?.items || [];
+                const completed = items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
+                const pct = items.length > 0 ? Math.round((completed / items.length) * 100) : 0;
+                const isOpen = expanded.includes(plan.id);
+                const isPending = items.some(i => (i.percentage || 0) < 100);
 
-const KPITab = ({ leaderboard }) => (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {leaderboard.length === 0 ? (
-            <div className="lg:col-span-12 py-40 bg-white rounded-[48px] text-center opacity-40">
-                <Trophy size={64} className="mx-auto text-slate-200 mb-6" />
-                <p className="text-sm font-black text-slate-400 uppercase tracking-[0.4em]">Belum ada data nilai</p>
-            </div>
-        ) : (
-            <>
-                <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-                    {leaderboard.slice(0, 3).map((item, idx) => (
-                        <div key={item.userId} className={`relative bg-white rounded-[32px] md:rounded-[48px] p-6 md:p-10 shadow-xl transition-all hover:scale-[1.03] border-4 ${idx === 0 ? 'border-amber-100 ring-8 ring-amber-50' : 'border-slate-50'}`}>
-                            <div className="flex justify-between items-start mb-6 md:mb-10">
-                                <RankBadge rank={idx} />
-                                <div className={`px-4 py-1.5 md:px-6 md:py-2 rounded-xl md:rounded-2xl text-[10px] md:text-[12px] font-black shadow-lg ${item.grade === 'A' ? 'bg-indigo-600 text-white shadow-indigo-200' : item.grade === 'B' ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-slate-900 text-white'}`}>GRADE {item.grade}</div>
-                            </div>
-                            <div className="mb-8 md:mb-10">
-                                <h3 className="text-xl md:text-2xl font-black text-slate-900 italic uppercase leading-tight tracking-tighter">{item.name}</h3>
-                                <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mt-1 md:mt-2">
-                                    <Zap size={10} className="text-indigo-500" /> {item.position || 'STAF SARPRAS'}
-                                </p>
-                            </div>
-                            <div className="space-y-5 md:space-y-6">
-                                <ScoreBar label="Penyelesaian" score={item.scores.completion} color="bg-indigo-500" icon={Target} />
-                                <ScoreBar label="Ketepatan" score={item.scores.punctuality} color="bg-emerald-500" icon={Timer} />
-                                <ScoreBar label="Laporan" score={item.scores.report} color="bg-amber-500" icon={FileText} />
-                            </div>
-                            <div className="mt-8 md:mt-12 pt-6 md:pt-8 border-t border-slate-50 flex items-center justify-between">
-                                <div>
-                                    <p className="text-[7px] md:text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">Skor Rata-rata</p>
-                                    <p className="text-4xl md:text-5xl font-black text-slate-900 italic tracking-tighter">{item.averageScore}</p>
+                return (
+                    <div key={plan.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
+                        <div className="p-5 flex items-center justify-between cursor-pointer gap-4" onClick={() => toggle(plan.id)}>
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                <ProgressRing pct={pct} size={52} />
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Badge className={pct === 100 ? 'bg-emerald-100 text-emerald-700' : isPending ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'}>
+                                            {pct === 100 ? 'Selesai' : 'Berjalan'}
+                                        </Badge>
+                                        {isKabid && <span className="text-[9px] font-bold text-slate-400 uppercase">{plan.user?.name}</span>}
+                                    </div>
+                                    <h3 className="text-sm font-black text-slate-800 uppercase italic truncate">{plan.metadata?.title || 'Rencana Kerja'}</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-0.5 flex items-center gap-2">
+                                        <Calendar size={11} className="text-indigo-400" />
+                                        {fmtDate(plan.metadata?.startDate, { day: '2-digit', month: 'short' })} – {fmtDate(plan.metadata?.endDate, { day: '2-digit', month: 'short' })}
+                                        <span className="text-slate-300">•</span>
+                                        <span>{completed}/{items.length} item</span>
+                                    </p>
                                 </div>
-                                <div className="text-right">
-                                    <Activity size={20} md:size={24} className="text-slate-100 mb-1 md:mb-2 ml-auto" />
-                                    <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.stats.total} TUGAS</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={e => { e.stopPropagation(); onEdit(plan); }} className="p-2 hover:bg-indigo-50 rounded-lg text-slate-300 hover:text-indigo-600 transition-all"><FileText size={16} /></button>
+                                <div className={`p-2 rounded-xl transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                    {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                 </div>
                             </div>
                         </div>
-                    ))}
+                        {isOpen && (
+                            <div className="border-t border-slate-50 p-5 bg-slate-50/40 space-y-2 animate-in slide-in-from-top-2 duration-200">
+                                {items.map((item, idx) => (
+                                    <PlanItem key={idx} item={item} idx={idx} onUpdate={(updates) => onUpdateItem(plan, idx, updates)} isKabid={isKabid} />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+const PlanItem = ({ item, idx, onUpdate, isKabid }) => {
+    const [localPct, setLocalPct] = useState(item.percentage || 0);
+    useEffect(() => setLocalPct(item.percentage || 0), [item.percentage]);
+    const isDone = localPct === 100 || item.status === 'SELESAI';
+
+    const commit = () => {
+        const clamped = Math.min(100, Math.max(0, localPct));
+        if (clamped !== (item.percentage || 0)) onUpdate({ percentage: clamped, status: clamped === 100 ? 'SELESAI' : 'PROSES' });
+    };
+    const toggleDone = () => {
+        const newPct = isDone ? 0 : 100;
+        setLocalPct(newPct);
+        onUpdate({ percentage: newPct, status: newPct === 100 ? 'SELESAI' : 'PENDING' });
+    };
+
+    return (
+        <div className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${isDone ? 'bg-emerald-50/50 border-emerald-100' : 'bg-white border-slate-100'}`}>
+            <button onClick={toggleDone} className={`shrink-0 transition-all active:scale-90 ${isDone ? 'text-emerald-500' : 'text-slate-300 hover:text-indigo-400'}`}>
+                {isDone ? <CheckSquare size={20} /> : <Square size={20} />}
+            </button>
+            <span className={`flex-1 text-xs font-bold min-w-0 truncate ${isDone ? 'text-emerald-700 line-through decoration-emerald-200' : 'text-slate-700'}`}>{item.activity}</span>
+            {!isKabid && (
+                <div className="flex items-center gap-2 shrink-0">
+                    <input type="range" min="0" max="100" step="10" value={localPct} onChange={e => setLocalPct(parseInt(e.target.value))} onMouseUp={commit} onTouchEnd={commit}
+                        className="w-20 h-1 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600" />
+                    <span className="text-[10px] font-black text-indigo-600 w-8 text-right">{localPct}%</span>
                 </div>
-                {/* Ranking Table for idx > 3 */}
-                {leaderboard.length > 3 && (
-                    <div className="lg:col-span-12 space-y-4">
-                        <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] ml-6 mb-4 flex items-center gap-3">
-                            <History size={16} /> Riwayat Peringkat Lainnya
-                        </h4>
-                        {leaderboard.slice(3).map((item, idx) => (
-                            <div key={item.userId} className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex items-center gap-8 hover:translate-x-2 transition-all">
-                                <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-xs font-black text-slate-300 italic">#{idx + 4}</div>
-                                <div className="flex-1">
-                                    <h4 className="text-sm font-black text-slate-700 uppercase italic">{item.name}</h4>
-                                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mt-0.5">{item.position}</p>
+            )}
+        </div>
+    );
+};
+
+// ============================================
+// TAB: TUGAS
+// ============================================
+const TugasTab = ({ assignments, onUpdate, userId, isKabid }) => {
+    const [expanded, setExpanded] = useState([]);
+    const toggle = id => setExpanded(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
+
+    const stats = {
+        total: assignments.length,
+        pending: assignments.filter(a => a.status === 'PENDING').length,
+        progress: assignments.filter(a => a.status === 'IN_PROGRESS').length,
+        done: assignments.filter(a => a.status === 'COMPLETED').length,
+    };
+
+    return (
+        <div className="space-y-5">
+            {/* Stats Row */}
+            <div className="grid grid-cols-4 gap-3">
+                {[
+                    { label: 'Total', val: stats.total, cls: 'bg-white border-slate-100 text-slate-800' },
+                    { label: 'Menunggu', val: stats.pending, cls: 'bg-amber-50 border-amber-100 text-amber-600' },
+                    { label: 'Proses', val: stats.progress, cls: 'bg-indigo-50 border-indigo-100 text-indigo-600' },
+                    { label: 'Selesai', val: stats.done, cls: 'bg-emerald-50 border-emerald-100 text-emerald-600' },
+                ].map(s => (
+                    <div key={s.label} className={`p-4 rounded-2xl border text-center ${s.cls}`}>
+                        <p className="text-[8px] font-black uppercase tracking-widest opacity-60">{s.label}</p>
+                        <p className="text-xl font-black tracking-tighter">{s.val}</p>
+                    </div>
+                ))}
+            </div>
+            {/* List */}
+            {assignments.length === 0 ? <EmptyState icon={ClipboardList} message="Belum ada tugas" /> : (
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    {assignments.map((a, idx) => {
+                        const isOpen = expanded.includes(a.id);
+                        const sc = statusCfg[a.status] || statusCfg.PENDING;
+                        const pc = priorityCfg[a.priority] || priorityCfg.MEDIUM;
+                        const isAssignee = a.assigneeId === userId;
+                        return (
+                            <div key={a.id} className={`border-b border-slate-50 ${idx % 2 ? 'bg-slate-50/30' : ''} transition-all`}>
+                                <div className="p-4 md:p-5 flex items-center gap-4 cursor-pointer" onClick={() => toggle(a.id)}>
+                                    <ProgressRing pct={a.progressPercentage || 0} size={44} />
+                                    <div className="flex-1 min-w-0 space-y-1">
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                            <Badge className={pc.color}>{pc.label}</Badge>
+                                            <Badge className={sc.color}>{sc.label}</Badge>
+                                        </div>
+                                        <h3 className="text-sm font-black text-slate-800 italic uppercase truncate">{a.title}</h3>
+                                        <div className="flex flex-wrap items-center gap-3 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                            <span className="flex items-center gap-1"><Users size={11} className="text-indigo-400" />{a.assignee?.name}</span>
+                                            {a.location && <span className="flex items-center gap-1"><MapPin size={11} />{a.location}</span>}
+                                            {a.dueDate && <span className="flex items-center gap-1"><Clock size={11} />{fmtDate(a.dueDate, { day: '2-digit', month: 'short' })}</span>}
+                                        </div>
+                                    </div>
+                                    <div className={`p-2 rounded-xl transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                        {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                    </div>
                                 </div>
-                                <div className="text-center w-24">
-                                    <p className="text-[8px] font-black text-slate-300 uppercase mb-1">SCORE</p>
-                                    <p className="text-lg font-black text-slate-800 tracking-tighter italic">{item.averageScore}</p>
+                                {isOpen && (
+                                    <TaskChecklist assignment={a} onUpdate={onUpdate} isAssignee={isAssignee} isAdmin={isKabid} />
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const TaskChecklist = ({ assignment, onUpdate, isAssignee, isAdmin }) => {
+    const [newText, setNewText] = useState('');
+    const items = Array.isArray(assignment.items) ? assignment.items : [];
+
+    const toggleItem = async (idx) => {
+        const newItems = [...items];
+        newItems[idx] = { ...newItems[idx], isDone: !newItems[idx].isDone, percentage: newItems[idx].isDone ? 0 : 100 };
+        const allDone = newItems.every(i => i.isDone);
+        const pct = Math.round(newItems.filter(i => i.isDone).length / newItems.length * 100);
+        await onUpdate(assignment.id, { items: newItems, status: allDone ? 'COMPLETED' : 'IN_PROGRESS', progressPercentage: pct });
+    };
+
+    const addItem = async () => {
+        if (!newText.trim()) return;
+        const newItems = [...items, { text: newText.trim(), isDone: false, percentage: 0 }];
+        await onUpdate(assignment.id, { items: newItems, status: 'IN_PROGRESS' });
+        setNewText('');
+    };
+
+    return (
+        <div className="border-t border-slate-50 p-5 bg-slate-50/30 space-y-3 animate-in slide-in-from-top-2 duration-200">
+            {assignment.description && (
+                <div className="bg-white p-4 rounded-xl border border-slate-100 text-xs text-slate-600 italic">{assignment.description}</div>
+            )}
+            <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">✅ Checklist Pekerjaan</p>
+            {items.map((item, idx) => (
+                <div key={idx} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${item.isDone ? 'bg-emerald-50/50 border-emerald-100' : 'bg-white border-slate-100'}`}>
+                    <button onClick={() => (isAssignee || isAdmin) && toggleItem(idx)} className={`shrink-0 ${item.isDone ? 'text-emerald-500' : 'text-slate-300'}`}>
+                        {item.isDone ? <CheckSquare size={20} /> : <Square size={20} />}
+                    </button>
+                    <span className={`flex-1 text-xs font-bold ${item.isDone ? 'text-emerald-700 line-through' : 'text-slate-700'}`}>{item.text}</span>
+                    <span className="text-[9px] font-black text-slate-300">{item.isDone ? '100%' : '0%'}</span>
+                </div>
+            ))}
+            {(isAssignee || isAdmin) && (
+                <div className="flex gap-2 p-3 bg-white/50 rounded-xl border border-dashed border-slate-200">
+                    <input type="text" value={newText} onChange={e => setNewText(e.target.value)} placeholder="Tambah tahapan pekerjaan..." className="flex-1 bg-transparent border-none text-[10px] font-bold text-slate-700 outline-none placeholder:text-slate-300"
+                        onKeyDown={e => e.key === 'Enter' && addItem()} />
+                    <button onClick={addItem} disabled={!newText.trim()} className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black rounded-lg hover:bg-indigo-700 disabled:opacity-30 transition-all uppercase tracking-widest">Tambah</button>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ============================================
+// TAB: RUTINITAS
+// ============================================
+const RutinitasTab = ({ assignments, templates, onUpdate, userId }) => {
+    const [expanded, setExpanded] = useState([]);
+    const toggle = id => setExpanded(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
+
+    const freqMap = {};
+    templates.forEach(t => { freqMap[t.id] = t.frequency || 'DAILY'; });
+    const getFreq = a => freqMap[a.routineId] || 'DAILY';
+    const freqLabel = { DAILY: 'Harian', WEEKLY: 'Mingguan', MONTHLY: 'Bulanan' };
+    const freqColor = { DAILY: 'bg-blue-100 text-blue-700', WEEKLY: 'bg-purple-100 text-purple-700', MONTHLY: 'bg-teal-100 text-teal-700' };
+
+    if (assignments.length === 0) return <EmptyState icon={RotateCcw} message="Belum ada rutinitas aktif" />;
+
+    // Group by frequency
+    const grouped = { DAILY: [], WEEKLY: [], MONTHLY: [] };
+    assignments.forEach(a => { const f = getFreq(a); (grouped[f] || grouped.DAILY).push(a); });
+
+    return (
+        <div className="space-y-6">
+            {Object.entries(grouped).filter(([, list]) => list.length > 0).map(([freq, list]) => (
+                <div key={freq}>
+                    <div className="flex items-center gap-2 mb-3">
+                        <RotateCcw size={14} className="text-indigo-400" />
+                        <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{freqLabel[freq]}</h3>
+                        <Badge className={freqColor[freq]}>{list.length}</Badge>
+                    </div>
+                    <div className="space-y-3">
+                        {list.map(a => {
+                            const items = Array.isArray(a.items) ? a.items : [];
+                            const done = items.filter(i => i.isDone).length;
+                            const pct = items.length > 0 ? Math.round(done / items.length * 100) : (a.progressPercentage || 0);
+                            const isOpen = expanded.includes(a.id);
+                            const isAssignee = a.assigneeId === userId;
+                            return (
+                                <div key={a.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                                    <div className="p-4 flex items-center gap-4 cursor-pointer" onClick={() => toggle(a.id)}>
+                                        <ProgressRing pct={pct} size={44} />
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="text-sm font-black text-slate-800 italic uppercase truncate">{a.title.replace('[RUTIN] ', '')}</h4>
+                                            <p className="text-[10px] font-bold text-slate-400 mt-0.5">{done}/{items.length} selesai • {fmtDate(a.createdAt, { day: '2-digit', month: 'short' })}</p>
+                                        </div>
+                                        <Badge className={pct === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>{pct === 100 ? 'Lunas' : 'Aktif'}</Badge>
+                                        <div className={`p-1.5 rounded-lg transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                            {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                        </div>
+                                    </div>
+                                    {isOpen && (
+                                        <TaskChecklist assignment={a} onUpdate={onUpdate} isAssignee={isAssignee} isAdmin={false} />
+                                    )}
                                 </div>
-                                <div className="text-center w-16">
-                                    <p className="text-[8px] font-black text-slate-300 uppercase mb-1">GRADE</p>
-                                    <p className="text-lg font-black text-indigo-600 tracking-tighter">{item.grade}</p>
+                            );
+                        })}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// ============================================
+// TAB: LAPORAN HARIAN
+// ============================================
+const LaporanTab = ({ logs, isKabid }) => {
+    // Group logs by date
+    const grouped = {};
+    logs.forEach(l => {
+        const dateKey = new Date(l.date).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+        if (!grouped[dateKey]) grouped[dateKey] = [];
+        grouped[dateKey].push(l);
+    });
+
+    const sourceTag = (log) => {
+        if (log.metadata?.autoLog) {
+            const src = log.metadata.source;
+            const colors = { RENCANA: 'bg-indigo-100 text-indigo-700', TUGAS: 'bg-emerald-100 text-emerald-700', RUTINITAS: 'bg-blue-100 text-blue-700' };
+            return <Badge className={colors[src] || 'bg-slate-100 text-slate-600'}>{src}</Badge>;
+        }
+        if (log.category === 'AUTO_LOG') return <Badge className="bg-slate-100 text-slate-500">Sistem</Badge>;
+        return <Badge className="bg-amber-100 text-amber-700">Insidental</Badge>;
+    };
+
+    if (logs.length === 0) return <EmptyState icon={FileText} message="Belum ada laporan harian" />;
+
+    return (
+        <div className="space-y-6">
+            {Object.entries(grouped).map(([date, entries]) => (
+                <div key={date}>
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center text-white"><Calendar size={14} /></div>
+                        <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{date}</h3>
+                        <Badge className="bg-slate-100 text-slate-400">{entries.length}</Badge>
+                    </div>
+                    <div className="relative pl-10 border-l-2 border-slate-100 space-y-3 ml-4">
+                        {entries.map(log => (
+                            <div key={log.id} className="relative">
+                                <div className="absolute -left-[1.35rem] top-4 w-2.5 h-2.5 rounded-full bg-white border-2 border-indigo-300" />
+                                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        {sourceTag(log)}
+                                        <span className="text-[9px] font-bold text-slate-300 tracking-wider">{fmtTime(log.metadata?.timestamp || log.createdAt)}</span>
+                                        {isKabid && log.user && <span className="text-[9px] font-black text-indigo-500 uppercase">{log.user.name}</span>}
+                                    </div>
+                                    <p className="text-xs font-bold text-slate-700 leading-relaxed">{log.content || log.metadata?.sourceTitle || '-'}</p>
+                                    {log.metadata?.progressPercentage !== undefined && (
+                                        <div className="mt-2 flex items-center gap-2">
+                                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${log.metadata.progressPercentage}%` }} />
+                                            </div>
+                                            <span className="text-[9px] font-black text-indigo-600">{log.metadata.progressPercentage}%</span>
+                                        </div>
+                                    )}
+                                    {/* Insidental items */}
+                                    {!log.metadata?.autoLog && log.metadata?.items && (
+                                        <div className="mt-2 space-y-1">
+                                            {log.metadata.items.map((it, i) => (
+                                                <div key={i} className="flex items-center gap-2 text-[10px] text-slate-500">
+                                                    <CheckCircle size={12} className={it.status === 'SELESAI' ? 'text-emerald-500' : 'text-slate-300'} />
+                                                    <span className="font-bold">{it.activity}</span>
+                                                    <Badge className={it.status === 'SELESAI' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}>{it.status}</Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))}
                     </div>
-                )}
-            </>
-        )}
-    </div>
-);
-
-const AssignmentTab = ({ assignments, statusConfig, priorityConfig, handleUpdate, userId, isAdmin, fetchData }) => {
-    const [newItemTexts, setNewItemTexts] = useState({});
-    const [expandedIds, setExpandedIds] = useState([]);
-
-    const toggleExpand = (id) => {
-        setExpandedIds(prev => 
-            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-        );
-    };
-
-    const user = safeParseUser();
-    const isAssigneeFor = (a) => a.assigneeId === userId;
-    const canAssign = user.role === 'SUPER_ADMIN';
-
-    const toggleItemStatus = async (aId, idx) => {
-        const assignment = assignments.find(a => a.id === aId);
-        if (!assignment) return;
-        const newItems = [...assignment.items];
-        const item = newItems[idx];
-        item.isDone = !item.isDone;
-        item.percentage = item.isDone ? 100 : 0;
-        
-        const logText = item.isDone ? 'Ditandai selesai' : 'Ditandai belum selesai';
-        item.logs = [...(item.logs || []), { text: logText, timestamp: new Date().toISOString() }];
-
-        await handleUpdate(aId, { 
-            items: newItems,
-            status: newItems.every(i => i.isDone) ? 'COMPLETED' : 'IN_PROGRESS',
-            progressPercentage: Math.round((newItems.filter(i => i.isDone).length / newItems.length) * 100)
-        });
-    };
-
-    const updateItemProgress = async (aId, idx, val) => {
-        const assignment = assignments.find(a => a.id === aId);
-        if (!assignment) return;
-        const newItems = [...assignment.items];
-        newItems[idx].percentage = val;
-        newItems[idx].isDone = val === 100;
-        
-        newItems[idx].logs = [...(newItems[idx].logs || []), { text: `Update progres ke ${val}%`, timestamp: new Date().toISOString() }];
-
-        await handleUpdate(aId, { 
-            items: newItems,
-            progressPercentage: Math.round(newItems.reduce((acc, i) => acc + (i.percentage || 0), 0) / newItems.length)
-        });
-    };
-
-    const appendItemNote = async (aId, idx, note) => {
-        const assignment = assignments.find(a => a.id === aId);
-        if (!assignment) return;
-        const newItems = [...assignment.items];
-        newItems[idx].logs = [...(newItems[idx].logs || []), { text: note, timestamp: new Date().toISOString() }];
-
-        await handleUpdate(aId, { items: newItems });
-    };
-
-    const addNewTaskItem = async (aId, text) => {
-        if (!text.trim()) return;
-        const assignment = assignments.find(a => a.id === aId);
-        if (!assignment) return;
-        const newItems = [...(assignment.items || []), { text, isDone: false, percentage: 0, logs: [{ text: 'Tahapan ditambahkan oleh pelaksana', timestamp: new Date().toISOString() }] }];
-        await handleUpdate(aId, { 
-            items: newItems,
-            status: 'IN_PROGRESS'
-        });
-    };
-
-    return (
-        <div className="bg-white rounded-[24px] md:rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
-            {!isAdmin && (
-                <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 md:px-8 py-3 bg-slate-50/80 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                    <div className="md:col-span-6 flex gap-4">
-                        <div className="w-8 shrink-0" />
-                        <span>Detail Tugas & Lokasi</span>
-                    </div>
-                    <div className="md:col-span-4 text-right">Target Penyelesaian</div>
-                    <div className="md:col-span-2 text-right">Status</div>
                 </div>
-            )}
-            {isAdmin && (
-                <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 md:px-8 py-3 bg-slate-50/80 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                    <div className="md:col-span-6 flex gap-4">
-                        <div className="w-8 shrink-0" />
-                        <span>Monitoring Penugasan</span>
-                    </div>
-                    <div className="md:col-span-4 text-center">Pelaksana & Deadline</div>
-                    <div className="md:col-span-2 text-right">Status Kerja</div>
-                </div>
-            )}
-            {assignments.length === 0 ? (
-                <div className="py-24 text-center opacity-40">
-                    <ClipboardCheck size={48} className="mx-auto text-slate-200 mb-4" />
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Belum ada penugasan aktif</p>
-                </div>
-            ) : (
-                assignments.map((a, idx) => {
-                    const statusColors = {
-                        'PENDING': 'border-l-amber-500',
-                        'IN_PROGRESS': 'border-l-indigo-600',
-                        'COMPLETED': 'border-l-emerald-500',
-                        'OVERDUE': 'border-l-rose-500'
-                    };
-                    const accentClass = statusColors[a.status] || 'border-l-slate-200';
-                    const isEven = idx % 2 === 0;
-                    const isExpanded = expandedIds.includes(a.id);
-
-                    return (
-                        <div key={a.id} className={`border-b border-slate-50 border-l-[8px] md:border-l-[12px] ${accentClass} ${isEven ? 'bg-white' : 'bg-slate-50/50'} hover:bg-slate-50/80 transition-all group relative`}>
-                            <div 
-                                onClick={() => toggleExpand(a.id)}
-                                className="p-4 md:p-6 cursor-pointer flex items-start md:items-center justify-between gap-3 md:gap-4"
-                            >
-                                <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1 min-w-0 w-full">
-                                    <div className="relative w-10 md:w-12 h-10 md:h-12 flex items-center justify-center bg-white rounded-full shadow-sm border border-slate-100 shrink-0">
-                                        <svg className="w-full h-full -rotate-90" viewBox="0 0 48 48">
-                                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-50" />
-                                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" strokeDasharray={125.6} strokeDashoffset={125.6 - (125.6 * (a.progressPercentage || 0)) / 100} className="text-indigo-600 transition-all duration-1000 stroke-linecap-round" />
-                                        </svg>
-                                        <span className="absolute text-[8px] md:text-[10px] font-black text-slate-900 italic tracking-tighter">{(a.progressPercentage || 0)}%</span>
-                                    </div>
-                                    <div className="space-y-1.5 flex-1 min-w-0">
-                                        <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
-                                            <PriorityBadge priority={a.priority} config={priorityConfig} />
-                                            <StatusBadge status={a.status} config={statusConfig} />
-                                            <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest bg-white/50 px-2 py-0.5 rounded-full border border-slate-100 hidden sm:inline-block">ID: {a.id}</span>
-                                        </div>
-                                        <h3 className="text-sm md:text-base font-black text-slate-800 italic uppercase leading-tight tracking-tight truncate group-hover:text-indigo-600 transition-colors">{a.title}</h3>
-                                        <div className="flex flex-wrap items-center gap-2 md:gap-3">
-                                            <div className="flex items-center gap-1 min-w-0">
-                                                <Users size={12} className="text-indigo-400 shrink-0" />
-                                                <span className="text-[8px] md:text-[9px] font-black text-slate-500 uppercase tracking-widest truncate">{a.assignee?.name || a.assignee?.username}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1 text-slate-400 min-w-0">
-                                                <MapPin size={12} className="shrink-0" />
-                                                <span className="text-[8px] md:text-[9px] font-bold uppercase tracking-widest truncate">{a.location || 'SARPRAS ZONE'}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="shrink-0">
-                                    <div className={`p-1.5 md:p-2 rounded-full md:rounded-xl transition-all ${isExpanded ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
-                                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Collapsible Content */}
-                            {isExpanded && (
-                                <div className="p-8 pt-0 md:pl-20 border-t border-slate-50/50 bg-slate-50/30 animate-in slide-in-from-top-2 duration-300">
-                                    <div className="pt-6 max-w-4xl space-y-8">
-                                        <div className="space-y-3">
-                                            <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2 italic">📌 Deskripsi Tugas</h4>
-                                            <div className="bg-white p-6 rounded-[24px] border border-slate-100 italic text-sm text-slate-600 leading-relaxed shadow-sm">
-                                                {a.description || 'Tidak ada deskripsi tambahan.'}
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="space-y-4">
-                                            <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2 italic">✅ Checklist Pekerjaan</h4>
-                                            <div className="space-y-3">
-                                                {(Array.isArray(a.items) ? a.items : []).map((item, iIdx) => (
-                                                    <SubTaskItem 
-                                                        key={iIdx} 
-                                                        item={item} 
-                                                        idx={iIdx} 
-                                                        progressVal={item.percentage || 0}
-                                                        isDone={item.isDone}
-                                                        isAssignee={isAssigneeFor(a)}
-                                                        canAssign={canAssign}
-                                                        toggleItemStatus={() => toggleItemStatus(a.id, iIdx)}
-                                                        updateItemProgress={(i, v) => updateItemProgress(a.id, i, v)}
-                                                        appendItemNote={(i, n) => appendItemNote(a.id, i, n)}
-                                                    />
-                                                ))}
-
-                                                {(isAssigneeFor(a) || canAssign) && (
-                                                    <div className="flex gap-2 p-3 bg-white/60 rounded-xl border border-dashed border-slate-200 mt-4">
-                                                        <input 
-                                                            type="text" 
-                                                            value={newItemTexts[a.id] || ''}
-                                                            onChange={(e) => setNewItemTexts({...newItemTexts, [a.id]: e.target.value})}
-                                                            placeholder="Tambah tahapan pekerjaan..."
-                                                            className="flex-1 bg-transparent border-none text-[10px] font-bold text-slate-700 outline-none placeholder:text-slate-300"
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === 'Enter' && newItemTexts[a.id]) {
-                                                                    addNewTaskItem(a.id, newItemTexts[a.id]);
-                                                                    setNewItemTexts({...newItemTexts, [a.id]: ''});
-                                                                }
-                                                            }}
-                                                        />
-                                                        <button 
-                                                            onClick={() => {
-                                                                addNewTaskItem(a.id, newItemTexts[a.id]);
-                                                                setNewItemTexts({...newItemTexts, [a.id]: ''});
-                                                            }}
-                                                            disabled={!newItemTexts[a.id]?.trim()}
-                                                            className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black rounded-lg hover:bg-indigo-700 transition-all uppercase tracking-widest disabled:opacity-30"
-                                                        >
-                                                            TAMBAH
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    );
-                })
-            )}
+            ))}
         </div>
     );
 };
 
-const ReportTab = ({ reports, type, user, handleEditReport, handleReviewReport, isKabid, submitting }) => {
-    const [expandedReportIds, setExpandedReportIds] = useState([]);
-    const [reviewForms, setReviewForms] = useState({}); // { reportId: { status, feedback } }
+// ============================================
+// TAB: KPI
+// ============================================
+const KPITab = ({ leaderboard }) => {
+    if (leaderboard.length === 0) return <EmptyState icon={Trophy} message="Belum ada data penilaian" />;
 
-    const toggleExpand = (id) => {
-        setExpandedReportIds(prev => 
-            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-        );
-        if (!reviewForms[id]) {
-            const r = reports.find(doc => doc.id == id);
-            const items = Array.isArray(r?.metadata?.items) ? r.metadata.items : [];
-            const initialVerified = items
-                .map((it, idx) => it.verified ? idx : null)
-                .filter(idx => idx !== null);
-
-            setReviewForms(prev => ({
-                ...prev,
-                [id]: { 
-                    status: r?.metadata?.review?.status || 'VERIFIED', 
-                    feedback: r?.metadata?.review?.feedback || '',
-                    verifiedItemIndices: initialVerified
-                }
-            }));
-        }
-    };
-
-    const updateReviewForm = (id, fields) => {
-        setReviewForms(prev => ({
-            ...prev,
-            [id]: { ...(prev[id] || {}), ...fields }
-        }));
-    };
-
-    const toggleItemVerification = (reportId, itemIdx) => {
-        const currentForm = reviewForms[reportId] || { verifiedItemIndices: [] };
-        const currentIndices = currentForm.verifiedItemIndices || [];
-        const newIndices = currentIndices.includes(itemIdx)
-            ? currentIndices.filter(i => i !== itemIdx)
-            : [...currentIndices, itemIdx];
-        
-        updateReviewForm(reportId, { verifiedItemIndices: newIndices });
+    const RankIcon = ({ rank }) => {
+        if (rank === 0) return <Crown className="text-amber-400 drop-shadow-lg" size={28} />;
+        if (rank === 1) return <Medal className="text-slate-400 drop-shadow" size={24} />;
+        if (rank === 2) return <Medal className="text-amber-700/60" size={20} />;
+        return <span className="text-sm font-black text-slate-300 italic">#{rank + 1}</span>;
     };
 
     return (
-        <div className="bg-white rounded-[24px] md:rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
-            <div className="hidden md:grid md:grid-cols-12 gap-4 px-6 md:px-8 py-3 bg-slate-50/80 border-b border-slate-100 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                <div className="md:col-span-6 flex gap-4">
-                    <div className="w-8 shrink-0" />
-                    <span>Aktivitas Utama & Personil</span>
-                </div>
-                <div className="md:col-span-4 text-center">{type === 'RENCANA' ? 'Periode Rencana' : 'Waktu Laporan'}</div>
-                <div className="md:col-span-2 text-right">Status & Label</div>
+        <div className="space-y-8">
+            {/* Top 3 Podium */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {leaderboard.slice(0, 3).map((item, idx) => (
+                    <div key={item.userId} className={`bg-white rounded-3xl p-8 shadow-lg transition-all hover:scale-[1.02] border-2 ${idx === 0 ? 'border-amber-200 ring-4 ring-amber-50' : 'border-slate-100'}`}>
+                        <div className="flex justify-between items-start mb-8">
+                            <RankIcon rank={idx} />
+                            <div className={`px-4 py-1.5 rounded-xl text-[11px] font-black ${item.grade === 'A' ? 'bg-indigo-600 text-white' : item.grade === 'B' ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-white'}`}>Grade {item.grade}</div>
+                        </div>
+                        <h3 className="text-xl font-black text-slate-900 italic uppercase tracking-tight mb-1">{item.name}</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">{item.position || 'Staf Sarpras'}</p>
+                        <div className="space-y-4">
+                            <ScoreBar label="Penyelesaian" score={item.scores.completion} color="bg-indigo-500" icon={Target} />
+                            <ScoreBar label="Ketepatan" score={item.scores.punctuality} color="bg-emerald-500" icon={Timer} />
+                            <ScoreBar label="Insidental" score={item.scores.insidental || item.scores.report || 0} color="bg-amber-500" icon={Activity} />
+                        </div>
+                        <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between">
+                            <div>
+                                <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Skor Total</p>
+                                <p className="text-4xl font-black text-slate-900 italic tracking-tighter">{item.averageScore}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[9px] font-black text-slate-400 uppercase">{item.stats.total} Tugas</p>
+                                <p className="text-[9px] font-bold text-slate-300">{item.stats.completed} Selesai</p>
+                            </div>
+                        </div>
+                    </div>
+                ))}
             </div>
-            
-            {reports.length === 0 ? (
-                <div className="py-24 text-center opacity-40">
-                    <FileText size={48} className="mx-auto text-slate-200 mb-4" />
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Belum ada {type.toLowerCase()} yang dikirim</p>
-                </div>
-            ) : (
-                reports.map((r, idx) => {
-                    const isEven = idx % 2 === 0;
-                    const isExpanded = expandedReportIds.includes(r.id);
-                    const isPlan = r.metadata?.isPlan;
-                    const review = r.metadata?.review || { status: 'PENDING' };
-                    const form = reviewForms[r.id] || { status: 'VERIFIED', feedback: '' };
-
-                    return (
-                        <div key={r.id} className={`border-b border-slate-50 border-l-[8px] md:border-l-[12px] ${review.status === 'VERIFIED' ? 'border-l-emerald-500' : review.status === 'NEEDS_COACHING' ? 'border-l-amber-500' : isPlan ? 'border-l-indigo-500' : 'border-l-slate-200'} ${isEven ? 'bg-white' : 'bg-slate-50/50'} hover:bg-slate-50/80 transition-all group relative`}>
-                            <div 
-                                onClick={() => toggleExpand(r.id)}
-                                className="p-4 md:p-6 cursor-pointer flex items-start md:items-center justify-between gap-3 md:gap-4"
-                            >
-                                <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1 min-w-0 w-full">
-                                    <div className={`w-10 md:w-12 h-10 md:h-12 rounded-full flex items-center justify-center shrink-0 border-2 ${review.status === 'VERIFIED' ? 'bg-emerald-50 border-emerald-100 text-emerald-500' : isPlan ? 'bg-indigo-50 border-indigo-100 text-indigo-500' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                                        {review.status === 'VERIFIED' ? <ShieldCheck size={20} /> : isPlan ? <Calendar size={18} /> : <FileText size={18} />}
-                                    </div>
-                                    <div className="space-y-1.5 flex-1 min-w-0">
-                                        <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
-                                            <span className="px-2 py-0.5 bg-slate-900 text-white text-[8px] font-black uppercase tracking-widest rounded-full">{r.category || (isPlan ? 'PLN' : 'RPT')}</span>
-                                            {review.status === 'VERIFIED' && <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 text-[8px] font-black uppercase tracking-widest rounded-full">✅ Verified</span>}
-                                            {review.status === 'NEEDS_COACHING' && <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 text-[8px] font-black uppercase tracking-widest rounded-full">⚠️ Coaching</span>}
-                                            <span className="text-[8px] font-black text-slate-300 tracking-widest">#{r.id.toString().padStart(5, '0')}</span>
-                                        </div>
-                                        <h3 className="text-sm md:text-base font-black text-slate-800 uppercase italic leading-tight tracking-tight truncate group-hover:text-indigo-600 transition-colors">
-                                            {r.user?.name || r.user?.username}
-                                        </h3>
-                                        <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3 text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                <Calendar size={12} className="text-indigo-400 shrink-0" />
-                                                <span className="truncate">{safeFormatDate(r.date)}</span>
-                                            </div>
-                                            <span className="hidden md:inline-block text-slate-300">•</span>
-                                            <div className="flex items-center text-slate-400">
-                                                <span>{isPlan ? `PERIOD: ${safeFormatDate(r.metadata?.startDate, { day: '2-digit', month: 'short' })} - ${safeFormatDate(r.metadata?.endDate, { day: '2-digit', month: 'short' })}` : `${(r.metadata?.items || []).length} AKTIVITAS`}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="shrink-0 flex flex-col items-end gap-2">
-                                    <div className={`p-1.5 md:p-2 rounded-full md:rounded-xl transition-all ${isExpanded ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
-                                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                    </div>
-                                    <div className="px-2 py-0.5 rounded-full bg-slate-50 border border-slate-100 shadow-sm hidden md:block">
-                                        <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">{isPlan ? 'PLANNED' : 'DAILY'}</p>
-                                    </div>
-                                </div>
+            {/* Remaining leaderboard */}
+            {leaderboard.length > 3 && (
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="px-6 py-3 bg-slate-50 border-b border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Peringkat Lainnya</p>
+                    </div>
+                    {leaderboard.slice(3).map((item, idx) => (
+                        <div key={item.userId} className="flex items-center gap-5 px-6 py-4 border-b border-slate-50 hover:bg-slate-50/50 transition-all">
+                            <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-xs font-black text-slate-300 italic">#{idx + 4}</div>
+                            <div className="flex-1 min-w-0">
+                                <h4 className="text-sm font-black text-slate-700 uppercase italic truncate">{item.name}</h4>
+                                <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">{item.position}</p>
                             </div>
-
-                            {/* Collapsible Content */}
-                            {isExpanded && (
-                                <div className="p-8 pt-0 md:pl-20 border-t border-slate-50/50 bg-slate-50/20 animate-in slide-in-from-top-2 duration-300">
-                                    <div className="pt-6 max-w-4xl space-y-8">
-                                        <div className="space-y-4">
-                                            <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] flex items-center gap-2 italic">📋 Rincian Pekerjaan & Sumber</h4>
-                                            <div className="space-y-3">
-                                                {(r.metadata?.items || []).map((it, iIdx) => {
-                                                    const sourceLabel = it.planId ? 'RENCANA' : it.title?.startsWith('[TUGAS]') ? 'PENUGASAN' : 'INSIDENTAL';
-                                                    const sourceColor = it.planId ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : it.title?.startsWith('[TUGAS]') ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200';
-                                                    const isVerified = form.verifiedItemIndices?.includes(iIdx) || it.verified;
-                                                    
-                                                    return (
-                                                        <div key={iIdx} className="flex items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm group/item">
-                                                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                                                                {isKabid ? (
-                                                                    <button 
-                                                                        onClick={() => toggleItemVerification(r.id, iIdx)}
-                                                                        className={`w-12 h-12 rounded-full border-2 transition-all flex items-center justify-center shrink-0 ${isVerified ? 'bg-emerald-500 border-emerald-400 text-white shadow-lg shadow-emerald-100' : 'bg-slate-50 border-slate-100 text-slate-300 hover:border-emerald-200'}`}
-                                                                    >
-                                                                        {isVerified ? <CheckCircle size={20} /> : <div className="w-5 h-5 rounded-full border-2 border-slate-200" />}
-                                                                    </button>
-                                                                ) : (
-                                                                    <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center shrink-0 ${isVerified ? 'bg-emerald-50 border-emerald-100 text-emerald-500' : 'bg-slate-50 border-slate-50 text-slate-100'}`}>
-                                                                        {isVerified ? <ShieldCheck size={20} /> : it.percentage === 100 ? <CheckCircle size={18} className="opacity-20" /> : <div className="w-4 h-4 rounded-full border-2 border-slate-50" />}
-                                                                    </div>
-                                                                )}
-                                                                <div className="flex-1 min-w-0">
-                                                                    <div className="flex items-center gap-2 mb-1">
-                                                                        <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-md border ${sourceColor} uppercase tracking-widest`}>{sourceLabel}</span>
-                                                                        <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">{it.percentage}% {it.status}</span>
-                                                                    </div>
-                                                                    <p className={`text-sm font-bold uppercase italic truncate whitespace-pre-wrap transition-colors ${isVerified ? 'text-emerald-700' : 'text-slate-700'}`}>{it.title || it.text || it.activity}</p>
-                                                                    {it.note && <p className="text-[10px] font-medium text-slate-400 italic mt-1 leading-relaxed">"{it.note}"</p>}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-
-                                        {/* Kabid Review Section */}
-                                        {isKabid && (
-                                            <div className="mt-8 p-8 bg-indigo-50/50 rounded-[32px] border border-indigo-100/50 space-y-6">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-100">
-                                                        <ShieldCheck size={18} />
-                                                    </div>
-                                                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest italic">Tinjauan Eksekutif Kabid</h4>
-                                                </div>
-                                                
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                    <div className="space-y-4">
-                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Keputusan Verifikasi</label>
-                                                        <div className="grid grid-cols-2 gap-3">
-                                                            <button 
-                                                                onClick={() => updateReviewForm(r.id, { status: 'VERIFIED' })}
-                                                                className={`py-4 px-4 rounded-2xl text-[10px] font-black transition-all flex flex-col items-center gap-2 ${form.status === 'VERIFIED' ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-100 scale-105' : 'bg-white text-slate-400 border border-slate-100 hover:bg-emerald-50'}`}
-                                                            >
-                                                                <CheckCircle size={20} />
-                                                                VERIFIKASI
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => updateReviewForm(r.id, { status: 'NEEDS_COACHING' })}
-                                                                className={`py-4 px-4 rounded-2xl text-[10px] font-black transition-all flex flex-col items-center gap-2 ${form.status === 'NEEDS_COACHING' ? 'bg-amber-600 text-white shadow-xl shadow-amber-100 scale-105' : 'bg-white text-slate-400 border border-slate-100 hover:bg-amber-50'}`}
-                                                            >
-                                                                <MessageSquare size={20} />
-                                                                BUTUH COACHING
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div className="space-y-4">
-                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Arahan / Feedback</label>
-                                                        <textarea 
-                                                            value={form.feedback}
-                                                            onChange={(e) => updateReviewForm(r.id, { feedback: e.target.value })}
-                                                            placeholder="Tulis arahan profesional Anda di sini..."
-                                                            className="w-full p-5 bg-white border border-slate-200 rounded-[24px] text-xs font-bold focus:ring-4 focus:ring-indigo-100 outline-none transition-all resize-none h-32"
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                <div className="pt-4 flex flex-col items-end gap-3">
-                                                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest italic">Notifikasi hanya dikirim sekali setelah tombol di bawah ditekan</p>
-                                                    <button 
-                                                        onClick={() => handleReviewReport(r.id, form.status, form.feedback, form.verifiedItemIndices)}
-                                                        disabled={submitting}
-                                                        className="px-10 py-4 bg-indigo-600 text-white text-[10px] font-black rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 uppercase tracking-[0.2em] transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3"
-                                                    >
-                                                        {submitting ? (
-                                                            <>
-                                                                <Loader2 size={16} className="animate-spin" />
-                                                                MEMPROSES...
-                                                            </>
-                                                        ) : 'Simpan Tinjauan & Kirim Notif'}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Feedback Show for Staff */}
-                                        {!isKabid && review.feedback && (
-                                            <div className="mt-8 p-8 bg-gradient-to-br from-indigo-50 to-white rounded-[40px] border border-indigo-100 shadow-sm relative overflow-hidden">
-                                                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-100/50 rounded-full -mr-16 -mt-16" />
-                                                <div className="relative z-10">
-                                                    <div className="flex items-center gap-3 mb-4">
-                                                        <div className="p-1.5 bg-indigo-600 rounded-lg text-white">
-                                                            <MessageSquare size={14} />
-                                                        </div>
-                                                        <h4 className="text-[10px] font-black text-indigo-900 uppercase tracking-widest">Catatan Pembinaan Kabid</h4>
-                                                    </div>
-                                                    <p className="text-base font-bold text-slate-700 italic leading-relaxed whitespace-pre-wrap">"{review.feedback}"</p>
-                                                    <div className="mt-8 pt-6 border-t border-indigo-100 flex items-center justify-between">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-[10px] font-black text-white italic">KB</div>
-                                                            <div>
-                                                                <p className="text-[10px] font-black text-slate-900 uppercase">{review.reviewedByName || 'KABID SARPRAS'}</p>
-                                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">DIVERIFIKASI PADA {safeFormatDate(review.reviewedAt)}</p>
-                                                            </div>
-                                                        </div>
-                                                        <ShieldCheck className="text-indigo-200" size={32} />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
+                            <div className="text-center w-20">
+                                <p className="text-lg font-black text-slate-800 tracking-tighter italic">{item.averageScore}</p>
+                                <p className="text-[8px] font-black text-slate-300 uppercase">Score</p>
+                            </div>
+                            <div className={`px-3 py-1 rounded-lg text-[10px] font-black ${item.grade === 'A' ? 'bg-indigo-100 text-indigo-700' : item.grade === 'B' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                                {item.grade}
+                            </div>
                         </div>
-                    );
-                })
+                    ))}
+                </div>
             )}
         </div>
     );
 };
 
+// ============================================
+// FORM MODALS
+// ============================================
+const RencanaFormModal = ({ open, onClose, onSubmit, submitting, editing }) => {
+    const [title, setTitle] = useState('');
+    const [startDate, setStartDate] = useState(today());
+    const [endDate, setEndDate] = useState(today());
+    const [notes, setNotes] = useState('');
+    const [items, setItems] = useState([{ activity: '' }]);
+
+    useEffect(() => {
+        if (editing) {
+            setTitle(editing.metadata?.title || '');
+            setStartDate(editing.metadata?.startDate || today());
+            setEndDate(editing.metadata?.endDate || today());
+            setNotes(editing.content || '');
+            setItems(editing.metadata?.items?.map(i => ({ activity: i.activity || '' })) || [{ activity: '' }]);
+        } else {
+            setTitle(''); setStartDate(today()); setEndDate(today()); setNotes(''); setItems([{ activity: '' }]);
+        }
+    }, [editing, open]);
+
+    const addItem = () => setItems([...items, { activity: '' }]);
+    const removeItem = idx => setItems(items.filter((_, i) => i !== idx));
+    const updateItem = (idx, val) => { const n = [...items]; n[idx].activity = val; setItems(n); };
+
+    const submit = e => {
+        e.preventDefault();
+        if (!title.trim()) return alert('Judul rencana wajib diisi');
+        if (items.filter(i => i.activity.trim()).length === 0) return alert('Minimal satu item rencana');
+        onSubmit({ title, startDate, endDate, notes, items });
+    };
+
+    return (
+        <Modal open={open} onClose={onClose} title={editing ? 'Edit Rencana Kerja' : 'Buat Rencana Kerja'} icon={Calendar}>
+            <form onSubmit={submit} className="space-y-5">
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📝 Judul Rencana</label>
+                    <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Misal: Perbaikan Pagar Gedung B"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📅 Mulai</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📅 Selesai</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                    </div>
+                </div>
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">📋 Checklist Item Rencana</label>
+                    <div className="space-y-2">
+                        {items.map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-slate-300 w-6 text-center">{idx + 1}.</span>
+                                <input type="text" value={item.activity} onChange={e => updateItem(idx, e.target.value)} placeholder="Deskripsikan tahapan kerja..."
+                                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                                {items.length > 1 && <button type="button" onClick={() => removeItem(idx)} className="p-2 text-rose-300 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>}
+                            </div>
+                        ))}
+                        <button type="button" onClick={addItem} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 hover:text-indigo-500 hover:border-indigo-200 transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                            <Plus size={14} />Tambah Item
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📝 Catatan</label>
+                    <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Catatan tambahan..."
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                </div>
+                <button type="submit" disabled={submitting} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
+                    {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                    {submitting ? 'Menyimpan...' : editing ? 'Perbarui Rencana' : 'Simpan Rencana'}
+                </button>
+            </form>
+        </Modal>
+    );
+};
+
+const TugasFormModal = ({ open, onClose, onSubmit, submitting, staffList }) => {
+    const [title, setTitle] = useState('');
+    const [assigneeId, setAssigneeId] = useState('');
+    const [priority, setPriority] = useState('MEDIUM');
+    const [startDate, setStartDate] = useState(today());
+    const [dueDate, setDueDate] = useState('');
+    const [location, setLocation] = useState('');
+    const [notes, setNotes] = useState('');
+    const [items, setItems] = useState([{ text: '' }]);
+
+    useEffect(() => {
+        if (open) { setTitle(''); setAssigneeId(''); setPriority('MEDIUM'); setStartDate(today()); setDueDate(''); setLocation(''); setNotes(''); setItems([{ text: '' }]); }
+    }, [open]);
+
+    const addItem = () => setItems([...items, { text: '' }]);
+    const removeItem = idx => setItems(items.filter((_, i) => i !== idx));
+    const updateItem = (idx, val) => { const n = [...items]; n[idx].text = val; setItems(n); };
+
+    const submit = e => {
+        e.preventDefault();
+        if (!title.trim()) return alert('Judul tugas wajib diisi');
+        if (!assigneeId) return alert('Pilih staf penerima tugas');
+        onSubmit({ title, assigneeId, priority, startDate, dueDate, location, notes, items });
+    };
+
+    return (
+        <Modal open={open} onClose={onClose} title="Buat Penugasan Baru" icon={ClipboardList} wide>
+            <form onSubmit={submit} className="space-y-5">
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📝 Judul Tugas</label>
+                    <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Misal: Pengecekan Panel Listrik Utama"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">👤 Penerima Tugas</label>
+                        <select value={assigneeId} onChange={e => setAssigneeId(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none uppercase">
+                            <option value="">Pilih Staf</option>
+                            {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">⚡ Prioritas</label>
+                        <select value={priority} onChange={e => setPriority(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none">
+                            <option value="LOW">Rendah</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="HIGH">Tinggi</option>
+                            <option value="URGENT">Urgent</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📍 Lokasi</label>
+                        <input type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Gedung A Lt.1" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📅 Mulai</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📅 Deadline</label>
+                        <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                    </div>
+                </div>
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">📋 Checklist Pekerjaan</label>
+                    <div className="space-y-2">
+                        {items.map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-slate-300 w-6 text-center">{idx + 1}.</span>
+                                <input type="text" value={item.text} onChange={e => updateItem(idx, e.target.value)} placeholder="Deskripsikan langkah pekerjaan..."
+                                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                                {items.length > 1 && <button type="button" onClick={() => removeItem(idx)} className="p-2 text-rose-300 hover:text-rose-500"><Trash2 size={16} /></button>}
+                            </div>
+                        ))}
+                        <button type="button" onClick={addItem} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 hover:text-indigo-500 hover:border-indigo-200 transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                            <Plus size={14} />Tambah Item
+                        </button>
+                    </div>
+                </div>
+                <button type="submit" disabled={submitting} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black tracking-widest hover:bg-slate-800 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
+                    {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                    {submitting ? 'Mengirim...' : 'Delegasikan Tugas'}
+                </button>
+            </form>
+        </Modal>
+    );
+};
+
+const InsidentalFormModal = ({ open, onClose, onSubmit, submitting }) => {
+    const [activity, setActivity] = useState('');
+    const [status, setStatus] = useState('SELESAI');
+    const [time, setTime] = useState(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
+
+    useEffect(() => {
+        if (open) { setActivity(''); setStatus('SELESAI'); setTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })); }
+    }, [open]);
+
+    const submit = e => {
+        e.preventDefault();
+        if (!activity.trim()) return alert('Isi deskripsi aktivitas');
+        onSubmit({ activity, status, time });
+    };
+
+    return (
+        <Modal open={open} onClose={onClose} title="Laporan Insidental" icon={Flag}>
+            <form onSubmit={submit} className="space-y-5">
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📝 Apa yang dikerjakan?</label>
+                    <textarea value={activity} onChange={e => setActivity(e.target.value)} rows={3} placeholder="Misal: Perbaikan AC bocor di Ruang Kepala" autoFocus
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">🕒 Jam</label>
+                        <input type="time" value={time} onChange={e => setTime(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📊 Status</label>
+                        <select value={status} onChange={e => setStatus(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none">
+                            <option value="SELESAI">Selesai</option>
+                            <option value="PROSES">Sedang Dikerjakan</option>
+                            <option value="PENDING">Menunggu</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" disabled={submitting} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
+                    {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                    {submitting ? 'Menyimpan...' : 'Simpan Laporan'}
+                </button>
+            </form>
+        </Modal>
+    );
+};
+
+// ============================================
+// EXPORT
+// ============================================
 const StaffPerformanceWithBoundary = () => (
     <StaffPerformanceErrorBoundary>
         <StaffPerformance />
