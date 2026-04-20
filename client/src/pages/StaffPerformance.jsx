@@ -425,7 +425,7 @@ const SummaryCard = ({ title, value, icon: Icon, color, desc }) => (
 const StaffPerformance = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const user = safeParseUser();
-    const userRole = user?.role || '';
+    const userRole = (user?.role || '').toUpperCase();
     const userPosition = (user?.position || '').toLowerCase();
     
     // Lenient matching for UI tabs
@@ -587,7 +587,10 @@ const StaffPerformance = () => {
             setShowLiburModal(false);
             setLiburTask(null);
             await fetchAllAssignments(pagination.currentPage, pageSize); 
-        } catch { alert('Gagal memperbarui'); }
+        } catch (err) { 
+            const msg = err.response?.data?.error || 'Gagal memperbarui status. Pastikan database sudah disinkronisasi (npx prisma db push).';
+            alert(msg);
+        }
     };
 
     const handleDeleteRoutine = async (id) => {
