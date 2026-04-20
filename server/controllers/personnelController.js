@@ -1389,31 +1389,38 @@ exports.getKPILeaderboard = async (req, res) => {
         const startDate = new Date(targetYear, targetMonth - 1, 1);
         const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
 
-        // Get all staff from Sarpras (Broadened for variations)
-        // MySQL is case-insensitive by default, no need for mode:'insensitive'
-        const positionOrConditions = [
-            { position: { contains: 'sarana dan prasarana' } },
-            { position: { contains: 'sarpras' } },
-            { position: { contains: 'manajemen aset' } },
-            { position: { contains: 'manajamen aset' } },
-            { position: { contains: 'gudang' } },
-            { position: { contains: 'logistik' } },
-            { position: { contains: 'teknisi' } },
-            { position: { contains: 'keuangan' } },
-            { position: { contains: 'administrasi' } },
-            { position: { contains: 'kendaraan' } },
-            { position: { contains: 'staff' } },
-            { position: { contains: 'staf' } },
-        ];
-        // Only add unitId filter if it actually exists
+        // Get staff: prioritize unitId (same unit as Kabid), fallback to position keywords
+        let staffWhere;
         if (currentUser.unitId) {
-            positionOrConditions.push({ unitId: currentUser.unitId });
-        }
-
-        const staff = await prisma.user.findMany({
-            where: {
+            // Primary: all users in the same unit as the Kabid
+            staffWhere = {
+                unitId: currentUser.unitId,
+                NOT: {
+                    OR: [
+                        { position: { contains: 'kepala bidang' } },
+                        { role: 'SUPER_ADMIN' }
+                    ]
+                }
+            };
+        } else {
+            // Fallback: match by specific Sarpras staff positions
+            staffWhere = {
                 AND: [
-                    { OR: positionOrConditions },
+                    {
+                        OR: [
+                            { position: { contains: 'Staff Manajemen Aset' } },
+                            { position: { contains: 'Staff Manajamen Aset' } },
+                            { position: { contains: 'Staff Gudang' } },
+                            { position: { contains: 'Staff Kendaraan' } },
+                            { position: { contains: 'Staff Teknisi' } },
+                            { position: { contains: 'Staff Keuangan' } },
+                            { position: { contains: 'Staf Manajemen Aset' } },
+                            { position: { contains: 'Staf Gudang' } },
+                            { position: { contains: 'Staf Kendaraan' } },
+                            { position: { contains: 'Staf Teknisi' } },
+                            { position: { contains: 'Staf Keuangan' } },
+                        ]
+                    },
                     {
                         NOT: {
                             OR: [
@@ -1423,7 +1430,11 @@ exports.getKPILeaderboard = async (req, res) => {
                         }
                     }
                 ]
-            },
+            };
+        }
+
+        const staff = await prisma.user.findMany({
+            where: staffWhere,
             select: { id: true, name: true, position: true, unitId: true }
         });
 
