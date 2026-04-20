@@ -21,11 +21,20 @@ const DocumentManagement = () => {
     
     const [searchQuery, setSearchQuery] = useState('');
     const [documents, setDocuments] = useState([]);
+    const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     
     // Modal state
     const [showCreateModal, setShowCreateModal] = useState(false);
-    const [newDocForm, setNewDocForm] = useState({ title: '', content: '', type: 'NOTA_DINAS', urgency: 'NORMAL' });
+    const [newDocForm, setNewDocForm] = useState({ title: '', content: '', type: 'NOTA_DINAS', urgency: 'NORMAL', destination: '', isManualCode: false, manualCode: '' });
+    const [approvers, setApprovers] = useState({ parafId: '', signId: '' });
+
+    const fetchUsers = async () => {
+        try {
+            const res = await api.get('/users');
+            setUsers(Array.isArray(res.data) ? res.data : []);
+        } catch (err) { console.error(err); }
+    };
 
     const fetchDocuments = async () => {
         setLoading(true);
@@ -57,14 +66,20 @@ const DocumentManagement = () => {
 
     useEffect(() => {
         fetchDocuments();
+        if (users.length === 0) fetchUsers();
     }, [activeTab]);
 
     const handleCreateDocument = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/documents', newDocForm);
+            const payload = {
+                ...newDocForm,
+                approverIds: [parseInt(approvers.parafId), parseInt(approvers.signId)].filter(id => !isNaN(id))
+            };
+            await api.post('/documents', payload);
             setShowCreateModal(false);
-            setNewDocForm({ title: '', content: '', type: 'NOTA_DINAS', urgency: 'NORMAL' });
+            setNewDocForm({ title: '', content: '', type: 'NOTA_DINAS', urgency: 'NORMAL', destination: '', isManualCode: false, manualCode: '' });
+            setApprovers({ parafId: '', signId: '' });
             fetchDocuments();
             alert("Draft Dokumen Berhasil Dibuat");
         } catch(err) {
@@ -261,6 +276,70 @@ const DocumentManagement = () => {
                                             <option value="NORMAL">Normal / Biasa</option>
                                             <option value="HIGH">Tinggi / Penting</option>
                                             <option value="URGENT">Sangat Segera (Urgent)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center justify-between">
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Tujuan Surat</label>
+                                        </div>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Contoh: Kepala Yayasan / Vendor A"
+                                            value={newDocForm.destination}
+                                            onChange={e => setNewDocForm({...newDocForm, destination: e.target.value})}
+                                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all outline-none"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center gap-2 justify-between">
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Nomor Surat</label>
+                                            <label className="flex items-center gap-2 text-[10px] font-bold text-slate-400 cursor-pointer">
+                                                <input type="checkbox" checked={newDocForm.isManualCode} onChange={(e) => setNewDocForm({...newDocForm, isManualCode: e.target.checked})} className="rounded text-indigo-500 focus:ring-indigo-500" />
+                                                MANUAL
+                                            </label>
+                                        </div>
+                                        {newDocForm.isManualCode ? (
+                                            <input 
+                                                type="text" 
+                                                placeholder="Ketik Nomor Custom..."
+                                                value={newDocForm.manualCode}
+                                                onChange={e => setNewDocForm({...newDocForm, manualCode: e.target.value})}
+                                                className="w-full bg-white border border-indigo-200 rounded-xl px-4 py-3 text-sm font-semibold text-indigo-700 focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all outline-none"
+                                                required
+                                            />
+                                        ) : (
+                                            <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-400">
+                                                Dihasilkan Otomatis
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-4 mt-2">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest mb-2">1. Pilih Pemaraf (Reviewer)</label>
+                                        <select 
+                                            value={approvers.parafId}
+                                            onChange={e => setApprovers({...approvers, parafId: e.target.value})}
+                                            className="w-full bg-white border border-amber-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-amber-100 focus:border-amber-400 transition-all outline-none"
+                                            required
+                                        >
+                                            <option value="">-- Pilih Pejabat Pemaraf --</option>
+                                            {users.map(u => <option key={u.id} value={u.id}>{u.name} - {u.role}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-2">2. Pilih Penandatangan (Sign)</label>
+                                        <select 
+                                            value={approvers.signId}
+                                            onChange={e => setApprovers({...approvers, signId: e.target.value})}
+                                            className="w-full bg-white border border-emerald-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400 transition-all outline-none"
+                                            required
+                                        >
+                                            <option value="">-- Pilih Penandatangan Akhir --</option>
+                                            {users.map(u => <option key={u.id} value={u.id}>{u.name} - {u.role}</option>)}
                                         </select>
                                     </div>
                                 </div>

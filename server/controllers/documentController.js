@@ -45,8 +45,13 @@ exports.getAllDocuments = async (req, res) => {
 
 exports.createDocument = async (req, res) => {
     try {
-        const { type, title, content, urgency, approverIds } = req.body;
-        const autoCode = await generateLetterCode(type);
+        const { type, title, content, urgency, approverIds, destination, isManualCode, manualCode } = req.body;
+        
+        let finalCode = manualCode;
+        if (!isManualCode) {
+            finalCode = await generateLetterCode(type);
+        }
+
         const docHash = crypto.randomBytes(16).toString('hex');
 
         // Note: approverIds is an array of user IDs taking part in approval hierarchy
@@ -54,11 +59,13 @@ exports.createDocument = async (req, res) => {
 
         const newDoc = await prisma.document.create({
             data: {
-                code: autoCode,
+                code: finalCode || 'DRAFT-XXX',
                 type: type || 'NOTA_DINAS',
                 title,
                 content,
                 urgency: urgency || 'NORMAL',
+                destination: destination || '',
+                isManualCode: isManualCode || false,
                 creatorId: req.user.id,
                 senderName: req.user.name,
                 hash: docHash,
