@@ -220,8 +220,6 @@ const SummaryTab = ({ assignments, plans, routineAssignments, dailyLogs, aiSumma
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
-            {/* ── AI SUMMARY ── */}
-            <AISummaryCard summary={aiSummary} loading={aiSummaryLoading} />
 
             {/* ── TUGAS ── */}
             <SummarySection title="Penugasan" icon={ClipboardList} color="bg-indigo-500" count={assignments.length} emptyMsg="Belum ada penugasan">
@@ -525,8 +523,7 @@ const StaffPerformance = () => {
                 await fetchKPI(); 
                 await fetchPlans(1, 20); 
                 await fetchAllAssignments(1, 20); 
-                await fetchDailyLogs(1, 20); 
-                fetchAISummary(); // Non-blocking
+                await fetchDailyLogs(1, 20);
             }
             else if (activeTab === 'RENCANA_TUGAS') { await fetchPlans(page, limit); await fetchAllAssignments(page, limit); }
             else if (activeTab === 'RUTINITAS') await fetchAllAssignments(page, limit);
