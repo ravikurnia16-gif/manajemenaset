@@ -85,11 +85,11 @@ const DocumentManagement = () => {
     }, [activeTab]);
 
     const templates = {
-        'NOTA_DINAS': `Kepada Yth:\n\nDari:\n\nTanggal:\n\nSifat:\n\nLampiran:\n\nPerihal:\n\n\n\n\n[Isi Nota Dinas]\n\n\n\n`,
-        'SURAT_TUGAS': `SURAT TUGAS\nNomor: \n\nMemerintahkan Kepada:\nNama:\nJabatan:\n\nUntuk melaksanakan tugas:\n[Maksud Tugas]\n\nDemikian surat tugas ini diberikan untuk dilaksanakan dengan penuh tanggung jawab.`,
-        'SURAT_KEPUTUSAN': `SURAT KEPUTUSAN\nNomor: \n\nMenimbang:\na. ...\nb. ...\n\nMengingat:\n1. ...\n2. ...\n\nMEMUTUSKAN\nMenetapkan: ...\nPertama: ...\nKedua: ...\n`,
-        'SURAT_EDARAN': `SURAT EDARAN\nNomor: \n\nKepada Yth,\nSegenap Karyawan/Staff\nDi Lingkungan Yayasan\n\nPerihal: [Isi Perihal]\n\nAssalamu’alaikum Warahmatullahi Wabarakatuh\nDengan hormat,\n\n[Isi Surat Edaran]\n\nDemikian surat edaran ini kami sampaikan, atas perhatian dan kerja samanya kami ucapkan terima kasih.\nWassalamu’alaikum Warahmatullahi Wabarakatuh`,
-        'BAST': `BERITA ACARA SERAH TERIMA (BAST)\n\nPada hari ini, tanggal [Tanggal], kami yang bertanda tangan di bawah ini:\n\nNama: [Pihak Pertama]\nJabatan:\nSelanjutnya disebut PIHAK PERTAMA\n\nNama: [Pihak Kedua]\nJabatan:\nSelanjutnya disebut PIHAK KEDUA\n\nPIHAK PERTAMA menyerahkan kepada PIHAK KEDUA berupa:\n1. [Nama Barang]\n\nDemikian Berita Acara ini dibuat untuk dipergunakan sebagaimana mestinya.`
+        'NOTA_DINAS': `[Tulis latar belakang masalah di sini]\n\n[Sampaikan inti Nota Dinas atau permohonan]\n\nDemikian Nota Dinas ini kami sampaikan, atas perhatian Bapak/Ibu diucapkan terima kasih.`,
+        'SURAT_TUGAS': `Memerintahkan Kepada:\nNama: [Nama Staf]\nJabatan: [Jabatan Staf]\n\nUntuk melaksanakan tugas:\n1. [Deskripsi Tugas Pertama]\n2. [Deskripsi Tugas Kedua]\n\nWaktu: \nTempat: \n\nDemikian Surat Tugas ini diberikan untuk dilaksanakan dengan penuh tanggung jawab.`,
+        'SURAT_KEPUTUSAN': `Menimbang:\na. Bahwa untuk kelancaran kegiatan... \nb. Bahwa berdasarkan pertimbangan huruf a... \n\nMengingat:\n1. Standar Operasional Prosedur Sarpras...\n2. Aturan Yayasan... \n\nMEMUTUSKAN\nMenetapkan: [Nama Keputusan]\nPertama: [Isi Diktum Pertama]\nKedua: Keputusan ini berlaku sejak tanggal ditetapkan.`,
+        'SURAT_EDARAN': `Assalamu’alaikum Warahmatullahi Wabarakatuh.\nDengan hormat,\n\nSehubungan dengan adanya kebijakan perbaikan aset berkala, kami memohon kepada Bapak/Ibu untuk:\n1. Mematikan AC saat usai bekerja.\n2. Mengunci ruangan rapat.\n\nDemikian Surat Edaran ini kami sampaikan agar dapat dipedomani. Atas perhatian dan kerja samanya kami ucapkan terima kasih.\n\nWassalamu’alaikum Warahmatullahi Wabarakatuh.`,
+        'BAST': `Pada hari ini, tanggal [Pilih/Ketik Tanggal], kami yang bertanda tangan di bawah ini:\n\nNama: [Nama Penyerah]\nJabatan: [Jabatan]\nSelanjutnya disebut PIHAK PERTAMA\n\nNama: [Nama Penerima]\nJabatan: [Jabatan]\nSelanjutnya disebut PIHAK KEDUA\n\nPIHAK PERTAMA menyerahkan kepada PIHAK KEDUA berupa:\n1. [Nama Barang/Aset] sejumlah [Qty]\n\nDemikian Berita Acara ini dibuat untuk disahkan sesuai prosedur yang berlaku.`
     };
 
     const handleTypeChange = (e) => {
