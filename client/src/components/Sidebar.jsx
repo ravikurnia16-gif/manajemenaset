@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const Sidebar = ({ isOpen = true }) => {
@@ -233,6 +233,11 @@ const Sidebar = ({ isOpen = true }) => {
                             )}
                         </>
                     ))}
+
+                {/* 5. E-Office / Surat */}
+                <div className="pt-2">
+                    <Link to="/documents" className={navItemClass('/documents')}><FileSignature size={18} /> E-Office & Surat</Link>
+                </div>
 
                 {/* System & Settings */}
                 <div className="pt-4 mt-2 border-t border-slate-800">
