@@ -6,7 +6,7 @@ import {
     MapPin, Loader2, Target, Timer, TrendingUp, Sparkles, Users,
     Activity, Crown, Medal, Send, Trash2, RotateCcw, Tag, Edit3,
     ShieldCheck, MessageSquare, ListChecks, Flag, LayoutDashboard,
-    PieChart as PieIcon, BarChart3, Coffee, CalendarX
+    PieChart as PieIcon, BarChart3, Coffee, CalendarX, Undo
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -1011,7 +1011,18 @@ const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignm
                                             <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 flex items-start gap-3">
                                                 <CalendarX size={14} className="text-indigo-400 mt-0.5" />
                                                 <div className="flex-1">
-                                                    <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Alasan Libur / Dilewati:</p>
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Alasan Libur / Dilewati:</p>
+                                                        {(isAssignee || isKabid) && (
+                                                            <button 
+                                                                onClick={() => onUpdateAssignment(a.id, { status: 'PENDING', notes: '' })}
+                                                                className="flex items-center gap-1 text-[9px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-widest transition-colors"
+                                                            >
+                                                                <Undo size={11} />
+                                                                <span>Batalkan Libur</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                     <p className="text-xs font-bold text-slate-600">{a.notes || 'Tidak ada alasan spesifik'}</p>
                                                 </div>
                                             </div>
@@ -1303,7 +1314,18 @@ const RutinitasTab = ({ assignments, templates, onUpdate, onDeleteRoutine, onEdi
                                                 <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 flex items-start gap-3">
                                                     <CalendarX size={14} className="text-indigo-400 mt-0.5" />
                                                     <div className="flex-1">
-                                                        <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Alasan Libur / Dilewati:</p>
+                                                        <div className="flex items-center justify-between">
+                                                            <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Alasan Libur / Dilewati:</p>
+                                                            {(isAssignee || isKabid) && (
+                                                                <button 
+                                                                    onClick={() => onUpdate(a.id, { status: 'PENDING', notes: '' })}
+                                                                    className="flex items-center gap-1 text-[9px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-widest transition-colors"
+                                                                >
+                                                                    <Undo size={11} />
+                                                                    <span>Batalkan Libur</span>
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                         <p className="text-xs font-bold text-slate-600">{a.notes || 'Tidak ada alasan spesifik'}</p>
                                                     </div>
                                                 </div>
