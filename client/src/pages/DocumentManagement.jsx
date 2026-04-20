@@ -5,7 +5,7 @@ import {
     FilePlus, PenTool, ExternalLink
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 const Badge = ({ children, className }) => (
     <span className={cn("px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center gap-1.5 w-fit shrink-0", className)}>
@@ -15,15 +15,9 @@ const Badge = ({ children, className }) => (
 
 const DocumentManagement = () => {
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('INBOX');
+    const { tab } = useParams();
+    const activeTab = tab ? tab.toUpperCase() : 'INBOX';
     const [searchQuery, setSearchQuery] = useState('');
-
-    const tabs = [
-        { id: 'INBOX', label: 'Kotak Masuk', icon: Inbox, count: 3, alert: true },
-        { id: 'DRAFT', label: 'Draf Saya', icon: FileText, count: 2 },
-        { id: 'SENT', label: 'Terkirim', icon: Send },
-        { id: 'ARCHIVE', label: 'Arsip & Validasi', icon: QrCode },
-    ];
 
     // Dummy data to showcase the premium UI
     const documents = [
@@ -74,45 +68,9 @@ const DocumentManagement = () => {
             </div>
 
             {/* Main Content Area */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                
-                {/* Sidebar Navigation */}
-                <div className="lg:col-span-3 space-y-6">
-                    <div className="bg-white rounded-3xl p-3 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
-                        <div className="space-y-1">
-                            {tabs.map((tab) => {
-                                const Icon = tab.icon;
-                                const isActive = activeTab === tab.id;
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id)}
-                                        className={cn(
-                                            "w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 outline-none",
-                                            isActive ? "bg-indigo-50 text-indigo-700 font-bold shadow-sm" : "hover:bg-slate-50 text-slate-500 font-semibold hover:text-slate-700"
-                                        )}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <Icon size={18} className={isActive ? "text-indigo-600" : "text-slate-400"} />
-                                            <span className="text-sm">{tab.label}</span>
-                                        </div>
-                                        {tab.count && (
-                                            <div className={cn(
-                                                "px-2 py-0.5 rounded-lg text-[10px] font-black",
-                                                tab.alert ? "bg-rose-100 text-rose-600" : (isActive ? "bg-indigo-200/50 text-indigo-700" : "bg-slate-100 text-slate-500")
-                                            )}>
-                                                {tab.count}
-                                            </div>
-                                        )}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </div>
-
+            <div className="max-w-4xl mx-auto">
                 {/* List Area */}
-                <div className="lg:col-span-9">
+                <div>
                     {/* Toolbar */}
                     <div className="bg-white rounded-2xl p-2 pl-4 flex flex-col sm:flex-row items-center justify-between mb-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 gap-4">
                         <div className="flex-1 flex items-center gap-3 w-full">

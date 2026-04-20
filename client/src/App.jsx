@@ -146,7 +146,8 @@ function App() {
           <Route path="laporan" element={<ReportPage />} />
 
           {/* Module: Manajemen Dokumen (E-Office) */}
-          <Route path="documents" element={<DocumentManagement />} />
+          <Route path="documents" element={<Navigate to="/documents/inbox" replace />} />
+          <Route path="documents/:tab" element={<DocumentManagement />} />
 
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />
         </Route>
