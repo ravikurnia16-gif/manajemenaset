@@ -105,7 +105,7 @@ function App() {
           <Route path="mutasi/request" element={<MutationForm />} />
           <Route path="penghapusan" element={<DisposalList />} />
           <Route path="peminjaman" element={<LoanList />} />
-          <Route path="sarpras/rules" element={<SarprasRules />} />
+
           <Route path="rumah-dinas" element={<OfficialResidence />} />
 
           {/* Module: Manajemen Kendaraan */}
