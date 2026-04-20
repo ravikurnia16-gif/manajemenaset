@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const documentController = require('../controllers/documentController');
-const { requireAuth } = require('../middlewares/auth');
+const { requireAuth } = require('../middleware/auth');
 
 // Apply auth to all routes in this file
 router.use(requireAuth);
