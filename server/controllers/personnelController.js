@@ -1389,44 +1389,31 @@ exports.getKPILeaderboard = async (req, res) => {
         const startDate = new Date(targetYear, targetMonth - 1, 1);
         const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
 
-        // Get staff: prioritize unitId (same unit as Kabid), fallback to position keywords
-        let staffWhere;
-        if (currentUser.unitId) {
-            // Primary: all users in the same unit as the Kabid
-            staffWhere = {
-                unitId: currentUser.unitId,
-                NOT: {
+        // Get staff: Strictly filter by Sarpras-specific positions to exclude other departments (SDM, K3, etc.)
+        const staffWhere = {
+            AND: [
+                {
                     OR: [
-                        { position: { contains: 'kepala bidang' } },
-                        { role: 'SUPER_ADMIN' }
+                        { position: { contains: 'Staff Manajemen Aset' } },
+                        { position: { contains: 'Staff Kendaraan' } },
+                        { position: { contains: 'Staff Teknisi Aset' } },
+                        { position: { contains: 'Staff Keuangan dan Administrasi' } },
+                        { position: { contains: 'Staf Gudang dan Logistik' } },
+                        { position: { contains: 'Staf Kendaraan' } },
+                        { position: { contains: 'Sarana dan Prasarana' } },
+                        { position: { contains: 'Sarpras' } }
                     ]
-                }
-            };
-        } else {
-            // Fallback: match by specific Sarpras staff positions
-            staffWhere = {
-                AND: [
-                    {
+                },
+                {
+                    NOT: {
                         OR: [
-                            { position: { contains: 'Staff Manajemen Aset' } },
-                            { position: { contains: 'Staff Kendaraan' } },
-                            { position: { contains: 'Staff Teknisi Aset' } },
-                            { position: { contains: 'Staff Keuangan dan Administrasi' } },
-                            { position: { contains: 'Staf Gudang dan Logistik' } },
-                            { position: { contains: 'Staf Kendaraan' } },
+                            { position: { contains: 'kepala bidang' } },
+                            { role: 'SUPER_ADMIN' }
                         ]
-                    },
-                    {
-                        NOT: {
-                            OR: [
-                                { position: { contains: 'kepala bidang' } },
-                                { role: 'SUPER_ADMIN' }
-                            ]
-                        }
                     }
-                ]
-            };
-        }
+                }
+            ]
+        };
 
         const staff = await prisma.user.findMany({
             where: staffWhere,
@@ -1845,7 +1832,6 @@ exports.checkMissingReportsWeekly = async () => {
                 OR: [
                     { position: { contains: 'Sarana dan Prasarana' } },
                     { position: { contains: 'Manajemen Aset' } },
-                    { position: { contains: 'Manajamen Aset' } },
                     { position: { contains: 'Gudang dan Logistik' } },
                     { position: { contains: 'Teknisi' } },
                     { position: { contains: 'Keuangan dan Administrasi' } },
