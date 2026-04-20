@@ -93,20 +93,110 @@ exports.createDocument = async (req, res) => {
     }
 };
 
-exports.updateDocumentStatus = async (req, res) => {
+exports.submitDocument = async (req, res) => {
     try {
         const { id } = req.params;
-        const { status } = req.body; // 'WAITING_PARAF', 'SIGNED', etc
-
-        const doc = await prisma.document.update({
+        const doc = await prisma.document.findUnique({
             where: { id: parseInt(id) },
-            data: { status }
+            include: { approvals: { orderBy: { step: 'asc' } } }
         });
 
-        res.json(doc);
-    } catch (err) {
-        console.error("Error updating document:", err);
-        res.status(500).json({ error: "Gagal memperbarui status dokumen" });
+        if (!doc) return res.status(404).json({ error: "Dokumen tidak ditemukan" });
+        if (doc.status !== 'DRAFT') return res.status(400).json({ error: "Hanya Draf yang bisa diajukan" });
+
+        // Bypass: Jika tidak ada approver, langsung SIGNED.
+        if (!doc.approvals || doc.approvals.length === 0) {
+            const updated = await prisma.document.update({
+                where: { id: parseInt(id) },
+                data: { status: 'SIGNED' }
+            });
+            return res.json(updated);
+        }
+
+        // Jika ada approver
+        const firstStep = doc.approvals[0];
+        const initialStatus = firstStep.type === 'SIGNATURE' ? 'WAITING_SIGN' : 'WAITING_PARAF';
+        
+        const updated = await prisma.document.update({
+            where: { id: parseInt(id) },
+            data: { status: initialStatus }
+        });
+        res.json(updated);
+    } catch(err) {
+        res.status(500).json({ error: "Gagal mengajukan surat" });
+    }
+};
+
+exports.approveDocument = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+
+        const doc = await prisma.document.findUnique({
+            where: { id: parseInt(id) },
+            include: { approvals: { orderBy: { step: 'asc' } } }
+        });
+
+        if (!doc) return res.status(404).json({ error: "Dokumen tidak ditemukan" });
+
+        // Cari step yang pending untuk user ini
+        const pendingApproval = doc.approvals.find(a => a.userId === userId && a.status === 'PENDING');
+        if (!pendingApproval) return res.status(400).json({ error: "Bukan giliran Anda atau sudah disetujui" });
+
+        // Update step ini
+        await prisma.documentApproval.update({
+            where: { id: pendingApproval.id },
+            data: { status: 'APPROVED', signature: new Date().toISOString() }
+        });
+
+        // Cek step berikutnya
+        const currentStepIndex = doc.approvals.findIndex(a => a.id === pendingApproval.id);
+        const nextStep = doc.approvals[currentStepIndex + 1];
+
+        if (nextStep) {
+            const nextStatus = nextStep.type === 'SIGNATURE' ? 'WAITING_SIGN' : 'WAITING_PARAF';
+            await prisma.document.update({
+                where: { id: parseInt(id) },
+                data: { status: nextStatus }
+            });
+        } else {
+            // Selesai
+            await prisma.document.update({
+                where: { id: parseInt(id) },
+                data: { status: 'SIGNED' }
+            });
+        }
+
+        res.json({ message: "Berhasil disetujui" });
+    } catch(err) {
+        res.status(500).json({ error: "Gagal menyetujui surat" });
+    }
+};
+
+exports.rejectDocument = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+
+        const pendingApproval = await prisma.documentApproval.findFirst({
+            where: { documentId: parseInt(id), userId, status: 'PENDING' }
+        });
+        
+        if (pendingApproval) {
+            await prisma.documentApproval.update({
+                where: { id: pendingApproval.id },
+                data: { status: 'REJECTED' }
+            });
+        }
+
+        await prisma.document.update({
+            where: { id: parseInt(id) },
+            data: { status: 'REJECTED' }
+        });
+
+        res.json({ message: "Dokumen ditolak" });
+    } catch(err) {
+        res.status(500).json({ error: "Gagal menolak surat" });
     }
 };
 

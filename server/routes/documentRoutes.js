@@ -8,6 +8,8 @@ router.use(verifyToken);
 
 router.get('/', documentController.getAllDocuments);
 router.post('/', documentController.createDocument);
-router.put('/:id/status', documentController.updateDocumentStatus);
+router.post('/:id/submit', documentController.submitDocument);
+router.post('/:id/approve', documentController.approveDocument);
+router.post('/:id/reject', documentController.rejectDocument);
 
 module.exports = router;

@@ -29,11 +29,16 @@ const DocumentManagement = () => {
     const [selectedDoc, setSelectedDoc] = useState(null);
     const [newDocForm, setNewDocForm] = useState({ title: '', content: '', type: 'NOTA_DINAS', urgency: 'NORMAL', destination: '', isManualCode: false, manualCode: '' });
     const [approvers, setApprovers] = useState({ parafId: '', signId: '' });
+    const [currentUser, setCurrentUser] = useState(null);
 
-    const fetchUsers = async () => {
+    const fetchUsersAndProfile = async () => {
         try {
-            const res = await api.get('/users');
-            setUsers(Array.isArray(res.data) ? res.data : []);
+            const [usersRes, profileRes] = await Promise.all([
+                api.get('/users'),
+                api.get('/users/profile')
+            ]);
+            setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+            setCurrentUser(profileRes.data);
         } catch (err) { console.error(err); }
     };
 
@@ -67,8 +72,22 @@ const DocumentManagement = () => {
 
     useEffect(() => {
         fetchDocuments();
-        if (users.length === 0) fetchUsers();
+        if (users.length === 0) fetchUsersAndProfile();
     }, [activeTab]);
+
+    const templates = {
+        'NOTA_DINAS': `Kepada Yth:\n\nDari:\n\nTanggal:\n\nSifat:\n\nLampiran:\n\nPerihal:\n\n\n\n\n[Isi Nota Dinas]\n\n\n\n`,
+        'SURAT_TUGAS': `SURAT TUGAS\nNomor: \n\nMemerintahkan Kepada:\nNama:\nJabatan:\n\nUntuk melaksanakan tugas:\n[Maksud Tugas]\n\nDemikian surat tugas ini diberikan untuk dilaksanakan dengan penuh tanggung jawab.`,
+        'SURAT_KEPUTUSAN': `SURAT KEPUTUSAN\nNomor: \n\nMenimbang:\na. ...\nb. ...\n\nMengingat:\n1. ...\n2. ...\n\nMEMUTUSKAN\nMenetapkan: ...\nPertama: ...\nKedua: ...\n`,
+        'SURAT_EDARAN': `SURAT EDARAN\nNomor: \n\nKepada Yth,\nSegenap Karyawan/Staff\nDi Lingkungan Yayasan\n\nPerihal: [Isi Perihal]\n\nAssalamu’alaikum Warahmatullahi Wabarakatuh\nDengan hormat,\n\n[Isi Surat Edaran]\n\nDemikian surat edaran ini kami sampaikan, atas perhatian dan kerja samanya kami ucapkan terima kasih.\nWassalamu’alaikum Warahmatullahi Wabarakatuh`,
+        'BAST': `BERITA ACARA SERAH TERIMA (BAST)\n\nPada hari ini, tanggal [Tanggal], kami yang bertanda tangan di bawah ini:\n\nNama: [Pihak Pertama]\nJabatan:\nSelanjutnya disebut PIHAK PERTAMA\n\nNama: [Pihak Kedua]\nJabatan:\nSelanjutnya disebut PIHAK KEDUA\n\nPIHAK PERTAMA menyerahkan kepada PIHAK KEDUA berupa:\n1. [Nama Barang]\n\nDemikian Berita Acara ini dibuat untuk dipergunakan sebagaimana mestinya.`
+    };
+
+    const handleTypeChange = (e) => {
+        const type = e.target.value;
+        const autoContent = templates[type] || '';
+        setNewDocForm({...newDocForm, type, content: autoContent});
+    };
 
     const handleCreateDocument = async (e) => {
         e.preventDefault();
@@ -85,6 +104,17 @@ const DocumentManagement = () => {
             alert("Draft Dokumen Berhasil Dibuat");
         } catch(err) {
             alert(err.response?.data?.error || "Gagal membuat dokumen. Pastikan DB sinkron.");
+        }
+    };
+
+    const handleAction = async (actionId, docId) => {
+        try {
+            await api.post(`/documents/${docId}/${actionId}`);
+            setSelectedDoc(null);
+            fetchDocuments();
+            alert("Aksi berhasil dieksekusi!");
+        } catch (err) {
+            alert(err.response?.data?.error || "Gagal mengeksekusi aksi.");
         }
     };
 
@@ -256,7 +286,7 @@ const DocumentManagement = () => {
                                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Jenis Surat</label>
                                         <select 
                                             value={newDocForm.type}
-                                            onChange={e => setNewDocForm({...newDocForm, type: e.target.value})}
+                                            onChange={handleTypeChange}
                                             className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all outline-none"
                                             required
                                         >
@@ -264,6 +294,7 @@ const DocumentManagement = () => {
                                             <option value="SURAT_TUGAS">Surat Tugas</option>
                                             <option value="SURAT_KEPUTUSAN">Surat Keputusan</option>
                                             <option value="SURAT_EDARAN">Surat Edaran</option>
+                                            <option value="BAST">Berita Acara (BAST)</option>
                                         </select>
                                     </div>
                                     <div>
@@ -320,26 +351,24 @@ const DocumentManagement = () => {
                                 </div>
                                 <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-4 mt-2">
                                     <div>
-                                        <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest mb-2">1. Pilih Pemaraf (Reviewer)</label>
+                                        <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest mb-2">1. Pilih Pemaraf (Opsional)</label>
                                         <select 
                                             value={approvers.parafId}
                                             onChange={e => setApprovers({...approvers, parafId: e.target.value})}
                                             className="w-full bg-white border border-amber-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-amber-100 focus:border-amber-400 transition-all outline-none"
-                                            required
                                         >
-                                            <option value="">-- Pilih Pejabat Pemaraf --</option>
+                                            <option value="">-- Lewati Tahap Paraf --</option>
                                             {users.map(u => <option key={u.id} value={u.id}>{u.name} - {u.role}</option>)}
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-2">2. Pilih Penandatangan (Sign)</label>
+                                        <label className="block text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-2">2. Pilih Penandatangan (Opsional)</label>
                                         <select 
                                             value={approvers.signId}
                                             onChange={e => setApprovers({...approvers, signId: e.target.value})}
                                             className="w-full bg-white border border-emerald-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400 transition-all outline-none"
-                                            required
                                         >
-                                            <option value="">-- Pilih Penandatangan Akhir --</option>
+                                            <option value="">-- Lewati / Langsung Eksekusi --</option>
                                             {users.map(u => <option key={u.id} value={u.id}>{u.name} - {u.role}</option>)}
                                         </select>
                                     </div>
@@ -418,7 +447,34 @@ const DocumentManagement = () => {
                             </div>
                         </div>
                         
-                        <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end gap-3">
+                        <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-between items-center gap-3">
+                            <div className="flex gap-2">
+                                {selectedDoc.status === 'DRAFT' && currentUser && selectedDoc.creatorId === currentUser.id && (
+                                    <button onClick={() => handleAction('submit', selectedDoc.id)} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-200 flex items-center gap-2 transition-all active:scale-95">
+                                        <Send size={16} /> Ajukan / Sahkan
+                                    </button>
+                                )}
+                                
+                                {['WAITING_PARAF', 'WAITING_SIGN'].includes(selectedDoc.status) && selectedDoc.approvals && currentUser && (
+                                    selectedDoc.approvals.some(a => a.userId === currentUser.id && a.status === 'PENDING') && (
+                                        <>
+                                            <button onClick={() => handleAction('approve', selectedDoc.id)} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95">
+                                                <CheckCircle2 size={16} /> {selectedDoc.status === 'WAITING_PARAF' ? 'Berikan Paraf' : 'Tanda Tangani (TTE)'}
+                                            </button>
+                                            <button onClick={() => handleAction('reject', selectedDoc.id)} className="px-5 py-2.5 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95">
+                                                <X size={16} /> Tolak Dokumen
+                                            </button>
+                                        </>
+                                    )
+                                )}
+
+                                {selectedDoc.status === 'SIGNED' && (
+                                    <button className="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95">
+                                        <QrCode size={16} /> Cetak (Dengan QR Barcode)
+                                    </button>
+                                )}
+                            </div>
+                            
                             <button onClick={() => setSelectedDoc(null)} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-100 transition-colors">
                                 Tutup
                             </button>
