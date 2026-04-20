@@ -1476,9 +1476,12 @@ exports.getKPILeaderboard = async (req, res) => {
             const punctualityScore = completedAssignments > 0 ? (punctualAssignments / completedAssignments) * 100 : 0;
 
             // Insidental reports (non-auto, non-plan daily reports)
-            const insidentalCount = await prisma.personnelReport.count({
-                where: { userId: s.id, type: 'DAILY', date: { gte: startDate, lte: endDate }, NOT: { category: 'AUTO_LOG' } }
+            // Note: 'AUTO_LOG' is not a valid enum, so filter via metadata in JS
+            const dailyReports = await prisma.personnelReport.findMany({
+                where: { userId: s.id, type: 'DAILY', date: { gte: startDate, lte: endDate } },
+                select: { metadata: true }
             });
+            const insidentalCount = dailyReports.filter(r => !r.metadata?.autoLog).length;
             const insidentalScore = Math.min((insidentalCount / 5) * 100, 100);
 
             // Final: 50% completion + 20% punctuality + 30% insidental
