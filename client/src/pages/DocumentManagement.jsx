@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
     FileText, FileSignature, Inbox, Send, Search, Plus, 
-    Filter, MoreVertical, QrCode, CheckCircle2, Clock, 
+    Filter, MoreVertical, QrCode, CheckCircle2, Clock,
     FilePlus, PenTool, ExternalLink, X, Save
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useNavigate, useParams } from 'react-router-dom';
-import api from '../lib/api';
+import api from '../lib/axios';
 
 const Badge = ({ children, className }) => (
     <span className={cn("px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center gap-1.5 w-fit shrink-0", className)}>
