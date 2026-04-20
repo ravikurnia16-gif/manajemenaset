@@ -6,7 +6,7 @@ import {
     MapPin, Loader2, Target, Timer, TrendingUp, Sparkles, Users,
     Activity, Crown, Medal, Send, Trash2, RotateCcw, Tag, Edit3,
     ShieldCheck, MessageSquare, ListChecks, Flag, LayoutDashboard,
-    PieChart as PieIcon, BarChart3
+    PieChart as PieIcon, BarChart3, Coffee, CalendarX
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -467,6 +467,8 @@ const StaffPerformance = () => {
     const [editingPlan, setEditingPlan] = useState(null);
     const [editingRoutine, setEditingRoutine] = useState(null);
     const [editingAssignment, setEditingAssignment] = useState(null);
+    const [showLiburModal, setShowLiburModal] = useState(false);
+    const [liburTask, setLiburTask] = useState(null);
 
     // Filters
     const [filterStaff, setFilterStaff] = useState('ALL');
@@ -579,7 +581,12 @@ const StaffPerformance = () => {
 
     // --- HANDLERS ---
     const handleUpdateAssignment = async (id, data) => {
-        try { await api.put(`/personnel/assignments/${id}/status`, data); await fetchAllAssignments(pagination.currentPage, pageSize); } catch { alert('Gagal memperbarui'); }
+        try { 
+            await api.put(`/personnel/assignments/${id}/status`, data); 
+            setShowLiburModal(false);
+            setLiburTask(null);
+            await fetchAllAssignments(pagination.currentPage, pageSize); 
+        } catch { alert('Gagal memperbarui'); }
     };
 
     const handleDeleteRoutine = async (id) => {
@@ -834,6 +841,7 @@ const StaffPerformance = () => {
             {/* ─── MODALS ─── */}
             <RencanaFormModal open={showRencanaModal} onClose={() => { setShowRencanaModal(false); setEditingPlan(null); }} onSubmit={handleCreatePlan} submitting={submitting} editing={editingPlan} />
             <TugasFormModal open={showTugasModal} onClose={() => { setShowTugasModal(false); setEditingAssignment(null); }} onSubmit={handleCreateTask} submitting={submitting} staffList={staffList} editing={editingAssignment} />
+            <LiburFormModal open={showLiburModal} onClose={() => setShowLiburModal(false)} onSubmit={handleUpdateAssignment} submitting={submitting} task={liburTask} />
             <DailyActivityFormModal open={showDailyModal} onClose={() => setShowDailyModal(false)} onSubmit={handleCreateDailyReport} submitting={submitting} />
             <RutinitasFormModal open={showRutinitasModal} onClose={() => { setShowRutinitasModal(false); setEditingRoutine(null); }} onSubmit={async (formData) => {
                 setSubmitting(true);
@@ -1249,12 +1257,32 @@ const RutinitasTab = ({ assignments, templates, onUpdate, onDeleteRoutine, onEdi
                                                     <p className="text-[10px] font-bold text-slate-400">{done}/{items.length} selesai • {fmtDate(a.createdAt, { day: '2-digit', month: 'short' })}</p>
                                                 </div>
                                             </div>
-                                            <Badge className={pct === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>{pct === 100 ? 'Lunas' : 'Aktif'}</Badge>
+                                            <div className="flex items-center gap-2">
+                                                <Badge className={pct === 100 ? 'bg-emerald-100 text-emerald-700' : a.status === 'LIBUR' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}>
+                                                    {pct === 100 ? 'Lunas' : a.status === 'LIBUR' ? 'Libur' : 'Aktif'}
+                                                </Badge>
+                                                {a.status !== 'LIBUR' && pct < 100 && (
+                                                    <button onClick={(e) => { e.stopPropagation(); setLiburTask(a); setShowLiburModal(true); }} className="p-1.5 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-lg transition-all" title="Tandai Libur/Skip">
+                                                        <Coffee size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
                                             <div className={`p-1.5 rounded-lg transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                                 {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                             </div>
                                         </div>
-                                        {isOpen && (
+                                        {a.status === 'LIBUR' && (
+                                            <div className="px-16 pb-4 -mt-2">
+                                                <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 flex items-start gap-3">
+                                                    <CalendarX size={14} className="text-indigo-400 mt-0.5" />
+                                                    <div className="flex-1">
+                                                        <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Alasan Libur / Dilewati:</p>
+                                                        <p className="text-xs font-bold text-slate-600">{a.notes || 'Tidak ada alasan spesifik'}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {isOpen && a.status !== 'LIBUR' && (
                                             <TaskChecklist assignment={a} onUpdate={onUpdate} isAssignee={isAssignee} isAdmin={isKabid} />
                                         )}
                                     </div>
@@ -1817,6 +1845,41 @@ const RutinitasFormModal = ({ open, onClose, onSubmit, submitting, editing }) =>
                     {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                     {submitting ? 'Menyimpan...' : (editing ? 'Simpan Perubahan' : 'Simpan Rutinitas')}
                 </button>
+            </form>
+        </Modal>
+    );
+};
+
+const LiburFormModal = ({ open, onClose, onSubmit, submitting, task }) => {
+    const [reason, setReason] = useState('');
+
+    useEffect(() => {
+        if (open) setReason('');
+    }, [open]);
+
+    const submit = e => {
+        e.preventDefault();
+        onSubmit(task.id, { status: 'LIBUR', notes: reason });
+    };
+
+    return (
+        <Modal open={open} onClose={onClose} title="Tandai Pegawai Libur" icon={Coffee}>
+            <form onSubmit={submit} className="space-y-4">
+                <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 mb-4">
+                    <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest mb-1">Tugas yang dilewati:</p>
+                    <p className="text-sm font-black text-slate-800 italic uppercase truncate leading-tight">{task?.title}</p>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Alasan / Keterangan</label>
+                    <textarea value={reason} onChange={e => setReason(e.target.value)} required rows={3} placeholder="Contoh: Cuti Tahunan, Izin Sakit, Libur Nasional..."
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-slate-700 focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition-all placeholder:text-slate-300" />
+                </div>
+                <div className="flex gap-3 pt-2">
+                    <button type="button" onClick={onClose} disabled={submitting} className="flex-1 px-6 py-3 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">Batal</button>
+                    <button type="submit" disabled={submitting} className="flex-[2] px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2">
+                        {submitting ? <Loader2 size={14} className="animate-spin" /> : <><CheckCircle size={14} /> Simpan Status Libur</>}
+                    </button>
+                </div>
             </form>
         </Modal>
     );

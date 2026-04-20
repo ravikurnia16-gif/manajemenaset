@@ -773,6 +773,7 @@ enum AssignmentStatus {
   IN_PROGRESS
   COMPLETED
   CANCELLED
+  LIBUR
 }
 
 model PersonnelAssignment {

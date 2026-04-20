@@ -1452,15 +1452,16 @@ exports.getKPILeaderboard = async (req, res) => {
                 planItemsCompleted += items.filter(i => i.percentage === 100 || i.status === 'SELESAI').length;
             });
 
-            // Assignment stats
-            const completedAssignments = assignments.filter(a => a.status === 'COMPLETED').length;
-            const punctualAssignments = assignments.filter(a =>
+            // Assignment stats: Exclude 'LIBUR' from the denominator so they aren't penalized
+            const activeAssignments = assignments.filter(a => a.status !== 'LIBUR');
+            const completedAssignments = activeAssignments.filter(a => a.status === 'COMPLETED').length;
+            const punctualAssignments = activeAssignments.filter(a =>
                 a.status === 'COMPLETED' && a.actualCompletionDate && a.dueDate &&
                 new Date(a.actualCompletionDate) <= new Date(a.dueDate)
             ).length;
 
             // Combined scheduled work score
-            const totalScheduled = assignments.length + planItemsTotal;
+            const totalScheduled = activeAssignments.length + planItemsTotal;
             const completedScheduled = completedAssignments + planItemsCompleted;
             const scheduledScore = totalScheduled > 0 ? (completedScheduled / totalScheduled) * 100 : 0;
             const punctualityScore = completedAssignments > 0 ? (punctualAssignments / completedAssignments) * 100 : 0;
