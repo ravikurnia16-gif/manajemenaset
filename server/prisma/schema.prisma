@@ -88,6 +88,10 @@ model User {
   personnelKPIs      PersonnelKPI[]
   pushSubscriptions  PushSubscription[]
 
+  // E-Office Extensions
+  createdDocuments   Document[]         @relation("DocumentCreator")
+  approvedDocuments  DocumentApproval[] @relation("DocumentApprover")
+
   // Driver Extensions
   licenseNumber    String?
   licenseType      String? // e.g., SIM A, SIM B1, SIM B2
@@ -1089,4 +1093,49 @@ model WaNotificationTemplate {
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+}
+
+// ==========================================
+// MODULE: E-OFFICE (MANAJEMEN DOKUMEN)
+// ==========================================
+
+model Document {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique // Nomor Surat (Otomatis / Manual)
+  type        String   @default("NOTA_DINAS") // SURAT_TUGAS, NOTA_DINAS, SURAT_KEPUTUSAN, dll
+  title       String
+  content     String   @db.LongText // HTML atau struktur JSON dari Draft
+  status      String   @default("DRAFT") // DRAFT, WAITING_PARAF, WAITING_SIGN, SIGNED, REJECTED
+  urgency     String   @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
+  
+  creatorId   Int
+  creator     User     @relation("DocumentCreator", fields: [creatorId], references: [id])
+  
+  senderName  String?  // Nama Pengirim (bisa dimunculkan di kop)
+  fileUrl     String?  // Link PDF File jika sudah disahkan
+  hash        String?  @unique // Hash unik untuk pengecekan QR Code
+
+  approvals   DocumentApproval[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DocumentApproval {
+  id          Int      @id @default(autoincrement())
+  documentId  Int
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  userId      Int
+  user        User     @relation("DocumentApprover", fields: [userId], references: [id])
+  
+  type        String   @default("PARAF") // PARAF atau SIGN
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  step        Int      @default(1) // Urutan hirarki persetujuan
+  notes       String?  @db.Text
+
+  signature   String?  @db.LongText // TTE Base64 / Log Timestamp
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
