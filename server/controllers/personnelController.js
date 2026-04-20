@@ -1373,15 +1373,15 @@ exports.getKPILeaderboard = async (req, res) => {
         // Lenient matching: Must have "Kepala Bidang" AND ("Sarana dan Prasarana" OR "Sarpras")
         const isKabidTitle = userPosition.includes('kepala bidang');
         const isSarprasUnit = userPosition.includes('sarana dan prasarana') || userPosition.includes('sarpras');
-        
+
         // TEMPORARY: Allow role-based access if position check fails but it's a known KEPALA_BIDANG
         const isAdminRole = currentUser?.role === 'SUPER_ADMIN';
         const isAuthorized = isAdminRole || (isKabidTitle && isSarprasUnit) || currentUser?.role === 'KEPALA_BIDANG';
 
         if (!isAuthorized) {
             console.warn(`[AUTH-KPI] Unauthorized: User=${currentUser?.username}, Role=${currentUser?.role}, Pos=[${currentUser?.position}]`);
-            return res.status(403).json({ 
-                error: `Akses ditolak. Jabatan Anda Terdeteksi: "${currentUser?.position || 'Kosong'}", Role: "${currentUser?.role}". Silakan hubungi admin untuk update jabatan.` 
+            return res.status(403).json({
+                error: `Akses ditolak. Jabatan Anda Terdeteksi: "${currentUser?.position || 'Kosong'}", Role: "${currentUser?.role}". Silakan hubungi admin untuk update jabatan.`
             });
         }
 
@@ -1409,16 +1409,11 @@ exports.getKPILeaderboard = async (req, res) => {
                     {
                         OR: [
                             { position: { contains: 'Staff Manajemen Aset' } },
-                            { position: { contains: 'Staff Manajamen Aset' } },
-                            { position: { contains: 'Staff Gudang' } },
                             { position: { contains: 'Staff Kendaraan' } },
-                            { position: { contains: 'Staff Teknisi' } },
-                            { position: { contains: 'Staff Keuangan' } },
-                            { position: { contains: 'Staf Manajemen Aset' } },
-                            { position: { contains: 'Staf Gudang' } },
+                            { position: { contains: 'Staff Teknisi Aset' } },
+                            { position: { contains: 'Staff Keuangan dan Administrasi' } },
+                            { position: { contains: 'Staf Gudang dan Logistik' } },
                             { position: { contains: 'Staf Kendaraan' } },
-                            { position: { contains: 'Staf Teknisi' } },
-                            { position: { contains: 'Staf Keuangan' } },
                         ]
                     },
                     {
@@ -1451,8 +1446,8 @@ exports.getKPILeaderboard = async (req, res) => {
             // 2. Due in this month, OR
             // 3. Still active (IN_PROGRESS/PENDING) regardless of when created
             const assignments = await prisma.personnelAssignment.findMany({
-                where: { 
-                    assigneeId: s.id, 
+                where: {
+                    assigneeId: s.id,
                     OR: [
                         { dueDate: { gte: startDate, lte: endDate } },
                         { createdAt: { gte: startDate, lte: endDate } },
@@ -2060,8 +2055,8 @@ exports.getPersonnelAISummary = async (req, res) => {
 
         if (!isAuthorized) {
             console.warn(`[AUTH-AI] Unauthorized: User=${currentUser?.username}, Pos=[${currentUser?.position}]`);
-            return res.status(403).json({ 
-                error: `Akses ditolak. Jabatan Di database: "${currentUser?.position || 'Kosong'}".` 
+            return res.status(403).json({
+                error: `Akses ditolak. Jabatan Di database: "${currentUser?.position || 'Kosong'}".`
             });
         }
 
