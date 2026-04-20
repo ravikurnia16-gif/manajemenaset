@@ -432,7 +432,7 @@ const StaffPerformance = () => {
     // Lenient matching for UI tabs
     const isKabidTitle = userPosition.includes('kepala bidang');
     const isSarprasUnit = userPosition.includes('sarana dan prasarana') || userPosition.includes('sarpras');
-    const isKabid = userRole === 'SUPER_ADMIN' || (isKabidTitle && isSarprasUnit);
+    const isKabid = userRole === 'SUPER_ADMIN' || (isKabidTitle && isSarprasUnit) || userRole === 'KEPALA_BIDANG';
     const isAdmin = isKabid; 
     
     // Staff list for filter
@@ -570,8 +570,11 @@ const StaffPerformance = () => {
         try {
             const res = await api.get(`/personnel/kpi-leaderboard?month=${filterPeriod.month}&year=${filterPeriod.year}`);
             setLeaderboard(res.data.leaderboard || []);
+            if (res.data.staffCount === 0) {
+                console.warn('[KPI] Backend found 0 staff members. Check position data in DB.');
+            }
         } catch (err) {
-            console.error('Fetch KPI Error:', err);
+            console.error('Fetch KPI Error:', err?.response?.data?.error || err.message);
             setLeaderboard([]);
         }
     };
@@ -695,8 +698,16 @@ const StaffPerformance = () => {
                 {isAdmin && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                         {(() => {
-                            const totalPlanned = leaderboard.reduce((acc, curr) => acc + (curr.stats?.total || 0), 0);
-                            const totalDone = leaderboard.reduce((acc, curr) => acc + (curr.stats?.completed || 0), 0);
+                            // Use leaderboard data if available, otherwise fallback to local assignments + plans
+                            const kpiTotal = leaderboard.reduce((acc, curr) => acc + (curr.stats?.total || 0), 0);
+                            const kpiDone = leaderboard.reduce((acc, curr) => acc + (curr.stats?.completed || 0), 0);
+                            
+                            // Fallback: use directly-fetched assignments + plans if KPI shows 0
+                            const localTotal = assignments.length + routineAssignments.length + plans.reduce((acc, p) => acc + (p.metadata?.items?.length || 0), 0);
+                            const localDone = assignments.filter(a => a.status === 'COMPLETED').length + routineAssignments.filter(a => a.status === 'COMPLETED').length + plans.reduce((acc, p) => acc + (p.metadata?.items?.filter(i => i.percentage === 100 || i.status === 'SELESAI')?.length || 0), 0);
+                            
+                            const totalPlanned = kpiTotal > 0 ? kpiTotal : localTotal;
+                            const totalDone = kpiTotal > 0 ? kpiDone : localDone;
                             const avgPct = totalPlanned > 0 ? Math.round((totalDone / totalPlanned) * 100) : 0;
                             const avgPunctual = leaderboard.length > 0 ? Math.round(leaderboard.reduce((acc, curr) => acc + (curr.scores?.punctuality || 0), 0) / leaderboard.length) : 0;
                             

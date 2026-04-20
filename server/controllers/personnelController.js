@@ -1388,24 +1388,30 @@ exports.getKPILeaderboard = async (req, res) => {
         const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
 
         // Get all staff from Sarpras (Broadened for variations)
+        // Build unit-based condition safely (avoid undefined in query)
+        const positionOrConditions = [
+            { position: { contains: 'sarana dan prasarana', mode: 'insensitive' } },
+            { position: { contains: 'sarpras', mode: 'insensitive' } },
+            { position: { contains: 'manajemen aset', mode: 'insensitive' } },
+            { position: { contains: 'manajamen aset', mode: 'insensitive' } },
+            { position: { contains: 'gudang', mode: 'insensitive' } },
+            { position: { contains: 'logistik', mode: 'insensitive' } },
+            { position: { contains: 'teknisi', mode: 'insensitive' } },
+            { position: { contains: 'keuangan', mode: 'insensitive' } },
+            { position: { contains: 'administrasi', mode: 'insensitive' } },
+            { position: { contains: 'kendaraan', mode: 'insensitive' } },
+            { position: { contains: 'staff', mode: 'insensitive' } },
+            { position: { contains: 'staf', mode: 'insensitive' } },
+        ];
+        // Only add unitId filter if it actually exists
+        if (currentUser.unitId) {
+            positionOrConditions.push({ unitId: currentUser.unitId });
+        }
+
         const staff = await prisma.user.findMany({
             where: {
                 AND: [
-                    {
-                        OR: [
-                            { position: { contains: 'sarana dan prasarana', mode: 'insensitive' } },
-                            { position: { contains: 'sarpras', mode: 'insensitive' } },
-                            { position: { contains: 'manajemen aset', mode: 'insensitive' } },
-                            { position: { contains: 'manajamen aset', mode: 'insensitive' } },
-                            { position: { contains: 'gudang', mode: 'insensitive' } },
-                            { position: { contains: 'logistik', mode: 'insensitive' } },
-                            { position: { contains: 'teknisi', mode: 'insensitive' } },
-                            { position: { contains: 'keuangan', mode: 'insensitive' } },
-                            { position: { contains: 'administrasi', mode: 'insensitive' } },
-                            { position: { contains: 'kendaraan', mode: 'insensitive' } },
-                            { unitId: currentUser.unitId || undefined } // Fallback: Same unit
-                        ]
-                    },
+                    { OR: positionOrConditions },
                     {
                         NOT: {
                             OR: [
@@ -1419,16 +1425,25 @@ exports.getKPILeaderboard = async (req, res) => {
             select: { id: true, name: true, position: true, unitId: true }
         });
 
+        console.log(`[KPI] Period: ${targetMonth}/${targetYear} | Staff found: ${staff.length} | By user: ${currentUser.username} (unitId: ${currentUser.unitId})`);
+        if (staff.length > 0) {
+            console.log(`[KPI] Staff list: ${staff.map(s => `${s.name}[${s.position}]`).join(', ')}`);
+        }
+
         const leaderboard = [];
 
         for (const s of staff) {
-            // Get all assignments relevant to this month (Due in this month OR created in this month)
+            // Get assignments relevant to this period:
+            // 1. Created in this month, OR
+            // 2. Due in this month, OR
+            // 3. Still active (IN_PROGRESS/PENDING) regardless of when created
             const assignments = await prisma.personnelAssignment.findMany({
                 where: { 
                     assigneeId: s.id, 
                     OR: [
                         { dueDate: { gte: startDate, lte: endDate } },
-                        { createdAt: { gte: startDate, lte: endDate } }
+                        { createdAt: { gte: startDate, lte: endDate } },
+                        { status: { in: ['IN_PROGRESS', 'PENDING'] } }
                     ]
                 }
             });
@@ -1476,21 +1491,25 @@ exports.getKPILeaderboard = async (req, res) => {
                 userId: s.id,
                 name: s.name,
                 position: s.position,
-                stats: { total: totalScheduled, completed: completedScheduled, punctual: punctualAssignments, inspidenalReports: insidentalCount, planItems: planItemsTotal },
+                stats: { total: totalScheduled, completed: completedScheduled, punctual: punctualAssignments, insidentalReports: insidentalCount, planItems: planItemsTotal },
                 scores: { completion: Math.round(scheduledScore), punctuality: Math.round(punctualityScore), insidental: Math.round(insidentalScore) },
                 averageScore: Math.round(averageScore * 10) / 10,
                 grade
             });
         }
 
+        console.log(`[KPI] Leaderboard built: ${leaderboard.length} entries, totalTasks: ${leaderboard.reduce((a, l) => a + l.stats.total, 0)}`);
+
         // Sort by score
         leaderboard.sort((a, b) => b.averageScore - a.averageScore);
 
         res.json({
             period: { month: targetMonth, year: targetYear },
+            staffCount: staff.length,
             leaderboard
         });
     } catch (error) {
+        console.error('[KPI] Error:', error.message);
         res.status(500).json({ error: error.message });
     }
 };
