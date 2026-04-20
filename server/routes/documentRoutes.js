@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const documentController = require('../controllers/documentController');
-const { requireAuth } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/authMiddleware');
 
 // Apply auth to all routes in this file
-router.use(requireAuth);
+router.use(verifyToken);
 
 router.get('/', documentController.getAllDocuments);
 router.post('/', documentController.createDocument);
