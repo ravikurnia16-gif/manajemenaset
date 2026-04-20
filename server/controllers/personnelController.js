@@ -1390,20 +1390,20 @@ exports.getKPILeaderboard = async (req, res) => {
         const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
 
         // Get all staff from Sarpras (Broadened for variations)
-        // Build unit-based condition safely (avoid undefined in query)
+        // MySQL is case-insensitive by default, no need for mode:'insensitive'
         const positionOrConditions = [
-            { position: { contains: 'sarana dan prasarana', mode: 'insensitive' } },
-            { position: { contains: 'sarpras', mode: 'insensitive' } },
-            { position: { contains: 'manajemen aset', mode: 'insensitive' } },
-            { position: { contains: 'manajamen aset', mode: 'insensitive' } },
-            { position: { contains: 'gudang', mode: 'insensitive' } },
-            { position: { contains: 'logistik', mode: 'insensitive' } },
-            { position: { contains: 'teknisi', mode: 'insensitive' } },
-            { position: { contains: 'keuangan', mode: 'insensitive' } },
-            { position: { contains: 'administrasi', mode: 'insensitive' } },
-            { position: { contains: 'kendaraan', mode: 'insensitive' } },
-            { position: { contains: 'staff', mode: 'insensitive' } },
-            { position: { contains: 'staf', mode: 'insensitive' } },
+            { position: { contains: 'sarana dan prasarana' } },
+            { position: { contains: 'sarpras' } },
+            { position: { contains: 'manajemen aset' } },
+            { position: { contains: 'manajamen aset' } },
+            { position: { contains: 'gudang' } },
+            { position: { contains: 'logistik' } },
+            { position: { contains: 'teknisi' } },
+            { position: { contains: 'keuangan' } },
+            { position: { contains: 'administrasi' } },
+            { position: { contains: 'kendaraan' } },
+            { position: { contains: 'staff' } },
+            { position: { contains: 'staf' } },
         ];
         // Only add unitId filter if it actually exists
         if (currentUser.unitId) {
@@ -1417,7 +1417,7 @@ exports.getKPILeaderboard = async (req, res) => {
                     {
                         NOT: {
                             OR: [
-                                { position: { contains: 'kepala bidang', mode: 'insensitive' } },
+                                { position: { contains: 'kepala bidang' } },
                                 { role: 'SUPER_ADMIN' }
                             ]
                         }

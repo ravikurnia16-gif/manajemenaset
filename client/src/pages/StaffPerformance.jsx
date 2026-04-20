@@ -454,6 +454,7 @@ const StaffPerformance = () => {
     const [routineTemplates, setRoutineTemplates] = useState([]);
     const [dailyLogs, setDailyLogs] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
+    const [kpiDiag, setKpiDiag] = useState('');
     const [aiSummary, setAiSummary] = useState('');
     const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
     const [staffList, setStaffList] = useState([]);
@@ -570,11 +571,11 @@ const StaffPerformance = () => {
         try {
             const res = await api.get(`/personnel/kpi-leaderboard?month=${filterPeriod.month}&year=${filterPeriod.year}`);
             setLeaderboard(res.data.leaderboard || []);
-            if (res.data.staffCount === 0) {
-                console.warn('[KPI] Backend found 0 staff members. Check position data in DB.');
-            }
+            setKpiDiag(res.data.staffCount === 0 ? 'Backend menemukan 0 staf. Periksa data jabatan di database.' : `${res.data.staffCount || '?'} staf ditemukan`);
         } catch (err) {
-            console.error('Fetch KPI Error:', err?.response?.data?.error || err.message);
+            const errMsg = err?.response?.data?.error || err.message || 'Unknown error';
+            console.error('Fetch KPI Error:', errMsg);
+            setKpiDiag(`API Error: ${errMsg}`);
             setLeaderboard([]);
         }
     };
@@ -808,7 +809,7 @@ const StaffPerformance = () => {
                               {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans.filter(p => inDateRange(p.metadata?.startDate || p.date))} assignments={assignments.filter(a => inDateRange(a.startDate || a.createdAt))} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} userId={user.id} isKabid={isKabid} />}
                               {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments.filter(a => inDateRange(a.createdAt))} templates={routineTemplates} onUpdate={handleUpdateAssignment} onDeleteRoutine={handleDeleteRoutine} onEditRoutine={(t) => { setEditingRoutine(t); setShowRutinitasModal(true); }} onEditAssignment={(a) => { setEditingAssignment(a); setShowTugasModal(true); }} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
                               {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs.filter(l => inDateRange(l.date))} isKabid={isKabid} />}
-                              {activeTab === 'KPI' && <KPITab leaderboard={leaderboard} />}
+                              {activeTab === 'KPI' && <KPITab leaderboard={leaderboard} diagMsg={kpiDiag} />}
 
                              {activeTab !== 'KPI' && pageSize !== 'all' && pagination.totalPages > 1 && (
                                 <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -1358,8 +1359,14 @@ const LaporanTab = ({ logs, isKabid }) => {
 // ============================================
 // TAB: KPI
 // ============================================
-const KPITab = ({ leaderboard }) => {
-    if (leaderboard.length === 0) return <EmptyState icon={Trophy} message="Belum ada data penilaian" />;
+const KPITab = ({ leaderboard, diagMsg }) => {
+    if (leaderboard.length === 0) return (
+        <div className="text-center py-16 space-y-4">
+            <Trophy className="mx-auto text-slate-300" size={48} />
+            <p className="text-sm font-bold text-slate-400">Belum ada data penilaian</p>
+            {diagMsg && <p className="text-[10px] font-mono text-rose-400 bg-rose-50 rounded-xl px-4 py-2 inline-block">{diagMsg}</p>}
+        </div>
+    );
 
     const RankIcon = ({ rank }) => {
         if (rank === 0) return <Crown className="text-amber-400 drop-shadow-lg" size={28} />;
