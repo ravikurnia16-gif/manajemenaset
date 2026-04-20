@@ -26,6 +26,7 @@ const DocumentManagement = () => {
     
     // Modal state
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [selectedDoc, setSelectedDoc] = useState(null);
     const [newDocForm, setNewDocForm] = useState({ title: '', content: '', type: 'NOTA_DINAS', urgency: 'NORMAL', destination: '', isManualCode: false, manualCode: '' });
     const [approvers, setApprovers] = useState({ parafId: '', signId: '' });
 
@@ -183,7 +184,7 @@ const DocumentManagement = () => {
                                 const StatusIcon = config.icon;
                                 
                                 return (
-                                    <div key={doc.id} className="group bg-white p-5 rounded-3xl border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:border-indigo-100 transition-all cursor-pointer">
+                                    <div key={doc.id} onClick={() => setSelectedDoc(doc)} className="group bg-white p-5 rounded-3xl border border-slate-100 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:border-indigo-100 transition-all cursor-pointer">
                                         <div className="flex flex-col md:flex-row gap-5 items-start md:items-center">
                                             
                                             {/* Icon & Type */}
@@ -374,6 +375,52 @@ const DocumentManagement = () => {
                             </button>
                             <button type="submit" form="docForm" className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-200 flex items-center gap-2 transition-all active:scale-95">
                                 <Save size={16} /> Simpan sebagai Draf
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* DETAIL MODAL */}
+            {selectedDoc && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transition-all duration-300">
+                    <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200">
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><FileText size={20} /></div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-slate-800">Detail Dokumen</h3>
+                                    <p className="text-xs font-medium text-slate-400">{selectedDoc.code}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setSelectedDoc(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50 space-y-6">
+                            <div className="flex flex-wrap gap-2">
+                                <Badge className="bg-slate-200/50 text-slate-600 border border-slate-300/30">{selectedDoc.type.replace('_', ' ')}</Badge>
+                                <Badge className={getStatusStyle(selectedDoc.status).bg + " " + getStatusStyle(selectedDoc.status).text}>{getStatusStyle(selectedDoc.status).label}</Badge>
+                                {selectedDoc.urgency === 'HIGH' && <Badge className="bg-rose-100 text-rose-600">URGENT</Badge>}
+                            </div>
+
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-800 mb-2">{selectedDoc.title}</h2>
+                                <div className="flex items-center gap-4 text-xs font-semibold text-slate-500 bg-white p-3 rounded-xl border border-slate-100">
+                                    <span>Tujuan: <span className="text-slate-700">{selectedDoc.destination || '-'}</span></span>
+                                    <span>Dibuat oleh: <span className="text-slate-700">{selectedDoc.senderName}</span></span>
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-2xl border border-slate-200 p-5 min-h-[200px]">
+                                <pre className="text-sm font-medium text-slate-700 whitespace-pre-wrap font-sans">{selectedDoc.content}</pre>
+                            </div>
+                        </div>
+                        
+                        <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end gap-3">
+                            <button onClick={() => setSelectedDoc(null)} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-100 transition-colors">
+                                Tutup
                             </button>
                         </div>
                     </div>
