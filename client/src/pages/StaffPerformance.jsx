@@ -94,7 +94,8 @@ const statusCfg = {
     'PENDING': { label: 'Menunggu', color: 'bg-amber-100 text-amber-700', icon: Clock },
     'IN_PROGRESS': { label: 'Proses', color: 'bg-indigo-100 text-indigo-700', icon: Zap },
     'COMPLETED': { label: 'Selesai', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
-    'OVERDUE': { label: 'Terlambat', color: 'bg-rose-100 text-rose-700', icon: AlertCircle }
+    'OVERDUE': { label: 'Terlambat', color: 'bg-rose-100 text-rose-700', icon: AlertCircle },
+    'LIBUR': { label: 'Libur', color: 'bg-slate-100 text-slate-500', icon: Coffee }
 };
 const priorityCfg = {
     'LOW': { label: 'Rendah', color: 'bg-slate-100 text-slate-500' },
@@ -990,11 +991,33 @@ const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignm
                                                 {a.dueDate && <span className="flex items-center gap-1"><Clock size={11} />{fmtDate(a.dueDate, { day: '2-digit', month: 'short' })}</span>}
                                             </div>
                                         </div>
-                                        <div className={`p-2 rounded-xl transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                            {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                        <div className="flex items-center gap-2">
+                                            {a.status !== 'LIBUR' && a.status !== 'COMPLETED' && (isAssignee || isKabid) && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); setLiburTask(a); setShowLiburModal(true); }} 
+                                                    className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 text-[10px] font-black text-slate-500 hover:bg-indigo-600 hover:text-white rounded-xl transition-all uppercase tracking-widest shadow-sm active:scale-95"
+                                                >
+                                                    <Coffee size={12} />
+                                                    <span>Libur</span>
+                                                </button>
+                                            )}
+                                            <div className={`p-2 rounded-xl transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                                {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                            </div>
                                         </div>
                                     </div>
-                                    {isOpen && (
+                                    {a.status === 'LIBUR' && (
+                                        <div className="px-16 pb-4 -mt-2">
+                                            <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 flex items-start gap-3">
+                                                <CalendarX size={14} className="text-indigo-400 mt-0.5" />
+                                                <div className="flex-1">
+                                                    <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Alasan Libur / Dilewati:</p>
+                                                    <p className="text-xs font-bold text-slate-600">{a.notes || 'Tidak ada alasan spesifik'}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {isOpen && a.status !== 'LIBUR' && (
                                         <TaskChecklist assignment={a} onUpdate={onUpdateAssignment} isAssignee={isAssignee} isAdmin={isKabid} />
                                     )}
                                 </div>
@@ -1261,9 +1284,13 @@ const RutinitasTab = ({ assignments, templates, onUpdate, onDeleteRoutine, onEdi
                                                 <Badge className={pct === 100 ? 'bg-emerald-100 text-emerald-700' : a.status === 'LIBUR' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}>
                                                     {pct === 100 ? 'Lunas' : a.status === 'LIBUR' ? 'Libur' : 'Aktif'}
                                                 </Badge>
-                                                {a.status !== 'LIBUR' && pct < 100 && (
-                                                    <button onClick={(e) => { e.stopPropagation(); setLiburTask(a); setShowLiburModal(true); }} className="p-1.5 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-lg transition-all" title="Tandai Libur/Skip">
-                                                        <Coffee size={14} />
+                                                {a.status !== 'LIBUR' && pct < 100 && (isAssignee || isKabid) && (
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); setLiburTask(a); setShowLiburModal(true); }} 
+                                                        className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 text-[10px] font-black text-slate-500 hover:bg-indigo-600 hover:text-white rounded-xl transition-all uppercase tracking-widest shadow-sm active:scale-95"
+                                                    >
+                                                        <Coffee size={12} />
+                                                        <span>Libur</span>
                                                     </button>
                                                 )}
                                             </div>
