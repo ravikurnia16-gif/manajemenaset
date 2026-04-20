@@ -1291,7 +1291,8 @@ exports.generateRoutineTasks = async () => {
             let shouldGenerate = false;
 
             if (routine.frequency === 'DAILY') {
-                shouldGenerate = true;
+                // Skip Saturday (6) and Sunday (0)
+                shouldGenerate = (dayOfWeek !== 0 && dayOfWeek !== 6);
             } else if (routine.frequency === 'WEEKLY' && routine.dayOfWeek === dayOfWeek) {
                 shouldGenerate = true;
             } else if (routine.frequency === 'MONTHLY' && routine.dayOfMonth === dayOfMonth) {
