@@ -814,8 +814,8 @@ const StaffPerformance = () => {
                     ) : (
                         <>
                               {activeTab === 'RINGKASAN' && <SummaryTab assignments={assignments} plans={plans} routineAssignments={routineAssignments} dailyLogs={dailyLogs} aiSummary={aiSummary} aiSummaryLoading={aiSummaryLoading} />}
-                              {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans.filter(p => inDateRange(p.metadata?.startDate || p.date))} assignments={assignments.filter(a => inDateRange(a.startDate || a.createdAt))} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} userId={user.id} isKabid={isKabid} />}
-                              {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments.filter(a => inDateRange(a.createdAt))} templates={routineTemplates} onUpdate={handleUpdateAssignment} onDeleteRoutine={handleDeleteRoutine} onEditRoutine={(t) => { setEditingRoutine(t); setShowRutinitasModal(true); }} onEditAssignment={(a) => { setEditingAssignment(a); setShowTugasModal(true); }} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
+                              {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans.filter(p => inDateRange(p.metadata?.startDate || p.date))} assignments={assignments.filter(a => inDateRange(a.startDate || a.createdAt))} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} setLiburTask={setLiburTask} setShowLiburModal={setShowLiburModal} userId={user.id} isKabid={isKabid} />}
+                              {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments.filter(a => inDateRange(a.createdAt))} templates={routineTemplates} onUpdate={handleUpdateAssignment} onDeleteRoutine={handleDeleteRoutine} onEditRoutine={(t) => { setEditingRoutine(t); setShowRutinitasModal(true); }} onEditAssignment={(a) => { setEditingAssignment(a); setShowTugasModal(true); }} setLiburTask={setLiburTask} setShowLiburModal={setShowLiburModal} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
                               {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs.filter(l => inDateRange(l.date))} isKabid={isKabid} />}
                               {activeTab === 'KPI' && <KPITab leaderboard={leaderboard} diagMsg={kpiDiag} />}
 
@@ -869,7 +869,7 @@ const StaffPerformance = () => {
 // ============================================
 // TAB: RENCANA & TUGAS (COMBINED)
 // ============================================
-const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignment, onEditPlan, userId, isKabid }) => {
+const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignment, onEditPlan, setLiburTask, setShowLiburModal, userId, isKabid }) => {
     const [expanded, setExpanded] = useState([]);
     const toggle = id => setExpanded(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
     const sortedPlans = [...plans].sort((a, b) => {
@@ -1208,7 +1208,7 @@ const TaskChecklist = ({ assignment, onUpdate, isAssignee, isAdmin }) => {
 // ============================================
 // TAB: RUTINITAS
 // ============================================
-const RutinitasTab = ({ assignments, templates, onUpdate, onDeleteRoutine, onEditRoutine, onEditAssignment, userId, isKabid, isAdmin }) => {
+const RutinitasTab = ({ assignments, templates, onUpdate, onDeleteRoutine, onEditRoutine, onEditAssignment, setLiburTask, setShowLiburModal, userId, isKabid, isAdmin }) => {
     const [expanded, setExpanded] = useState([]);
     const [showTemplates, setShowTemplates] = useState(false);
     const toggle = id => setExpanded(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
