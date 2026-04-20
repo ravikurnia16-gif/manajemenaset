@@ -7,6 +7,9 @@ import {
 import { cn } from '../lib/utils';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../lib/axios';
+import { useReactToPrint } from 'react-to-print';
+import QRCode from 'react-qr-code';
+import { useRef } from 'react';
 
 const Badge = ({ children, className }) => (
     <span className={cn("px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center gap-1.5 w-fit shrink-0", className)}>
@@ -30,6 +33,12 @@ const DocumentManagement = () => {
     const [newDocForm, setNewDocForm] = useState({ title: '', content: '', type: 'NOTA_DINAS', urgency: 'NORMAL', destination: '', isManualCode: false, manualCode: '' });
     const [approvers, setApprovers] = useState({ parafId: '', signId: '' });
     const [currentUser, setCurrentUser] = useState(null);
+    
+    const printRef = useRef();
+    const handlePrint = useReactToPrint({
+        content: () => printRef.current,
+        documentTitle: selectedDoc?.code ? `Dokumen_${selectedDoc.code.replace(/\//g, '_')}` : 'Dokumen',
+    });
 
     const fetchUsersAndProfile = async () => {
         try {
@@ -469,7 +478,7 @@ const DocumentManagement = () => {
                                 )}
 
                                 {selectedDoc.status === 'SIGNED' && (
-                                    <button className="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95">
+                                    <button onClick={handlePrint} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95">
                                         <QrCode size={16} /> Cetak (Dengan QR Barcode)
                                     </button>
                                 )}
@@ -482,6 +491,65 @@ const DocumentManagement = () => {
                     </div>
                 </div>
             )}
+            {/* HIDDEN PRINT COMPONENT */}
+            <div className="hidden">
+                {selectedDoc && (
+                    <div ref={printRef} className="p-10 font-serif text-black bg-white w-[210mm] min-h-[297mm]">
+                        {/* KOP SURAT */}
+                        <div className="flex items-center border-b-2 border-black pb-4 mb-6">
+                            <div className="w-20 h-20 flex-shrink-0 flex items-center justify-center mr-6">
+                                {/* Placeholder for Logo */}
+                                <div className="w-16 h-16 border-2 border-slate-300 rounded-full flex items-center justify-center text-slate-400 text-xs font-bold font-sans">LOGO</div>
+                            </div>
+                            <div className="text-center flex-1">
+                                <h1 className="text-2xl font-bold uppercase tracking-wide text-slate-900">Yayasan Dar El-Iman</h1>
+                                <h2 className="text-lg font-bold text-slate-800">Divisi Sarana dan Prasarana</h2>
+                                <p className="text-sm text-slate-600">Jl. Gajah Mada No. 123, Padang, Sumatera Barat</p>
+                            </div>
+                            <div className="w-20 h-20 flex-shrink-0"></div>
+                        </div>
+
+                        {/* BODY */}
+                        <div className="mb-8 px-4">
+                            <div className="flex justify-between mb-8">
+                                <div>
+                                    <p>Nomor: {selectedDoc.code}</p>
+                                    <p>Lampiran: -</p>
+                                    <p>Perihal: {selectedDoc.title}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p>{new Date(selectedDoc.updatedAt || selectedDoc.createdAt).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
+                                </div>
+                            </div>
+                            
+                            {selectedDoc.destination && (
+                                <div className="mb-8">
+                                    <p>Kepada Yth,</p>
+                                    <p className="font-bold">{selectedDoc.destination}</p>
+                                    <p>di Tempat</p>
+                                </div>
+                            )}
+
+                            <div className="whitespace-pre-wrap leading-relaxed mt-4 text-justify min-h-[400px]">
+                                {selectedDoc.content}
+                            </div>
+                        </div>
+
+                        {/* FOOTER / SIGNATURE */}
+                        <div className="flex justify-end mt-16 text-center pr-8">
+                            <div className="w-64">
+                                <p className="mb-4">Dikeluarkan oleh,</p>
+                                <div className="flex flex-col items-center justify-center py-2 h-32">
+                                    <QRCode value={`https://simas.dareliman.or.id/validate/${selectedDoc.hash}`} size={90} level="H" />
+                                    <p className="text-[9px] mt-2 italic font-sans text-slate-500">Telah ditandatangani secara elektronik</p>
+                                </div>
+                                <p className="font-bold underline mt-2">{selectedDoc.senderName || 'Kepala Sarpras'}</p>
+                                <p className="text-sm">Divisi Sarana & Prasarana</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
