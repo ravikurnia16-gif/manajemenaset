@@ -1401,7 +1401,6 @@ exports.getKPILeaderboard = async (req, res) => {
                         { position: { contains: 'Staf Gudang dan Logistik' } },
                         { position: { contains: 'Staf Kendaraan' } },
                         { position: { contains: 'Sarana dan Prasarana' } },
-                        { position: { contains: 'Sarpras' } }
                     ]
                 },
                 {
