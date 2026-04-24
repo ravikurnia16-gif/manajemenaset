@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature } from 'lucide-react';
+import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const Sidebar = ({ isOpen = true }) => {
@@ -247,6 +247,9 @@ const Sidebar = ({ isOpen = true }) => {
                         </Link>
                         <Link to="/documents/sent" className={subNavItemClass('/documents/sent')}>
                             <ShoppingCart size={16} /> Terkirim
+                        </Link>
+                        <Link to="/documents/surat-masuk" className={subNavItemClass('/documents/surat-masuk')}>
+                            <Inbox size={16} /> Surat Masuk
                         </Link>
                         <Link to="/documents/archive" className={subNavItemClass('/documents/archive')}>
                             <Database size={16} /> Arsip & Validasi

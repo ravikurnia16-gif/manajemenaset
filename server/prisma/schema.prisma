@@ -91,6 +91,8 @@ model User {
   // E-Office Extensions
   createdDocuments   Document[]         @relation("DocumentCreator")
   approvedDocuments  DocumentApproval[] @relation("DocumentApprover")
+  signatureImage     String?            @db.LongText // TTE Base64 image
+  receivedMails      IncomingMail[]     @relation("MailReceiver")
 
   // Driver Extensions
   licenseNumber    String?
@@ -1141,4 +1143,31 @@ model DocumentApproval {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// --- SURAT MASUK (INCOMING MAIL) ---
+
+model IncomingMail {
+  id              Int      @id @default(autoincrement())
+  code            String   @unique // Nomor Surat Masuk (agenda)
+  senderName      String   // Nama Pengirim
+  senderOrg       String?  // Instansi / Organisasi Pengirim
+  senderAddress   String?  @db.Text
+  mailNumber      String?  // Nomor Surat dari Pengirim
+  mailDate        DateTime // Tanggal Surat
+  receivedDate    DateTime @default(now()) // Tanggal Diterima
+  subject         String   // Perihal
+  type            String   @default("UMUM") // UMUM, UNDANGAN, PEMBERITAHUAN, PERMOHONAN, LAINNYA
+  urgency         String   @default("NORMAL") // NORMAL, HIGH, URGENT
+  description     String?  @db.Text // Ringkasan / Catatan
+  attachmentUrl   String?  @db.LongText // File scan surat (Base64)
+  attachmentName  String?
+  disposition     String?  @db.Text // Disposisi / tindak lanjut
+  status          String   @default("DITERIMA") // DITERIMA, DIPROSES, DIDISPOSISI, SELESAI, ARSIP
+  
+  receivedById    Int
+  receivedBy      User     @relation("MailReceiver", fields: [receivedById], references: [id])
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

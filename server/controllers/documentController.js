@@ -20,6 +20,21 @@ const generateLetterCode = async (type) => {
     return `${prefix}/${num}/SARPRAS/${year}`;
 };
 
+// Helper for incoming mail code
+const generateMailCode = async () => {
+    const year = new Date().getFullYear();
+    const count = await prisma.incomingMail.count({
+        where: {
+            createdAt: {
+                gte: new Date(`${year}-01-01T00:00:00.000Z`),
+                lt: new Date(`${year + 1}-01-01T00:00:00.000Z`)
+            }
+        }
+    });
+    const num = (count + 1).toString().padStart(3, '0');
+    return `SM/${num}/SARPRAS/${year}`;
+};
+
 exports.getAllDocuments = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -40,6 +55,27 @@ exports.getAllDocuments = async (req, res) => {
     } catch (err) {
         console.error("Error fetching documents:", err);
         res.status(500).json({ error: "Gagal mengambil data dokumen" });
+    }
+};
+
+exports.getDocument = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const doc = await prisma.document.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                creator: { select: { id: true, name: true, nip: true, position: true, signatureImage: true } },
+                approvals: {
+                    include: { user: { select: { id: true, name: true, nip: true, position: true, signatureImage: true } } },
+                    orderBy: { step: 'asc' }
+                }
+            }
+        });
+        if (!doc) return res.status(404).json({ error: "Dokumen tidak ditemukan" });
+        res.json(doc);
+    } catch (err) {
+        console.error("Error fetching document:", err);
+        res.status(500).json({ error: "Gagal mengambil detail dokumen" });
     }
 };
 
@@ -93,6 +129,48 @@ exports.createDocument = async (req, res) => {
     }
 };
 
+exports.updateDocument = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, content, type, urgency, destination } = req.body;
+
+        const doc = await prisma.document.findUnique({ where: { id: parseInt(id) } });
+        if (!doc) return res.status(404).json({ error: "Dokumen tidak ditemukan" });
+        if (doc.status !== 'DRAFT') return res.status(400).json({ error: "Hanya Draf yang bisa diedit" });
+
+        const updated = await prisma.document.update({
+            where: { id: parseInt(id) },
+            data: {
+                ...(title && { title }),
+                ...(content && { content }),
+                ...(type && { type }),
+                ...(urgency && { urgency }),
+                ...(destination !== undefined && { destination }),
+            }
+        });
+        res.json(updated);
+    } catch (err) {
+        console.error("Error updating document:", err);
+        res.status(500).json({ error: "Gagal memperbarui dokumen" });
+    }
+};
+
+exports.deleteDocument = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const doc = await prisma.document.findUnique({ where: { id: parseInt(id) } });
+        if (!doc) return res.status(404).json({ error: "Dokumen tidak ditemukan" });
+        if (doc.status !== 'DRAFT') return res.status(400).json({ error: "Hanya Draf yang bisa dihapus" });
+
+        await prisma.documentApproval.deleteMany({ where: { documentId: parseInt(id) } });
+        await prisma.document.delete({ where: { id: parseInt(id) } });
+        res.json({ message: "Dokumen berhasil dihapus" });
+    } catch (err) {
+        console.error("Error deleting document:", err);
+        res.status(500).json({ error: "Gagal menghapus dokumen" });
+    }
+};
+
 exports.submitDocument = async (req, res) => {
     try {
         const { id } = req.params;
@@ -131,6 +209,7 @@ exports.approveDocument = async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.user.id;
+        const { signature } = req.body; // Base64 signature image from canvas
 
         const doc = await prisma.document.findUnique({
             where: { id: parseInt(id) },
@@ -143,10 +222,18 @@ exports.approveDocument = async (req, res) => {
         const pendingApproval = doc.approvals.find(a => a.userId === userId && a.status === 'PENDING');
         if (!pendingApproval) return res.status(400).json({ error: "Bukan giliran Anda atau sudah disetujui" });
 
+        // If a signature is provided from the canvas, use it
+        // Otherwise fall back to user's stored signature or timestamp
+        let signatureData = signature || null;
+        if (!signatureData) {
+            const user = await prisma.user.findUnique({ where: { id: userId }, select: { signatureImage: true } });
+            signatureData = user?.signatureImage || new Date().toISOString();
+        }
+
         // Update step ini
         await prisma.documentApproval.update({
             where: { id: pendingApproval.id },
-            data: { status: 'APPROVED', signature: new Date().toISOString() }
+            data: { status: 'APPROVED', signature: signatureData }
         });
 
         // Cek step berikutnya
@@ -169,6 +256,7 @@ exports.approveDocument = async (req, res) => {
 
         res.json({ message: "Berhasil disetujui" });
     } catch(err) {
+        console.error("Error approving document:", err);
         res.status(500).json({ error: "Gagal menyetujui surat" });
     }
 };
@@ -226,5 +314,137 @@ exports.validateDocumentQR = async (req, res) => {
     } catch(err) {
         console.error("Error validating QR:", err);
         res.status(500).json({ error: "Terjadi kesalahan pada validasi" });
+    }
+};
+
+// =============================================
+// SIGNATURE MANAGEMENT
+// =============================================
+
+exports.uploadSignature = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { signatureImage } = req.body;
+
+        if (!signatureImage) {
+            return res.status(400).json({ error: "Data tanda tangan tidak ditemukan" });
+        }
+
+        await prisma.user.update({
+            where: { id: userId },
+            data: { signatureImage }
+        });
+
+        res.json({ message: "Tanda tangan berhasil disimpan" });
+    } catch (err) {
+        console.error("Error uploading signature:", err);
+        res.status(500).json({ error: "Gagal menyimpan tanda tangan" });
+    }
+};
+
+exports.getMySignature = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { signatureImage: true }
+        });
+        res.json({ signatureImage: user?.signatureImage || null });
+    } catch (err) {
+        console.error("Error getting signature:", err);
+        res.status(500).json({ error: "Gagal mengambil tanda tangan" });
+    }
+};
+
+// =============================================
+// INCOMING MAIL (SURAT MASUK)
+// =============================================
+
+exports.getAllIncomingMail = async (req, res) => {
+    try {
+        const mails = await prisma.incomingMail.findMany({
+            include: {
+                receivedBy: { select: { id: true, name: true, position: true } }
+            },
+            orderBy: { receivedDate: 'desc' }
+        });
+        res.json(mails);
+    } catch (err) {
+        console.error("Error fetching incoming mail:", err);
+        res.status(500).json({ error: "Gagal mengambil data surat masuk" });
+    }
+};
+
+exports.createIncomingMail = async (req, res) => {
+    try {
+        const {
+            senderName, senderOrg, senderAddress, mailNumber,
+            mailDate, subject, type, urgency, description,
+            attachmentUrl, attachmentName, disposition
+        } = req.body;
+
+        const code = await generateMailCode();
+
+        const mail = await prisma.incomingMail.create({
+            data: {
+                code,
+                senderName,
+                senderOrg: senderOrg || null,
+                senderAddress: senderAddress || null,
+                mailNumber: mailNumber || null,
+                mailDate: new Date(mailDate),
+                subject,
+                type: type || 'UMUM',
+                urgency: urgency || 'NORMAL',
+                description: description || null,
+                attachmentUrl: attachmentUrl || null,
+                attachmentName: attachmentName || null,
+                disposition: disposition || null,
+                receivedById: req.user.id,
+            },
+            include: {
+                receivedBy: { select: { id: true, name: true, position: true } }
+            }
+        });
+
+        res.status(201).json(mail);
+    } catch (err) {
+        console.error("Error creating incoming mail:", err);
+        res.status(500).json({ error: "Gagal menyimpan surat masuk" });
+    }
+};
+
+exports.updateIncomingMail = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, disposition, ...rest } = req.body;
+
+        const mail = await prisma.incomingMail.update({
+            where: { id: parseInt(id) },
+            data: {
+                ...(status && { status }),
+                ...(disposition !== undefined && { disposition }),
+                ...rest
+            },
+            include: {
+                receivedBy: { select: { id: true, name: true, position: true } }
+            }
+        });
+
+        res.json(mail);
+    } catch (err) {
+        console.error("Error updating incoming mail:", err);
+        res.status(500).json({ error: "Gagal memperbarui surat masuk" });
+    }
+};
+
+exports.deleteIncomingMail = async (req, res) => {
+    try {
+        const { id } = req.params;
+        await prisma.incomingMail.delete({ where: { id: parseInt(id) } });
+        res.json({ message: "Surat masuk berhasil dihapus" });
+    } catch (err) {
+        console.error("Error deleting incoming mail:", err);
+        res.status(500).json({ error: "Gagal menghapus surat masuk" });
     }
 };
