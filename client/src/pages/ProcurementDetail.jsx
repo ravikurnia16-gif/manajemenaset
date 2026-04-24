@@ -1055,7 +1055,7 @@ const ProcurementDetail = () => {
                                                 {savingItems[item.id] === true ? (
                                                     <><div style={{ width: 12, height: 12, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} /> Memproses...</>
                                                 ) : savingItems[item.id] === 'done' ? (
-                                                    <><Check size={14} /> Tersimpan</>
+                                                    <><CheckCircle size={14} /> Tersimpan</>
                                                 ) : (
                                                     'Simpan Item Ini'
                                                 )}
