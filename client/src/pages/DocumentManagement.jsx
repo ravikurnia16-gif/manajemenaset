@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
     FileText, FileSignature, Inbox, Send, Search, Plus, 
     Filter, MoreVertical, QrCode, CheckCircle2, Clock,
-    FilePlus, PenTool, ExternalLink, X, Save
+    FilePlus, PenTool, ExternalLink, X, Save, Mail
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../lib/axios';
 import { useReactToPrint } from 'react-to-print';
 import QRCode from 'react-qr-code';
-import { useRef } from 'react';
+import SignatureCanvas from '../components/eoffice/SignatureCanvas';
+import DocumentPrintView from '../components/eoffice/DocumentPrintView';
+import IncomingMailTab from '../components/eoffice/IncomingMailTab';
 
 const Badge = ({ children, className }) => (
     <span className={cn("px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center gap-1.5 w-fit shrink-0", className)}>
@@ -33,6 +35,9 @@ const DocumentManagement = () => {
     const [newDocForm, setNewDocForm] = useState({ title: '', content: '', type: 'NOTA_DINAS', urgency: 'NORMAL', destination: '', isManualCode: false, manualCode: '' });
     const [approvers, setApprovers] = useState({ parafId: '', signId: '' });
     const [currentUser, setCurrentUser] = useState(null);
+    const [showSignCanvas, setShowSignCanvas] = useState(false);
+    const [signingDocId, setSigningDocId] = useState(null);
+    const [settings, setSettings] = useState(null);
     
     const printRef = useRef();
     const handlePrint = useReactToPrint({
@@ -42,12 +47,14 @@ const DocumentManagement = () => {
 
     const fetchUsersAndProfile = async () => {
         try {
-            const [usersRes, profileRes] = await Promise.all([
+            const [usersRes, profileRes, settingsRes] = await Promise.all([
                 api.get('/users'),
-                api.get('/users/profile')
+                api.get('/users/profile'),
+                api.get('/settings').catch(() => ({ data: null }))
             ]);
             setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
             setCurrentUser(profileRes.data);
+            if (settingsRes.data) setSettings(settingsRes.data);
         } catch (err) { console.error(err); }
     };
 
@@ -116,9 +123,9 @@ const DocumentManagement = () => {
         }
     };
 
-    const handleAction = async (actionId, docId) => {
+    const handleAction = async (actionId, docId, extraData) => {
         try {
-            await api.post(`/documents/${docId}/${actionId}`);
+            await api.post(`/documents/${docId}/${actionId}`, extraData || {});
             setSelectedDoc(null);
             fetchDocuments();
             alert("Aksi berhasil dieksekusi!");
@@ -127,10 +134,24 @@ const DocumentManagement = () => {
         }
     };
 
+    const handleSignWithCanvas = (docId) => {
+        setSigningDocId(docId);
+        setShowSignCanvas(true);
+    };
+
+    const handleSignatureSaved = async (signatureData) => {
+        setShowSignCanvas(false);
+        if (signingDocId) {
+            await handleAction('approve', signingDocId, { signature: signatureData });
+            setSigningDocId(null);
+        }
+    };
+
     const tabs = [
         { id: 'INBOX', label: 'Kotak Masuk', icon: Inbox },
         { id: 'DRAFT', label: 'Draf Saya', icon: FileText },
         { id: 'SENT', label: 'Terkirim', icon: Send },
+        { id: 'SURAT-MASUK', label: 'Surat Masuk', icon: Mail },
         { id: 'ARCHIVE', label: 'Arsip & Validasi', icon: QrCode },
     ];
 
@@ -183,7 +204,10 @@ const DocumentManagement = () => {
 
             {/* Main Content Area */}
             <div className="max-w-4xl mx-auto">
-                {/* List Area */}
+                {/* Surat Masuk Tab */}
+                {activeTab === 'SURAT-MASUK' ? (
+                    <IncomingMailTab />
+                ) : (
                 <div>
                     {/* Toolbar */}
                     <div className="bg-white rounded-2xl p-2 pl-4 flex flex-col sm:flex-row items-center justify-between mb-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 gap-4">
@@ -269,6 +293,7 @@ const DocumentManagement = () => {
                         </div>
                     )}
                 </div>
+                )}
             </div>
 
             {/* CREATE DRAFT MODAL */}
@@ -467,8 +492,8 @@ const DocumentManagement = () => {
                                 {['WAITING_PARAF', 'WAITING_SIGN'].includes(selectedDoc.status) && selectedDoc.approvals && currentUser && (
                                     selectedDoc.approvals.some(a => a.userId === currentUser.id && a.status === 'PENDING') && (
                                         <>
-                                            <button onClick={() => handleAction('approve', selectedDoc.id)} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95">
-                                                <CheckCircle2 size={16} /> {selectedDoc.status === 'WAITING_PARAF' ? 'Berikan Paraf' : 'Tanda Tangani (TTE)'}
+                                            <button onClick={() => handleSignWithCanvas(selectedDoc.id)} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95">
+                                                <PenTool size={16} /> {selectedDoc.status === 'WAITING_PARAF' ? 'Berikan Paraf' : 'Tanda Tangani (TTE)'}
                                             </button>
                                             <button onClick={() => handleAction('reject', selectedDoc.id)} className="px-5 py-2.5 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95">
                                                 <X size={16} /> Tolak Dokumen
@@ -491,64 +516,17 @@ const DocumentManagement = () => {
                     </div>
                 </div>
             )}
+            {/* SIGNATURE CANVAS */}
+            {showSignCanvas && (
+                <SignatureCanvas
+                    onSave={handleSignatureSaved}
+                    onClose={() => { setShowSignCanvas(false); setSigningDocId(null); }}
+                />
+            )}
+
             {/* HIDDEN PRINT COMPONENT */}
             <div className="hidden">
-                {selectedDoc && (
-                    <div ref={printRef} className="p-10 font-serif text-black bg-white w-[210mm] min-h-[297mm]">
-                        {/* KOP SURAT */}
-                        <div className="flex items-center border-b-2 border-black pb-4 mb-6">
-                            <div className="w-20 h-20 flex-shrink-0 flex items-center justify-center mr-6">
-                                {/* Placeholder for Logo */}
-                                <div className="w-16 h-16 border-2 border-slate-300 rounded-full flex items-center justify-center text-slate-400 text-xs font-bold font-sans">LOGO</div>
-                            </div>
-                            <div className="text-center flex-1">
-                                <h1 className="text-2xl font-bold uppercase tracking-wide text-slate-900">Yayasan Dar El-Iman</h1>
-                                <h2 className="text-lg font-bold text-slate-800">Divisi Sarana dan Prasarana</h2>
-                                <p className="text-sm text-slate-600">Jl. Gajah Mada No. 123, Padang, Sumatera Barat</p>
-                            </div>
-                            <div className="w-20 h-20 flex-shrink-0"></div>
-                        </div>
-
-                        {/* BODY */}
-                        <div className="mb-8 px-4">
-                            <div className="flex justify-between mb-8">
-                                <div>
-                                    <p>Nomor: {selectedDoc.code}</p>
-                                    <p>Lampiran: -</p>
-                                    <p>Perihal: {selectedDoc.title}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p>{new Date(selectedDoc.updatedAt || selectedDoc.createdAt).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
-                                </div>
-                            </div>
-                            
-                            {selectedDoc.destination && (
-                                <div className="mb-8">
-                                    <p>Kepada Yth,</p>
-                                    <p className="font-bold">{selectedDoc.destination}</p>
-                                    <p>di Tempat</p>
-                                </div>
-                            )}
-
-                            <div className="whitespace-pre-wrap leading-relaxed mt-4 text-justify min-h-[400px]">
-                                {selectedDoc.content}
-                            </div>
-                        </div>
-
-                        {/* FOOTER / SIGNATURE */}
-                        <div className="flex justify-end mt-16 text-center pr-8">
-                            <div className="w-64">
-                                <p className="mb-4">Dikeluarkan oleh,</p>
-                                <div className="flex flex-col items-center justify-center py-2 h-32">
-                                    <QRCode value={`https://simas.dareliman.or.id/validate/${selectedDoc.hash}`} size={90} level="H" />
-                                    <p className="text-[9px] mt-2 italic font-sans text-slate-500">Telah ditandatangani secara elektronik</p>
-                                </div>
-                                <p className="font-bold underline mt-2">{selectedDoc.senderName || 'Kepala Sarpras'}</p>
-                                <p className="text-sm">Divisi Sarana & Prasarana</p>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                <DocumentPrintView ref={printRef} doc={selectedDoc} settings={settings} />
             </div>
         </div>
     );
