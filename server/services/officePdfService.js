@@ -26,7 +26,7 @@ async function drawKopSurat(page, fontBold, fontRegular) {
     let y = height - 40;
     const centerX = width / 2;
 
-    // Embed and draw Yayasan Logo (Left Side) - Ramping (Slim)
+    // Embed and draw Yayasan Logo (Left Side)
     try {
         const logoPath = path.join(__dirname, '../assets/logo_yayasan.jpg');
         if (fs.existsSync(logoPath)) {
@@ -34,8 +34,8 @@ async function drawKopSurat(page, fontBold, fontRegular) {
             const logoImage = await page.doc.embedJpg(logoBytes);
             page.drawImage(logoImage, {
                 x: 45,
-                y: height - 125,
-                width: 70,
+                y: height - 120,
+                width: 100, // Widened to avoid 'ramping' look
                 height: 85,
             });
         }
@@ -43,17 +43,17 @@ async function drawKopSurat(page, fontBold, fontRegular) {
         console.error('Failed to embed yayasan logo:', e);
     }
 
-    // Embed and draw Sarpras Logo (Right Side) - Perkecil
+    // Embed and draw Sarpras Logo (Right Side)
     try {
         const sarprasPath = path.join(__dirname, '../assets/sarpras.jpeg');
         if (fs.existsSync(sarprasPath)) {
             const sarprasBytes = fs.readFileSync(sarprasPath);
             const sarprasImage = await page.doc.embedJpg(sarprasBytes);
             page.drawImage(sarprasImage, {
-                x: width - 115,
-                y: height - 122,
-                width: 80,
-                height: 80,
+                x: width - 125,
+                y: height - 115,
+                width: 75, // Smaller as requested
+                height: 75,
             });
         }
     } catch (e) {
@@ -479,11 +479,14 @@ async function generateSuratTugasPDF(doc, setting) {
             const nameText = `${task.personnelList.length > 1 ? (idx + 1) + '. ' : ': '}${p.name}`;
             page.drawText(nameText, { x: pX, y, size: 11, font: fontBold });
             y -= 14;
-
-            if (p.nip || p.position) {
-                const subText = `   ${p.position}${p.nip ? ' / NIP: ' + p.nip : ''}`;
-                page.drawText(subText, { x: pX, y, size: 10, font: fontRegular });
-                y -= 14;
+            
+            if (p.position) {
+                page.drawText(`   Jabatan : ${p.position}`, { x: pX, y, size: 10, font: fontRegular });
+                y -= 13;
+            }
+            if (p.nip) {
+                page.drawText(`   NIY       : ${p.nip}`, { x: pX, y, size: 10, font: fontRegular });
+                y -= 13;
             }
         });
     }
