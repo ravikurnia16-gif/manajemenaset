@@ -1,5 +1,7 @@
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const QRCode = require('qrcode');
+const fs = require('fs');
+const path = require('path');
 
 const BASE_URL = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
 
@@ -23,6 +25,23 @@ async function drawKopSurat(page, fontBold, fontRegular) {
     const { width, height } = page.getSize();
     let y = height - 40;
     const centerX = width / 2;
+    
+    // Embed and draw Yayasan Logo (Left Side)
+    try {
+        const logoPath = path.join(__dirname, '../assets/logo_yayasan.jpg');
+        if (fs.existsSync(logoPath)) {
+            const logoBytes = fs.readFileSync(logoPath);
+            const logoImage = await page.doc.embedJpg(logoBytes);
+            page.drawImage(logoImage, {
+                x: 50,
+                y: height - 125, // Align with text
+                width: 90,
+                height: 90,
+            });
+        }
+    } catch (e) {
+        console.error('Failed to embed yayasan logo:', e);
+    }
     
     const green = rgb(0.37, 0.77, 0.64); // YAYASAN DAR EL-IMAN
     const orange = rgb(0.95, 0.65, 0.48); // BIDANG SARANA
