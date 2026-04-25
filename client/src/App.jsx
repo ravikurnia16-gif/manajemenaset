@@ -54,7 +54,7 @@ import ReportPage from './pages/ReportPage';
 import ModulePlaceholder from './components/ModulePlaceholder';
 import OfficialResidence from './pages/OfficialResidence';
 import QuickComplete from './pages/QuickComplete';
-import DocumentManagement from './pages/DocumentManagement';
+
 
 // Komponen untuk melindungi route yang butuh login
 const ProtectedRoute = ({ children }) => {
@@ -145,9 +145,6 @@ function App() {
           <Route path="personalia/kpi" element={<Navigate to="/personalia/kinerja?tab=KPI" replace />} />
           <Route path="laporan" element={<ReportPage />} />
 
-          {/* Module: Manajemen Dokumen (E-Office) */}
-          <Route path="documents" element={<Navigate to="/documents/inbox" replace />} />
-          <Route path="documents/:tab" element={<DocumentManagement />} />
 
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />
         </Route>

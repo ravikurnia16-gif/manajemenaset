@@ -89,13 +89,7 @@ model User {
   personnelKPIs      PersonnelKPI[]
   pushSubscriptions  PushSubscription[]
 
-  // E-Office Extensions
-  createdDocuments   Document[]         @relation("DocumentCreator")
-  approvedDocuments  DocumentApproval[] @relation("DocumentApprover")
-  documentHistories  DocumentHistory[]  @relation("DocumentChanger")
-  signatures         SignatureLog[]     @relation("DocumentSigner")
-  signatureImage     String?            @db.LongText // TTE Base64 image
-  receivedMails      IncomingMail[]     @relation("MailReceiver")
+
 
   // Driver Extensions
   licenseNumber    String?
@@ -163,7 +157,7 @@ model Unit {
   rkbs         RKB[]
   procurements Procurement[]
   maintenances Maintenance[]
-  eofficeDocuments Document[]
+
 }
 
 model Room {
@@ -1101,125 +1095,3 @@ model WaNotificationTemplate {
   updatedAt          DateTime @updatedAt
 }
 
-// ==========================================
-// MODULE: E-OFFICE (MANAJEMEN DOKUMEN)
-// ==========================================
-
-model DocumentCategory {
-  id          Int        @id @default(autoincrement())
-  code        String     @unique // e.g., SURAT_KELUAR, BAST, SOP
-  name        String
-  documents   Document[]
-}
-
-model Document {
-  id            Int      @id @default(autoincrement())
-  categoryId    Int?
-  category      DocumentCategory? @relation(fields: [categoryId], references: [id])
-  
-  code          String   @unique // Nomor Surat (Otomatis / Manual)
-  type          String   @default("NOTA_DINAS") // SURAT_TUGAS, NOTA_DINAS, dll
-  title         String
-  content       String   @db.LongText // HTML atau struktur JSON dari Draft
-  
-  unitId        Int?     // Unit Pendidikan terkait
-  unit          Unit?    @relation(fields: [unitId], references: [id])
-  
-  status        String   @default("DRAFT") // DRAFT, WAITING_SIGN, SIGNED, REJECTED
-  urgency       String   @default("NORMAL")
-  destination   String?
-  isManualCode  Boolean  @default(false)
-  
-  // Khusus SOP
-  version       Int      @default(1)
-  reviewDate    DateTime? // Masa berlaku SOP
-  
-  // Signature & Security
-  hash          String?  @unique // Hash dokumen setelah ditandatangani
-  fileUrl       String?  @db.LongText // URL/Path ke PDF final yang read-only
-  qrCodeUrl     String?  @db.LongText // URL validasi QR Code
-  
-  // Audit
-  creatorId     Int
-  creator       User     @relation("DocumentCreator", fields: [creatorId], references: [id])
-  senderName    String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  histories     DocumentHistory[]
-  signatures    SignatureLog[]
-  approvals     DocumentApproval[]
-}
-
-model DocumentHistory {
-  id          Int      @id @default(autoincrement())
-  documentId  Int
-  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  version     Int
-  content     String   @db.LongText
-  changedById Int
-  changedBy   User     @relation("DocumentChanger", fields: [changedById], references: [id])
-  changeNote  String?  @db.Text
-  createdAt   DateTime @default(now())
-}
-
-model SignatureLog {
-  id              Int      @id @default(autoincrement())
-  documentId      Int
-  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  signerId        Int?     // User Internal (Kabid)
-  signer          User?    @relation("DocumentSigner", fields: [signerId], references: [id])
-  
-  signerName      String?  // Nama untuk pihak eksternal (BAST)
-  signerRole      String?  // Peran pihak eksternal (e.g., Vendor)
-  
-  signatureData   String   @db.LongText // Base64 Image TTD
-  signedAt        DateTime @default(now())
-  ipAddress       String?
-}
-
-model DocumentApproval {
-  id          Int      @id @default(autoincrement())
-  documentId  Int
-  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  
-  userId      Int
-  user        User     @relation("DocumentApprover", fields: [userId], references: [id])
-  
-  type        String   @default("PARAF") // PARAF atau SIGN
-  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  step        Int      @default(1) // Urutan hirarki persetujuan
-  notes       String?  @db.Text
-
-  signature   String?  @db.LongText // TTE Base64 / Log Timestamp
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-// --- SURAT MASUK (INCOMING MAIL) ---
-
-model IncomingMail {
-  id              Int      @id @default(autoincrement())
-  code            String   @unique // Nomor Surat Masuk (agenda)
-  senderName      String   // Nama Pengirim
-  senderOrg       String?  // Instansi / Organisasi Pengirim
-  senderAddress   String?  @db.Text
-  mailNumber      String?  // Nomor Surat dari Pengirim
-  mailDate        DateTime // Tanggal Surat
-  receivedDate    DateTime @default(now()) // Tanggal Diterima
-  subject         String   // Perihal
-  type            String   @default("UMUM") // UMUM, UNDANGAN, PEMBERITAHUAN, PERMOHONAN, LAINNYA
-  urgency         String   @default("NORMAL") // NORMAL, HIGH, URGENT
-  description     String?  @db.Text // Ringkasan / Catatan
-  attachmentUrl   String?  @db.LongText // File scan surat (Base64)
-  attachmentName  String?
-  disposition     String?  @db.Text // Disposisi / tindak lanjut
-  status          String   @default("DITERIMA") // DITERIMA, DIPROSES, DIDISPOSISI, SELESAI, ARSIP
-  
-  receivedById    Int
-  receivedBy      User     @relation("MailReceiver", fields: [receivedById], references: [id])
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-}

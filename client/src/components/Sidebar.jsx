@@ -12,8 +12,7 @@ const Sidebar = ({ isOpen = true }) => {
         assets: false,
         vehicles: false,
         warehouse: false,
-        personnel: false,
-        eoffice: false
+        personnel: false
     });
 
     const toggleMenu = (menu) => {
@@ -48,7 +47,7 @@ const Sidebar = ({ isOpen = true }) => {
     const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role);
     const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user?.role);
     const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
-    const isEofficeAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role);
+
     const isKabidSarpras = user?.position?.toLowerCase().includes('kepala bidang') && 
                            user?.position?.toLowerCase().includes('sarana dan prasarana');
 
@@ -236,26 +235,7 @@ const Sidebar = ({ isOpen = true }) => {
                         </>
                     ))}
 
-                {/* 5. E-Office / Surat */}
-                {isEofficeAdmin && renderCollapsible('eoffice', <FileSignature size={18} />, 'E-Office & Surat', (
-                    <>
-                        <Link to="/documents/inbox" className={subNavItemClass('/documents/inbox')}>
-                            <FileText size={16} /> Kotak Masuk
-                        </Link>
-                        <Link to="/documents/draft" className={subNavItemClass('/documents/draft')}>
-                            <FileText size={16} /> Draf Saya
-                        </Link>
-                        <Link to="/documents/sent" className={subNavItemClass('/documents/sent')}>
-                            <ShoppingCart size={16} /> Terkirim
-                        </Link>
-                        <Link to="/documents/surat-masuk" className={subNavItemClass('/documents/surat-masuk')}>
-                            <Inbox size={16} /> Surat Masuk
-                        </Link>
-                        <Link to="/documents/archive" className={subNavItemClass('/documents/archive')}>
-                            <Database size={16} /> Arsip & Validasi
-                        </Link>
-                    </>
-                ))}
+
 
                 {/* System & Settings */}
                 <div className="pt-4 mt-2 border-t border-slate-800">
