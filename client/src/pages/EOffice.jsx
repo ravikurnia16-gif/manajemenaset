@@ -368,34 +368,74 @@ const EOffice = () => {
                                     </table>
                                 </div>
                             ) : viewingDoc.category === 'Tugas' ? (
-                                <div className="space-y-4 bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
+                                <div className="space-y-6 bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
                                     {(() => {
                                         try {
                                             const task = JSON.parse(viewingDoc.content || '{}');
                                             return (
-                                                <div className="grid grid-cols-1 gap-4 text-sm">
+                                                <div className="grid grid-cols-1 gap-6 text-sm">
                                                     <div>
-                                                        <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Dasar</span>
-                                                        <p className="text-slate-800 font-medium leading-relaxed">{task.basis || '-'}</p>
+                                                        <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Dasar Penugasan</span>
+                                                        <ul className="space-y-1.5">
+                                                            {(task.basisList || (task.basis ? [task.basis] : [])).map((b, i) => (
+                                                                <li key={i} className="text-slate-800 font-medium leading-relaxed flex gap-2">
+                                                                    <span className="text-blue-400 font-bold">{i + 1}.</span> {b}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
                                                     </div>
                                                     <div>
-                                                        <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Menugaskan Kepada</span>
-                                                        <p className="text-slate-800 font-bold leading-relaxed">{task.personnel || '-'}</p>
+                                                        <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Menugaskan Kepada</span>
+                                                        <div className="space-y-3">
+                                                            {(task.personnelList || (task.personnel ? [{ name: task.personnel }] : [])).map((p, i) => (
+                                                                <div key={i} className="flex items-start gap-3 bg-white p-3 rounded-xl border border-blue-100/50 shadow-sm">
+                                                                    <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">{i + 1}</div>
+                                                                    <div>
+                                                                        <div className="text-slate-900 font-bold">{p.name || '-'}</div>
+                                                                        <div className="text-[11px] text-slate-500 font-medium">
+                                                                            {p.position || 'Staff'} {p.nip ? `• NIY: ${p.nip}` : ''}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </div>
                                                     <div>
-                                                        <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Untuk</span>
-                                                        <p className="text-slate-800 font-medium leading-relaxed">{task.purpose || '-'}</p>
+                                                        <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Untuk (Maksud & Tujuan)</span>
+                                                        <ul className="space-y-1.5">
+                                                            {(task.purposeList || (task.purpose ? [task.purpose] : [])).map((p, i) => (
+                                                                <li key={i} className="text-slate-800 font-medium leading-relaxed flex gap-2">
+                                                                    <span className="text-blue-400 font-bold">•</span> {p}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-4">
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-blue-100">
                                                         <div>
-                                                            <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Waktu</span>
-                                                            <p className="text-slate-800 font-bold">{task.date || '-'}</p>
+                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Waktu Pelaksanaan</span>
+                                                            <p className="text-slate-800 font-bold flex items-center gap-2">
+                                                                <Calendar size={14} className="text-blue-500" />
+                                                                {task.dateStart ? formatDate(task.dateStart) : '-'}
+                                                                {task.dateEnd && task.dateEnd !== task.dateStart ? ` s.d ${formatDate(task.dateEnd)}` : ''}
+                                                            </p>
+                                                            {task.timeRange && <p className="text-[11px] text-slate-500 mt-1 ml-5 font-medium">{task.timeRange}</p>}
                                                         </div>
                                                         <div>
-                                                            <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Tempat</span>
-                                                            <p className="text-slate-800 font-bold">{task.location || '-'}</p>
+                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tempat / Lokasi</span>
+                                                            <p className="text-slate-800 font-bold flex items-center gap-2">
+                                                                <Tag size={14} className="text-blue-500" />
+                                                                {task.location || '-'}
+                                                            </p>
                                                         </div>
                                                     </div>
+                                                    {task.carbonCopy && task.carbonCopy.length > 0 && task.carbonCopy[0] && (
+                                                        <div className="pt-4 border-t border-blue-100">
+                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tembusan</span>
+                                                            <div className="text-[11px] text-slate-500 space-y-1">
+                                                                {task.carbonCopy.map((c, i) => <div key={i}>{i+1}. {c}</div>)}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         } catch (e) {
@@ -592,6 +632,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     });
     const [file, setFile] = useState(null);
     const [bastItems, setBastItems] = useState([{ name: '', qty: '', condition: 'Baik' }]);
+    const [staffList, setStaffList] = useState([]);
     const [taskData, setTaskData] = useState({
         basisList: [''],
         personnelList: [{ name: '', position: '', nip: '' }],
@@ -602,6 +643,21 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         location: '',
         carbonCopy: ['']
     });
+
+    useEffect(() => {
+        if (isOpen && formData.category === 'Tugas') {
+            fetchStaff();
+        }
+    }, [isOpen, formData.category]);
+
+    const fetchStaff = async () => {
+        try {
+            const res = await api.get('/users/staff');
+            setStaffList(res.data);
+        } catch (err) {
+            console.error('Failed to fetch staff:', err);
+        }
+    };
 
     useEffect(() => {
         if (doc) {
@@ -943,13 +999,37 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                 {taskData.personnelList.map((p, idx) => (
                                                     <tr key={idx}>
                                                         <td className="px-2 py-1 border-b">
-                                                            <input required className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded" placeholder="Nama..." value={p.name} onChange={(e) => { const nl = [...taskData.personnelList]; nl[idx].name = e.target.value; setTaskData({...taskData, personnelList: nl}); }} />
+                                                            <div className="relative group">
+                                                                <input 
+                                                                    required 
+                                                                    className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded" 
+                                                                    placeholder="Nama atau pilih staff..." 
+                                                                    list={`staff-list-${idx}`}
+                                                                    value={p.name} 
+                                                                    onChange={(e) => { 
+                                                                        const val = e.target.value;
+                                                                        const found = staffList.find(s => s.name === val);
+                                                                        const nl = [...taskData.personnelList]; 
+                                                                        nl[idx].name = val;
+                                                                        if (found) {
+                                                                            nl[idx].position = found.position;
+                                                                            nl[idx].nip = found.username; // NIY
+                                                                        }
+                                                                        setTaskData({...taskData, personnelList: nl}); 
+                                                                    }} 
+                                                                />
+                                                                <datalist id={`staff-list-${idx}`}>
+                                                                    {staffList.map(s => (
+                                                                        <option key={s.id} value={s.name}>{s.position}</option>
+                                                                    ))}
+                                                                </datalist>
+                                                            </div>
                                                         </td>
                                                         <td className="px-2 py-1 border-b">
-                                                            <input className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded" placeholder="Jabatan..." value={p.position} onChange={(e) => { const nl = [...taskData.personnelList]; nl[idx].position = e.target.value; setTaskData({...taskData, personnelList: nl}); }} />
+                                                            <input className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded text-slate-500" placeholder="Jabatan..." value={p.position} onChange={(e) => { const nl = [...taskData.personnelList]; nl[idx].position = e.target.value; setTaskData({...taskData, personnelList: nl}); }} />
                                                         </td>
                                                         <td className="px-2 py-1 border-b">
-                                                            <input className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded" placeholder="NIP..." value={p.nip} onChange={(e) => { const nl = [...taskData.personnelList]; nl[idx].nip = e.target.value; setTaskData({...taskData, personnelList: nl}); }} />
+                                                            <input className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded text-slate-500" placeholder="NIY..." value={p.nip} onChange={(e) => { const nl = [...taskData.personnelList]; nl[idx].nip = e.target.value; setTaskData({...taskData, personnelList: nl}); }} />
                                                         </td>
                                                         <td className="px-2 py-1 border-b text-center">
                                                             {taskData.personnelList.length > 1 && (
@@ -1142,7 +1222,7 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
     const [approvalNote, setApprovalNote] = useState('');
 
     useEffect(() => {
-        if (!doc) return;
+        if (!doc || !canvasRef.current) return;
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
         ctx.strokeStyle = '#000';
@@ -1173,6 +1253,7 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
     const stopDrawing = () => setIsDrawing(false);
 
     const clearCanvas = () => {
+        if (!canvasRef.current) return;
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);

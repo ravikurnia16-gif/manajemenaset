@@ -32,3 +32,18 @@ exports.authorizeRole = (roles) => {
         next();
     };
 };
+
+exports.authorizeSarprasAdmin = () => {
+    return (req, res, next) => {
+        const role = req.user.role;
+        const pos = req.user.position || '';
+        
+        const isAdmin = ['SUPER_ADMIN', 'KABID_SARPRAS', 'KEPALA_BIDANG'].includes(role);
+        const isRelevantStaff = pos.includes('Sarpras') || pos.includes('Keuangan') || pos.includes('Administrasi');
+
+        if (!isAdmin && !isRelevantStaff) {
+            return res.status(403).json({ error: 'Forbidden: Khusus Staff Administrasi Sarpras' });
+        }
+        next();
+    };
+};
