@@ -66,7 +66,11 @@ const EOffice = () => {
             } else if (tab === 'lainnya') {
                 params.type = 'LAINNYA';
             } else if (tab === 'surat-keluar') {
-                // Default outgoing already includes all surat keluar types
+                // Return only standard outgoing types, excluding invoice/lainnya
+                params.typeGroup = 'OUTGOING_STANDARD';
+            } else {
+                // Dashboard: fetch everything for recent documents
+                params.limit = 10;
             }
 
             const res = await api.get(endpoint, { params });

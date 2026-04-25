@@ -84,11 +84,17 @@ exports.createIncomingMail = async (req, res) => {
  */
 exports.getOutgoingDocuments = async (req, res) => {
     try {
-        const { search, type, status, page = 1, limit = 20 } = req.query;
+        const { search, type, typeGroup, status, page = 1, limit = 20 } = req.query;
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
-        const outgoingTypes = ['SURAT_KELUAR', 'BAST', 'MOU', 'INVOICE', 'LAINNYA', 'SURAT_TUGAS', 'SURAT_EDARAN', 'SURAT_KEPUTUSAN', 'SURAT_PESANAN'];
-        const where = { type: { in: outgoingTypes } };
+        const allOutgoing = ['SURAT_KELUAR', 'BAST', 'MOU', 'INVOICE', 'LAINNYA', 'SURAT_TUGAS', 'SURAT_EDARAN', 'SURAT_KEPUTUSAN', 'SURAT_PESANAN'];
+        let typesToFetch = allOutgoing;
+
+        if (typeGroup === 'OUTGOING_STANDARD') {
+            typesToFetch = ['SURAT_KELUAR', 'BAST', 'MOU', 'SURAT_TUGAS', 'SURAT_EDARAN', 'SURAT_KEPUTUSAN', 'SURAT_PESANAN'];
+        }
+
+        const where = { type: { in: typesToFetch } };
         if (type) where.type = type;
         if (status) where.status = status;
         if (search) {
