@@ -701,6 +701,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     />
                                 </div>
                             </>
+                        ) : (
+                            <>
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Prioritas</label>
                                     <select 
