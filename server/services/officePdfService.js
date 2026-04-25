@@ -25,7 +25,7 @@ async function drawKopSurat(page, fontBold, fontRegular) {
     const { width, height } = page.getSize();
     let y = height - 40;
     const centerX = width / 2;
-    
+
     // Embed and draw Yayasan Logo (Left Side)
     try {
         const logoPath = path.join(__dirname, '../assets/logo_yayasan.jpg');
@@ -59,47 +59,47 @@ async function drawKopSurat(page, fontBold, fontRegular) {
     } catch (e) {
         console.error('Failed to embed sarpras logo:', e);
     }
-    
+
     const green = rgb(0.37, 0.77, 0.64); // YAYASAN DAR EL-IMAN
     const orange = rgb(0.95, 0.65, 0.48); // BIDANG SARANA
     const gray = rgb(0.4, 0.4, 0.4); // Text
-    
+
     // 1. YAYASAN DAR EL-IMAN
     const t1 = 'YAYASAN DAR EL-IMAN';
     const w1 = fontBold.widthOfTextAtSize(t1, 16);
-    page.drawText(t1, { x: centerX - (w1/2), y, size: 16, font: fontBold, color: green });
+    page.drawText(t1, { x: centerX - (w1 / 2), y, size: 16, font: fontBold, color: green });
     y -= 18;
-    
-    // 2. BIDANG SARANA
-    const t2 = 'BIDANG SARANA';
+
+    // 2. BIDANG SARANA DAN PRASARANA
+    const t2 = 'BIDANG SARANA DAN PRASARANA';
     const w2 = fontBold.widthOfTextAtSize(t2, 16);
-    page.drawText(t2, { x: centerX - (w2/2), y, size: 16, font: fontBold, color: orange });
+    page.drawText(t2, { x: centerX - (w2 / 2), y, size: 16, font: fontBold, color: orange });
     y -= 18;
-    
+
     // 3. Motto
     const t3 = '"Merawat dengan Ikhlas, Melayani dengan Sunnah."';
     const w3 = fontRegular.widthOfTextAtSize(t3, 11);
-    page.drawText(t3, { x: centerX - (w3/2), y, size: 11, font: fontRegular, color: gray });
+    page.drawText(t3, { x: centerX - (w3 / 2), y, size: 11, font: fontRegular, color: gray });
     y -= 14;
-    
+
     // 4. Address Line 1
     const t4 = 'Komplek islamic center, Surau Gadang, Kec. Nanggalo, Kota Padang,';
     const w4 = fontRegular.widthOfTextAtSize(t4, 10);
-    page.drawText(t4, { x: centerX - (w4/2), y, size: 10, font: fontRegular, color: gray });
+    page.drawText(t4, { x: centerX - (w4 / 2), y, size: 10, font: fontRegular, color: gray });
     y -= 12;
-    
+
     // 5. Address Line 2
     const t5 = 'Sumatera Barat 25173.';
     const w5 = fontRegular.widthOfTextAtSize(t5, 10);
-    page.drawText(t5, { x: centerX - (w5/2), y, size: 10, font: fontRegular, color: gray });
+    page.drawText(t5, { x: centerX - (w5 / 2), y, size: 10, font: fontRegular, color: gray });
     y -= 16;
-    
+
     // 6. Contact Info
     const t6 = 'WA : 0895-3202-42508                 Email : dar.el.imansarpras@gmail.com';
     const w6 = fontRegular.widthOfTextAtSize(t6, 10);
-    page.drawText(t6, { x: centerX - (w6/2), y, size: 10, font: fontRegular, color: gray });
+    page.drawText(t6, { x: centerX - (w6 / 2), y, size: 10, font: fontRegular, color: gray });
     y -= 12;
-    
+
     // 7. Thick Orange Line
     const lineOrange = rgb(0.96, 0.69, 0.51);
     page.drawLine({
@@ -108,7 +108,7 @@ async function drawKopSurat(page, fontBold, fontRegular) {
         thickness: 3,
         color: lineOrange,
     });
-    
+
     return y - 30; // Posisi Y awal untuk konten surat
 }
 
@@ -117,13 +117,13 @@ async function drawKopSurat(page, fontBold, fontRegular) {
  */
 async function drawDigitalSignature(page, doc, x, y, size = 70) {
     if (!doc.uuid || (doc.status !== 'SIGNED' && doc.status !== 'APPROVED')) return;
-    
+
     try {
         const qrDataUrl = await generateVerificationQR(doc.uuid);
         const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
         const qrBytes = Buffer.from(qrBase64, 'base64');
         const qrImage = await page.doc.embedPng(qrBytes);
-        
+
         page.drawImage(qrImage, { x, y, width: size, height: size });
 
         // Embed Sarpras Logo in the middle
@@ -131,7 +131,7 @@ async function drawDigitalSignature(page, doc, x, y, size = 70) {
         if (fs.existsSync(sarprasPath)) {
             const sarprasBytes = fs.readFileSync(sarprasPath);
             const sarprasImage = await page.doc.embedJpg(sarprasBytes);
-            
+
             const logoSize = size * 0.28;
             const logoOffset = (size - logoSize) / 2;
 
@@ -143,7 +143,7 @@ async function drawDigitalSignature(page, doc, x, y, size = 70) {
                 height: logoSize + 2,
                 color: rgb(1, 1, 1),
             });
-            
+
             page.drawImage(sarprasImage, {
                 x: x + logoOffset,
                 y: y + logoOffset,
@@ -163,7 +163,7 @@ async function generateSuratPDF(doc, setting) {
 
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
     const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
-    
+
     const startY = await drawKopSurat(page, fontBold, fontRegular);
     const margin = 56;
     let y = startY;
@@ -175,9 +175,9 @@ async function generateSuratPDF(doc, setting) {
     }
     page.drawText(`Lampiran  : -`, { x: margin, y, size: 11, font: fontRegular });
     y -= 16;
-    page.drawText(`Perihal   : ${doc.subject}`, { 
-        x: margin, y, size: 11, font: fontBold, 
-        maxWidth: width - margin * 2 
+    page.drawText(`Perihal   : ${doc.subject}`, {
+        x: margin, y, size: 11, font: fontBold,
+        maxWidth: width - margin * 2
     });
     y -= 40;
 
@@ -194,13 +194,13 @@ async function generateSuratPDF(doc, setting) {
         for (const line of lines) {
             if (y < 150) { /* logic page break bisa ditambah */ }
             if (line.trim() === '') { y -= 8; continue; }
-            
+
             page.drawText(line, {
                 x: margin, y, size: 11, font: fontRegular,
                 maxWidth: width - margin * 2,
                 lineHeight: 14
             });
-            
+
             // Estimasi penurunan Y berdasarkan panjang teks
             const textWidth = fontRegular.widthOfTextAtSize(line, 11);
             const numLines = Math.ceil(textWidth / (width - margin * 2));
@@ -211,13 +211,13 @@ async function generateSuratPDF(doc, setting) {
     // === TANDA TANGAN ===
     y -= 40;
     const sigX = width - margin - 180;
-    
+
     // Tanggal
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
     const d = new Date(doc.date);
     page.drawText(`Padang, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`, { x: sigX, y, size: 11, font: fontRegular });
     y -= 18;
-    
+
     page.drawText('Kepala Bidang Sarpras,', { x: sigX, y, size: 11, font: fontBold });
     y -= 60;
 
@@ -237,11 +237,11 @@ async function generateBASTMouPDF(doc, setting) {
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([595.28, 841.89]); // A4
     const { width, height } = page.getSize();
-    
+
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
     const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
     const fontItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
-    
+
     const startY = await drawKopSurat(page, fontBold, fontRegular);
     const margin = 56;
     let y = startY;
@@ -264,7 +264,7 @@ async function generateBASTMouPDF(doc, setting) {
     const docDate = new Date(doc.date);
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-    
+
     page.drawText(`Pada hari ini ${days[docDate.getDay()]}, tanggal ${docDate.getDate()} bulan ${months[docDate.getMonth()]} tahun ${docDate.getFullYear()}, kami yang bertanda tangan di bawah ini:`, {
         x: margin, y, size: 11, font: fontRegular, maxWidth: width - margin * 2, lineHeight: 15
     });
@@ -307,7 +307,7 @@ async function generateBASTMouPDF(doc, setting) {
     if (doc.type === 'BAST' && doc.content) {
         try {
             items = JSON.parse(doc.content);
-        } catch(e) {}
+        } catch (e) { }
     }
 
     if (items.length > 0) {
@@ -316,14 +316,14 @@ async function generateBASTMouPDF(doc, setting) {
         const colNamaX = margin + 30;
         const colQtyX = margin + 250;
         const colKondisiX = margin + 330;
-        
-        page.drawLine({ start: { x: margin, y: y+12 }, end: { x: width - margin, y: y+12 }, thickness: 1 });
+
+        page.drawLine({ start: { x: margin, y: y + 12 }, end: { x: width - margin, y: y + 12 }, thickness: 1 });
         page.drawText('No', { x: colNoX + 5, y, size: 10, font: fontBold });
         page.drawText('Jenis Barang', { x: colNamaX + 5, y, size: 10, font: fontBold });
         page.drawText('Kuantitas', { x: colQtyX + 5, y, size: 10, font: fontBold });
         page.drawText('Kondisi', { x: colKondisiX + 5, y, size: 10, font: fontBold });
         y -= 8;
-        page.drawLine({ start: { x: margin, y: y+12 }, end: { x: width - margin, y: y+12 }, thickness: 1 });
+        page.drawLine({ start: { x: margin, y: y + 12 }, end: { x: width - margin, y: y + 12 }, thickness: 1 });
         y -= 15;
 
         // Isi Tabel
@@ -335,7 +335,7 @@ async function generateBASTMouPDF(doc, setting) {
             y -= 15;
             if (y < 100) { /* handle page break ideally, but simplified for now */ }
         });
-        page.drawLine({ start: { x: margin, y: y+12 }, end: { x: width - margin, y: y+12 }, thickness: 1 });
+        page.drawLine({ start: { x: margin, y: y + 12 }, end: { x: width - margin, y: y + 12 }, thickness: 1 });
         y -= 20;
     } else {
         page.drawText('(Tidak ada rincian barang)', { x: margin, y, size: 11, font: fontItalic });
@@ -357,7 +357,7 @@ async function generateBASTMouPDF(doc, setting) {
     y -= 15;
     page.drawText(doc.party1Title || '', { x: col1X, y, size: 10, font: fontRegular });
     page.drawText(doc.party2Title || '', { x: col2X, y, size: 10, font: fontRegular });
-    
+
     y -= 60; // Space for signature
 
     // Embed Signatures
@@ -368,7 +368,7 @@ async function generateBASTMouPDF(doc, setting) {
             const sigBytes = Buffer.from(sigData, 'base64');
             const sigImage = sigBase64.includes('image/png') ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
             page.drawImage(sigImage, { x: xPos, y: y + 5, width: 100, height: 50 });
-        } catch (e) {}
+        } catch (e) { }
     };
 
     if (doc.party1Signature) await embedSig(doc.party1Signature, col1X);
@@ -386,10 +386,10 @@ async function generateSuratTugasPDF(doc, setting) {
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([595.28, 841.89]);
     const { width, height } = page.getSize();
-    
+
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
     const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
-    
+
     const startY = await drawKopSurat(page, fontBold, fontRegular);
     const margin = 70;
     let y = startY;
@@ -409,15 +409,15 @@ async function generateSuratTugasPDF(doc, setting) {
     y -= 35;
 
     // Parse Content
-    let task = { 
-        basisList: [''], 
-        personnelList: [{ name: '', position: '', nip: '' }], 
-        purposeList: [''], 
-        dateStart: '', 
-        dateEnd: '', 
-        timeRange: '', 
+    let task = {
+        basisList: [''],
+        personnelList: [{ name: '', position: '', nip: '' }],
+        purposeList: [''],
+        dateStart: '',
+        dateEnd: '',
+        timeRange: '',
         location: '',
-        carbonCopy: [] 
+        carbonCopy: []
     };
 
     if (doc.content) {
@@ -430,7 +430,7 @@ async function generateSuratTugasPDF(doc, setting) {
                 if (!task.personnelList && parsed.personnel) task.personnelList = [{ name: parsed.personnel, position: '', nip: '' }];
                 if (!task.purposeList && parsed.purpose) task.purposeList = [parsed.purpose];
             }
-        } catch(e) {
+        } catch (e) {
             task.purposeList = [String(doc.content)];
         }
     }
@@ -438,21 +438,21 @@ async function generateSuratTugasPDF(doc, setting) {
     const drawListSection = (label, list) => {
         if (!list || list.length === 0 || (list.length === 1 && !list[0])) return;
         page.drawText(label, { x: margin, y, size: 11, font: fontBold });
-        
+
         const contentX = margin + 80;
         list.forEach((item, idx) => {
             if (!item) return;
             const prefix = list.length > 1 ? `${idx + 1}. ` : ': ';
             const fullText = prefix + item;
-            
-            page.drawText(fullText, { 
-                x: contentX, 
-                y, 
-                size: 11, 
-                font: fontRegular, 
-                maxWidth: width - margin - 100 
+
+            page.drawText(fullText, {
+                x: contentX,
+                y,
+                size: 11,
+                font: fontRegular,
+                maxWidth: width - margin - 100
             });
-            
+
             const textWidth = fontRegular.widthOfTextAtSize(fullText, 11);
             const numLines = Math.ceil(textWidth / (width - margin - 100));
             y -= (numLines * 15);
@@ -463,7 +463,7 @@ async function generateSuratTugasPDF(doc, setting) {
     // 1. Dasar
     drawListSection('Dasar', task.basisList);
     y -= 10;
-    
+
     // MENUGASKAN
     const mText = 'MENUGASKAN:';
     const mw = fontBold.widthOfTextAtSize(mText, 11);
@@ -473,13 +473,13 @@ async function generateSuratTugasPDF(doc, setting) {
     // 2. Kepada (Personel)
     page.drawText('Kepada', { x: margin, y, size: 11, font: fontBold });
     const pX = margin + 80;
-    
+
     if (task.personnelList && task.personnelList.length > 0) {
         task.personnelList.forEach((p, idx) => {
             const nameText = `${task.personnelList.length > 1 ? (idx + 1) + '. ' : ': '}${p.name}`;
             page.drawText(nameText, { x: pX, y, size: 11, font: fontBold });
             y -= 14;
-            
+
             if (p.nip || p.position) {
                 const subText = `   ${p.position}${p.nip ? ' / NIP: ' + p.nip : ''}`;
                 page.drawText(subText, { x: pX, y, size: 10, font: fontRegular });
@@ -498,7 +498,7 @@ async function generateSuratTugasPDF(doc, setting) {
         const ds = new Date(task.dateStart);
         const de = task.dateEnd ? new Date(task.dateEnd) : ds;
         const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-        
+
         if (task.dateStart === task.dateEnd || !task.dateEnd) {
             return `${ds.getDate()} ${months[ds.getMonth()]} ${ds.getFullYear()}`;
         }
@@ -526,7 +526,7 @@ async function generateSuratTugasPDF(doc, setting) {
     page.drawText(`Padang, ${docDate.getDate()} ${months[docDate.getMonth()]} ${docDate.getFullYear()}`, { x: sigX, y, size: 11, font: fontRegular });
     y -= 18;
     page.drawText('Kepala Bidang Sarpras,', { x: sigX, y, size: 11, font: fontBold });
-    
+
     y -= 65;
     // TTE (QR Code)
     await drawDigitalSignature(page, doc, sigX + 20, y);

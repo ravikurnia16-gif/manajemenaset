@@ -991,7 +991,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                 <tr>
                                                     <th className="px-4 py-2 border-b">Nama Pegawai</th>
                                                     <th className="px-4 py-2 border-b">Jabatan</th>
-                                                    <th className="px-4 py-2 border-b w-32">NIP/NIK</th>
+                                                    <th className="px-4 py-2 border-b w-32">NIY</th>
                                                     <th className="px-4 py-2 border-b w-12 text-center"></th>
                                                 </tr>
                                             </thead>
