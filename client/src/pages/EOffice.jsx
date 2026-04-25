@@ -551,6 +551,13 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     });
     const [file, setFile] = useState(null);
     const [bastItems, setBastItems] = useState([{ name: '', qty: '', condition: 'Baik' }]);
+    const [taskData, setTaskData] = useState({
+        basis: '',
+        personnel: '',
+        purpose: '',
+        date: '',
+        location: ''
+    });
 
     useEffect(() => {
         if (doc) {
@@ -565,9 +572,17 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     console.error('Failed to parse BAST content JSON', e);
                 }
             }
+            if (doc.category === 'Tugas' && doc.content) {
+                try {
+                    setTaskData(JSON.parse(doc.content));
+                } catch (e) {
+                    console.error('Failed to parse Task content JSON', e);
+                }
+            }
         } else {
             setFormData(prev => ({ ...prev, type: defaultType }));
             setBastItems([{ name: '', qty: '', condition: 'Baik' }]);
+            setTaskData({ basis: '', personnel: '', purpose: '', date: '', location: '' });
         }
     }, [doc, defaultType, isOpen]);
 
@@ -593,6 +608,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 config = { headers: { 'Content-Type': 'multipart/form-data' } };
             } else if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(formData.category))) {
                 payload = { ...formData, content: JSON.stringify(bastItems) };
+            } else if (formData.type === 'SURAT_KELUAR' && formData.category === 'Tugas') {
+                payload = { ...formData, content: JSON.stringify(taskData) };
             }
 
             if (doc) {
@@ -701,21 +718,19 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     />
                                 </div>
                             </>
-                        ) : (
-                            <>
-                                <div>
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Prioritas</label>
-                                    <select 
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
-                                        value={formData.priority}
-                                        onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                                    >
-                                        <option value="BIASA">Biasa</option>
-                                        <option value="SEGERA">Segera</option>
-                                        <option value="SANGAT_SEGERA">Sangat Segera</option>
-                                    </select>
-                                </div>
-                            </>
+                        {formData.type !== 'SURAT_MASUK' && formData.category !== 'Tugas' && (
+                            <div>
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Prioritas</label>
+                                <select 
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                    value={formData.priority}
+                                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                                >
+                                    <option value="BIASA">Biasa</option>
+                                    <option value="SEGERA">Segera</option>
+                                    <option value="SANGAT_SEGERA">Sangat Segera</option>
+                                </select>
+                            </div>
                         )}
 
                         {['BAST', 'SURAT_KELUAR'].includes(formData.type) && ['Berita Acara', 'Serah Terima Barang'].includes(formData.category) ? (
@@ -761,6 +776,59 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     </table>
                                 </div>
                             </div>
+                        ) : formData.category === 'Tugas' ? (
+                            <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50/30 p-6 rounded-2xl border border-blue-100">
+                                <div className="col-span-full">
+                                    <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 block">Dasar (Basis Assignment)</label>
+                                    <textarea 
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                        rows={2}
+                                        placeholder="Contoh: Program Kerja Yayasan 2024..."
+                                        value={taskData.basis}
+                                        onChange={(e) => setTaskData({...taskData, basis: e.target.value})}
+                                    />
+                                </div>
+                                <div className="col-span-full">
+                                    <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 block">Menugaskan Kepada (Nama & Jabatan)</label>
+                                    <textarea 
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                        rows={2}
+                                        placeholder="Contoh: Budi Santoso (Staff IT), Andi (Staff Sarpras)..."
+                                        value={taskData.personnel}
+                                        onChange={(e) => setTaskData({...taskData, personnel: e.target.value})}
+                                    />
+                                </div>
+                                <div className="col-span-full">
+                                    <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 block">Untuk (Maksud & Tujuan)</label>
+                                    <textarea 
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                        rows={3}
+                                        placeholder="Tujuan penugasan secara detail..."
+                                        value={taskData.purpose}
+                                        onChange={(e) => setTaskData({...taskData, purpose: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 block">Waktu Pelaksanaan</label>
+                                    <input 
+                                        type="text"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                        placeholder="Contoh: 20 - 25 Mei 2024"
+                                        value={taskData.date}
+                                        onChange={(e) => setTaskData({...taskData, date: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 block">Tempat / Lokasi</label>
+                                    <input 
+                                        type="text"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                        placeholder="Lokasi penugasan..."
+                                        value={taskData.location}
+                                        onChange={(e) => setTaskData({...taskData, location: e.target.value})}
+                                    />
+                                </div>
+                            </div>
                         ) : formData.type === 'SURAT_MASUK' ? (
                             <div className="col-span-full">
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Upload File Surat Masuk (PDF/Gambar)</label>
@@ -769,11 +837,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     accept=".pdf,.jpg,.jpeg,.png"
                                     onChange={(e) => setFile(e.target.files[0])}
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                                    required={!doc?.fileUrl} // Require only if no file exists yet
+                                    required={!doc?.fileUrl}
                                 />
-                                {doc?.fileUrl && (
-                                    <p className="mt-2 text-xs text-emerald-600 font-bold">File sudah terunggah. Pilih file baru untuk menggantinya.</p>
-                                )}
                             </div>
                         ) : (
                             <div className="col-span-full">
