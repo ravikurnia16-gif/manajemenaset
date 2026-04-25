@@ -12,7 +12,8 @@ const Sidebar = ({ isOpen = true }) => {
         assets: false,
         vehicles: false,
         warehouse: false,
-        personnel: false
+        personnel: false,
+        eoffice: false
     });
 
     const toggleMenu = (menu) => {

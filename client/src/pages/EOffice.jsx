@@ -65,7 +65,69 @@ const EOffice = () => {
         }
     };
 
+    // --- Helper Components ---
+
+    const StatCard = ({ title, value, icon, color }) => (
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+            <div className={`p-3 rounded-xl bg-${color}-50`}>{icon}</div>
+            <div>
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">{title}</div>
+                <div className="text-2xl font-black text-slate-800">{value}</div>
+            </div>
+        </div>
+    );
+
+    const StatusBadge = ({ status }) => {
+        const configs = {
+            'DRAFT': { bg: 'bg-slate-100', text: 'text-slate-600', label: 'Draft' },
+            'PENDING_APPROVAL': { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Menunggu TTE' },
+            'SIGNED': { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Ditandatangani' },
+            'APPROVED': { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Disetujui' },
+            'REJECTED': { bg: 'bg-red-100', text: 'text-red-700', label: 'Ditolak' },
+        };
+        const c = configs[status] || configs['DRAFT'];
+        return <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${c.bg} ${c.text}`}>{c.label}</span>;
+    };
+
     // --- Sub-components for Views ---
+
+    const DashboardView = () => (
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard title="Surat Masuk" value={stats?.totalIncoming || 0} icon={<Inbox className="text-blue-500" size={22} />} color="blue" />
+                <StatCard title="Surat Keluar" value={stats?.totalOutgoing || 0} icon={<Send className="text-emerald-500" size={22} />} color="emerald" />
+                <StatCard title="Menunggu TTE" value={stats?.pendingApproval || 0} icon={<Clock className="text-amber-500" size={22} />} color="amber" />
+                <StatCard title="Signed Bulan Ini" value={stats?.signedThisMonth || 0} icon={<CheckCircle2 className="text-indigo-500" size={22} />} color="indigo" />
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><Clock size={18} className="text-blue-500" /> Dokumen Terbaru</h3>
+                    <button onClick={() => navigate('/e-office/surat-keluar')} className="text-xs font-semibold text-blue-600 hover:underline">Lihat Semua</button>
+                </div>
+                <div className="divide-y divide-slate-100">
+                    {stats?.recentDocuments?.length > 0 ? stats.recentDocuments.map(doc => (
+                        <div key={doc.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between cursor-pointer" onClick={() => setViewingDoc(doc)}>
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                    {doc.type === 'SURAT_MASUK' ? <Inbox size={18} /> : <Send size={18} />}
+                                </div>
+                                <div>
+                                    <div className="font-semibold text-slate-800 text-sm">{doc.subject}</div>
+                                    <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                                        <span>{doc.number || 'Draft'}</span><span>•</span><span>{formatDate(doc.date)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <StatusBadge status={doc.status} />
+                        </div>
+                    )) : (
+                        <div className="p-8 text-center text-slate-400 text-sm italic">Belum ada dokumen</div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 
     const ListView = () => (
         <div className="space-y-4">
