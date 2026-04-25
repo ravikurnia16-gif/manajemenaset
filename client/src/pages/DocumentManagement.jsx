@@ -35,7 +35,6 @@ const DocumentManagement = () => {
     const [newDocForm, setNewDocForm] = useState({ title: '', content: '', type: 'NOTA_DINAS', urgency: 'NORMAL', destination: '', isManualCode: false, manualCode: '', unitId: '', version: 1, reviewDate: '' });
     const [approvers, setApprovers] = useState({ parafId: '', signId: '' });
     const [units, setUnits] = useState([]);
-    const [approvers, setApprovers] = useState({ parafId: '', signId: '' });
     const [currentUser, setCurrentUser] = useState(null);
     const [showSignCanvas, setShowSignCanvas] = useState(false);
     const [signingDocId, setSigningDocId] = useState(null);
