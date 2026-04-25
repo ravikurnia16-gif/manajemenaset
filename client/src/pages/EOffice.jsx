@@ -641,7 +641,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 payload = { ...formData, content: JSON.stringify(taskData) };
             }
 
-            if (doc) {
+            if (doc && doc.id) {
                 await api.put(`/office-documents/${doc.id}`, payload, config);
             } else {
                 await api.post(isMultipart ? '/office-documents/incoming' : '/office-documents/outgoing', payload, config);
