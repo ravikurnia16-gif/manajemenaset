@@ -718,19 +718,23 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     />
                                 </div>
                             </>
-                        {formData.type !== 'SURAT_MASUK' && formData.category !== 'Tugas' && (
-                            <div>
-                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Prioritas</label>
-                                <select 
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
-                                    value={formData.priority}
-                                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                                >
-                                    <option value="BIASA">Biasa</option>
-                                    <option value="SEGERA">Segera</option>
-                                    <option value="SANGAT_SEGERA">Sangat Segera</option>
-                                </select>
-                            </div>
+                        ) : (
+                            <>
+                                {formData.category !== 'Tugas' && (
+                                    <div>
+                                        <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Prioritas</label>
+                                        <select 
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                            value={formData.priority}
+                                            onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                                        >
+                                            <option value="BIASA">Biasa</option>
+                                            <option value="SEGERA">Segera</option>
+                                            <option value="SANGAT_SEGERA">Sangat Segera</option>
+                                        </select>
+                                    </div>
+                                )}
+                            </>
                         )}
 
                         {['BAST', 'SURAT_KELUAR'].includes(formData.type) && ['Berita Acara', 'Serah Terima Barang'].includes(formData.category) ? (
