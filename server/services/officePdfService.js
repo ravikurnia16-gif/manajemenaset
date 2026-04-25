@@ -53,34 +53,31 @@ async function drawKopSurat(page, fontBold, fontRegular) {
         leftY -= 11;
     });
 
-    // Sisi Kanan: Teks Bahasa Arab
-    // Catatan: pdf-lib tidak mendukung RTL/Arabic shaping secara native. 
-    // Teks ini mungkin akan terbalik jika tidak menggunakan font khusus.
+    // Sisi Kanan: Kontak & Informasi
     const rightX = width - 50;
-    const arabicName = 'مؤسسة دار الإيمان الخيرية';
-    page.drawText(arabicName, {
-        x: rightX - 140, 
+    page.drawText('Contact Information', {
+        x: rightX - 110, 
         y: topY,
-        size: 13,
+        size: 11,
         font: fontBold,
         color: rgb(0, 0, 0),
     });
 
     const rightLines = [
-        'للتعليم و الدعوة و الإنسانية',
-        'قرار وزارة العدل و حقوق الإنسان إندونيسيا رقم',
-        'ج 1231 إجتي 01.02 تي إج 2006',
-        'بموجب صك كتابة العدل : دي. إر. أ. بوتيت إس. هاء',
-        'بالتاريخ 1 مايو 2006 ذات الرقم 1',
-        'فادانج - إندونيسيا'
+        'Jl. Gunung Juang No. 12',
+        'Surau Gadang, Nanggalo',
+        'Kota Padang, Sumatera Barat',
+        'Telp: (0751) 1234567',
+        'Email: info@dareliman.or.id',
+        'Web: www.dareliman.or.id'
     ];
 
     let rightY = topY - 15;
     rightLines.forEach(text => {
         page.drawText(text, {
-            x: rightX - 160,
+            x: rightX - 130,
             y: rightY,
-            size: 8,
+            size: 9,
             font: fontRegular,
             color: rgb(0, 0, 0),
         });
