@@ -684,6 +684,21 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             }
             onSuccess();
             onClose();
+            
+            // Auto-navigate to the correct tab for NEW documents
+            if (!doc || !doc.id) {
+                if (formData.type === 'SURAT_MASUK') {
+                    navigate('/e-office/surat-masuk');
+                } else if (formData.type === 'INVOICE') {
+                    navigate('/e-office/invoice');
+                } else if (formData.type === 'LAINNYA') {
+                    navigate('/e-office/lainnya');
+                } else {
+                    navigate('/e-office/surat-keluar');
+                }
+            }
+            
+            alert('Dokumen berhasil disimpan!');
         } catch (err) {
             alert('Gagal menyimpan: ' + (err.response?.data?.error || err.message));
         }
