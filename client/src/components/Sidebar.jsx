@@ -237,6 +237,21 @@ const Sidebar = ({ isOpen = true }) => {
 
 
 
+                {/* 5. E-Office (Document Management) */}
+                {renderCollapsible('eoffice', <FileSignature size={18} />, 'E-Office', (
+                    <>
+                        <Link to="/e-office" className={subNavItemClass('/e-office')}>
+                            <LayoutDashboard size={16} /> Dashboard
+                        </Link>
+                        <Link to="/e-office/surat-masuk" className={subNavItemClass('/e-office/surat-masuk')}>
+                            <Inbox size={16} /> Surat Masuk
+                        </Link>
+                        <Link to="/e-office/surat-keluar" className={subNavItemClass('/e-office/surat-keluar')}>
+                            <FileSignature size={16} /> Surat Keluar
+                        </Link>
+                    </>
+                ))}
+
                 {/* System & Settings */}
                 <div className="pt-4 mt-2 border-t border-slate-800">
                     <div className="px-3 text-[10px] uppercase text-slate-500 mb-2 font-bold tracking-wider">System</div>

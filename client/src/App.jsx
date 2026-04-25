@@ -54,6 +54,7 @@ import ReportPage from './pages/ReportPage';
 import ModulePlaceholder from './components/ModulePlaceholder';
 import OfficialResidence from './pages/OfficialResidence';
 import QuickComplete from './pages/QuickComplete';
+import EOffice from './pages/EOffice';
 
 
 // Komponen untuk melindungi route yang butuh login
@@ -144,6 +145,10 @@ function App() {
           <Route path="personalia/rutin" element={<PersonnelRoutine />} />
           <Route path="personalia/kpi" element={<Navigate to="/personalia/kinerja?tab=KPI" replace />} />
           <Route path="laporan" element={<ReportPage />} />
+
+          {/* Module: E-Office */}
+          <Route path="e-office" element={<EOffice />} />
+          <Route path="e-office/:tab" element={<EOffice />} />
 
 
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />
