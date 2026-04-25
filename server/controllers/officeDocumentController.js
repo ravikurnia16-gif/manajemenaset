@@ -531,7 +531,11 @@ exports.getStats = async (req, res) => {
             recentDocuments,
         ] = await Promise.all([
             prisma.officeDocument.count({ where: { type: 'SURAT_MASUK' } }),
-            prisma.officeDocument.count({ where: { type: { in: ['SURAT_KELUAR', 'BAST', 'MOU'] } } }),
+            prisma.officeDocument.count({ 
+                where: { 
+                    type: { in: ['SURAT_KELUAR', 'BAST', 'MOU', 'INVOICE', 'LAINNYA', 'SURAT_TUGAS', 'SURAT_EDARAN', 'SURAT_KEPUTUSAN', 'SURAT_PESANAN'] } 
+                } 
+            }),
             prisma.officeDocument.count({ where: { status: 'PENDING_APPROVAL' } }),
             prisma.officeDocument.count({
                 where: {

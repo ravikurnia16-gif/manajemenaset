@@ -329,7 +329,7 @@ const EOffice = () => {
 
                         <div className="space-y-4">
                             <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Isi Dokumen / Rincian</label>
-                            {viewingDoc.type === 'BAST' ? (
+                            {['BAST', 'SURAT_KELUAR'].includes(viewingDoc.type) && ['Berita Acara', 'Serah Terima Barang'].includes(viewingDoc.category) ? (
                                 <div className="border border-slate-200 rounded-xl overflow-hidden">
                                     <table className="w-full text-left border-collapse text-sm">
                                         <thead className="bg-slate-50 text-slate-600 font-bold">
@@ -362,6 +362,42 @@ const EOffice = () => {
                                             })()}
                                         </tbody>
                                     </table>
+                                </div>
+                            ) : viewingDoc.category === 'Tugas' ? (
+                                <div className="space-y-4 bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
+                                    {(() => {
+                                        try {
+                                            const task = JSON.parse(viewingDoc.content || '{}');
+                                            return (
+                                                <div className="grid grid-cols-1 gap-4 text-sm">
+                                                    <div>
+                                                        <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Dasar</span>
+                                                        <p className="text-slate-800 font-medium leading-relaxed">{task.basis || '-'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Menugaskan Kepada</span>
+                                                        <p className="text-slate-800 font-bold leading-relaxed">{task.personnel || '-'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Untuk</span>
+                                                        <p className="text-slate-800 font-medium leading-relaxed">{task.purpose || '-'}</p>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Waktu</span>
+                                                            <p className="text-slate-800 font-bold">{task.date || '-'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Tempat</span>
+                                                            <p className="text-slate-800 font-bold">{task.location || '-'}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        } catch (e) {
+                                            return <p className="text-red-500 italic">Gagal memuat rincian tugas</p>;
+                                        }
+                                    })()}
                                 </div>
                             ) : (
                                 <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-slate-700 whitespace-pre-wrap leading-relaxed font-medium">
