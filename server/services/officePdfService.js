@@ -379,17 +379,23 @@ async function generateSuratTugasPDF(doc, setting) {
 
     // Parse Content
     let task = { basis: '', personnel: '', purpose: '', date: '', location: '' };
-    try {
-        task = JSON.parse(doc.content);
-    } catch(e) {
-        task.purpose = doc.content; // fallback
+    if (doc.content) {
+        try {
+            const parsed = JSON.parse(doc.content);
+            if (parsed && typeof parsed === 'object') {
+                task = { ...task, ...parsed };
+            }
+        } catch(e) {
+            task.purpose = String(doc.content); // fallback
+        }
     }
 
     const drawSection = (label, text) => {
+        if (!text) return;
         page.drawText(label, { x: margin, y, size: 11, font: fontBold });
-        const labelWidth = fontBold.widthOfTextAtSize(label, 11);
         
-        const textLines = text.split('\n');
+        const strText = String(text);
+        const textLines = strText.split('\n');
         let firstLine = true;
         
         textLines.forEach(line => {
