@@ -26,34 +26,34 @@ async function drawKopSurat(page, fontBold, fontRegular) {
     let y = height - 40;
     const centerX = width / 2;
 
-    // Embed and draw Yayasan Logo (Left Side)
+    // Embed and draw Yayasan Logo (Left Side) - Ramping (Slim)
     try {
         const logoPath = path.join(__dirname, '../assets/logo_yayasan.jpg');
         if (fs.existsSync(logoPath)) {
             const logoBytes = fs.readFileSync(logoPath);
             const logoImage = await page.doc.embedJpg(logoBytes);
             page.drawImage(logoImage, {
-                x: 50,
+                x: 45,
                 y: height - 125,
-                width: 90,
-                height: 90,
+                width: 70,
+                height: 85,
             });
         }
     } catch (e) {
         console.error('Failed to embed yayasan logo:', e);
     }
 
-    // Embed and draw Sarpras Logo (Right Side)
+    // Embed and draw Sarpras Logo (Right Side) - Perkecil
     try {
         const sarprasPath = path.join(__dirname, '../assets/sarpras.jpeg');
         if (fs.existsSync(sarprasPath)) {
             const sarprasBytes = fs.readFileSync(sarprasPath);
             const sarprasImage = await page.doc.embedJpg(sarprasBytes);
             page.drawImage(sarprasImage, {
-                x: width - 140,
-                y: height - 125,
-                width: 90,
-                height: 90,
+                x: width - 115,
+                y: height - 122,
+                width: 80,
+                height: 80,
             });
         }
     } catch (e) {
