@@ -471,7 +471,7 @@ exports.generatePDF = async (req, res) => {
         res.send(Buffer.from(pdfBytes));
     } catch (error) {
         console.error('generatePDF error:', error);
-        res.status(500).json({ error: 'Failed to generate PDF' });
+        res.status(500).json({ error: 'Failed to generate PDF', details: error.message, stack: error.stack });
     }
 };
 
