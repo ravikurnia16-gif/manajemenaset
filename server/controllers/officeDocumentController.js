@@ -84,6 +84,9 @@ exports.createIncomingMail = async (req, res) => {
  */
 exports.getOutgoingDocuments = async (req, res) => {
     try {
+        const { search, type, typeGroup, status, page = 1, limit = 20 } = req.query;
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
         const where = { type: { not: 'SURAT_MASUK' } };
         
         if (typeGroup === 'OUTGOING_STANDARD') {
