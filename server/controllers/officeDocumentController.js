@@ -87,7 +87,8 @@ exports.getOutgoingDocuments = async (req, res) => {
         const { search, type, status, page = 1, limit = 20 } = req.query;
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
-        const where = { type: { in: ['SURAT_KELUAR', 'BAST', 'MOU'] } };
+        const outgoingTypes = ['SURAT_KELUAR', 'BAST', 'MOU', 'INVOICE', 'LAINNYA', 'SURAT_TUGAS', 'SURAT_EDARAN', 'SURAT_KEPUTUSAN', 'SURAT_PESANAN'];
+        const where = { type: { in: outgoingTypes } };
         if (type) where.type = type;
         if (status) where.status = status;
         if (search) {
