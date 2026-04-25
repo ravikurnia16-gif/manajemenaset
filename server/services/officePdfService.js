@@ -95,6 +95,50 @@ async function drawKopSurat(page, fontBold, fontRegular) {
     return y - 30; // Posisi Y awal untuk konten surat
 }
 
+/**
+ * Helper to draw QR Code Digital Signature with Logo in middle
+ */
+async function drawDigitalSignature(page, doc, x, y, size = 70) {
+    if (!doc.uuid || (doc.status !== 'SIGNED' && doc.status !== 'APPROVED')) return;
+    
+    try {
+        const qrDataUrl = await generateVerificationQR(doc.uuid);
+        const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
+        const qrBytes = Buffer.from(qrBase64, 'base64');
+        const qrImage = await page.doc.embedPng(qrBytes);
+        
+        page.drawImage(qrImage, { x, y, width: size, height: size });
+
+        // Embed Sarpras Logo in the middle
+        const sarprasPath = path.join(__dirname, '../assets/sarpras.jpeg');
+        if (fs.existsSync(sarprasPath)) {
+            const sarprasBytes = fs.readFileSync(sarprasPath);
+            const sarprasImage = await page.doc.embedJpg(sarprasBytes);
+            
+            const logoSize = size * 0.28;
+            const logoOffset = (size - logoSize) / 2;
+
+            // White background for logo
+            page.drawRectangle({
+                x: x + logoOffset - 1,
+                y: y + logoOffset - 1,
+                width: logoSize + 2,
+                height: logoSize + 2,
+                color: rgb(1, 1, 1),
+            });
+            
+            page.drawImage(sarprasImage, {
+                x: x + logoOffset,
+                y: y + logoOffset,
+                width: logoSize,
+                height: logoSize,
+            });
+        }
+    } catch (e) {
+        console.error('Digital Signature Draw Error:', e);
+    }
+}
+
 async function generateSuratPDF(doc, setting) {
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([595.28, 841.89]);
@@ -161,23 +205,8 @@ async function generateSuratPDF(doc, setting) {
     y -= 60;
 
     // TTE (QR Code)
-    if (doc.uuid) {
-        const qrDataUrl = await generateVerificationQR(doc.uuid);
-        const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
-        const qrBytes = Buffer.from(qrBase64, 'base64');
-        const qrImage = await pdfDoc.embedPng(qrBytes);
-        page.drawImage(qrImage, { x: sigX + 20, y: y, width: 60, height: 60 });
-    }
-
-    // Tanda Tangan Basah (Jika ada)
-    if (doc.signatureData) {
-        try {
-            const sigData = doc.signatureData.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
-            const sigBytes = Buffer.from(sigData, 'base64');
-            const sigImage = doc.signatureData.includes('image/png') ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
-            page.drawImage(sigImage, { x: sigX, y: y, width: 100, height: 60 });
-        } catch (e) {}
-    }
+    await drawDigitalSignature(page, doc, sigX + 20, y);
+    y -= 5;
 
     y -= 20;
     const signerName = doc.signedBy?.name || '____________________';
@@ -360,66 +389,120 @@ async function generateSuratTugasPDF(doc, setting) {
         const numWidth = fontRegular.widthOfTextAtSize(numText, 11);
         page.drawText(numText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
     }
-    y -= 40;
+    y -= 35;
 
     // Parse Content
-    let task = { basis: '', personnel: '', purpose: '', date: '', location: '' };
+    let task = { 
+        basisList: [''], 
+        personnelList: [{ name: '', position: '', nip: '' }], 
+        purposeList: [''], 
+        dateStart: '', 
+        dateEnd: '', 
+        timeRange: '', 
+        location: '',
+        carbonCopy: [] 
+    };
+
     if (doc.content) {
         try {
             const parsed = JSON.parse(doc.content);
             if (parsed && typeof parsed === 'object') {
                 task = { ...task, ...parsed };
+                // Handle old data formats if any
+                if (!task.basisList && parsed.basis) task.basisList = [parsed.basis];
+                if (!task.personnelList && parsed.personnel) task.personnelList = [{ name: parsed.personnel, position: '', nip: '' }];
+                if (!task.purposeList && parsed.purpose) task.purposeList = [parsed.purpose];
             }
         } catch(e) {
-            task.purpose = String(doc.content); // fallback
+            task.purposeList = [String(doc.content)];
         }
     }
 
-    const drawSection = (label, text) => {
-        if (!text) return;
+    const drawListSection = (label, list) => {
+        if (!list || list.length === 0 || (list.length === 1 && !list[0])) return;
         page.drawText(label, { x: margin, y, size: 11, font: fontBold });
         
-        const strText = String(text);
-        const textLines = strText.split('\n');
-        let firstLine = true;
-        
-        textLines.forEach(line => {
-            page.drawText(firstLine ? `: ${line}` : `  ${line}`, { 
-                x: margin + 80, 
+        const contentX = margin + 80;
+        list.forEach((item, idx) => {
+            if (!item) return;
+            const prefix = list.length > 1 ? `${idx + 1}. ` : ': ';
+            const fullText = prefix + item;
+            
+            page.drawText(fullText, { 
+                x: contentX, 
                 y, 
                 size: 11, 
                 font: fontRegular, 
-                maxWidth: width - margin - 150 
+                maxWidth: width - margin - 100 
             });
             
-            const textWidth = fontRegular.widthOfTextAtSize(line, 11);
-            const numLines = Math.ceil(textWidth / (width - margin - 150));
-            y -= (numLines * 16);
-            firstLine = false;
+            const textWidth = fontRegular.widthOfTextAtSize(fullText, 11);
+            const numLines = Math.ceil(textWidth / (width - margin - 100));
+            y -= (numLines * 15);
         });
-        y -= 10;
+        y -= 8;
     };
 
-    if (task.basis) drawSection('Dasar', task.basis);
+    // 1. Dasar
+    drawListSection('Dasar', task.basisList);
     y -= 10;
     
-    const menugaskanText = 'MENUGASKAN:';
-    const mWidth = fontBold.widthOfTextAtSize(menugaskanText, 11);
-    page.drawText(menugaskanText, { x: (width - mWidth) / 2, y, size: 11, font: fontBold });
+    // MENUGASKAN
+    const mText = 'MENUGASKAN:';
+    const mw = fontBold.widthOfTextAtSize(mText, 11);
+    page.drawText(mText, { x: (width - mw) / 2, y, size: 11, font: fontBold });
     y -= 25;
 
-    if (task.personnel) drawSection('Kepada', task.personnel);
-    if (task.purpose) drawSection('Untuk', task.purpose);
-    if (task.date) drawSection('Waktu', task.date);
-    if (task.location) drawSection('Tempat', task.location);
+    // 2. Kepada (Personel)
+    page.drawText('Kepada', { x: margin, y, size: 11, font: fontBold });
+    const pX = margin + 80;
+    
+    if (task.personnelList && task.personnelList.length > 0) {
+        task.personnelList.forEach((p, idx) => {
+            const nameText = `${task.personnelList.length > 1 ? (idx + 1) + '. ' : ': '}${p.name}`;
+            page.drawText(nameText, { x: pX, y, size: 11, font: fontBold });
+            y -= 14;
+            
+            if (p.nip || p.position) {
+                const subText = `   ${p.position}${p.nip ? ' / NIP: ' + p.nip : ''}`;
+                page.drawText(subText, { x: pX, y, size: 10, font: fontRegular });
+                y -= 14;
+            }
+        });
+    }
+    y -= 8;
 
-    y -= 30;
-    page.drawText('Demikian surat tugas ini diberikan untuk dapat dilaksanakan dengan penuh tanggung jawab.', {
+    // 3. Untuk
+    drawListSection('Untuk', task.purposeList);
+
+    // 4. Waktu & Tempat
+    const formatPeriod = () => {
+        if (!task.dateStart) return '';
+        const ds = new Date(task.dateStart);
+        const de = task.dateEnd ? new Date(task.dateEnd) : ds;
+        const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        
+        if (task.dateStart === task.dateEnd || !task.dateEnd) {
+            return `${ds.getDate()} ${months[ds.getMonth()]} ${ds.getFullYear()}`;
+        }
+        if (ds.getMonth() === de.getMonth() && ds.getFullYear() === de.getFullYear()) {
+            return `${ds.getDate()} s.d ${de.getDate()} ${months[ds.getMonth()]} ${ds.getFullYear()}`;
+        }
+        return `${ds.getDate()} ${months[ds.getMonth()]} s.d ${de.getDate()} ${months[de.getMonth()]} ${de.getFullYear()}`;
+    };
+
+    const timeInfo = `${formatPeriod()}${task.timeRange ? ' (' + task.timeRange + ')' : ''}`;
+    if (timeInfo) drawListSection('Waktu', [timeInfo]);
+    if (task.location) drawListSection('Tempat', [task.location]);
+
+    y -= 25;
+    const closing = 'Demikian surat tugas ini diberikan untuk dapat dilaksanakan dengan penuh tanggung jawab.';
+    page.drawText(closing, {
         x: margin, y, size: 11, font: fontRegular, maxWidth: width - margin * 2
     });
 
     // Signature Area
-    y -= 60;
+    y -= 50;
     const sigX = width - margin - 180;
     const docDate = new Date(doc.date);
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -427,27 +510,29 @@ async function generateSuratTugasPDF(doc, setting) {
     y -= 18;
     page.drawText('Kepala Bidang Sarpras,', { x: sigX, y, size: 11, font: fontBold });
     
-    y -= 60;
-    if (doc.uuid) {
-        const qrDataUrl = await generateVerificationQR(doc.uuid);
-        const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
-        const qrBytes = Buffer.from(qrBase64, 'base64');
-        const qrImage = await pdfDoc.embedPng(qrBytes);
-        page.drawImage(qrImage, { x: sigX + 20, y: y, width: 60, height: 60 });
-    }
-
-    if (doc.signatureData) {
-        try {
-            const sigData = doc.signatureData.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
-            const sigBytes = Buffer.from(sigData, 'base64');
-            const sigImage = doc.signatureData.includes('image/png') ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
-            page.drawImage(sigImage, { x: sigX, y: y, width: 100, height: 60 });
-        } catch (e) {}
-    }
+    y -= 65;
+    // TTE (QR Code)
+    await drawDigitalSignature(page, doc, sigX + 20, y);
 
     y -= 20;
     const signerName = doc.signedBy?.name || 'Yayasan Dar el-Iman';
     page.drawText(signerName, { x: sigX, y, size: 11, font: fontBold });
+    if (doc.signedBy?.nip) {
+        y -= 14;
+        page.drawText(`NIP. ${doc.signedBy.nip}`, { x: sigX, y, size: 11, font: fontRegular });
+    }
+
+    // Tembusan
+    if (task.carbonCopy && task.carbonCopy.length > 0 && task.carbonCopy[0]) {
+        y = 120; // Fixed position at bottom left
+        page.drawText('Tembusan:', { x: margin, y, size: 9, font: fontBold });
+        y -= 12;
+        task.carbonCopy.forEach((item, idx) => {
+            if (!item) return;
+            page.drawText(`${idx + 1}. ${item}`, { x: margin, y, size: 9, font: fontRegular });
+            y -= 11;
+        });
+    }
 
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;

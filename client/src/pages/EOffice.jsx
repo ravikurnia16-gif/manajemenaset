@@ -593,11 +593,14 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     const [file, setFile] = useState(null);
     const [bastItems, setBastItems] = useState([{ name: '', qty: '', condition: 'Baik' }]);
     const [taskData, setTaskData] = useState({
-        basis: '',
-        personnel: '',
-        purpose: '',
-        date: '',
-        location: ''
+        basisList: [''],
+        personnelList: [{ name: '', position: '', nip: '' }],
+        purposeList: [''],
+        dateStart: formatDate(new Date(), 'input'),
+        dateEnd: formatDate(new Date(), 'input'),
+        timeRange: '08.00 s.d Selesai',
+        location: '',
+        carbonCopy: ['']
     });
 
     useEffect(() => {
@@ -626,7 +629,18 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             }
             if (doc.category === 'Tugas' && doc.content) {
                 try {
-                    setTaskData(JSON.parse(doc.content));
+                    const parsed = JSON.parse(doc.content);
+                    // Migration / Normalization
+                    setTaskData({
+                        basisList: parsed.basisList || (parsed.basis ? [parsed.basis] : ['']),
+                        personnelList: parsed.personnelList || (parsed.personnel ? [{ name: parsed.personnel, position: '', nip: '' }] : [{ name: '', position: '', nip: '' }]),
+                        purposeList: parsed.purposeList || (parsed.purpose ? [parsed.purpose] : ['']),
+                        dateStart: parsed.dateStart || (parsed.date ? formatDate(parsed.date, 'input') : formatDate(new Date(), 'input')),
+                        dateEnd: parsed.dateEnd || parsed.dateStart || formatDate(new Date(), 'input'),
+                        timeRange: parsed.timeRange || '08.00 s.d Selesai',
+                        location: parsed.location || '',
+                        carbonCopy: parsed.carbonCopy || ['']
+                    });
                 } catch (e) {
                     console.error('Failed to parse Task content JSON', e);
                 }
@@ -652,7 +666,16 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 party2Address: '',
             });
             setBastItems([{ name: '', qty: '', condition: 'Baik' }]);
-            setTaskData({ basis: '', personnel: '', purpose: '', date: '', location: '' });
+            setTaskData({
+                basisList: [''],
+                personnelList: [{ name: '', position: '', nip: '' }],
+                purposeList: [''],
+                dateStart: formatDate(new Date(), 'input'),
+                dateEnd: formatDate(new Date(), 'input'),
+                timeRange: '08.00 s.d Selesai',
+                location: '',
+                carbonCopy: ['']
+            });
         }
     }, [doc, defaultType, isOpen]);
 
@@ -866,56 +889,161 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 </div>
                             </div>
                         ) : formData.category === 'Tugas' ? (
-                            <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50/30 p-6 rounded-2xl border border-blue-100">
-                                <div className="col-span-full">
-                                    <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 block">Dasar (Basis Assignment)</label>
-                                    <textarea 
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                                        rows={2}
-                                        placeholder="Contoh: Program Kerja Yayasan 2024..."
-                                        value={taskData.basis}
-                                        onChange={(e) => setTaskData({...taskData, basis: e.target.value})}
-                                    />
-                                </div>
-                                <div className="col-span-full">
-                                    <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 block">Menugaskan Kepada (Nama & Jabatan)</label>
-                                    <textarea 
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                                        rows={2}
-                                        placeholder="Contoh: Budi Santoso (Staff IT), Andi (Staff Sarpras)..."
-                                        value={taskData.personnel}
-                                        onChange={(e) => setTaskData({...taskData, personnel: e.target.value})}
-                                    />
-                                </div>
-                                <div className="col-span-full">
-                                    <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 block">Untuk (Maksud & Tujuan)</label>
-                                    <textarea 
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                                        rows={3}
-                                        placeholder="Tujuan penugasan secara detail..."
-                                        value={taskData.purpose}
-                                        onChange={(e) => setTaskData({...taskData, purpose: e.target.value})}
-                                    />
-                                </div>
+                            <div className="col-span-full space-y-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
+                                {/* 1. Dasar Penugasan */}
                                 <div>
-                                    <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 block">Waktu Pelaksanaan</label>
-                                    <input 
-                                        type="text"
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                                        placeholder="Contoh: 20 - 25 Mei 2024"
-                                        value={taskData.date}
-                                        onChange={(e) => setTaskData({...taskData, date: e.target.value})}
-                                    />
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-xs font-black text-blue-600 uppercase tracking-widest block">Dasar Penugasan</label>
+                                        <button type="button" onClick={() => setTaskData({...taskData, basisList: [...taskData.basisList, '']})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                            <Plus size={12} /> Tambah Dasar
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {taskData.basisList.map((item, idx) => (
+                                            <div key={idx} className="flex gap-2">
+                                                <input 
+                                                    className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
+                                                    placeholder={`Dasar hukum/surat ${idx + 1}...`}
+                                                    value={item}
+                                                    onChange={(e) => {
+                                                        const newList = [...taskData.basisList];
+                                                        newList[idx] = e.target.value;
+                                                        setTaskData({...taskData, basisList: newList});
+                                                    }}
+                                                />
+                                                {taskData.basisList.length > 1 && (
+                                                    <button type="button" onClick={() => setTaskData({...taskData, basisList: taskData.basisList.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
+
+                                {/* 2. Menugaskan Kepada (Tabel) */}
                                 <div>
-                                    <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 block">Tempat / Lokasi</label>
-                                    <input 
-                                        type="text"
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                                        placeholder="Lokasi penugasan..."
-                                        value={taskData.location}
-                                        onChange={(e) => setTaskData({...taskData, location: e.target.value})}
-                                    />
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-xs font-black text-blue-600 uppercase tracking-widest block">Menugaskan Kepada</label>
+                                        <button type="button" onClick={() => setTaskData({...taskData, personnelList: [...taskData.personnelList, { name: '', position: '', nip: '' }]})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                            <Plus size={12} /> Tambah Pegawai
+                                        </button>
+                                    </div>
+                                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase">
+                                                <tr>
+                                                    <th className="px-4 py-2 border-b">Nama Pegawai</th>
+                                                    <th className="px-4 py-2 border-b">Jabatan</th>
+                                                    <th className="px-4 py-2 border-b w-32">NIP/NIK</th>
+                                                    <th className="px-4 py-2 border-b w-12 text-center"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {taskData.personnelList.map((p, idx) => (
+                                                    <tr key={idx}>
+                                                        <td className="px-2 py-1 border-b">
+                                                            <input required className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded" placeholder="Nama..." value={p.name} onChange={(e) => { const nl = [...taskData.personnelList]; nl[idx].name = e.target.value; setTaskData({...taskData, personnelList: nl}); }} />
+                                                        </td>
+                                                        <td className="px-2 py-1 border-b">
+                                                            <input className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded" placeholder="Jabatan..." value={p.position} onChange={(e) => { const nl = [...taskData.personnelList]; nl[idx].position = e.target.value; setTaskData({...taskData, personnelList: nl}); }} />
+                                                        </td>
+                                                        <td className="px-2 py-1 border-b">
+                                                            <input className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded" placeholder="NIP..." value={p.nip} onChange={(e) => { const nl = [...taskData.personnelList]; nl[idx].nip = e.target.value; setTaskData({...taskData, personnelList: nl}); }} />
+                                                        </td>
+                                                        <td className="px-2 py-1 border-b text-center">
+                                                            {taskData.personnelList.length > 1 && (
+                                                                <button type="button" onClick={() => setTaskData({...taskData, personnelList: taskData.personnelList.filter((_, i) => i !== idx)})} className="text-red-400 hover:text-red-600"><X size={14} /></button>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* 3. Untuk (Maksud & Tujuan) */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-xs font-black text-blue-600 uppercase tracking-widest block">Untuk (Maksud & Tujuan)</label>
+                                        <button type="button" onClick={() => setTaskData({...taskData, purposeList: [...taskData.purposeList, '']})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                            <Plus size={12} /> Tambah Poin
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {taskData.purposeList.map((item, idx) => (
+                                            <div key={idx} className="flex gap-2">
+                                                <textarea 
+                                                    className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
+                                                    placeholder={`Tujuan ke-${idx + 1}...`}
+                                                    rows={1}
+                                                    value={item}
+                                                    onChange={(e) => {
+                                                        const newList = [...taskData.purposeList];
+                                                        newList[idx] = e.target.value;
+                                                        setTaskData({...taskData, purposeList: newList});
+                                                    }}
+                                                />
+                                                {taskData.purposeList.length > 1 && (
+                                                    <button type="button" onClick={() => setTaskData({...taskData, purposeList: taskData.purposeList.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* 4. Waktu & Tempat */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Tgl. Mulai</label>
+                                        <input type="date" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm" value={taskData.dateStart} onChange={(e) => setTaskData({...taskData, dateStart: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Tgl. Selesai</label>
+                                        <input type="date" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm" value={taskData.dateEnd} onChange={(e) => setTaskData({...taskData, dateEnd: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Keterangan Waktu</label>
+                                        <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm" placeholder="Contoh: 08.00 s.d Selesai" value={taskData.timeRange} onChange={(e) => setTaskData({...taskData, timeRange: e.target.value})} />
+                                    </div>
+                                    <div className="md:col-span-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Tempat / Lokasi</label>
+                                        <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm" placeholder="Lokasi penugasan..." value={taskData.location} onChange={(e) => setTaskData({...taskData, location: e.target.value})} />
+                                    </div>
+                                </div>
+
+                                {/* 5. Tembusan */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Tembusan (Opsional)</label>
+                                        <button type="button" onClick={() => setTaskData({...taskData, carbonCopy: [...taskData.carbonCopy, '']})} className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1">
+                                            <Plus size={12} /> Tambah Tembusan
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {taskData.carbonCopy.map((item, idx) => (
+                                            <div key={idx} className="flex gap-2">
+                                                <input 
+                                                    className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
+                                                    placeholder="Contoh: Arsip..."
+                                                    value={item}
+                                                    onChange={(e) => {
+                                                        const newList = [...taskData.carbonCopy];
+                                                        newList[idx] = e.target.value;
+                                                        setTaskData({...taskData, carbonCopy: newList});
+                                                    }}
+                                                />
+                                                {taskData.carbonCopy.length > 1 && (
+                                                    <button type="button" onClick={() => setTaskData({...taskData, carbonCopy: taskData.carbonCopy.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         ) : formData.type === 'SURAT_MASUK' ? (
@@ -1052,7 +1180,7 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
 
     const handleSign = async () => {
         try {
-            const signatureData = canvasRef.current.toDataURL('image/png');
+            const signatureData = party ? canvasRef.current.toDataURL('image/png') : null;
             
             if (party) {
                 // Multi-party sign
@@ -1092,24 +1220,34 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
                 </div>
 
                 <div className="px-8 pb-8 space-y-6">
-                    <div>
-                        <div className="flex items-center justify-between mb-2">
-                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Goreskan Tanda Tangan</label>
-                            <button onClick={clearCanvas} className="text-[10px] font-black text-blue-600 uppercase hover:underline">Hapus</button>
+                    {party ? (
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Goreskan Tanda Tangan</label>
+                                <button onClick={clearCanvas} className="text-[10px] font-black text-blue-600 uppercase hover:underline">Hapus</button>
+                            </div>
+                            <div className="border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 overflow-hidden cursor-crosshair">
+                                <canvas 
+                                    ref={canvasRef}
+                                    width={448}
+                                    height={200}
+                                    onMouseDown={startDrawing}
+                                    onMouseMove={draw}
+                                    onMouseUp={stopDrawing}
+                                    onMouseLeave={stopDrawing}
+                                    className="w-full"
+                                />
+                            </div>
                         </div>
-                        <div className="border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 overflow-hidden cursor-crosshair">
-                            <canvas 
-                                ref={canvasRef}
-                                width={448}
-                                height={200}
-                                onMouseDown={startDrawing}
-                                onMouseMove={draw}
-                                onMouseUp={stopDrawing}
-                                onMouseLeave={stopDrawing}
-                                className="w-full"
-                            />
+                    ) : (
+                        <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 flex flex-col items-center text-center space-y-3">
+                            <ShieldCheck className="text-emerald-600" size={40} />
+                            <div>
+                                <div className="text-emerald-800 font-black uppercase tracking-widest text-[10px] mb-1">Otentikasi Digital</div>
+                                <p className="text-emerald-700 text-sm font-medium">Sistem akan menyematkan Tanda Tangan Elektronik (QR Code) resmi atas nama Anda.</p>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     <div>
                         <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Catatan Persetujuan (Opsional)</label>
@@ -1125,8 +1263,8 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
                         <button onClick={onClose} className="px-6 py-4 rounded-2xl font-black text-slate-500 hover:bg-slate-100 transition-all uppercase tracking-widest text-xs">
                             Batal
                         </button>
-                        <button onClick={handleSign} className="px-6 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-600/30 hover:bg-blue-700 transition-all uppercase tracking-widest text-xs">
-                            Setujui & TTE
+                        <button onClick={handleSign} className="px-6 py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-all uppercase tracking-widest text-xs">
+                            {party ? 'Simpan Tanda Tangan' : 'Setujui & Terbitkan TTE'}
                         </button>
                     </div>
                 </div>
