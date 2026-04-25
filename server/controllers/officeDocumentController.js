@@ -84,17 +84,12 @@ exports.createIncomingMail = async (req, res) => {
  */
 exports.getOutgoingDocuments = async (req, res) => {
     try {
-        const { search, type, typeGroup, status, page = 1, limit = 20 } = req.query;
-        const skip = (parseInt(page) - 1) * parseInt(limit);
-
-        const allOutgoing = ['SURAT_KELUAR', 'BAST', 'MOU', 'INVOICE', 'LAINNYA', 'SURAT_TUGAS', 'SURAT_EDARAN', 'SURAT_KEPUTUSAN', 'SURAT_PESANAN'];
-        let typesToFetch = allOutgoing;
-
+        const where = { type: { not: 'SURAT_MASUK' } };
+        
         if (typeGroup === 'OUTGOING_STANDARD') {
-            typesToFetch = ['SURAT_KELUAR', 'BAST', 'MOU', 'SURAT_TUGAS', 'SURAT_EDARAN', 'SURAT_KEPUTUSAN', 'SURAT_PESANAN'];
+            where.type = { in: ['SURAT_KELUAR', 'BAST', 'MOU'] };
         }
 
-        const where = { type: { in: typesToFetch } };
         if (type) where.type = type;
         if (status) where.status = status;
         if (search) {
@@ -539,7 +534,7 @@ exports.getStats = async (req, res) => {
             prisma.officeDocument.count({ where: { type: 'SURAT_MASUK' } }),
             prisma.officeDocument.count({ 
                 where: { 
-                    type: { in: ['SURAT_KELUAR', 'BAST', 'MOU', 'INVOICE', 'LAINNYA', 'SURAT_TUGAS', 'SURAT_EDARAN', 'SURAT_KEPUTUSAN', 'SURAT_PESANAN'] } 
+                    type: { not: 'SURAT_MASUK' } 
                 } 
             }),
             prisma.officeDocument.count({ where: { status: 'PENDING_APPROVAL' } }),
