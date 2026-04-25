@@ -21,90 +21,59 @@ async function generateVerificationQR(uuid) {
  */
 async function drawKopSurat(page, fontBold, fontRegular) {
     const { width, height } = page.getSize();
-    const topY = height - 40;
+    let y = height - 40;
+    const centerX = width / 2;
     
-    // Sisi Kiri: Teks Bahasa Indonesia
-    page.drawText('Yayasan Dar el-Iman', {
-        x: 50,
-        y: topY,
-        size: 14,
-        font: fontBold,
-        color: rgb(0, 0, 0),
-    });
+    const green = rgb(0.37, 0.77, 0.64); // YAYASAN DAR EL-IMAN
+    const orange = rgb(0.95, 0.65, 0.48); // BIDANG SARANA
+    const gray = rgb(0.4, 0.4, 0.4); // Text
     
-    const leftLines = [
-        'Pendidikan, Dakwah dan Kemanusiaan',
-        'SK Kemkumham no :',
-        'C-1231.HT.01.02.TH 2006.',
-        'Akta Notaris, Dra. Butet, SH,',
-        'Tanggal 01 Mei 2006, No. 01.',
-        'Padang - Indonesia'
-    ];
+    // 1. YAYASAN DAR EL-IMAN
+    const t1 = 'YAYASAN DAR EL-IMAN';
+    const w1 = fontBold.widthOfTextAtSize(t1, 16);
+    page.drawText(t1, { x: centerX - (w1/2), y, size: 16, font: fontBold, color: green });
+    y -= 18;
     
-    let leftY = topY - 15;
-    leftLines.forEach(text => {
-        page.drawText(text, {
-            x: 50,
-            y: leftY,
-            size: 9,
-            font: fontRegular,
-            color: rgb(0, 0, 0),
-        });
-        leftY -= 11;
-    });
-
-    // Sisi Kanan: Kontak & Informasi
-    const rightX = width - 50;
-    page.drawText('Contact Information', {
-        x: rightX - 110, 
-        y: topY,
-        size: 11,
-        font: fontBold,
-        color: rgb(0, 0, 0),
-    });
-
-    const rightLines = [
-        'Jl. Gunung Juang No. 12',
-        'Surau Gadang, Nanggalo',
-        'Kota Padang, Sumatera Barat',
-        'Telp: (0751) 1234567',
-        'Email: info@dareliman.or.id',
-        'Web: www.dareliman.or.id'
-    ];
-
-    let rightY = topY - 15;
-    rightLines.forEach(text => {
-        page.drawText(text, {
-            x: rightX - 130,
-            y: rightY,
-            size: 9,
-            font: fontRegular,
-            color: rgb(0, 0, 0),
-        });
-        rightY -= 11;
-    });
-
-    // Tengah: Placeholder untuk Logo (Area 100x100 di tengah)
-    // Jika Anda memiliki file logo.png, kita bisa embed di sini.
-
-    // Garis Ganda di Bawah Kop
-    const lineY = topY - 85;
-    // Garis Tebal
+    // 2. BIDANG SARANA
+    const t2 = 'BIDANG SARANA';
+    const w2 = fontBold.widthOfTextAtSize(t2, 16);
+    page.drawText(t2, { x: centerX - (w2/2), y, size: 16, font: fontBold, color: orange });
+    y -= 18;
+    
+    // 3. Motto
+    const t3 = '"Merawat dengan Ikhlas, Melayani dengan Sunnah."';
+    const w3 = fontRegular.widthOfTextAtSize(t3, 11);
+    page.drawText(t3, { x: centerX - (w3/2), y, size: 11, font: fontRegular, color: gray });
+    y -= 14;
+    
+    // 4. Address Line 1
+    const t4 = 'Komplek islamic center, Surau Gadang, Kec. Nanggalo, Kota Padang,';
+    const w4 = fontRegular.widthOfTextAtSize(t4, 10);
+    page.drawText(t4, { x: centerX - (w4/2), y, size: 10, font: fontRegular, color: gray });
+    y -= 12;
+    
+    // 5. Address Line 2
+    const t5 = 'Sumatera Barat 25173.';
+    const w5 = fontRegular.widthOfTextAtSize(t5, 10);
+    page.drawText(t5, { x: centerX - (w5/2), y, size: 10, font: fontRegular, color: gray });
+    y -= 16;
+    
+    // 6. Contact Info
+    const t6 = 'WA : 0895-3202-42508                 Email : dar.el.imansarpras@gmail.com';
+    const w6 = fontRegular.widthOfTextAtSize(t6, 10);
+    page.drawText(t6, { x: centerX - (w6/2), y, size: 10, font: fontRegular, color: gray });
+    y -= 12;
+    
+    // 7. Thick Orange Line
+    const lineOrange = rgb(0.96, 0.69, 0.51);
     page.drawLine({
-        start: { x: 50, y: lineY },
-        end: { x: width - 50, y: lineY },
-        thickness: 2,
-        color: rgb(0, 0, 0),
+        start: { x: 40, y },
+        end: { x: width - 40, y },
+        thickness: 3,
+        color: lineOrange,
     });
-    // Garis Tipis
-    page.drawLine({
-        start: { x: 50, y: lineY - 3 },
-        end: { x: width - 50, y: lineY - 3 },
-        thickness: 0.5,
-        color: rgb(0, 0, 0),
-    });
-
-    return lineY - 30; // Posisi Y awal untuk konten surat
+    
+    return y - 30; // Posisi Y awal untuk konten surat
 }
 
 async function generateSuratPDF(doc, setting) {
