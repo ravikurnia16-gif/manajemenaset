@@ -57,18 +57,35 @@ async function generateDocumentNumber(category, type) {
     const yearStart = new Date(year, 0, 1);
     const yearEnd = new Date(year + 1, 0, 1);
 
-    const count = await prisma.officeDocument.count({
+    const lastDoc = await prisma.officeDocument.findFirst({
         where: {
-            type: { in: ['SURAT_KELUAR', 'BAST', 'MOU'] },
+            type: { not: 'SURAT_MASUK' },
             number: { not: null },
             date: {
                 gte: yearStart,
                 lt: yearEnd,
             },
         },
+        orderBy: {
+            id: 'desc',
+        },
     });
 
-    const sequence = String(count + 1).padStart(3, '0');
+    let nextSeq = 1;
+    if (lastDoc && lastDoc.number) {
+        const parts = lastDoc.number.split('/');
+        if (parts.length > 0 && !isNaN(parseInt(parts[0]))) {
+            nextSeq = parseInt(parts[0]) + 1;
+        } else {
+            // fallback if format is weird
+            const count = await prisma.officeDocument.count({
+                where: { type: { not: 'SURAT_MASUK' }, number: { not: null }, date: { gte: yearStart, lt: yearEnd } }
+            });
+            nextSeq = count + 1;
+        }
+    }
+
+    const sequence = String(nextSeq).padStart(3, '0');
     return `${sequence}/${catCode}/SARPRAS/${romanMonth}/${year}`;
 }
 
