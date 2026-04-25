@@ -206,13 +206,25 @@ const EOffice = () => {
                                             >
                                                 <Eye size={18} />
                                             </button>
-                                            <button 
-                                                onClick={() => window.open(`/api/office-documents/${doc.id}/pdf`, '_blank')}
-                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                                title="Cetak PDF"
-                                            >
-                                                <Printer size={18} />
-                                            </button>
+                                            {doc.type === 'SURAT_MASUK' ? (
+                                                doc.fileUrl ? (
+                                                    <a 
+                                                        href={doc.fileUrl} target="_blank" rel="noreferrer"
+                                                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block"
+                                                        title="Lihat File Surat"
+                                                    >
+                                                        <Download size={18} />
+                                                    </a>
+                                                ) : null
+                                            ) : (
+                                                <button 
+                                                    onClick={() => window.open(`/api/office-documents/${doc.id}/pdf`, '_blank')}
+                                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                    title="Cetak PDF"
+                                                >
+                                                    <Printer size={18} />
+                                                </button>
+                                            )}
                                             {(doc.status === 'DRAFT' || doc.status === 'REJECTED') && (
                                                 <button 
                                                     onClick={() => { setEditingDoc(doc); setIsFormOpen(true); }}
@@ -267,6 +279,13 @@ const EOffice = () => {
                                     <InfoGroup label="Instansi Pengirim" value={viewingDoc.senderOrg} />
                                     <InfoGroup label="No. Surat Referensi" value={viewingDoc.referenceNumber} />
                                     <InfoGroup label="Tanggal Diterima" value={viewingDoc.receivedDate ? formatDate(viewingDoc.receivedDate, 'full') : '-'} />
+                                    {viewingDoc.fileUrl && (
+                                        <div className="col-span-full pt-4">
+                                            <a href={viewingDoc.fileUrl} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-colors">
+                                                <Download size={18} /> Unduh / Lihat File Surat Masuk
+                                            </a>
+                                        </div>
+                                    )}
                                 </>
                             )}
                         </div>
@@ -437,6 +456,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         party2Name: '',
         party2Title: '',
     });
+    const [file, setFile] = useState(null);
 
     useEffect(() => {
         if (doc) {
@@ -454,10 +474,27 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            const isMultipart = formData.type === 'SURAT_MASUK';
+            let payload = formData;
+            let config = {};
+
+            if (isMultipart) {
+                payload = new FormData();
+                for (const key in formData) {
+                    if (formData[key] !== null && formData[key] !== undefined) {
+                        payload.append(key, formData[key]);
+                    }
+                }
+                if (file) {
+                    payload.append('file', file);
+                }
+                config = { headers: { 'Content-Type': 'multipart/form-data' } };
+            }
+
             if (doc) {
-                await api.put(`/office-documents/${doc.id}`, formData);
+                await api.put(`/office-documents/${doc.id}`, payload, config);
             } else {
-                await api.post(formData.type === 'SURAT_MASUK' ? '/office-documents/incoming' : '/office-documents/outgoing', formData);
+                await api.post(isMultipart ? '/office-documents/incoming' : '/office-documents/outgoing', payload, config);
             }
             onSuccess();
             onClose();
@@ -585,17 +622,33 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </>
                         )}
 
-                        <div className="col-span-full">
-                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Isi Dokumen / Pesan</label>
-                            <textarea 
-                                required
-                                rows={6}
-                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-medium leading-relaxed"
-                                value={formData.content}
-                                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                                placeholder="Tuliskan isi surat secara lengkap di sini..."
-                            />
-                        </div>
+                        {formData.type === 'SURAT_MASUK' ? (
+                            <div className="col-span-full">
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Upload File Surat Masuk (PDF/Gambar)</label>
+                                <input 
+                                    type="file"
+                                    accept=".pdf,.jpg,.jpeg,.png"
+                                    onChange={(e) => setFile(e.target.files[0])}
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                    required={!doc?.fileUrl} // Require only if no file exists yet
+                                />
+                                {doc?.fileUrl && (
+                                    <p className="mt-2 text-xs text-emerald-600 font-bold">File sudah terunggah. Pilih file baru untuk menggantinya.</p>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="col-span-full">
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Isi Dokumen / Pesan</label>
+                                <textarea 
+                                    required
+                                    rows={6}
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-medium leading-relaxed"
+                                    value={formData.content}
+                                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                                    placeholder="Tuliskan isi surat secara lengkap di sini..."
+                                />
+                            </div>
+                        )}
 
                         {['BAST', 'MOU'].includes(formData.type) && (
                             <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">

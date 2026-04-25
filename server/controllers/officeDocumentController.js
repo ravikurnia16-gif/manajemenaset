@@ -48,7 +48,8 @@ exports.getIncomingMail = async (req, res) => {
  */
 exports.createIncomingMail = async (req, res) => {
     try {
-        const { subject, senderName, senderOrg, referenceNumber, receivedDate, category, priority, content, fileUrl } = req.body;
+        const { subject, senderName, senderOrg, referenceNumber, receivedDate, category, priority, content } = req.body;
+        const fileUrl = req.fileUrl || req.body.fileUrl; // From multer or body
 
         const doc = await prisma.officeDocument.create({
             data: {
@@ -200,8 +201,8 @@ exports.updateDocument = async (req, res) => {
             senderName, senderOrg, referenceNumber, receivedDate,
             party1Name, party1Title, party1Org,
             party2Name, party2Title, party2Org,
-            fileUrl,
         } = req.body;
+        const fileUrl = req.fileUrl || req.body.fileUrl;
 
         const updated = await prisma.officeDocument.update({
             where: { id },
@@ -211,7 +212,7 @@ exports.updateDocument = async (req, res) => {
                 receivedDate: receivedDate ? new Date(receivedDate) : undefined,
                 party1Name, party1Title, party1Org,
                 party2Name, party2Title, party2Org,
-                fileUrl,
+                ...(fileUrl && { fileUrl }), // Only update fileUrl if a new one is provided
                 status: existing.status === 'REJECTED' ? 'DRAFT' : undefined,
             },
             include: {
