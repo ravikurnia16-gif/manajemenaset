@@ -180,9 +180,9 @@ const EOffice = () => {
                             <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">Tidak ada dokumen ditemukan</td></tr>
                         ) : (
                             documents.filter(doc => 
-                                doc.subject?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                doc.number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                doc.senderName?.toLowerCase().includes(searchQuery.toLowerCase())
+                                (doc.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                (doc.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                (doc.senderName || '').toLowerCase().includes(searchQuery.toLowerCase())
                             ).map(doc => (
                                 <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="px-6 py-4">
