@@ -89,6 +89,9 @@ model User {
   personnelKPIs      PersonnelKPI[]
   pushSubscriptions  PushSubscription[]
 
+  // E-Office Module
+  officeDocumentsAuthored OfficeDocument[] @relation("OfficeDocumentAuthor")
+  officeDocumentsSigned   OfficeDocument[] @relation("OfficeDocumentSigner")
 
 
   // Driver Extensions
@@ -1093,5 +1096,74 @@ model WaNotificationTemplate {
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+}
+
+// --- MODULE E-OFFICE (DOCUMENT MANAGEMENT) ---
+
+enum OfficeDocumentType {
+  SURAT_MASUK
+  SURAT_KELUAR
+  BAST
+  MOU
+}
+
+enum OfficeDocumentStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SIGNED
+  REJECTED
+}
+
+model OfficeDocument {
+  id              Int                    @id @default(autoincrement())
+  uuid            String                 @unique @default(uuid())
+  type            OfficeDocumentType
+  number          String?                @unique // Auto-generated: 001/UND/SARPRAS/IV/2026
+  date            DateTime               @default(now())
+  subject         String
+  content         String?                @db.LongText // Rich text body of the letter
+  category        String?                // Undangan, Tugas, Keputusan, Keterangan, Pemberitahuan, dll
+  priority        String                 @default("BIASA") // BIASA, SEGERA, SANGAT_SEGERA
+
+  // Surat Masuk specifics
+  senderName      String?                // Pengirim (for incoming mail)
+  senderOrg       String?                // Organisasi pengirim
+  receivedDate    DateTime?              // Tanggal diterima
+  referenceNumber String?                // Nomor surat pengirim (for incoming)
+
+  // Author / Creator
+  authorId        Int
+  author          User                   @relation("OfficeDocumentAuthor", fields: [authorId], references: [id])
+
+  // Approval Workflow
+  status          OfficeDocumentStatus   @default(DRAFT)
+  approvalNote    String?                @db.Text
+  rejectionReason String?                @db.Text
+
+  // Signer (Kepala Bidang Sarpras)
+  signedById      Int?
+  signedBy        User?                  @relation("OfficeDocumentSigner", fields: [signedById], references: [id])
+  signedAt        DateTime?
+  signatureData   String?                @db.LongText // Base64 signature image
+  qrCodeData      String?                @db.Text // QR verification hash
+
+  // Multi-party signatures (BAST / MOU)
+  party1Name      String?
+  party1Title     String?
+  party1Org       String?
+  party1Signature String?                @db.LongText
+  party1SignedAt  DateTime?
+  party2Name      String?
+  party2Title     String?
+  party2Org       String?
+  party2Signature String?                @db.LongText
+  party2SignedAt  DateTime?
+
+  // File attachment (for Surat Masuk scanned docs)
+  fileUrl         String?                @db.LongText
+
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 }
 
