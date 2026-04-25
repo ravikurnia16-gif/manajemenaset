@@ -561,10 +561,21 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
 
     useEffect(() => {
         if (doc) {
-            setFormData({
-                ...doc,
-                receivedDate: doc.receivedDate ? formatDate(doc.receivedDate, 'input') : '',
-            });
+            // If it's an existing document (has ID)
+            if (doc.id) {
+                setFormData({
+                    ...doc,
+                    receivedDate: doc.receivedDate ? formatDate(doc.receivedDate, 'input') : '',
+                });
+            } else {
+                // If it's a new document with just a type selected
+                setFormData(prev => ({
+                    ...prev,
+                    ...doc,
+                    receivedDate: formatDate(new Date(), 'input'),
+                }));
+            }
+
             if (doc.type === 'BAST' && doc.content) {
                 try {
                     setBastItems(JSON.parse(doc.content));
@@ -580,7 +591,25 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 }
             }
         } else {
-            setFormData(prev => ({ ...prev, type: defaultType }));
+            setFormData({
+                type: defaultType,
+                subject: '',
+                content: '',
+                category: 'Undangan',
+                priority: 'BIASA',
+                senderName: '',
+                senderOrg: '',
+                referenceNumber: '',
+                receivedDate: formatDate(new Date(), 'input'),
+                party1Name: 'Yayasan Dar el-Iman',
+                party1Title: 'Kepala Bidang Sarpras',
+                party1Org: 'Yayasan Dar el-Iman',
+                party1Address: 'Jl. Belanti Permai No. 8, Padang',
+                party2Name: '',
+                party2Title: '',
+                party2Org: '',
+                party2Address: '',
+            });
             setBastItems([{ name: '', qty: '', condition: 'Baik' }]);
             setTaskData({ basis: '', personnel: '', purpose: '', date: '', location: '' });
         }
