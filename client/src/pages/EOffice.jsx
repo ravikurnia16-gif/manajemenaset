@@ -8,8 +8,20 @@ import {
     Calendar, User, Tag, ArrowRight, ShieldCheck,
     AlertCircle, Save, X, Edit2, QrCode
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
+const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const BULAN_FULL = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const formatDate = (dateStr, type = 'short') => {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    if (isNaN(d)) return '-';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = d.getMonth();
+    const yyyy = d.getFullYear();
+    if (type === 'full') return `${dd} ${BULAN_FULL[mm]} ${yyyy}`;
+    if (type === 'datetime') return `${dd} ${BULAN[mm]} ${yyyy} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    if (type === 'input') return `${yyyy}-${String(mm+1).padStart(2,'0')}-${dd}`;
+    return `${dd} ${BULAN[mm]} ${yyyy}`;
+};
 
 const EOffice = () => {
     const { tab = 'dashboard' } = useParams();
@@ -118,7 +130,7 @@ const EOffice = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-slate-600 font-medium">
-                                        {format(new Date(doc.date), 'dd MMM yyyy', { locale: id })}
+                                        {formatDate(doc.date)}
                                     </td>
                                     <td className="px-6 py-4">
                                         <StatusBadge status={doc.status} />
@@ -184,7 +196,7 @@ const EOffice = () => {
                             <InfoGroup label="Subjek / Perihal" value={viewingDoc.subject} icon={<Tag size={16} />} full />
                             <InfoGroup label="Kategori" value={viewingDoc.category} />
                             <InfoGroup label="Prioritas" value={viewingDoc.priority} />
-                            <InfoGroup label="Tanggal Dokumen" value={format(new Date(viewingDoc.date), 'dd MMMM yyyy', { locale: id })} />
+                            <InfoGroup label="Tanggal Dokumen" value={formatDate(viewingDoc.date, 'full')} />
                             <InfoGroup label="Penulis / Pembuat" value={viewingDoc.author?.name} />
                             
                             {viewingDoc.type === 'SURAT_MASUK' && (
@@ -192,7 +204,7 @@ const EOffice = () => {
                                     <InfoGroup label="Pengirim" value={viewingDoc.senderName} />
                                     <InfoGroup label="Instansi Pengirim" value={viewingDoc.senderOrg} />
                                     <InfoGroup label="No. Surat Referensi" value={viewingDoc.referenceNumber} />
-                                    <InfoGroup label="Tanggal Diterima" value={viewingDoc.receivedDate && format(new Date(viewingDoc.receivedDate), 'dd MMMM yyyy', { locale: id })} />
+                                    <InfoGroup label="Tanggal Diterima" value={viewingDoc.receivedDate ? formatDate(viewingDoc.receivedDate, 'full') : '-'} />
                                 </>
                             )}
                         </div>
@@ -205,7 +217,7 @@ const EOffice = () => {
                                 <div>
                                     <div className="font-black text-emerald-900 text-lg">Dokumen Terverifikasi</div>
                                     <div className="text-emerald-700 text-sm font-medium leading-relaxed">
-                                        Ditandatangani oleh <span className="font-bold underline">{viewingDoc.signedBy?.name}</span> pada {format(new Date(viewingDoc.signedAt), 'dd MMM yyyy HH:mm', { locale: id })}.
+                                        Ditandatangani oleh <span className="font-bold underline">{viewingDoc.signedBy?.name}</span> pada {formatDate(viewingDoc.signedAt, 'datetime')}.
                                     </div>
                                 </div>
                             </div>
@@ -357,7 +369,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         senderName: '',
         senderOrg: '',
         referenceNumber: '',
-        receivedDate: format(new Date(), 'yyyy-MM-dd'),
+        receivedDate: formatDate(new Date(), 'input'),
         party1Name: 'Yayasan Daarul Ilmi',
         party1Title: 'Kepala Bidang Sarpras',
         party2Name: '',
@@ -368,7 +380,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         if (doc) {
             setFormData({
                 ...doc,
-                receivedDate: doc.receivedDate ? format(new Date(doc.receivedDate), 'yyyy-MM-dd') : '',
+                receivedDate: doc.receivedDate ? formatDate(doc.receivedDate, 'input') : '',
             });
         } else {
             setFormData(prev => ({ ...prev, type: defaultType }));
