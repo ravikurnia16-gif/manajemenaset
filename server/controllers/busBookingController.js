@@ -396,7 +396,7 @@ const deleteBusBooking = async (req, res) => {
         if (!booking) return res.status(404).json({ error: 'Booking tidak ditemukan' });
 
         // Only owner or admin can delete
-        if (booking.userId !== req.user.id && !['SUPER_ADMIN', 'ADMIN_ASET'].includes(req.user.role)) {
+        if (booking.userId !== req.user.id && !['SUPER_ADMIN', 'KABID_SARPRAS', 'ADMIN_ASET'].includes(req.user.role)) {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 
@@ -455,7 +455,7 @@ const assignDriver = async (req, res) => {
         const currentUser = await prisma.user.findUnique({ where: { id: user.id } });
 
         const isSarpras = currentUser?.position?.toLowerCase().includes('sarana dan prasarana');
-        const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role);
+        const isTechAdmin = ['SUPER_ADMIN', 'KABID_SARPRAS', 'BIDANG_IT'].includes(user.role);
 
         if (!isSarpras && !isTechAdmin) {
             return res.status(403).json({ error: 'Akses ditolak. Hanya bagian Sarana dan Prasarana yang dapat menugaskan supir.' });
@@ -780,7 +780,7 @@ const completeBusBooking = async (req, res) => {
         const { totalKm } = req.body;
 
         // Role Check
-        if (!['ADMIN_ASET', 'SUPER_ADMIN'].includes(req.user.role)) {
+        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
             return res.status(403).json({ error: 'Akses ditolak. Hanya Admin Aset atau Super Admin yang diizinkan.' });
         }
 
@@ -870,7 +870,7 @@ const markBusAsPaid = async (req, res) => {
         const { id } = req.params;
 
         // Role Check
-        if (!['ADMIN_ASET', 'SUPER_ADMIN'].includes(req.user.role)) {
+        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
             return res.status(403).json({ error: 'Akses ditolak. Hanya Admin Aset atau Super Admin yang diizinkan.' });
         }
 
@@ -926,7 +926,7 @@ const setBusInitialFund = async (req, res) => {
         const { amount } = req.body;
 
         // Authorization check
-        if (!['ADMIN_ASET', 'SUPER_ADMIN'].includes(req.user.role)) {
+        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 
@@ -958,7 +958,7 @@ const createBusUnexpectedExpense = async (req, res) => {
         const { date, description, amount } = req.body;
 
         // Authorization check
-        if (!['ADMIN_ASET', 'SUPER_ADMIN'].includes(req.user.role)) {
+        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 
@@ -980,7 +980,7 @@ const deleteBusUnexpectedExpense = async (req, res) => {
         const { id } = req.params;
 
         // Authorization check
-        if (!['ADMIN_ASET', 'SUPER_ADMIN'].includes(req.user.role)) {
+        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 

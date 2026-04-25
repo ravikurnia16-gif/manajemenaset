@@ -32,7 +32,9 @@ const DocumentManagement = () => {
     // Modal state
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [selectedDoc, setSelectedDoc] = useState(null);
-    const [newDocForm, setNewDocForm] = useState({ title: '', content: '', type: 'NOTA_DINAS', urgency: 'NORMAL', destination: '', isManualCode: false, manualCode: '' });
+    const [newDocForm, setNewDocForm] = useState({ title: '', content: '', type: 'NOTA_DINAS', urgency: 'NORMAL', destination: '', isManualCode: false, manualCode: '', unitId: '', version: 1, reviewDate: '' });
+    const [approvers, setApprovers] = useState({ parafId: '', signId: '' });
+    const [units, setUnits] = useState([]);
     const [approvers, setApprovers] = useState({ parafId: '', signId: '' });
     const [currentUser, setCurrentUser] = useState(null);
     const [showSignCanvas, setShowSignCanvas] = useState(false);
@@ -47,14 +49,16 @@ const DocumentManagement = () => {
 
     const fetchUsersAndProfile = async () => {
         try {
-            const [usersRes, profileRes, settingsRes] = await Promise.all([
+            const [usersRes, profileRes, settingsRes, unitsRes] = await Promise.all([
                 api.get('/users'),
                 api.get('/users/profile'),
-                api.get('/settings').catch(() => ({ data: null }))
+                api.get('/settings').catch(() => ({ data: null })),
+                api.get('/units').catch(() => ({ data: [] }))
             ]);
             setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
             setCurrentUser(profileRes.data);
             if (settingsRes.data) setSettings(settingsRes.data);
+            if (unitsRes.data) setUnits(Array.isArray(unitsRes.data) ? unitsRes.data : []);
         } catch (err) { console.error(err); }
     };
 
@@ -112,9 +116,12 @@ const DocumentManagement = () => {
                 ...newDocForm,
                 approverIds: [parseInt(approvers.parafId), parseInt(approvers.signId)].filter(id => !isNaN(id))
             };
+            // Category mapping for simple implementation
+            payload.categoryId = newDocForm.type === 'SOP' ? 3 : (newDocForm.type === 'BAST' ? 2 : 1);
+            
             await api.post('/documents', payload);
             setShowCreateModal(false);
-            setNewDocForm({ title: '', content: '', type: 'NOTA_DINAS', urgency: 'NORMAL', destination: '', isManualCode: false, manualCode: '' });
+            setNewDocForm({ title: '', content: '', type: 'NOTA_DINAS', urgency: 'NORMAL', destination: '', isManualCode: false, manualCode: '', unitId: '', version: 1, reviewDate: '' });
             setApprovers({ parafId: '', signId: '' });
             fetchDocuments();
             alert("Draft Dokumen Berhasil Dibuat");
@@ -329,6 +336,8 @@ const DocumentManagement = () => {
                                             <option value="SURAT_KEPUTUSAN">Surat Keputusan</option>
                                             <option value="SURAT_EDARAN">Surat Edaran</option>
                                             <option value="BAST">Berita Acara (BAST)</option>
+                                            <option value="SOP">Standar Operasional Prosedur (SOP)</option>
+                                            <option value="SURAT_KELUAR">Surat Keluar</option>
                                         </select>
                                     </div>
                                     <div>
@@ -346,6 +355,17 @@ const DocumentManagement = () => {
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Unit Pendidikan</label>
+                                        <select 
+                                            value={newDocForm.unitId}
+                                            onChange={e => setNewDocForm({...newDocForm, unitId: e.target.value})}
+                                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all outline-none"
+                                        >
+                                            <option value="">-- Pilih Unit (Opsional) --</option>
+                                            {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                        </select>
+                                    </div>
                                     <div className="flex flex-col gap-2">
                                         <div className="flex items-center justify-between">
                                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Tujuan Surat</label>
@@ -359,6 +379,31 @@ const DocumentManagement = () => {
                                             required
                                         />
                                     </div>
+                                </div>
+                                {newDocForm.type === 'SOP' && (
+                                    <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Versi SOP</label>
+                                            <input 
+                                                type="number" 
+                                                min="1"
+                                                value={newDocForm.version}
+                                                onChange={e => setNewDocForm({...newDocForm, version: parseInt(e.target.value) || 1})}
+                                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Tanggal Review (Batas Berlaku)</label>
+                                            <input 
+                                                type="date" 
+                                                value={newDocForm.reviewDate}
+                                                onChange={e => setNewDocForm({...newDocForm, reviewDate: e.target.value})}
+                                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="grid grid-cols-2 gap-4">
                                     <div className="flex flex-col gap-2">
                                         <div className="flex items-center gap-2 justify-between">
                                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Nomor Surat</label>
@@ -525,7 +570,7 @@ const DocumentManagement = () => {
             )}
 
             {/* HIDDEN PRINT COMPONENT */}
-            <div className="hidden">
+            <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', opacity: 0, zIndex: -1 }}>
                 <DocumentPrintView ref={printRef} doc={selectedDoc} settings={settings} />
             </div>
         </div>

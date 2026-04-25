@@ -45,10 +45,10 @@ const Sidebar = ({ isOpen = true }) => {
         console.error("Failed to parse user from localStorage", e);
     }
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_UNIT'].includes(user?.role);
-    const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user?.role);
+    const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role);
     const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user?.role);
     const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
-    const isEofficeAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
+    const isEofficeAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role);
     const isKabidSarpras = user?.position?.toLowerCase().includes('kepala bidang') && 
                            user?.position?.toLowerCase().includes('sarana dan prasarana');
 

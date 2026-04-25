@@ -198,7 +198,7 @@ exports.getAllAssets = async (req, res) => {
         // until database schema is confirmed to be in sync.
 
         // 1. Role-based Restriction
-        const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'BIDANG_IT'].includes(role);
+        const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'BIDANG_IT', 'KABID_SARPRAS'].includes(role) || req.user.position === 'Kepala Bidang Sarana dan Prasarana';
         if (!isGlobalAdmin) {
             where.unitId = unitId;
         }

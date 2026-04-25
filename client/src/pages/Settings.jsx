@@ -861,7 +861,7 @@ const Settings = () => {
                                                 { label: 'Bendahara Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
 
                                                 // BIDANG SARANA & PRASARANA
-                                                { label: 'Kepala Bidang Sarana dan Prasarana', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                                { label: 'Kepala Bidang Sarana dan Prasarana', role: 'KABID_SARPRAS', scope: 'GLOBAL' },
                                                 { label: 'Staff Keuangan dan Administrasi (Sarpras)', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                                 { label: 'Staff Manajemen Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                                 { label: 'Staff Gudang dan Logistik', role: 'ADMIN_ASET', scope: 'GLOBAL' },
@@ -961,7 +961,7 @@ const Settings = () => {
                                         Role System: <span className="font-bold text-blue-600">{newUser.role || '-'}</span>
                                         {newUser.role && (
                                             <span className="ml-1 text-slate-400">
-                                                ({['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(newUser.role) ? 'Akses Global' : 'Akses Terbatas Unit'})
+                                                ({['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(newUser.role) ? 'Akses Global' : 'Akses Terbatas Unit'})
                                             </span>
                                         )}
                                     </div>

@@ -135,7 +135,7 @@ function App() {
 
           {/* Module: Manajemen Personalia */}
           <Route path="personalia/dashboard" element={
-            ['SUPER_ADMIN', 'ADMIN_ASET'].includes(JSON.parse(localStorage.getItem('user'))?.role)
+            ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(JSON.parse(localStorage.getItem('user'))?.role)
               ? <PersonnelDashboard />
               : <Navigate to="/dashboard" />
           } />

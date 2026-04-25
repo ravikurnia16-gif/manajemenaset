@@ -2,23 +2,8 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const crypto = require('crypto');
 
-// Helpers for automatic letter numbering
-const generateLetterCode = async (type) => {
-    const year = new Date().getFullYear();
-    const count = await prisma.document.count({
-        where: {
-            createdAt: {
-                gte: new Date(`${year}-01-01T00:00:00.000Z`),
-                lt: new Date(`${year + 1}-01-01T00:00:00.000Z`)
-            }
-        }
-    });
-    
-    // Example format: 800/001/SARPRAS/2026
-    const prefix = type === 'SURAT_TUGAS' ? '800' : '000';
-    const num = (count + 1).toString().padStart(3, '0');
-    return `${prefix}/${num}/SARPRAS/${year}`;
-};
+const numberingService = require('../services/numberingService');
+const pdfSignatureService = require('../services/pdfSignatureService');
 
 // Helper for incoming mail code
 const generateMailCode = async () => {
@@ -81,11 +66,18 @@ exports.getDocument = async (req, res) => {
 
 exports.createDocument = async (req, res) => {
     try {
-        const { type, title, content, urgency, approverIds, destination, isManualCode, manualCode } = req.body;
+        const { type, title, content, urgency, approverIds, destination, isManualCode, manualCode, unitId, categoryId, version, reviewDate } = req.body;
         
         let finalCode = manualCode;
+        let unitCode = 'PST';
+        if (unitId) {
+             const unit = await prisma.unit.findUnique({ where: { id: parseInt(unitId) } });
+             if (unit) unitCode = unit.code;
+        }
+
         if (!isManualCode) {
-            finalCode = await generateLetterCode(type);
+            // type acts as category code for simple setup
+            finalCode = await numberingService.generateDocumentNumber(type, unitCode, version || 1);
         }
 
         const docHash = crypto.randomBytes(16).toString('hex');
@@ -102,6 +94,10 @@ exports.createDocument = async (req, res) => {
                 urgency: urgency || 'NORMAL',
                 destination: destination || '',
                 isManualCode: isManualCode || false,
+                unitId: unitId ? parseInt(unitId) : null,
+                categoryId: categoryId ? parseInt(categoryId) : null,
+                version: version || 1,
+                reviewDate: reviewDate ? new Date(reviewDate) : null,
                 creatorId: req.user.id,
                 senderName: req.user.name,
                 hash: docHash,
@@ -209,7 +205,7 @@ exports.approveDocument = async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.user.id;
-        const { signature } = req.body; // Base64 signature image from canvas
+        const { signature, pdfBase64 } = req.body; // Base64 signature image from canvas, pdfBase64 for signing
 
         const doc = await prisma.document.findUnique({
             where: { id: parseInt(id) },
@@ -246,15 +242,20 @@ exports.approveDocument = async (req, res) => {
                 where: { id: parseInt(id) },
                 data: { status: nextStatus }
             });
+            res.json({ message: "Berhasil diparaf, diteruskan ke pemeriksa selanjutnya" });
         } else {
-            // Selesai
-            await prisma.document.update({
-                where: { id: parseInt(id) },
-                data: { status: 'SIGNED' }
-            });
+            // Selesai - jika ini langkah terakhir (Tanda Tangan)
+            if (pdfBase64) {
+                 await pdfSignatureService.approveAndSignDocument(parseInt(id), userId, pdfBase64);
+            } else {
+                 // Fallback if no PDF provided from frontend
+                 await prisma.document.update({
+                    where: { id: parseInt(id) },
+                    data: { status: 'SIGNED' }
+                 });
+            }
+            res.json({ message: "Berhasil ditandatangani dan disahkan" });
         }
-
-        res.json({ message: "Berhasil disetujui" });
     } catch(err) {
         console.error("Error approving document:", err);
         res.status(500).json({ error: "Gagal menyetujui surat" });
