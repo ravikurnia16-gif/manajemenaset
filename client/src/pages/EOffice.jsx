@@ -591,7 +591,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     payload.append('file', file);
                 }
                 config = { headers: { 'Content-Type': 'multipart/form-data' } };
-            } else if (formData.type === 'BAST') {
+            } else if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(formData.category))) {
                 payload = { ...formData, content: JSON.stringify(bastItems) };
             }
 
@@ -616,7 +616,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             <div className="p-2 bg-blue-600 text-white rounded-lg">
                                 <Plus size={20} />
                             </div>
-                            <h3 className="font-black text-slate-900">{doc ? 'Edit Dokumen' : 'Buat Dokumen Baru'}</h3>
+                            <h3 className="font-black text-slate-900">{doc ? 'Edit' : 'Buat'} {formData.type?.replace('_', ' ')}</h3>
                         </div>
                         <button type="button" onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600">
                             <X size={24} />
@@ -624,25 +624,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     </div>
 
                     <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto max-h-[75vh]">
-                        <div className="col-span-full">
-                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Jenis Dokumen</label>
-                            <div className="flex items-center gap-2">
-                                {['SURAT_KELUAR', 'SURAT_MASUK', 'BAST', 'MOU'].map(t => (
-                                    <button
-                                        key={t}
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, type: t })}
-                                        className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
-                                            formData.type === t 
-                                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20' 
-                                            : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
-                                        }`}
-                                    >
-                                        {t.replace('_', ' ')}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                        {/* Remove Jenis Dokumen selection row as requested */}
 
                         <div className="col-span-full">
                             <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Perihal / Subjek Surat</label>
@@ -706,7 +688,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         value={formData.category}
                                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                                     >
-                                        {['Undangan', 'Tugas', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'Berita Acara', 'Lainnya'].map(c => (
+                                        {['Undangan', 'Tugas', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'Berita Acara', 'Serah Terima Barang', 'Pesanan', 'Edaran', 'Lainnya'].map(c => (
                                             <option key={c} value={c}>{c}</option>
                                         ))}
                                     </select>
@@ -726,7 +708,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </>
                         )}
 
-                        {formData.type === 'BAST' ? (
+                        {['BAST', 'SURAT_KELUAR'].includes(formData.type) && ['Berita Acara', 'Serah Terima Barang'].includes(formData.category) ? (
                             <div className="col-span-full">
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Daftar Barang Serah Terima</label>
