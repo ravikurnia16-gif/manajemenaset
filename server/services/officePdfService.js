@@ -476,18 +476,24 @@ async function generateSuratTugasPDF(doc, setting) {
 
     if (task.personnelList && task.personnelList.length > 0) {
         task.personnelList.forEach((p, idx) => {
-            const nameText = `${task.personnelList.length > 1 ? (idx + 1) + '. ' : ': '}${p.name}`;
-            page.drawText(nameText, { x: pX, y, size: 11, font: fontBold });
+            const prefix = task.personnelList.length > 1 ? `${idx + 1}. ` : '';
+            const indent = task.personnelList.length > 1 ? 15 : 0;
+            
+            page.drawText(`${prefix}Nama`, { x: pX, y, size: 11, font: fontRegular });
+            page.drawText(`: ${p.name}`, { x: pX + 50 + indent, y, size: 11, font: fontBold });
             y -= 14;
             
             if (p.position) {
-                page.drawText(`   Jabatan : ${p.position}`, { x: pX, y, size: 10, font: fontRegular });
+                page.drawText('Jabatan', { x: pX + indent, y, size: 10, font: fontRegular });
+                page.drawText(`: ${p.position}`, { x: pX + 50 + indent, y, size: 10, font: fontRegular });
                 y -= 13;
             }
             if (p.nip) {
-                page.drawText(`   NIY       : ${p.nip}`, { x: pX, y, size: 10, font: fontRegular });
+                page.drawText('NIY', { x: pX + indent, y, size: 10, font: fontRegular });
+                page.drawText(`: ${p.nip}`, { x: pX + 50 + indent, y, size: 10, font: fontRegular });
                 y -= 13;
             }
+            y -= 5; // Space between personnel
         });
     }
     y -= 8;
