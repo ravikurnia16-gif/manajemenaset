@@ -127,8 +127,8 @@ exports.createOutgoingDocument = async (req, res) => {
     try {
         const {
             type = 'SURAT_KELUAR', subject, content, category, priority,
-            party1Name, party1Title, party1Org,
-            party2Name, party2Title, party2Org,
+            party1Name, party1Title, party1Org, party1Address,
+            party2Name, party2Title, party2Org, party2Address,
         } = req.body;
 
         const doc = await prisma.officeDocument.create({
@@ -143,9 +143,11 @@ exports.createOutgoingDocument = async (req, res) => {
                 party1Name,
                 party1Title,
                 party1Org,
+                party1Address,
                 party2Name,
                 party2Title,
                 party2Org,
+                party2Address,
             },
             include: {
                 author: { select: { id: true, name: true } },
@@ -199,8 +201,8 @@ exports.updateDocument = async (req, res) => {
         const {
             subject, content, category, priority, type,
             senderName, senderOrg, referenceNumber, receivedDate,
-            party1Name, party1Title, party1Org,
-            party2Name, party2Title, party2Org,
+            party1Name, party1Title, party1Org, party1Address,
+            party2Name, party2Title, party2Org, party2Address,
         } = req.body;
         const fileUrl = req.fileUrl || req.body.fileUrl;
 
@@ -210,8 +212,8 @@ exports.updateDocument = async (req, res) => {
                 subject, content, category, priority, type,
                 senderName, senderOrg, referenceNumber,
                 receivedDate: receivedDate ? new Date(receivedDate) : undefined,
-                party1Name, party1Title, party1Org,
-                party2Name, party2Title, party2Org,
+                party1Name, party1Title, party1Org, party1Address,
+                party2Name, party2Title, party2Org, party2Address,
                 ...(fileUrl && { fileUrl }), // Only update fileUrl if a new one is provided
                 status: existing.status === 'REJECTED' ? 'DRAFT' : undefined,
             },
@@ -369,7 +371,7 @@ exports.rejectDocument = async (req, res) => {
 exports.signAsParty = async (req, res) => {
     try {
         const id = parseInt(req.params.id);
-        const { party, signatureData, name, title, org } = req.body;
+        const { party, signatureData, name, title, org, address } = req.body;
 
         if (!['party1', 'party2'].includes(party)) {
             return res.status(400).json({ error: 'Party must be "party1" or "party2"' });
@@ -388,12 +390,14 @@ exports.signAsParty = async (req, res) => {
             if (name) data.party1Name = name;
             if (title) data.party1Title = title;
             if (org) data.party1Org = org;
+            if (address) data.party1Address = address;
         } else {
             data.party2Signature = signatureData;
             data.party2SignedAt = new Date();
             if (name) data.party2Name = name;
             if (title) data.party2Title = title;
             if (org) data.party2Org = org;
+            if (address) data.party2Address = address;
         }
 
         // If both parties have signed, mark as SIGNED

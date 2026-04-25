@@ -6,7 +6,7 @@ import api from '../lib/axios';
 const UNITS = ['SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'Yayasan'];
 
 const statusFlow = ['PENDING', 'CONFIRMED', 'READY', 'PICKED_UP'];
-const statusLabel = { PENDING: 'Menunggu', CONFIRMED: 'Dikonfirmasi', READY: 'Siap', PICKED_UP: 'Diambil', CANCELLED: 'Batal' };
+const statusLabel = { PENDING: 'Menunggu', CONFIRMED: 'Dikonfirmasi', READY: 'Siap', PICKED_UP: 'Diambil', INDENT: 'Indent', CANCELLED: 'Batal' };
 const statusColor = {
     PENDING: 'bg-yellow-100 text-yellow-700 border-yellow-200',
     CONFIRMED: 'bg-blue-100 text-blue-700 border-blue-200',
@@ -81,7 +81,7 @@ const UniformOrderAdmin = () => {
     const handleBulkSave = async (orderId) => {
         const order = orders.find(o => o.id === orderId);
         if (!order) return;
-        
+
         const updates = order.items
             .map(item => {
                 if (itemEdits[item.id]) {
@@ -98,12 +98,12 @@ const UniformOrderAdmin = () => {
         setSavingBulk(true);
         try {
             await api.put(`/uniform-order/admin/orders/${orderId}/bulk-items`, { updates });
-            
+
             // Remove saved edits from local state
             const newEdits = { ...itemEdits };
             updates.forEach(u => delete newEdits[u.id]);
             setItemEdits(newEdits);
-            
+
             alert('Sukses menyimpan dan WA rekap terkirim!');
             fetchOrders();
         } catch (e) {
@@ -123,8 +123,8 @@ const UniformOrderAdmin = () => {
     };
 
     const displayedOrders = orders.filter(order => {
-        const isUnit = (order.note && order.note.includes('PESANAN UNIT INTERNAL')) || 
-                       (order.studentName && order.studentName.toUpperCase().includes('PESANAN UNIT'));
+        const isUnit = (order.note && order.note.includes('PESANAN UNIT INTERNAL')) ||
+            (order.studentName && order.studentName.toUpperCase().includes('PESANAN UNIT'));
         return activeTab === 'WARID' ? !isUnit : isUnit;
     });
 
@@ -146,11 +146,11 @@ const UniformOrderAdmin = () => {
 
             {/* Tabs */}
             <div className="flex bg-slate-100 p-1 rounded-xl w-max">
-                <button 
+                <button
                     onClick={() => setActiveTab('WARID')}
                     className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'WARID' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                 >Pesanan Warid (Wali Murid)</button>
-                <button 
+                <button
                     onClick={() => setActiveTab('UNIT')}
                     className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'UNIT' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                 >Pesanan Unit (Internal)</button>
@@ -353,7 +353,7 @@ const UniformOrderAdmin = () => {
                                                         <h5 className="font-bold text-indigo-800 text-sm">Belum Disimpan</h5>
                                                         <p className="text-xs text-indigo-600 mt-0.5">Ada perubahan status. Klik simpan untuk merekam ke database & mengirim <b>1 WA Rekap.</b></p>
                                                     </div>
-                                                    <button 
+                                                    <button
                                                         disabled={savingBulk}
                                                         onClick={() => handleBulkSave(order.id)}
                                                         className="bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-bold shadow-md hover:bg-indigo-700 transition flex items-center gap-2 text-sm disabled:opacity-50"

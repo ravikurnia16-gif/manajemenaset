@@ -1152,11 +1152,13 @@ model OfficeDocument {
   party1Name      String?
   party1Title     String?
   party1Org       String?
+  party1Address   String?                @db.Text
   party1Signature String?                @db.LongText
   party1SignedAt  DateTime?
   party2Name      String?
   party2Title     String?
   party2Org       String?
+  party2Address   String?                @db.Text
   party2Signature String?                @db.LongText
   party2SignedAt  DateTime?
 

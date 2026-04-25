@@ -203,14 +203,150 @@ async function generateSuratPDF(doc, setting) {
 }
 
 async function generateBASTMouPDF(doc, setting) {
-    // Implementasi serupa dengan menggunakan drawKopSurat
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595.28, 841.89]);
+    const page = pdfDoc.addPage([595.28, 841.89]); // A4
+    const { width, height } = page.getSize();
+    
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
     const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    const fontItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
     
     const startY = await drawKopSurat(page, fontBold, fontRegular);
-    // ... sisa logika BAST ...
+    const margin = 56;
+    let y = startY;
+
+    // Judul
+    const title = doc.type === 'BAST' ? 'BERITA ACARA SERAH TERIMA' : 'MEMORANDUM OF UNDERSTANDING';
+    const titleWidth = fontBold.widthOfTextAtSize(title, 14);
+    page.drawText(title, { x: (width - titleWidth) / 2, y, size: 14, font: fontBold });
+    y -= 16;
+
+    // Nomor
+    if (doc.number) {
+        const numText = `Nomor: ${doc.number}`;
+        const numWidth = fontRegular.widthOfTextAtSize(numText, 11);
+        page.drawText(numText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
+    }
+    y -= 30;
+
+    // Tanggal Teks Pembuka
+    const docDate = new Date(doc.date);
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    
+    page.drawText(`Pada hari ini ${days[docDate.getDay()]}, tanggal ${docDate.getDate()} bulan ${months[docDate.getMonth()]} tahun ${docDate.getFullYear()}, kami yang bertanda tangan di bawah ini:`, {
+        x: margin, y, size: 11, font: fontRegular, maxWidth: width - margin * 2, lineHeight: 15
+    });
+    y -= 30;
+
+    // Pihak 1
+    page.drawText('1. Nama', { x: margin, y, size: 11, font: fontRegular });
+    page.drawText(`: ${doc.party1Name || '-'}`, { x: margin + 70, y, size: 11, font: fontBold });
+    y -= 15;
+    page.drawText('   Jabatan', { x: margin, y, size: 11, font: fontRegular });
+    page.drawText(`: ${doc.party1Title || '-'}`, { x: margin + 70, y, size: 11, font: fontRegular });
+    y -= 15;
+    page.drawText('   Alamat', { x: margin, y, size: 11, font: fontRegular });
+    page.drawText(`: ${doc.party1Address || doc.party1Org || '-'}`, { x: margin + 70, y, size: 11, font: fontRegular, maxWidth: width - margin - 130 });
+    y -= 30;
+    page.drawText('Selanjutnya disebut sebagai PIHAK PERTAMA.', { x: margin, y, size: 11, font: fontRegular });
+    y -= 25;
+
+    // Pihak 2
+    page.drawText('2. Nama', { x: margin, y, size: 11, font: fontRegular });
+    page.drawText(`: ${doc.party2Name || '-'}`, { x: margin + 70, y, size: 11, font: fontBold });
+    y -= 15;
+    page.drawText('   Jabatan', { x: margin, y, size: 11, font: fontRegular });
+    page.drawText(`: ${doc.party2Title || '-'}`, { x: margin + 70, y, size: 11, font: fontRegular });
+    y -= 15;
+    page.drawText('   Alamat', { x: margin, y, size: 11, font: fontRegular });
+    page.drawText(`: ${doc.party2Address || doc.party2Org || '-'}`, { x: margin + 70, y, size: 11, font: fontRegular, maxWidth: width - margin - 130 });
+    y -= 30;
+    page.drawText('Selanjutnya disebut sebagai PIHAK KEDUA.', { x: margin, y, size: 11, font: fontRegular });
+    y -= 30;
+
+    // Teks Pengantar Tabel
+    page.drawText('PIHAK PERTAMA menyerahkan kepada PIHAK KEDUA, dan PIHAK KEDUA menerima dari PIHAK PERTAMA, barang-barang dengan rincian sebagai berikut:', {
+        x: margin, y, size: 11, font: fontRegular, maxWidth: width - margin * 2, lineHeight: 15
+    });
+    y -= 30;
+
+    // Tabel Barang (Parse JSON dari content)
+    let items = [];
+    if (doc.type === 'BAST' && doc.content) {
+        try {
+            items = JSON.parse(doc.content);
+        } catch(e) {}
+    }
+
+    if (items.length > 0) {
+        // Header Tabel
+        const colNoX = margin;
+        const colNamaX = margin + 30;
+        const colQtyX = margin + 250;
+        const colKondisiX = margin + 330;
+        
+        page.drawLine({ start: { x: margin, y: y+12 }, end: { x: width - margin, y: y+12 }, thickness: 1 });
+        page.drawText('No', { x: colNoX + 5, y, size: 10, font: fontBold });
+        page.drawText('Jenis Barang', { x: colNamaX + 5, y, size: 10, font: fontBold });
+        page.drawText('Kuantitas', { x: colQtyX + 5, y, size: 10, font: fontBold });
+        page.drawText('Kondisi', { x: colKondisiX + 5, y, size: 10, font: fontBold });
+        y -= 8;
+        page.drawLine({ start: { x: margin, y: y+12 }, end: { x: width - margin, y: y+12 }, thickness: 1 });
+        y -= 15;
+
+        // Isi Tabel
+        items.forEach((item, index) => {
+            page.drawText(`${index + 1}`, { x: colNoX + 5, y, size: 10, font: fontRegular });
+            page.drawText(item.name || '-', { x: colNamaX + 5, y, size: 10, font: fontRegular, maxWidth: 200 });
+            page.drawText(item.qty || '-', { x: colQtyX + 5, y, size: 10, font: fontRegular });
+            page.drawText(item.condition || '-', { x: colKondisiX + 5, y, size: 10, font: fontRegular });
+            y -= 15;
+            if (y < 100) { /* handle page break ideally, but simplified for now */ }
+        });
+        page.drawLine({ start: { x: margin, y: y+12 }, end: { x: width - margin, y: y+12 }, thickness: 1 });
+        y -= 20;
+    } else {
+        page.drawText('(Tidak ada rincian barang)', { x: margin, y, size: 11, font: fontItalic });
+        y -= 20;
+    }
+
+    // Penutup
+    page.drawText('Demikian Berita Acara Serah Terima ini dibuat dalam keadaan sadar dan tanpa paksaan dari pihak manapun untuk dapat dipergunakan sebagaimana mestinya.', {
+        x: margin, y, size: 11, font: fontRegular, maxWidth: width - margin * 2, lineHeight: 15
+    });
+    y -= 50;
+
+    // Tanda Tangan
+    const col1X = margin + 20;
+    const col2X = width - margin - 150;
+
+    page.drawText('PIHAK PERTAMA', { x: col1X, y, size: 11, font: fontBold });
+    page.drawText('PIHAK KEDUA', { x: col2X, y, size: 11, font: fontBold });
+    y -= 15;
+    page.drawText(doc.party1Title || '', { x: col1X, y, size: 10, font: fontRegular });
+    page.drawText(doc.party2Title || '', { x: col2X, y, size: 10, font: fontRegular });
+    
+    y -= 60; // Space for signature
+
+    // Embed Signatures
+    const embedSig = async (sigBase64, xPos) => {
+        if (!sigBase64) return;
+        try {
+            const sigData = sigBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
+            const sigBytes = Buffer.from(sigData, 'base64');
+            const sigImage = sigBase64.includes('image/png') ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
+            page.drawImage(sigImage, { x: xPos, y: y + 5, width: 100, height: 50 });
+        } catch (e) {}
+    };
+
+    if (doc.party1Signature) await embedSig(doc.party1Signature, col1X);
+    if (doc.party2Signature) await embedSig(doc.party2Signature, col2X);
+
+    // Names
+    page.drawText(doc.party1Name || '____________________', { x: col1X, y, size: 11, font: fontBold });
+    page.drawText(doc.party2Name || '____________________', { x: col2X, y, size: 11, font: fontBold });
+
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 }

@@ -33,7 +33,7 @@ const EOffice = () => {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingDoc, setEditingDoc] = useState(null);
     const [viewingDoc, setViewingDoc] = useState(null);
-    const [signatureModal, setSignatureModal] = useState(false);
+    const [signatureRequest, setSignatureRequest] = useState(null);
 
     const user = JSON.parse(localStorage.getItem('user'));
     const isKabidSarpras = user?.role === 'KABID_SARPRAS' || user?.role === 'SUPER_ADMIN';
@@ -313,6 +313,49 @@ const EOffice = () => {
                                 </div>
                             </div>
                         )}
+
+                        <div className="space-y-4">
+                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Isi Dokumen / Rincian</label>
+                            {viewingDoc.type === 'BAST' ? (
+                                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                    <table className="w-full text-left border-collapse text-sm">
+                                        <thead className="bg-slate-50 text-slate-600 font-bold">
+                                            <tr>
+                                                <th className="p-3 border-b border-slate-200">Jenis Barang</th>
+                                                <th className="p-3 border-b border-slate-200 w-24">Qty</th>
+                                                <th className="p-3 border-b border-slate-200 w-32">Kondisi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(() => {
+                                                try {
+                                                    const items = JSON.parse(viewingDoc.content || '[]');
+                                                    return items.map((item, i) => (
+                                                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                            <td className="p-3 border-b border-slate-100 font-medium">{item.name}</td>
+                                                            <td className="p-3 border-b border-slate-100">{item.qty}</td>
+                                                            <td className="p-3 border-b border-slate-100">
+                                                                <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${
+                                                                    item.condition === 'Baik' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                                                                }`}>
+                                                                    {item.condition}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    ));
+                                                } catch(e) {
+                                                    return <tr><td colSpan="3" className="p-4 text-center text-slate-400 italic">Format data tidak valid</td></tr>;
+                                                }
+                                            })()}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-slate-700 whitespace-pre-wrap leading-relaxed font-medium">
+                                    {viewingDoc.content || '(Tanpa isi)'}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-4">
@@ -333,12 +376,35 @@ const EOffice = () => {
                                     <Send size={18} /> Ajukan Persetujuan
                                 </button>
                             )}
+                            
+                            {/* Multi-party signing buttons for BAST/MOU */}
+                            {['BAST', 'MOU'].includes(viewingDoc.type) && (
+                                <>
+                                    {!viewingDoc.party1Signature && (
+                                        <button 
+                                            onClick={() => setSignatureRequest({ doc: viewingDoc, party: 'party1' })}
+                                            className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
+                                        >
+                                            <FileSignature size={18} /> TTD Pihak 1
+                                        </button>
+                                    )}
+                                    {!viewingDoc.party2Signature && (
+                                        <button 
+                                            onClick={() => setSignatureRequest({ doc: viewingDoc, party: 'party2' })}
+                                            className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                                        >
+                                            <FileSignature size={18} /> TTD Pihak 2
+                                        </button>
+                                    )}
+                                </>
+                            )}
+
                             {viewingDoc.status === 'PENDING_APPROVAL' && isKabidSarpras && (
                                 <button 
-                                    onClick={() => { setViewingDoc(null); setSignatureModal(viewingDoc); }}
+                                    onClick={() => { setViewingDoc(null); setSignatureRequest({ doc: viewingDoc }); }}
                                     className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
                                 >
-                                    <FileSignature size={18} /> Tandatangani
+                                    <FileSignature size={18} /> Tandatangani Pimpinan
                                 </button>
                             )}
                         </div>
@@ -432,8 +498,8 @@ const EOffice = () => {
                 defaultType={tab === 'surat-masuk' ? 'SURAT_MASUK' : 'SURAT_KELUAR'}
             />
             <SignatureModal 
-                doc={signatureModal} 
-                onClose={() => setSignatureModal(false)} 
+                signatureRequest={signatureRequest} 
+                onClose={() => setSignatureRequest(null)} 
                 onSuccess={() => { fetchDocuments(); fetchStats(); }}
             />
         </div>
@@ -451,12 +517,17 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         senderOrg: '',
         referenceNumber: '',
         receivedDate: formatDate(new Date(), 'input'),
-        party1Name: 'Yayasan Daarul Ilmi',
+        party1Name: 'Yayasan Dar el-Iman',
         party1Title: 'Kepala Bidang Sarpras',
+        party1Org: 'Yayasan Dar el-Iman',
+        party1Address: 'Jl. Belanti Permai No. 8, Padang',
         party2Name: '',
         party2Title: '',
+        party2Org: '',
+        party2Address: '',
     });
     const [file, setFile] = useState(null);
+    const [bastItems, setBastItems] = useState([{ name: '', qty: '', condition: 'Baik' }]);
 
     useEffect(() => {
         if (doc) {
@@ -464,8 +535,16 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 ...doc,
                 receivedDate: doc.receivedDate ? formatDate(doc.receivedDate, 'input') : '',
             });
+            if (doc.type === 'BAST' && doc.content) {
+                try {
+                    setBastItems(JSON.parse(doc.content));
+                } catch (e) {
+                    console.error('Failed to parse BAST content JSON', e);
+                }
+            }
         } else {
             setFormData(prev => ({ ...prev, type: defaultType }));
+            setBastItems([{ name: '', qty: '', condition: 'Baik' }]);
         }
     }, [doc, defaultType, isOpen]);
 
@@ -489,6 +568,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     payload.append('file', file);
                 }
                 config = { headers: { 'Content-Type': 'multipart/form-data' } };
+            } else if (formData.type === 'BAST') {
+                payload = { ...formData, content: JSON.stringify(bastItems) };
             }
 
             if (doc) {
@@ -622,7 +703,50 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </>
                         )}
 
-                        {formData.type === 'SURAT_MASUK' ? (
+                        {formData.type === 'BAST' ? (
+                            <div className="col-span-full">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Daftar Barang Serah Terima</label>
+                                    <button type="button" onClick={() => setBastItems([...bastItems, { name: '', qty: '', condition: 'Baik' }])} className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:text-blue-700">
+                                        <Plus size={14} /> Tambah Barang
+                                    </button>
+                                </div>
+                                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead className="bg-slate-50 text-xs font-bold text-slate-600 uppercase">
+                                            <tr>
+                                                <th className="p-3 border-b border-slate-200">Jenis Barang</th>
+                                                <th className="p-3 border-b border-slate-200 w-24">Kuantitas</th>
+                                                <th className="p-3 border-b border-slate-200 w-40">Kondisi</th>
+                                                <th className="p-3 border-b border-slate-200 w-16 text-center">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {bastItems.map((item, index) => (
+                                                <tr key={index}>
+                                                    <td className="p-2 border-b border-slate-100">
+                                                        <input required value={item.name} onChange={(e) => { const newI = [...bastItems]; newI[index].name = e.target.value; setBastItems(newI); }} className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none" placeholder="Nama barang..." />
+                                                    </td>
+                                                    <td className="p-2 border-b border-slate-100">
+                                                        <input required type="number" value={item.qty} onChange={(e) => { const newI = [...bastItems]; newI[index].qty = e.target.value; setBastItems(newI); }} className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none" />
+                                                    </td>
+                                                    <td className="p-2 border-b border-slate-100">
+                                                        <select value={item.condition} onChange={(e) => { const newI = [...bastItems]; newI[index].condition = e.target.value; setBastItems(newI); }} className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none">
+                                                            <option>Baik</option>
+                                                            <option>Rusak Ringan</option>
+                                                            <option>Rusak Berat</option>
+                                                        </select>
+                                                    </td>
+                                                    <td className="p-2 border-b border-slate-100 text-center">
+                                                        <button type="button" onClick={() => setBastItems(bastItems.filter((_, i) => i !== index))} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ) : formData.type === 'SURAT_MASUK' ? (
                             <div className="col-span-full">
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Upload File Surat Masuk (PDF/Gambar)</label>
                                 <input 
@@ -666,6 +790,13 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         value={formData.party1Title}
                                         onChange={(e) => setFormData({ ...formData, party1Title: e.target.value })}
                                     />
+                                    <textarea 
+                                        placeholder="Alamat Pihak 1"
+                                        rows={2}
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                        value={formData.party1Address || ''}
+                                        onChange={(e) => setFormData({ ...formData, party1Address: e.target.value })}
+                                    />
                                 </div>
                                 <div className="space-y-4">
                                     <div className="text-xs font-black text-emerald-600 uppercase tracking-widest">Pihak Kedua (Eksternal)</div>
@@ -680,6 +811,13 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
                                         value={formData.party2Title}
                                         onChange={(e) => setFormData({ ...formData, party2Title: e.target.value })}
+                                    />
+                                    <textarea 
+                                        placeholder="Alamat Pihak 2"
+                                        rows={2}
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                        value={formData.party2Address || ''}
+                                        onChange={(e) => setFormData({ ...formData, party2Address: e.target.value })}
                                     />
                                 </div>
                             </div>
@@ -700,7 +838,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     );
 };
 
-const SignatureModal = ({ doc, onClose, onSuccess }) => {
+const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
+    const { doc, party } = signatureRequest || {};
     const canvasRef = useRef(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [approvalNote, setApprovalNote] = useState('');
@@ -714,7 +853,7 @@ const SignatureModal = ({ doc, onClose, onSuccess }) => {
         ctx.lineCap = 'round';
         // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }, [doc]);
+    }, [doc, party]);
 
     if (!doc) return null;
 
@@ -745,10 +884,25 @@ const SignatureModal = ({ doc, onClose, onSuccess }) => {
     const handleSign = async () => {
         try {
             const signatureData = canvasRef.current.toDataURL('image/png');
-            await api.post(`/office-documents/${doc.id}/approve`, {
-                signatureData,
-                approvalNote
-            });
+            
+            if (party) {
+                // Multi-party sign
+                await api.post(`/office-documents/${doc.id}/sign-party`, {
+                    party,
+                    signatureData,
+                    name: party === 'party1' ? doc.party1Name : doc.party2Name,
+                    title: party === 'party1' ? doc.party1Title : doc.party2Title,
+                    org: party === 'party1' ? doc.party1Org : doc.party2Org,
+                    address: party === 'party1' ? doc.party1Address : doc.party2Address,
+                });
+            } else {
+                // Kabid Approval sign
+                await api.post(`/office-documents/${doc.id}/approve`, {
+                    signatureData,
+                    approvalNote
+                });
+            }
+            
             alert('Dokumen berhasil ditandatangani!');
             onSuccess();
             onClose();
