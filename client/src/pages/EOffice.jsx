@@ -566,6 +566,7 @@ const EOffice = () => {
 };
 
 const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
         type: defaultType,
         subject: '',
