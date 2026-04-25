@@ -1103,8 +1103,13 @@ model WaNotificationTemplate {
 enum OfficeDocumentType {
   SURAT_MASUK
   SURAT_KELUAR
+  SURAT_TUGAS
+  SURAT_EDARAN
+  SURAT_KEPUTUSAN
+  SURAT_PESANAN
   BAST
-  MOU
+  INVOICE
+  LAINNYA
 }
 
 enum OfficeDocumentStatus {

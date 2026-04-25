@@ -6,7 +6,7 @@ import {
     MoreVertical, CheckCircle2, XCircle, Clock, 
     FileSignature, Download, Eye, Trash2, Printer,
     Calendar, User, Tag, ArrowRight, ShieldCheck,
-    AlertCircle, Save, X, Edit2, QrCode
+    AlertCircle, Save, X, Edit2, QrCode, LayoutDashboard
 } from 'lucide-react';
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const BULAN_FULL = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -34,6 +34,7 @@ const EOffice = () => {
     const [editingDoc, setEditingDoc] = useState(null);
     const [viewingDoc, setViewingDoc] = useState(null);
     const [signatureRequest, setSignatureRequest] = useState(null);
+    const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
 
     const user = JSON.parse(localStorage.getItem('user'));
     const isKabidSarpras = user?.role === 'KABID_SARPRAS' || user?.role === 'SUPER_ADMIN';
@@ -55,8 +56,20 @@ const EOffice = () => {
     const fetchDocuments = async () => {
         setLoading(true);
         try {
-            const endpoint = tab === 'surat-masuk' ? '/office-documents/incoming' : '/office-documents/outgoing';
-            const res = await api.get(endpoint);
+            let endpoint = '/office-documents/outgoing';
+            let params = {};
+
+            if (tab === 'surat-masuk') {
+                endpoint = '/office-documents/incoming';
+            } else if (tab === 'invoice') {
+                params.type = 'INVOICE';
+            } else if (tab === 'lainnya') {
+                params.type = 'LAINNYA';
+            } else if (tab === 'surat-keluar') {
+                // Default outgoing already includes all surat keluar types
+            }
+
+            const res = await api.get(endpoint, { params });
             setDocuments(res.data.documents || []);
         } catch (err) {
             console.error('Fetch documents error:', err);
@@ -455,7 +468,7 @@ const EOffice = () => {
                 </div>
                 <div className="flex items-center gap-2">
                     <button 
-                        onClick={() => { setEditingDoc(null); setIsFormOpen(true); }}
+                        onClick={() => setIsTypeModalOpen(true)}
                         className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all flex items-center gap-2"
                     >
                         <Plus size={18} /> Buat Dokumen Baru
@@ -463,26 +476,27 @@ const EOffice = () => {
                 </div>
             </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex items-center gap-1 bg-slate-200/50 p-1 rounded-xl w-fit">
-                <TabButton 
-                    active={tab === 'dashboard'} 
-                    label="Dashboard" 
-                    icon={<LayoutDashboard size={16} />} 
-                    onClick={() => navigate('/e-office/dashboard')} 
-                />
-                <TabButton 
-                    active={tab === 'surat-masuk'} 
-                    label="Surat Masuk" 
-                    icon={<Inbox size={16} />} 
-                    onClick={() => navigate('/e-office/surat-masuk')} 
-                />
-                <TabButton 
-                    active={tab === 'surat-keluar'} 
-                    label="Surat Keluar" 
-                    icon={<Send size={16} />} 
-                    onClick={() => navigate('/e-office/surat-keluar')} 
-                />
+            {/* Tab Navigation */}
+            <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-slate-200 shadow-sm w-fit overflow-x-auto max-w-full no-scrollbar">
+                {[
+                    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
+                    { id: 'surat-masuk', label: 'Surat Masuk', icon: <Inbox size={16} /> },
+                    { id: 'surat-keluar', label: 'Surat Keluar', icon: <Send size={16} /> },
+                    { id: 'invoice', label: 'Invoice', icon: <FileText size={16} /> },
+                    { id: 'lainnya', label: 'Lainnya', icon: <Tag size={16} /> },
+                ].map((t) => (
+                    <button
+                        key={t.id}
+                        onClick={() => navigate(`/e-office/${t.id}`)}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
+                            tab === t.id 
+                                ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
+                                : 'text-slate-500 hover:bg-slate-50'
+                        }`}
+                    >
+                        {t.icon} {t.label}
+                    </button>
+                ))}
             </div>
 
             {/* Content Area */}
@@ -501,6 +515,15 @@ const EOffice = () => {
                 signatureRequest={signatureRequest} 
                 onClose={() => setSignatureRequest(null)} 
                 onSuccess={() => { fetchDocuments(); fetchStats(); }}
+            />
+            <TypeSelectionModal 
+                isOpen={isTypeModalOpen}
+                onClose={() => setIsTypeModalOpen(false)}
+                onSelect={(type) => {
+                    setIsTypeModalOpen(false);
+                    setEditingDoc({ type });
+                    setIsFormOpen(true);
+                }}
             />
         </div>
     );
@@ -977,6 +1000,81 @@ const TabButton = ({ active, label, icon, onClick }) => (
     </button>
 );
 
-const LayoutDashboard = ({ size }) => <FileText size={size} />; // Placeholder as it was not imported correctly
+const TypeSelectionModal = ({ isOpen, onClose, onSelect }) => {
+    if (!isOpen) return null;
+
+    const types = [
+        { 
+            id: 'SURAT_MASUK', label: 'Surat Masuk', icon: <Inbox size={24} />, 
+            desc: 'Dokumen yang diterima dari luar instansi', color: 'blue' 
+        },
+        { 
+            id: 'SURAT_KELUAR_GROUP', label: 'Surat Keluar', icon: <Send size={24} />, 
+            desc: 'Surat Tugas, Edaran, Keputusan, BAST, dll', color: 'emerald',
+            subtypes: [
+                { id: 'SURAT_TUGAS', label: 'Surat Tugas' },
+                { id: 'SURAT_EDARAN', label: 'Surat Edaran' },
+                { id: 'SURAT_KEPUTUSAN', label: 'Surat Keputusan' },
+                { id: 'SURAT_PESANAN', label: 'Surat Pesanan' },
+                { id: 'BAST', label: 'Serah Terima Barang (BAST)' },
+                { id: 'SURAT_KELUAR', label: 'Surat Keluar Lainnya' },
+            ]
+        },
+        { 
+            id: 'INVOICE', label: 'Invoice / Tagihan', icon: <FileText size={24} />, 
+            desc: 'Dokumen penagihan atau bukti pembayaran', color: 'amber' 
+        },
+        { 
+            id: 'LAINNYA', label: 'Dokumen Lainnya', icon: <Tag size={24} />, 
+            desc: 'Dokumen pendukung lainnya', color: 'slate' 
+        },
+    ];
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in duration-200">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                    <h3 className="font-black text-slate-900 leading-none text-xl">Pilih Tipe Dokumen</h3>
+                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 transition-colors"><X size={24} /></button>
+                </div>
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                    {types.map(t => (
+                        <div key={t.id} className="space-y-4">
+                            <div className="p-4 rounded-2xl border-2 border-slate-100 bg-slate-50/50">
+                                <div className={`p-3 rounded-xl bg-${t.color}-50 text-${t.color}-600 w-fit mb-3`}>{t.icon}</div>
+                                <div className="font-black text-slate-900 text-lg leading-tight">{t.label}</div>
+                                <div className="text-xs text-slate-500 font-medium mt-1">{t.desc}</div>
+                                
+                                {!t.subtypes && (
+                                    <button 
+                                        onClick={() => onSelect(t.id)}
+                                        className={`mt-4 w-full py-2.5 rounded-xl bg-${t.color}-600 text-white font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-${t.color}-500/20`}
+                                    >
+                                        Pilih {t.label}
+                                    </button>
+                                )}
+                            </div>
+                            
+                            {t.subtypes && (
+                                <div className="grid grid-cols-1 gap-1.5 pl-2">
+                                    {t.subtypes.map(st => (
+                                        <button 
+                                            key={st.id}
+                                            onClick={() => onSelect(st.id)}
+                                            className="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 transition-all flex items-center justify-between group border border-transparent hover:border-emerald-100"
+                                        >
+                                            <span>{st.label}</span>
+                                            <ArrowRight size={16} className="opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default EOffice;
