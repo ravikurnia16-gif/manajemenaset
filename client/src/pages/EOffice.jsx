@@ -626,8 +626,30 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto max-h-[75vh]">
                         {/* Remove Jenis Dokumen selection row as requested */}
 
+                        {formData.type === 'SURAT_KELUAR' && (
+                            <div className="col-span-full bg-blue-50/50 p-6 rounded-2xl border border-blue-100 mb-2">
+                                <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 block">1. Pilih Kategori Surat Keluar</label>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                    {['Undangan', 'Tugas', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'Berita Acara', 'Serah Terima Barang', 'Pesanan', 'Edaran', 'Lainnya'].map(c => (
+                                        <button
+                                            key={c}
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, category: c })}
+                                            className={`px-4 py-3 rounded-xl text-xs font-bold border transition-all text-center ${
+                                                formData.category === c 
+                                                ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
+                                                : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
+                                            }`}
+                                        >
+                                            {c}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="col-span-full">
-                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Perihal / Subjek Surat</label>
+                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">{formData.type === 'SURAT_KELUAR' ? '2. ' : ''}Perihal / Subjek Surat</label>
                             <input 
                                 required
                                 type="text"
@@ -679,20 +701,6 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     />
                                 </div>
                             </>
-                        ) : (
-                            <>
-                                <div>
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Kategori Surat</label>
-                                    <select 
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
-                                        value={formData.category}
-                                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                    >
-                                        {['Undangan', 'Tugas', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'Berita Acara', 'Serah Terima Barang', 'Pesanan', 'Edaran', 'Lainnya'].map(c => (
-                                            <option key={c} value={c}>{c}</option>
-                                        ))}
-                                    </select>
-                                </div>
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Prioritas</label>
                                     <select 
@@ -779,7 +787,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {['BAST', 'MOU'].includes(formData.type) && (
+                        {(['BAST', 'MOU'].includes(formData.type) || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(formData.category))) && (
                             <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
                                 <div className="space-y-4">
                                     <div className="text-xs font-black text-blue-600 uppercase tracking-widest">Pihak Pertama (Internal)</div>
