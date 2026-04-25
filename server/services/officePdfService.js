@@ -34,13 +34,30 @@ async function drawKopSurat(page, fontBold, fontRegular) {
             const logoImage = await page.doc.embedJpg(logoBytes);
             page.drawImage(logoImage, {
                 x: 50,
-                y: height - 125, // Align with text
+                y: height - 125,
                 width: 90,
                 height: 90,
             });
         }
     } catch (e) {
         console.error('Failed to embed yayasan logo:', e);
+    }
+
+    // Embed and draw Sarpras Logo (Right Side)
+    try {
+        const sarprasPath = path.join(__dirname, '../assets/sarpras.jpeg');
+        if (fs.existsSync(sarprasPath)) {
+            const sarprasBytes = fs.readFileSync(sarprasPath);
+            const sarprasImage = await page.doc.embedJpg(sarprasBytes);
+            page.drawImage(sarprasImage, {
+                x: width - 140,
+                y: height - 125,
+                width: 90,
+                height: 90,
+            });
+        }
+    } catch (e) {
+        console.error('Failed to embed sarpras logo:', e);
     }
     
     const green = rgb(0.37, 0.77, 0.64); // YAYASAN DAR EL-IMAN
