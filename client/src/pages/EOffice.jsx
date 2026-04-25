@@ -1009,16 +1009,8 @@ const TypeSelectionModal = ({ isOpen, onClose, onSelect }) => {
             desc: 'Dokumen yang diterima dari luar instansi', color: 'blue' 
         },
         { 
-            id: 'SURAT_KELUAR_GROUP', label: 'Surat Keluar', icon: <Send size={24} />, 
-            desc: 'Surat Tugas, Edaran, Keputusan, BAST, dll', color: 'emerald',
-            subtypes: [
-                { id: 'SURAT_TUGAS', label: 'Surat Tugas' },
-                { id: 'SURAT_EDARAN', label: 'Surat Edaran' },
-                { id: 'SURAT_KEPUTUSAN', label: 'Surat Keputusan' },
-                { id: 'SURAT_PESANAN', label: 'Surat Pesanan' },
-                { id: 'BAST', label: 'Serah Terima Barang (BAST)' },
-                { id: 'SURAT_KELUAR', label: 'Surat Keluar Lainnya' },
-            ]
+            id: 'SURAT_KELUAR', label: 'Surat Keluar', icon: <Send size={24} />, 
+            desc: 'Surat Tugas, Edaran, Keputusan, BAST, dll', color: 'emerald'
         },
         { 
             id: 'INVOICE', label: 'Invoice / Tagihan', icon: <FileText size={24} />, 
@@ -1039,37 +1031,19 @@ const TypeSelectionModal = ({ isOpen, onClose, onSelect }) => {
                 </div>
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
                     {types.map(t => (
-                        <div key={t.id} className="space-y-4">
-                            <div className="p-4 rounded-2xl border-2 border-slate-100 bg-slate-50/50">
-                                <div className={`p-3 rounded-xl bg-${t.color}-50 text-${t.color}-600 w-fit mb-3`}>{t.icon}</div>
-                                <div className="font-black text-slate-900 text-lg leading-tight">{t.label}</div>
-                                <div className="text-xs text-slate-500 font-medium mt-1">{t.desc}</div>
-                                
-                                {!t.subtypes && (
-                                    <button 
-                                        onClick={() => onSelect(t.id)}
-                                        className={`mt-4 w-full py-2.5 rounded-xl bg-${t.color}-600 text-white font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-${t.color}-500/20`}
-                                    >
-                                        Pilih {t.label}
-                                    </button>
-                                )}
-                            </div>
+                        <button 
+                            key={t.id}
+                            onClick={() => onSelect(t.id)}
+                            className="group text-left p-6 rounded-2xl border-2 border-slate-100 bg-slate-50/50 hover:border-blue-500 hover:bg-blue-50 transition-all flex flex-col items-start"
+                        >
+                            <div className={`p-3 rounded-xl bg-${t.color}-50 text-${t.color}-600 mb-4 group-hover:scale-110 transition-transform`}>{t.icon}</div>
+                            <div className="font-black text-slate-900 text-lg leading-tight">{t.label}</div>
+                            <div className="text-xs text-slate-500 font-medium mt-2 leading-relaxed">{t.desc}</div>
                             
-                            {t.subtypes && (
-                                <div className="grid grid-cols-1 gap-1.5 pl-2">
-                                    {t.subtypes.map(st => (
-                                        <button 
-                                            key={st.id}
-                                            onClick={() => onSelect(st.id)}
-                                            className="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 transition-all flex items-center justify-between group border border-transparent hover:border-emerald-100"
-                                        >
-                                            <span>{st.label}</span>
-                                            <ArrowRight size={16} className="opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                            <div className="mt-6 flex items-center gap-2 text-blue-600 text-xs font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all">
+                                Pilih Tipe Ini <ArrowRight size={14} />
+                            </div>
+                        </button>
                     ))}
                 </div>
             </div>
