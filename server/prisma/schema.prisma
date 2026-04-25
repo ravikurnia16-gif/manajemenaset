@@ -163,6 +163,7 @@ model Unit {
   rkbs         RKB[]
   procurements Procurement[]
   maintenances Maintenance[]
+  eofficeDocuments Document[]
 }
 
 model Room {
