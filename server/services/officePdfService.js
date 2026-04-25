@@ -219,7 +219,7 @@ async function generateSuratPDF(doc, setting) {
     y -= 18;
 
     page.drawText('Kepala Bidang Sarpras,', { x: sigX, y, size: 11, font: fontBold });
-    y -= 60;
+    y -= 85;
 
     // TTE (QR Code)
     await drawDigitalSignature(page, doc, sigX + 20, y);
@@ -478,22 +478,41 @@ async function generateSuratTugasPDF(doc, setting) {
         task.personnelList.forEach((p, idx) => {
             const prefix = task.personnelList.length > 1 ? `${idx + 1}. ` : '';
             const indent = task.personnelList.length > 1 ? 15 : 0;
-            
+            const labelWidth = 55;
+            const valueX = pX + labelWidth + indent;
+            const maxWidth = width - valueX - margin;
+
+            // Nama
             page.drawText(`${prefix}Nama`, { x: pX, y, size: 11, font: fontRegular });
-            page.drawText(`: ${p.name}`, { x: pX + 50 + indent, y, size: 11, font: fontBold });
-            y -= 14;
-            
+            page.drawText(`: ${p.name || '-'}`, {
+                x: valueX, y, size: 11, font: fontBold,
+                maxWidth: maxWidth
+            });
+            const nameLines = Math.ceil(fontBold.widthOfTextAtSize(`: ${p.name || '-'}`, 11) / maxWidth);
+            y -= (nameLines * 14);
+
+            // Jabatan
             if (p.position) {
                 page.drawText('Jabatan', { x: pX + indent, y, size: 10, font: fontRegular });
-                page.drawText(`: ${p.position}`, { x: pX + 50 + indent, y, size: 10, font: fontRegular });
-                y -= 13;
+                page.drawText(`: ${p.position}`, {
+                    x: valueX, y, size: 10, font: fontRegular,
+                    maxWidth: maxWidth
+                });
+                const posLines = Math.ceil(fontRegular.widthOfTextAtSize(`: ${p.position}`, 10) / maxWidth);
+                y -= (posLines * 13);
             }
+
+            // NIY
             if (p.nip) {
                 page.drawText('NIY', { x: pX + indent, y, size: 10, font: fontRegular });
-                page.drawText(`: ${p.nip}`, { x: pX + 50 + indent, y, size: 10, font: fontRegular });
-                y -= 13;
+                page.drawText(`: ${p.nip}`, {
+                    x: valueX, y, size: 10, font: fontRegular,
+                    maxWidth: maxWidth
+                });
+                const nipLines = Math.ceil(fontRegular.widthOfTextAtSize(`: ${p.nip}`, 10) / maxWidth);
+                y -= (nipLines * 13);
             }
-            y -= 5; // Space between personnel
+            y -= 8; // Space between personnel entries
         });
     }
     y -= 8;
@@ -536,7 +555,7 @@ async function generateSuratTugasPDF(doc, setting) {
     y -= 18;
     page.drawText('Kepala Bidang Sarpras,', { x: sigX, y, size: 11, font: fontBold });
 
-    y -= 65;
+    y -= 85;
     // TTE (QR Code)
     await drawDigitalSignature(page, doc, sigX + 20, y);
 
