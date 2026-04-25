@@ -235,7 +235,7 @@ const EOffice = () => {
                                                 ) : null
                                             ) : (
                                                 <button 
-                                                    onClick={() => window.open(`/api/office-documents/${doc.id}/pdf`, '_blank')}
+                                                    onClick={() => window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
                                                     className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                                                     title="Cetak PDF"
                                                 >
@@ -414,7 +414,7 @@ const EOffice = () => {
                     <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
                             <button 
-                                onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/pdf`, '_blank')}
+                                onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
                                 className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20"
                             >
                                 <Printer size={18} /> Cetak PDF

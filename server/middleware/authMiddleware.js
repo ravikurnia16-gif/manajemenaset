@@ -2,7 +2,13 @@ const jwt = require('jsonwebtoken');
 
 exports.verifyToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    let token = authHeader && authHeader.split(' ')[1];
+    
+    // Fallback to query parameter (useful for opening PDFs in new tabs)
+    if (!token && req.query.token) {
+        token = req.query.token;
+    }
+
     if (!token) return res.status(401).json({ error: 'Access denied' });
 
     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
