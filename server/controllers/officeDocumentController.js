@@ -1,7 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { generateDocumentNumber, getCategoryCodes } = require('../services/documentNumberingService');
-const { generateVerificationQR, generateSuratPDF, generateBASTMouPDF } = require('../services/officePdfService');
+const { generateVerificationQR, generateSuratPDF, generateBASTMouPDF, generateSuratTugasPDF } = require('../services/officePdfService');
 const crypto = require('crypto');
 
 // ==================== SURAT MASUK ====================
@@ -453,8 +453,10 @@ exports.generatePDF = async (req, res) => {
         const setting = await prisma.setting.findUnique({ where: { id: 1 } });
 
         let pdfBytes;
-        if (['BAST', 'MOU'].includes(doc.type)) {
+        if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(doc.category))) {
             pdfBytes = await generateBASTMouPDF(doc, setting);
+        } else if (doc.type === 'SURAT_KELUAR' && doc.category === 'Tugas') {
+            pdfBytes = await generateSuratTugasPDF(doc, setting);
         } else {
             pdfBytes = await generateSuratPDF(doc, setting);
         }

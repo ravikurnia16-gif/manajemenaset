@@ -351,8 +351,120 @@ async function generateBASTMouPDF(doc, setting) {
     return pdfBytes;
 }
 
+async function generateSuratTugasPDF(doc, setting) {
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([595.28, 841.89]);
+    const { width, height } = page.getSize();
+    
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    
+    const startY = await drawKopSurat(page, fontBold, fontRegular);
+    const margin = 70;
+    let y = startY;
+
+    // Judul
+    const title = 'SURAT TUGAS';
+    const titleWidth = fontBold.widthOfTextAtSize(title, 14);
+    page.drawText(title, { x: (width - titleWidth) / 2, y, size: 14, font: fontBold });
+    y -= 16;
+
+    // Nomor
+    if (doc.number) {
+        const numText = `Nomor: ${doc.number}`;
+        const numWidth = fontRegular.widthOfTextAtSize(numText, 11);
+        page.drawText(numText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
+    }
+    y -= 40;
+
+    // Parse Content
+    let task = { basis: '', personnel: '', purpose: '', date: '', location: '' };
+    try {
+        task = JSON.parse(doc.content);
+    } catch(e) {
+        task.purpose = doc.content; // fallback
+    }
+
+    const drawSection = (label, text) => {
+        page.drawText(label, { x: margin, y, size: 11, font: fontBold });
+        const labelWidth = fontBold.widthOfTextAtSize(label, 11);
+        
+        const textLines = text.split('\n');
+        let firstLine = true;
+        
+        textLines.forEach(line => {
+            page.drawText(firstLine ? `: ${line}` : `  ${line}`, { 
+                x: margin + 80, 
+                y, 
+                size: 11, 
+                font: fontRegular, 
+                maxWidth: width - margin - 150 
+            });
+            
+            const textWidth = fontRegular.widthOfTextAtSize(line, 11);
+            const numLines = Math.ceil(textWidth / (width - margin - 150));
+            y -= (numLines * 16);
+            firstLine = false;
+        });
+        y -= 10;
+    };
+
+    if (task.basis) drawSection('Dasar', task.basis);
+    y -= 10;
+    
+    const menugaskanText = 'MENUGASKAN:';
+    const mWidth = fontBold.widthOfTextAtSize(menugaskanText, 11);
+    page.drawText(menugaskanText, { x: (width - mWidth) / 2, y, size: 11, font: fontBold });
+    y -= 25;
+
+    if (task.personnel) drawSection('Kepada', task.personnel);
+    if (task.purpose) drawSection('Untuk', task.purpose);
+    if (task.date) drawSection('Waktu', task.date);
+    if (task.location) drawSection('Tempat', task.location);
+
+    y -= 30;
+    page.drawText('Demikian surat tugas ini diberikan untuk dapat dilaksanakan dengan penuh tanggung jawab.', {
+        x: margin, y, size: 11, font: fontRegular, maxWidth: width - margin * 2
+    });
+
+    // Signature Area
+    y -= 60;
+    const sigX = width - margin - 180;
+    const docDate = new Date(doc.date);
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    page.drawText(`Padang, ${docDate.getDate()} ${months[docDate.getMonth()]} ${docDate.getFullYear()}`, { x: sigX, y, size: 11, font: fontRegular });
+    y -= 18;
+    page.drawText('Kepala Bidang Sarpras,', { x: sigX, y, size: 11, font: fontBold });
+    
+    y -= 60;
+    if (doc.uuid) {
+        const qrDataUrl = await generateVerificationQR(doc.uuid);
+        const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
+        const qrBytes = Buffer.from(qrBase64, 'base64');
+        const qrImage = await pdfDoc.embedPng(qrBytes);
+        page.drawImage(qrImage, { x: sigX + 20, y: y, width: 60, height: 60 });
+    }
+
+    if (doc.signatureData) {
+        try {
+            const sigData = doc.signatureData.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
+            const sigBytes = Buffer.from(sigData, 'base64');
+            const sigImage = doc.signatureData.includes('image/png') ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
+            page.drawImage(sigImage, { x: sigX, y: y, width: 100, height: 60 });
+        } catch (e) {}
+    }
+
+    y -= 20;
+    const signerName = doc.signedBy?.name || 'Yayasan Dar el-Iman';
+    page.drawText(signerName, { x: sigX, y, size: 11, font: fontBold });
+
+    const pdfBytes = await pdfDoc.save();
+    return pdfBytes;
+}
+
 module.exports = {
     generateVerificationQR,
     generateSuratPDF,
     generateBASTMouPDF,
+    generateSuratTugasPDF,
 };
