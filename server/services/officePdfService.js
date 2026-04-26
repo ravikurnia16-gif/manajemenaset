@@ -363,8 +363,8 @@ async function generateBASTMouPDF(doc, setting) {
     y -= 60;
 
     // Tanda Tangan
-    const col1X = margin + 20;
-    const col2X = width - margin - 180;
+    const col2X = margin + 20; // Pihak Kedua (Kiri)
+    const col1X = width - margin - 180; // Pihak Pertama (Kanan)
 
     page.drawText('PIHAK PERTAMA,', { x: col1X, y, size: 11, font: fontBold });
     page.drawText('PIHAK KEDUA,', { x: col2X, y, size: 11, font: fontBold });
