@@ -315,15 +315,24 @@ exports.approveAndSign = async (req, res) => {
             return res.status(400).json({ error: 'Dokumen harus berstatus PENDING_APPROVAL' });
         }
 
+        // Build update data
+        const updateData = {
+            status: 'SIGNED',
+            signedById: req.user.id,
+            signedAt: new Date(),
+            signatureData: signatureData || null,
+            approvalNote,
+        };
+
+        // For BAST/Serah Terima: Kabid approval = Pihak Pertama signature (TTE)
+        const isBAST = ['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(doc.category));
+        if (isBAST) {
+            updateData.party1SignedAt = new Date();
+        }
+
         const updated = await prisma.officeDocument.update({
             where: { id },
-            data: {
-                status: 'SIGNED',
-                signedById: req.user.id,
-                signedAt: new Date(),
-                signatureData: signatureData || null,
-                approvalNote,
-            },
+            data: updateData,
             include: {
                 author: { select: { id: true, name: true } },
                 signedBy: { select: { id: true, name: true, nip: true } },

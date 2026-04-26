@@ -1252,7 +1252,7 @@ const ProcurementDetail = () => {
                                                 type: 'SURAT_KELUAR',
                                                 category: 'Serah Terima Barang',
                                                 subject: `BAST Pengadaan: ${req.title}`,
-                                                party1Name: 'Kepala Bidang Sarana Prasarana',
+                                                party1Name: 'Ravi Kurnia',
                                                 party1Title: 'Pemberi',
                                                 party2Name: req.vendor?.name || '',
                                                 party2Title: 'Penerima',

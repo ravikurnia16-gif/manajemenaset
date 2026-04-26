@@ -490,17 +490,9 @@ const EOffice = () => {
                                 </button>
                             )}
                             
-                            {/* Multi-party signing buttons for BAST/MOU/Serah Terima Barang */}
+                            {/* Multi-party signing: Pihak 2 (Pad) button */}
                             {(['BAST', 'MOU'].includes(viewingDoc.type) || (viewingDoc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(viewingDoc.category))) && (
                                 <>
-                                    {!viewingDoc.party1SignedAt && (
-                                        <button 
-                                            onClick={() => setSignatureRequest({ doc: viewingDoc, party: 'party1' })}
-                                            className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
-                                        >
-                                            <FileSignature size={18} /> TTE Pihak 1
-                                        </button>
-                                    )}
                                     {!viewingDoc.party2Signature && (
                                         <button 
                                             onClick={() => setSignatureRequest({ doc: viewingDoc, party: 'party2' })}
@@ -512,12 +504,13 @@ const EOffice = () => {
                                 </>
                             )}
 
+                            {/* Pihak 1 = Approval Kepala Bidang (TTE) */}
                             {viewingDoc.status === 'PENDING_APPROVAL' && isKabidSarpras && (
                                 <button 
                                     onClick={() => { setViewingDoc(null); setSignatureRequest({ doc: viewingDoc }); }}
-                                    className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                                    className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
                                 >
-                                    <FileSignature size={18} /> Tandatangani Pimpinan
+                                    <FileSignature size={18} /> Tandatangani Kepala Bidang
                                 </button>
                             )}
                         </div>
@@ -641,7 +634,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         senderOrg: '',
         referenceNumber: '',
         receivedDate: formatDate(new Date(), 'input'),
-        party1Name: 'Yayasan Dar el-Iman',
+        party1Name: 'Ravi Kurnia',
         party1Title: 'Kepala Bidang Sarpras',
         party1Org: 'Yayasan Dar el-Iman',
         party1Address: 'Jl. Belanti Permai No. 8, Padang',
@@ -732,7 +725,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 senderOrg: '',
                 referenceNumber: '',
                 receivedDate: formatDate(new Date(), 'input'),
-                party1Name: 'Yayasan Dar el-Iman',
+                party1Name: 'Ravi Kurnia',
                 party1Title: 'Kepala Bidang Sarpras',
                 party1Org: 'Yayasan Dar el-Iman',
                 party1Address: 'Jl. Belanti Permai No. 8, Padang',
