@@ -1321,15 +1321,15 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
                 </div>
 
                 <div className="px-8 pb-8 space-y-6">
-                    {party ? (
+                    {party === 'party2' ? (
                         <div className="animate-in fade-in zoom-in duration-300">
                             <SignaturePad 
-                                title={`Tanda Tangan ${party === 'party1' ? 'Pihak Pertama' : 'Pihak Kedua'}`}
+                                title={`Tanda Tangan Pihak Kedua (Penerima)`}
                                 onCancel={onClose}
                                 onSave={(dataUrl) => handleSign(dataUrl)}
                             />
                             <p className="mt-4 text-[10px] text-center text-slate-400 font-medium leading-relaxed">
-                                Dengan menandatangani secara digital, Anda menyatakan bahwa data yang tercantum dalam dokumen adalah benar dan sah sesuai kesepakatan.
+                                Pihak Kedua menandatangani secara manual pada Signature Pad ini.
                             </p>
                         </div>
                     ) : (
@@ -1337,8 +1337,13 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
                             <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 flex flex-col items-center text-center space-y-3">
                                 <ShieldCheck className="text-emerald-600" size={40} />
                                 <div>
-                                    <div className="text-emerald-800 font-black uppercase tracking-widest text-[10px] mb-1">Otentikasi Digital</div>
-                                    <p className="text-emerald-700 text-sm font-medium">Sistem akan menyematkan Tanda Tangan Elektronik (QR Code) resmi atas nama Anda.</p>
+                                    <div className="text-emerald-800 font-black uppercase tracking-widest text-[10px] mb-1">Otentikasi Digital (TTE)</div>
+                                    <p className="text-emerald-700 text-sm font-medium">
+                                        {party === 'party1' 
+                                            ? 'Pihak Pertama (Internal) akan menandatangani secara elektronik (TTE/QR Code).' 
+                                            : 'Sistem akan menyematkan Tanda Tangan Elektronik (QR Code) resmi atas nama Anda.'
+                                        }
+                                    </p>
                                 </div>
                             </div>
 
@@ -1357,7 +1362,7 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
                                     Batal
                                 </button>
                                 <button onClick={() => handleSign()} className="px-6 py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-all uppercase tracking-widest text-xs">
-                                    Setujui & Terbitkan TTE
+                                    {party === 'party1' ? 'Tandatangani (TTE)' : 'Setujui & Terbitkan TTE'}
                                 </button>
                             </div>
                         </>

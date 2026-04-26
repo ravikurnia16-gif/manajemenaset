@@ -247,7 +247,8 @@ async function generateBASTMouPDF(doc, setting) {
     let y = startY;
 
     // Judul
-    const title = doc.type === 'BAST' ? 'BERITA ACARA SERAH TERIMA' : 'MEMORANDUM OF UNDERSTANDING';
+    const isBAST = doc.type === 'BAST' || (doc.type === 'SURAT_KELUAR' && (doc.category === 'Serah Terima Barang' || doc.category === 'Berita Acara'));
+    const title = isBAST ? 'BERITA ACARA SERAH TERIMA' : 'MEMORANDUM OF UNDERSTANDING';
     const titleWidth = fontBold.widthOfTextAtSize(title, 14);
     page.drawText(title, { x: (width - titleWidth) / 2, y, size: 14, font: fontBold });
     y -= 16;
@@ -304,9 +305,10 @@ async function generateBASTMouPDF(doc, setting) {
 
     // Tabel Barang (Parse JSON dari content)
     let items = [];
-    if (doc.type === 'BAST' && doc.content) {
+    if (doc.content) {
         try {
-            items = JSON.parse(doc.content);
+            const parsed = JSON.parse(doc.content);
+            items = Array.isArray(parsed) ? parsed : [];
         } catch (e) { }
     }
 
@@ -384,7 +386,19 @@ async function generateBASTMouPDF(doc, setting) {
     };
 
     if (doc.party1Signature) await embedSig(doc.party1Signature, col1X, y + 5);
+    
+    // Only embed party 2 if they have a signature (they always use pad as per request)
     if (doc.party2Signature) await embedSig(doc.party2Signature, col2X, y + 5);
+
+    // If Pihak 1 is the main signer and doc is SIGNED, we might add QR there too
+    if (doc.status === 'SIGNED' && doc.qrCodeData) {
+        try {
+            const qrBytes = Buffer.from(doc.qrCodeData.replace(/^data:image\/png;base64,/, ''), 'base64');
+            const qrImage = await pdfDoc.embedPng(qrBytes);
+            // Draw QR near Pihak 1 if they use electronic sign
+            page.drawImage(qrImage, { x: col1X + 20, y: y + 5, width: 60, height: 60 });
+        } catch (e) { }
+    }
 
     // Names
     y -= 5;

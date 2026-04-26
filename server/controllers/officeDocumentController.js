@@ -384,8 +384,8 @@ exports.signAsParty = async (req, res) => {
 
         const doc = await prisma.officeDocument.findUnique({ where: { id } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
-        if (!['BAST', 'MOU'].includes(doc.type)) {
-            return res.status(400).json({ error: 'Multi-party signature only for BAST/MOU' });
+        if (!['BAST', 'MOU'].includes(doc.type) && !(doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'MOU'].includes(doc.category))) {
+            return res.status(400).json({ error: 'Multi-party signature only for BAST/MOU or related Surat Keluar categories' });
         }
 
         const data = {};
@@ -413,7 +413,11 @@ exports.signAsParty = async (req, res) => {
 
         // Check if both signed now
         const refreshed = await prisma.officeDocument.findUnique({ where: { id } });
-        if (refreshed.party1Signature && refreshed.party2Signature && refreshed.status !== 'SIGNED') {
+        // party1 can sign without signatureData (Electronic Sign), party2 must have signatureData (Pad)
+        const p1Signed = refreshed.party1SignedAt || refreshed.party1Signature;
+        const p2Signed = refreshed.party2SignedAt || refreshed.party2Signature;
+
+        if (p1Signed && p2Signed && refreshed.status !== 'SIGNED') {
             await prisma.officeDocument.update({
                 where: { id },
                 data: { status: 'SIGNED', signedAt: new Date() },
