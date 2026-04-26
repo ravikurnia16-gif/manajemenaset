@@ -67,10 +67,10 @@ const Dashboard = () => {
     );
 
     const stats = [
-        { title: "Total Aset", value: data?.stats?.totalAssets?.toLocaleString() || '0', icon: Box, color: "bg-blue-500", desc: "Total item terdaftar" },
-        { title: "Nilai Buku (Terkini)", value: `Rp ${(data?.stats?.totalValue || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`, icon: DollarSign, color: "bg-emerald-500", desc: "Estimasi nilai buku saat ini" },
-        { title: "Aset Rusak", value: data?.stats?.damagedAssets?.toLocaleString() || '0', icon: AlertTriangle, color: "bg-red-500", desc: "Perlu perhatian" },
-        { title: "Habis Umur", value: data?.stats?.expiredAssets?.toLocaleString() || '0', icon: TrendingDown, color: "bg-orange-500", desc: "Melewati masa manfaat" },
+        { title: "Total Aset", value: data?.stats?.totalAssets?.toLocaleString('id-ID') || '0', icon: Box, color: "bg-blue-500", desc: "Total item terdaftar" },
+        { title: "Nilai Buku (Terkini)", value: `Rp ${(data?.stats?.totalValue || 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: DollarSign, color: "bg-emerald-500", desc: "Estimasi nilai buku saat ini" },
+        { title: "Aset Rusak", value: data?.stats?.damagedAssets?.toLocaleString('id-ID') || '0', icon: AlertTriangle, color: "bg-red-500", desc: "Perlu perhatian" },
+        { title: "Habis Umur", value: data?.stats?.expiredAssets?.toLocaleString('id-ID') || '0', icon: TrendingDown, color: "bg-orange-500", desc: "Melewati masa manfaat" },
     ];
 
     const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -102,10 +102,10 @@ const Dashboard = () => {
                 startY: 38,
                 head: [['Total Aset', 'Nilai Buku (Rp)', 'Aset Rusak', 'Habis Umur']],
                 body: [[
-                    data.stats.totalAssets || 0,
-                    `Rp ${(data.stats.totalValue || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`,
-                    data.stats.damagedAssets || 0,
-                    data.stats.expiredAssets || 0
+                    (data.stats.totalAssets || 0).toLocaleString('id-ID'),
+                    `Rp ${(data.stats.totalValue || 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                    (data.stats.damagedAssets || 0).toLocaleString('id-ID'),
+                    (data.stats.expiredAssets || 0).toLocaleString('id-ID')
                 ]],
                 theme: 'grid',
                 headStyles: { fillColor: [59, 130, 246], fontSize: 9, fontStyle: 'bold' },
@@ -123,8 +123,8 @@ const Dashboard = () => {
                     head: [['Kategori', 'Jumlah Unit', 'Nilai (Rp)']],
                     body: (data.chartData || []).map((d, i) => [
                         d.name,
-                        d.value,
-                        data.spendingData?.[i]?.value ? `Rp ${data.spendingData[i].value.toLocaleString('id-ID')}` : '-'
+                        d.value.toLocaleString('id-ID'),
+                        data.spendingData?.[i]?.value ? `Rp ${data.spendingData[i].value.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'
                     ]),
                     theme: 'striped',
                     headStyles: { fillColor: [99, 102, 241], fontSize: 8, fontStyle: 'bold' },
@@ -163,8 +163,8 @@ const Dashboard = () => {
                     startY: 22,
                     head: [['Unit', 'Kode', 'Total Item', 'Rusak', 'Nilai Buku (Rp)']],
                     body: data.unitStats.map(u => [
-                        u.name, u.code, u.assetCount, u.damagedCount,
-                        `Rp ${u.totalValue.toLocaleString('id-ID')}`
+                        u.name, u.code, u.assetCount.toLocaleString('id-ID'), u.damagedCount.toLocaleString('id-ID'),
+                        `Rp ${u.totalValue.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                     ]),
                     theme: 'striped',
                     headStyles: { fillColor: [59, 130, 246], fontSize: 8, fontStyle: 'bold' },
@@ -262,10 +262,10 @@ const Dashboard = () => {
                                     axisLine={false}
                                     tickLine={false}
                                     tick={{ fill: '#64748b', fontSize: 10 }}
-                                    tickFormatter={(val) => chartMode === 'spending' ? `${(val / 1000000).toFixed(0)}M` : val}
+                                    tickFormatter={(val) => chartMode === 'spending' ? `${(val / 1000000).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}jt` : val.toLocaleString('id-ID')}
                                 />
                                 <Tooltip
-                                    formatter={(val) => chartMode === 'spending' ? `Rp ${val.toLocaleString()}` : `${val} Unit`}
+                                    formatter={(val) => chartMode === 'spending' ? `Rp ${val.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${val.toLocaleString('id-ID')} Unit`}
                                     contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                                     cursor={{ fill: '#f8fafc' }}
                                 />
@@ -380,7 +380,7 @@ const Dashboard = () => {
                                 return (
                                     <div key={idx} className={`p-4 rounded-xl border border-transparent hover:border-slate-100 transition-all ${colorMap[item.name] || 'bg-slate-50'}`}>
                                         <div className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-1">{item.name}</div>
-                                        <div className="text-xl font-black">{item.value}</div>
+                                        <div className="text-xl font-black">{item.value.toLocaleString('id-ID')}</div>
                                     </div>
                                 );
                             })}
@@ -418,17 +418,17 @@ const Dashboard = () => {
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
-                                                {unit.assetCount}
+                                                {unit.assetCount.toLocaleString('id-ID')}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${unit.damagedCount > 0 ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-400'}`}>
-                                                {unit.damagedCount}
+                                                {unit.damagedCount.toLocaleString('id-ID')}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <span className="font-bold text-slate-600 text-sm">
-                                                Rp {unit.totalValue.toLocaleString()}
+                                                Rp {unit.totalValue.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </span>
                                         </td>
                                     </tr>
