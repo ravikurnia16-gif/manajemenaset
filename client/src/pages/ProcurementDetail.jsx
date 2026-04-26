@@ -1342,6 +1342,9 @@ const ProcurementDetail = () => {
                                     <QrCode size={14} /> Buat Ulang / Lihat BAST Resmi di E-Office
                                 </Btn>
                             </div>
+                        )}
+                    </div>
+                </Card>
             )}
         </div>
     );
