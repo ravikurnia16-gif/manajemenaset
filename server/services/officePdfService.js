@@ -774,23 +774,11 @@ async function generateSuratPesananPDF(doc) {
     page.drawText('TOTAL KESELURUHAN', { x: cols.price - 60, y: y - 5, size: 10, font: fontBold });
     page.drawText(`Rp ${grandTotal.toLocaleString('id-ID')}`, { x: cols.total + 5, y: y - 5, size: 11, font: fontBold, color: rgb(0.1, 0.3, 0.7) });
 
-    y -= 45;
-    page.drawText('Syarat & Ketentuan:', { x: margin, y, size: 10, font: fontBold });
-    y -= 15;
-    const term1 = '1. Barang harus dikirimkan sesuai dengan spesifikasi dan kualitas yang telah disepakati.';
-    y = drawJustifiedText(page, term1, margin, y, width - margin * 2, 9, fontRegular);
-    
-    const term2 = '2. Pembayaran akan diproses setelah barang diterima dan diperiksa oleh tim Sarpras.';
-    y = drawJustifiedText(page, term2, margin, y, width - margin * 2, 9, fontRegular);
-    
-    const term3 = '3. Surat pesanan ini merupakan dokumen resmi yang mengikat kedua belah pihak.';
-    y = drawJustifiedText(page, term3, margin, y, width - margin * 2, 9, fontRegular);
-    
     y -= 15;
     const closingText = 'Demikianlah surat pesanan ini kami buat untuk dapat dipergunakan sebagaimana mestinya. Atas perhatian dan kerjasamanya kami ucapkan terima kasih.';
     y = drawJustifiedText(page, closingText, margin, y, width - margin * 2, 11, fontRegular);
 
-    y -= 25;
+    y -= 30;
     // Signatures
     const sigX = width - margin - 180;
 
@@ -798,12 +786,26 @@ async function generateSuratPesananPDF(doc) {
     y -= 15;
     page.drawText('Kepala Bidang Sarpras', { x: sigX, y, size: 10, font: fontRegular });
 
-    y -= 75;
+    y -= 85;
     // TTE for Kabid
-    await drawDigitalSignature(page, doc, sigX + 20, y);
+    await drawDigitalSignature(page, doc, sigX + 10, y, 80);
 
-    y -= 20;
+    y -= 25;
     page.drawText(doc.party1Name || 'Ravi Kurnia', { x: sigX, y, size: 11, font: fontBold });
+
+    // Catatan / Syarat & Ketentuan at the very bottom
+    y = 120;
+    page.drawLine({ start: { x: margin, y: y + 15 }, end: { x: width - margin, y: y + 15 }, thickness: 0.5, color: rgb(0.7, 0.7, 0.7) });
+    page.drawText('Catatan:', { x: margin, y, size: 9, font: fontBold });
+    y -= 12;
+    const term1 = '1. Barang harus dikirimkan sesuai dengan spesifikasi dan kualitas yang telah disepakati.';
+    y = drawJustifiedText(page, term1, margin, y, width - margin * 2, 8, fontRegular);
+    
+    const term2 = '2. Pembayaran akan diproses setelah barang diterima dan diperiksa oleh tim Sarpras.';
+    y = drawJustifiedText(page, term2, margin, y, width - margin * 2, 8, fontRegular);
+    
+    const term3 = '3. Surat pesanan ini merupakan dokumen resmi yang mengikat kedua belah pihak.';
+    y = drawJustifiedText(page, term3, margin, y, width - margin * 2, 8, fontRegular);
 
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
