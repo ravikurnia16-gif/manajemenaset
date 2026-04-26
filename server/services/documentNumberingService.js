@@ -20,8 +20,8 @@ const CATEGORY_CODES = {
     'Rekomendasi': 'RK',
     'Pengumuman': 'PGM',
     'Berita Acara': 'BA',
-    'BAST': 'BAST',
-    'Serah Terima Barang': 'BAST',
+    'BAST': 'BA',
+    'Serah Terima Barang': 'BA',
     'MOU': 'MOU',
     'Lainnya': 'UM',
 };
@@ -47,7 +47,7 @@ async function generateDocumentNumber(category, type) {
     // Determine category code
     let catCode;
     if (type === 'BAST') {
-        catCode = 'BAST';
+        catCode = 'BA';
     } else if (type === 'MOU') {
         catCode = 'MOU';
     } else {
