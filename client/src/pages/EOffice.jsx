@@ -490,15 +490,15 @@ const EOffice = () => {
                                 </button>
                             )}
                             
-                            {/* Multi-party signing buttons for BAST/MOU */}
-                            {['BAST', 'MOU'].includes(viewingDoc.type) && (
+                            {/* Multi-party signing buttons for BAST/MOU/Serah Terima Barang */}
+                            {(['BAST', 'MOU'].includes(viewingDoc.type) || (viewingDoc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(viewingDoc.category))) && (
                                 <>
-                                    {!viewingDoc.party1Signature && (
+                                    {!viewingDoc.party1SignedAt && (
                                         <button 
                                             onClick={() => setSignatureRequest({ doc: viewingDoc, party: 'party1' })}
                                             className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
                                         >
-                                            <FileSignature size={18} /> TTD Pihak 1
+                                            <FileSignature size={18} /> TTE Pihak 1
                                         </button>
                                     )}
                                     {!viewingDoc.party2Signature && (
@@ -506,7 +506,7 @@ const EOffice = () => {
                                             onClick={() => setSignatureRequest({ doc: viewingDoc, party: 'party2' })}
                                             className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
                                         >
-                                            <FileSignature size={18} /> TTD Pihak 2
+                                            <FileSignature size={18} /> TTD Pihak 2 (Pad)
                                         </button>
                                     )}
                                 </>
