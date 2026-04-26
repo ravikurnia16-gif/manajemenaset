@@ -957,7 +957,42 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </>
                         )}
 
-                        {['BAST', 'SURAT_KELUAR'].includes(formData.type) && ['Berita Acara', 'Serah Terima Barang'].includes(formData.category) ? (
+                        {formData.category === 'Pesanan' ? (
+                            <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100">
+                                <label className="col-span-full text-xs font-black text-emerald-600 uppercase tracking-widest block mb-2">3. Informasi Vendor / Penerima Pesanan</label>
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Kepada Yth (Jabatan/Gelar)</label>
+                                    <input 
+                                        type="text"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                        value={formData.party2Title}
+                                        onChange={(e) => setFormData({ ...formData, party2Title: e.target.value })}
+                                        placeholder="Contoh: Pimpinan CV. Maju Jaya"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nama Penerima/PIC</label>
+                                    <input 
+                                        required
+                                        type="text"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                        value={formData.party2Name}
+                                        onChange={(e) => setFormData({ ...formData, party2Name: e.target.value })}
+                                        placeholder="Nama PIC Vendor"
+                                    />
+                                </div>
+                                <div className="col-span-full">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Alamat Vendor</label>
+                                    <input 
+                                        type="text"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                        value={formData.party2Address}
+                                        onChange={(e) => setFormData({ ...formData, party2Address: e.target.value })}
+                                        placeholder="Alamat lengkap vendor..."
+                                    />
+                                </div>
+                            </div>
+                        ) : (['BAST', 'MOU'].includes(formData.type) || ['Berita Acara', 'Serah Terima Barang'].includes(formData.category)) && (
                             <div className="col-span-full">
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Daftar Barang Serah Terima</label>

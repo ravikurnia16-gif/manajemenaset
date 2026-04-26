@@ -156,6 +156,19 @@ async function drawDigitalSignature(page, doc, x, y, size = 70) {
     }
 }
 
+/**
+ * Helper to initialize PDF with standard fonts and settings
+ */
+async function createBasePDF() {
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([595.28, 841.89]); // A4
+    const { width, height } = page.getSize();
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    const margin = 50;
+    return { pdfDoc, page, fontRegular, fontBold, margin, width, height, rgb };
+}
+
 async function generateSuratPDF(doc, setting) {
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([595.28, 841.89]);
@@ -652,16 +665,27 @@ async function generateSuratPesananPDF(doc) {
     // Vendor Info
     page.drawText('Kepada Yth,', { x: margin, y, size: 11, font: fontBold });
     y -= 15;
-    page.drawText(doc.party2Name || '............................', { x: margin, y, size: 11, font: fontBold });
-    y -= 14;
-    page.drawText(doc.party2Org || '', { x: margin, y, size: 10, font: fontRegular });
-    y -= 14;
-    page.drawText(doc.party2Address || '', { x: margin, y, size: 10, font: fontRegular, maxWidth: 250 });
-    y -= 40;
+    if (doc.party2Title) {
+        page.drawText(doc.party2Title, { x: margin, y, size: 10, font: fontBold });
+        y -= 14;
+    }
+    page.drawText(doc.party2Name || '............................', { x: margin, y, size: 10, font: fontRegular });
+    
+    if (doc.party2Org) {
+        y -= 14;
+        page.drawText(doc.party2Org, { x: margin, y, size: 10, font: fontRegular });
+    }
+    if (doc.party2Address) {
+        y -= 14;
+        page.drawText(doc.party2Address, { x: margin, y, size: 10, font: fontRegular, maxWidth: 250 });
+    }
+    y -= 35;
 
     page.drawText('Dengan hormat,', { x: margin, y, size: 11, font: fontRegular });
     y -= 15;
-    page.drawText('Kami memesan barang/jasa dengan spesifikasi dan rincian sebagai berikut:', { x: margin, y, size: 11, font: fontRegular });
+    page.drawText('Sehubungan dengan kebutuhan sarana dan prasarana di lingkungan Yayasan Dar el-Iman,', { x: margin, y, size: 11, font: fontRegular });
+    y -= 14;
+    page.drawText('bersama ini kami sampaikan pesanan barang/jasa dengan rincian sebagai berikut:', { x: margin, y, size: 11, font: fontRegular });
     y -= 25;
 
     // Table Header
@@ -708,7 +732,10 @@ async function generateSuratPesananPDF(doc) {
         page.drawText(total.toLocaleString('id-ID'), { x: cols.total + 5, y, size: 9, font: fontBold });
         
         y -= 35; // Row spacing
-        if (y < 100) break; // Simple page break safety
+        if (y < 120) {
+            // Very simple new page if space runs out
+            y = height - 100;
+        }
     }
 
     // Grand Total
@@ -720,17 +747,19 @@ async function generateSuratPesananPDF(doc) {
     y -= 45;
     page.drawText('Syarat & Ketentuan:', { x: margin, y, size: 10, font: fontBold });
     y -= 15;
-    page.drawText('1. Barang dikirim sesuai dengan spesifikasi di atas.', { x: margin, y, size: 9, font: fontRegular });
+    page.drawText('1. Barang harus dikirimkan sesuai dengan spesifikasi dan kualitas yang telah disepakati.', { x: margin, y, size: 9, font: fontRegular });
     y -= 12;
-    page.drawText('2. Pembayaran akan dilakukan setelah barang diterima dengan baik.', { x: margin, y, size: 9, font: fontRegular });
+    page.drawText('2. Pembayaran akan diproses setelah barang diterima dan diperiksa oleh tim Sarpras.', { x: margin, y, size: 9, font: fontRegular });
+    y -= 12;
+    page.drawText('3. Surat pesanan ini merupakan dokumen resmi yang mengikat kedua belah pihak.', { x: margin, y, size: 9, font: fontRegular });
     
-    y -= 65;
+    y -= 60;
     // Signatures
     const sigX1 = margin + 20;
     const sigX2 = width - margin - 180;
 
-    page.drawText('Penerima / Vendor,', { x: sigX1, y, size: 11, font: fontBold });
-    page.drawText('Pemesan,', { x: sigX2, y, size: 11, font: fontBold });
+    page.drawText('Diterima Oleh,', { x: sigX1, y, size: 11, font: fontBold });
+    page.drawText('Dipesan Oleh,', { x: sigX2, y, size: 11, font: fontBold });
     y -= 15;
     page.drawText('Kepala Bidang Sarpras', { x: sigX2, y, size: 10, font: fontRegular });
 
