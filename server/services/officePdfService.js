@@ -788,21 +788,18 @@ async function generateSuratPesananPDF(doc) {
     
     y -= 40;
     // Signatures
-    const sigX1 = margin + 20;
-    const sigX2 = width - margin - 180;
+    const sigX = width - margin - 180;
 
-    page.drawText('Diterima Oleh,', { x: sigX1, y, size: 11, font: fontBold });
-    page.drawText('Dipesan Oleh,', { x: sigX2, y, size: 11, font: fontBold });
+    page.drawText('Hormat Kami,', { x: sigX, y, size: 11, font: fontBold });
     y -= 15;
-    page.drawText('Kepala Bidang Sarpras', { x: sigX2, y, size: 10, font: fontRegular });
+    page.drawText('Kepala Bidang Sarpras', { x: sigX, y, size: 10, font: fontRegular });
 
     y -= 75;
     // TTE for Kabid
-    await drawDigitalSignature(page, doc, sigX2 + 20, y);
+    await drawDigitalSignature(page, doc, sigX + 20, y);
 
     y -= 20;
-    page.drawText(doc.party2Name || '............................', { x: sigX1, y, size: 11, font: fontBold });
-    page.drawText(doc.party1Name || 'Ravi Kurnia', { x: sigX2, y, size: 11, font: fontBold });
+    page.drawText(doc.party1Name || 'Ravi Kurnia', { x: sigX, y, size: 11, font: fontBold });
 
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
