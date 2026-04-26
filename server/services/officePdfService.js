@@ -372,7 +372,7 @@ async function generateBASTMouPDF(doc, setting) {
     page.drawText(doc.party1Title || '', { x: col1X, y, size: 10, font: fontRegular });
     page.drawText(doc.party2Title || '', { x: col2X, y, size: 10, font: fontRegular });
 
-    y -= 65; // Space for signature
+    y -= 85; // Increased space for signature to avoid overlap
 
     // Embed Signatures
     const embedSig = async (sigBase64, xPos, yPos) => {
@@ -381,24 +381,41 @@ async function generateBASTMouPDF(doc, setting) {
             const sigData = sigBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
             const sigBytes = Buffer.from(sigData, 'base64');
             const sigImage = sigBase64.includes('image/png') ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
-            page.drawImage(sigImage, { x: xPos, y: yPos, width: 100, height: 55 });
+            page.drawImage(sigImage, { x: xPos, y: yPos, width: 100, height: 60 });
         } catch (e) { console.error('Sig Embed Error:', e); }
     };
 
     if (doc.party1Signature) {
-        await embedSig(doc.party1Signature, col1X, y + 5);
+        await embedSig(doc.party1Signature, col1X, y + 10);
     } else if (doc.party1SignedAt) {
         // Pihak 1 signed electronically (TTE)
         try {
             const qrData = doc.qrCodeData || await generateVerificationQR(doc.uuid);
             const qrBytes = Buffer.from(qrData.replace(/^data:image\/png;base64,/, ''), 'base64');
             const qrImage = await pdfDoc.embedPng(qrBytes);
-            page.drawImage(qrImage, { x: col1X + 20, y: y + 5, width: 60, height: 60 });
+            const qrSize = 65;
+            const qrX = col1X + 15;
+            const qrY = y + 10;
+            page.drawImage(qrImage, { x: qrX, y: qrY, width: qrSize, height: qrSize });
+            
+            // Draw small Sarpras logo in the middle of QR
+            const sarprasPath = path.join(__dirname, '../assets/sarpras.jpeg');
+            if (fs.existsSync(sarprasPath)) {
+                const sarprasBytes = fs.readFileSync(sarprasPath);
+                const sarprasImage = await pdfDoc.embedJpg(sarprasBytes);
+                const logoSize = 15;
+                page.drawImage(sarprasImage, {
+                    x: qrX + (qrSize / 2) - (logoSize / 2),
+                    y: qrY + (qrSize / 2) - (logoSize / 2),
+                    width: logoSize,
+                    height: logoSize,
+                });
+            }
         } catch (e) { console.error('P1 QR Embed Error:', e); }
     }
     
     // Only embed party 2 if they have a signature (they always use pad as per request)
-    if (doc.party2Signature) await embedSig(doc.party2Signature, col2X, y + 5);
+    if (doc.party2Signature) await embedSig(doc.party2Signature, col2X, y + 10);
 
     // Names
     y -= 5;
