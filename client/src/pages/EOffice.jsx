@@ -992,7 +992,9 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     />
                                 </div>
                             </div>
-                        ) : (['BAST', 'MOU'].includes(formData.type) || ['Berita Acara', 'Serah Terima Barang'].includes(formData.category)) && (
+                        )}
+
+                        {(['BAST', 'MOU'].includes(formData.type) || ['Berita Acara', 'Serah Terima Barang'].includes(formData.category)) && (
                             <div className="col-span-full">
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Daftar Barang Serah Terima</label>
@@ -1035,7 +1037,9 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     </table>
                                 </div>
                             </div>
-                        ) : formData.category === 'Pesanan' ? (
+                        )}
+
+                        {formData.category === 'Pesanan' && (
                             <div className="col-span-full">
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Daftar Barang Pesanan (Purchasing)</label>
@@ -1100,7 +1104,9 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     </table>
                                 </div>
                             </div>
-                        ) : formData.category === 'Tugas' ? (
+                        )}
+
+                        {formData.category === 'Tugas' && (
                             <div className="col-span-full space-y-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
                                 {/* 1. Dasar Penugasan */}
                                 <div>
@@ -1282,7 +1288,9 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     </div>
                                 </div>
                             </div>
-                        ) : formData.type === 'SURAT_MASUK' ? (
+                        )}
+
+                        {formData.type === 'SURAT_MASUK' && (
                             <div className="col-span-full">
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Upload File Surat Masuk (PDF/Gambar)</label>
                                 <input 
@@ -1293,7 +1301,9 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     required={!doc?.fileUrl}
                                 />
                             </div>
-                        ) : (
+                        )}
+
+                        {formData.type !== 'SURAT_MASUK' && !['Berita Acara', 'Serah Terima Barang', 'Pesanan', 'Tugas'].includes(formData.category) && !['BAST', 'MOU'].includes(formData.type) && (
                             <div className="col-span-full">
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Isi Dokumen / Pesan</label>
                                 <textarea 
