@@ -104,7 +104,7 @@ const PublicVerify = () => {
                                     {doc.type?.replace('_', ' ')}
                                 </span>
                                 <span className="px-3 py-1 bg-white border border-slate-200 rounded-full text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                                    {doc.documentNumber || 'Belum Bernomor'}
+                                    {doc.number || 'Belum Bernomor'}
                                 </span>
                             </div>
                         </div>
