@@ -677,6 +677,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     });
     const [file, setFile] = useState(null);
     const [bastItems, setBastItems] = useState([{ name: '', qty: '', condition: 'Baik' }]);
+    const [purchasingItems, setPurchasingItems] = useState([{ name: '', spec: '', qty: '', unit: 'Pcs', price: '', total: 0 }]);
     const [staffList, setStaffList] = useState([]);
     const [taskData, setTaskData] = useState({
         basisList: [''],
@@ -728,6 +729,13 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     console.error('Failed to parse BAST content JSON', e);
                 }
             }
+            if (doc.category === 'Pesanan' && doc.content) {
+                try {
+                    setPurchasingItems(JSON.parse(doc.content));
+                } catch (e) {
+                    console.error('Failed to parse Purchasing content JSON', e);
+                }
+            }
             if (doc.category === 'Tugas' && doc.content) {
                 try {
                     const parsed = JSON.parse(doc.content);
@@ -767,6 +775,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 party2Address: '',
             });
             setBastItems([{ name: '', qty: '', condition: 'Baik' }]);
+            setPurchasingItems([{ name: '', spec: '', qty: '', unit: 'Pcs', price: '', total: 0 }]);
             setTaskData({
                 basisList: [''],
                 personnelList: [{ name: '', position: '', nip: '' }],
@@ -802,6 +811,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 config = { headers: { 'Content-Type': 'multipart/form-data' } };
             } else if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(formData.category))) {
                 payload = { ...formData, content: JSON.stringify(bastItems) };
+            } else if (formData.category === 'Pesanan') {
+                payload = { ...formData, type: 'SURAT_PESANAN', content: JSON.stringify(purchasingItems) };
             } else if (formData.type === 'SURAT_KELUAR' && formData.category === 'Tugas') {
                 payload = { ...formData, content: JSON.stringify(taskData) };
             }
@@ -985,6 +996,71 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                     </td>
                                                 </tr>
                                             ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ) : formData.category === 'Pesanan' ? (
+                            <div className="col-span-full">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Daftar Barang Pesanan (Purchasing)</label>
+                                    <button type="button" onClick={() => setPurchasingItems([...purchasingItems, { name: '', spec: '', qty: '', unit: 'Pcs', price: '', total: 0 }])} className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:text-blue-700">
+                                        <Plus size={14} /> Tambah Barang
+                                    </button>
+                                </div>
+                                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                    <table className="w-full text-left border-collapse text-xs">
+                                        <thead className="bg-slate-50 font-bold text-slate-600 uppercase">
+                                            <tr>
+                                                <th className="p-3 border-b border-slate-200">Nama Barang & Spesifikasi</th>
+                                                <th className="p-3 border-b border-slate-200 w-16">Qty</th>
+                                                <th className="p-3 border-b border-slate-200 w-20">Satuan</th>
+                                                <th className="p-3 border-b border-slate-200 w-32">Harga Satuan</th>
+                                                <th className="p-3 border-b border-slate-200 w-32">Total</th>
+                                                <th className="p-3 border-b border-slate-200 w-10 text-center"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {purchasingItems.map((item, index) => (
+                                                <tr key={index}>
+                                                    <td className="p-2 border-b border-slate-100">
+                                                        <input required value={item.name} onChange={(e) => { const newI = [...purchasingItems]; newI[index].name = e.target.value; setPurchasingItems(newI); }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none font-bold" placeholder="Nama barang..." />
+                                                        <textarea value={item.spec} onChange={(e) => { const newI = [...purchasingItems]; newI[index].spec = e.target.value; setPurchasingItems(newI); }} className="w-full mt-1 px-2 py-1 rounded border border-slate-200 outline-none text-[11px]" placeholder="Spesifikasi..." rows="2" />
+                                                    </td>
+                                                    <td className="p-2 border-b border-slate-100">
+                                                        <input required type="number" value={item.qty} onChange={(e) => { 
+                                                            const newI = [...purchasingItems]; 
+                                                            newI[index].qty = e.target.value; 
+                                                            newI[index].total = (parseFloat(e.target.value) || 0) * (parseFloat(newI[index].price) || 0);
+                                                            setPurchasingItems(newI); 
+                                                        }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none" />
+                                                    </td>
+                                                    <td className="p-2 border-b border-slate-100">
+                                                        <input required value={item.unit} onChange={(e) => { const newI = [...purchasingItems]; newI[index].unit = e.target.value; setPurchasingItems(newI); }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none" placeholder="Pcs" />
+                                                    </td>
+                                                    <td className="p-2 border-b border-slate-100">
+                                                        <input required type="number" value={item.price} onChange={(e) => { 
+                                                            const newI = [...purchasingItems]; 
+                                                            newI[index].price = e.target.value; 
+                                                            newI[index].total = (parseFloat(newI[index].qty) || 0) * (parseFloat(e.target.value) || 0);
+                                                            setPurchasingItems(newI); 
+                                                        }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none font-bold" placeholder="0" />
+                                                    </td>
+                                                    <td className="p-2 border-b border-slate-100 font-black text-blue-700">
+                                                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(item.total || 0)}
+                                                    </td>
+                                                    <td className="p-2 border-b border-slate-100 text-center">
+                                                        <button type="button" onClick={() => setPurchasingItems(purchasingItems.filter((_, i) => i !== index))} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            <tr className="bg-slate-50 font-black">
+                                                <td colSpan="4" className="p-3 text-right text-slate-500 uppercase tracking-widest text-[10px]">Total Keseluruhan</td>
+                                                <td className="p-3 text-blue-800 text-sm">
+                                                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(purchasingItems.reduce((acc, curr) => acc + (curr.total || 0), 0))}
+                                                </td>
+                                                <td></td>
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </div>

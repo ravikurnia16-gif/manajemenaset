@@ -50,6 +50,8 @@ async function generateDocumentNumber(category, type) {
         catCode = 'BA';
     } else if (type === 'MOU') {
         catCode = 'MOU';
+    } else if (type === 'SURAT_PESANAN') {
+        catCode = 'PO';
     } else {
         catCode = CATEGORY_CODES[category] || 'UM';
     }

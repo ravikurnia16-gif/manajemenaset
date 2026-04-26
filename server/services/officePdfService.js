@@ -83,7 +83,7 @@ async function drawKopSurat(page, fontBold, fontRegular) {
     y -= 14;
 
     // 4. Address Line 1
-    const t4 = 'Komplek islamic center, Surau Gadang, Kec. Nanggalo, Kota Padang,';
+    const t4 = 'Komplek Islamic Center, Surau Gadang, Kec. Nanggalo, Kota Padang,';
     const w4 = fontRegular.widthOfTextAtSize(t4, 10);
     page.drawText(t4, { x: centerX - (w4 / 2), y, size: 10, font: fontRegular, color: gray });
     y -= 12;
@@ -334,7 +334,7 @@ async function generateBASTMouPDF(doc, setting) {
         // Isi Tabel
         for (let i = 0; i < items.length; i++) {
             const item = items[i];
-            
+
             // Basic check for space
             if (y < 120) {
                 // If we run out of space, we should ideally add a new page, but for this simplified generator
@@ -346,7 +346,7 @@ async function generateBASTMouPDF(doc, setting) {
             page.drawText(item.name || '-', { x: colNamaX + 5, y, size: 10, font: fontRegular, maxWidth: 200 });
             page.drawText(String(item.qty || '-'), { x: colQtyX + 5, y, size: 10, font: fontRegular });
             page.drawText(item.condition || '-', { x: colKondisiX + 5, y, size: 10, font: fontRegular });
-            
+
             y -= 18;
         }
         page.drawLine({ start: { x: margin, y: y + 15 }, end: { x: width - margin, y: y + 15 }, thickness: 1 });
@@ -397,7 +397,7 @@ async function generateBASTMouPDF(doc, setting) {
             const qrX = col1X + 15;
             const qrY = y + 10;
             page.drawImage(qrImage, { x: qrX, y: qrY, width: qrSize, height: qrSize });
-            
+
             // Draw small Sarpras logo in the middle of QR
             const sarprasPath = path.join(__dirname, '../assets/sarpras.jpeg');
             if (fs.existsSync(sarprasPath)) {
@@ -413,7 +413,7 @@ async function generateBASTMouPDF(doc, setting) {
             }
         } catch (e) { console.error('P1 QR Embed Error:', e); }
     }
-    
+
     // Only embed party 2 if they have a signature (they always use pad as per request)
     if (doc.party2Signature) await embedSig(doc.party2Signature, col2X, y + 10);
 
@@ -627,9 +627,129 @@ async function generateSuratTugasPDF(doc, setting) {
     return pdfBytes;
 }
 
+/**
+ * Generate PDF for Surat Pesanan (Purchasing Order)
+ */
+async function generateSuratPesananPDF(doc) {
+    const { pdfDoc, page, fontRegular, fontBold, margin, width, height, rgb } = await createBasePDF();
+    await drawKopSurat(page, fontBold, fontRegular);
+
+    let y = height - 165;
+    const centerX = width / 2;
+
+    // Title
+    const title = 'SURAT PESANAN (PURCHASE ORDER)';
+    const titleWidth = fontBold.widthOfTextAtSize(title, 14);
+    page.drawText(title, { x: centerX - (titleWidth / 2), y, size: 14, font: fontBold });
+    y -= 4;
+    page.drawLine({ start: { x: centerX - (titleWidth / 2), y }, end: { x: centerX + (titleWidth / 2), y }, thickness: 1 });
+    y -= 15;
+    const numText = `Nomor: ${doc.number || '............................'}`;
+    const numWidth = fontRegular.widthOfTextAtSize(numText, 11);
+    page.drawText(numText, { x: centerX - (numWidth / 2), y, size: 11, font: fontRegular });
+    y -= 40;
+
+    // Vendor Info
+    page.drawText('Kepada Yth,', { x: margin, y, size: 11, font: fontBold });
+    y -= 15;
+    page.drawText(doc.party2Name || '............................', { x: margin, y, size: 11, font: fontBold });
+    y -= 14;
+    page.drawText(doc.party2Org || '', { x: margin, y, size: 10, font: fontRegular });
+    y -= 14;
+    page.drawText(doc.party2Address || '', { x: margin, y, size: 10, font: fontRegular, maxWidth: 250 });
+    y -= 40;
+
+    page.drawText('Dengan hormat,', { x: margin, y, size: 11, font: fontRegular });
+    y -= 15;
+    page.drawText('Kami memesan barang/jasa dengan spesifikasi dan rincian sebagai berikut:', { x: margin, y, size: 11, font: fontRegular });
+    y -= 25;
+
+    // Table Header
+    const cols = {
+        no: margin,
+        desc: margin + 30,
+        qty: margin + 230,
+        unit: margin + 270,
+        price: margin + 320,
+        total: margin + 420
+    };
+
+    page.drawRectangle({ x: margin, y: y - 5, width: width - margin * 2, height: 20, color: rgb(0.95, 0.95, 0.95) });
+    page.drawText('NO', { x: cols.no + 5, y, size: 8, font: fontBold });
+    page.drawText('NAMA BARANG & SPESIFIKASI', { x: cols.desc + 5, y, size: 8, font: fontBold });
+    page.drawText('QTY', { x: cols.qty + 5, y, size: 8, font: fontBold });
+    page.drawText('SAT', { x: cols.unit + 5, y, size: 8, font: fontBold });
+    page.drawText('HARGA (Rp)', { x: cols.price + 5, y, size: 8, font: fontBold });
+    page.drawText('TOTAL (Rp)', { x: cols.total + 5, y, size: 8, font: fontBold });
+    y -= 20;
+
+    let items = [];
+    try { items = JSON.parse(doc.content || '[]'); } catch (e) {}
+
+    let grandTotal = 0;
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        page.drawText(String(i + 1), { x: cols.no + 5, y, size: 9, font: fontRegular });
+        
+        // Name & Spec
+        page.drawText(item.name || '-', { x: cols.desc + 5, y, size: 9, font: fontBold });
+        if (item.spec) {
+            page.drawText(item.spec, { x: cols.desc + 5, y: y - 11, size: 8, font: fontRegular, maxWidth: 190, lineHeight: 10 });
+        }
+
+        page.drawText(String(item.qty || 0), { x: cols.qty + 5, y, size: 9, font: fontRegular });
+        page.drawText(item.unit || 'Pcs', { x: cols.unit + 5, y, size: 9, font: fontRegular });
+        
+        const price = parseFloat(item.price) || 0;
+        const total = (parseFloat(item.qty) || 0) * price;
+        grandTotal += total;
+
+        page.drawText(price.toLocaleString('id-ID'), { x: cols.price + 5, y, size: 9, font: fontRegular });
+        page.drawText(total.toLocaleString('id-ID'), { x: cols.total + 5, y, size: 9, font: fontBold });
+        
+        y -= 35; // Row spacing
+        if (y < 100) break; // Simple page break safety
+    }
+
+    // Grand Total
+    y -= 5;
+    page.drawLine({ start: { x: margin, y: y + 10 }, end: { x: width - margin, y: y + 10 }, thickness: 1 });
+    page.drawText('TOTAL KESELURUHAN', { x: cols.price - 60, y: y - 5, size: 10, font: fontBold });
+    page.drawText(`Rp ${grandTotal.toLocaleString('id-ID')}`, { x: cols.total + 5, y: y - 5, size: 11, font: fontBold, color: rgb(0.1, 0.3, 0.7) });
+
+    y -= 45;
+    page.drawText('Syarat & Ketentuan:', { x: margin, y, size: 10, font: fontBold });
+    y -= 15;
+    page.drawText('1. Barang dikirim sesuai dengan spesifikasi di atas.', { x: margin, y, size: 9, font: fontRegular });
+    y -= 12;
+    page.drawText('2. Pembayaran akan dilakukan setelah barang diterima dengan baik.', { x: margin, y, size: 9, font: fontRegular });
+    
+    y -= 65;
+    // Signatures
+    const sigX1 = margin + 20;
+    const sigX2 = width - margin - 180;
+
+    page.drawText('Penerima / Vendor,', { x: sigX1, y, size: 11, font: fontBold });
+    page.drawText('Pemesan,', { x: sigX2, y, size: 11, font: fontBold });
+    y -= 15;
+    page.drawText('Kepala Bidang Sarpras', { x: sigX2, y, size: 10, font: fontRegular });
+
+    y -= 75;
+    // TTE for Kabid
+    await drawDigitalSignature(page, doc, sigX2 + 20, y);
+
+    y -= 20;
+    page.drawText(doc.party2Name || '............................', { x: sigX1, y, size: 11, font: fontBold });
+    page.drawText(doc.party1Name || 'Ravi Kurnia', { x: sigX2, y, size: 11, font: fontBold });
+
+    const pdfBytes = await pdfDoc.save();
+    return pdfBytes;
+}
+
 module.exports = {
     generateVerificationQR,
     generateSuratPDF,
     generateBASTMouPDF,
     generateSuratTugasPDF,
+    generateSuratPesananPDF,
 };

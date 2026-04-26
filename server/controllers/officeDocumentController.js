@@ -477,6 +477,8 @@ exports.generatePDF = async (req, res) => {
         let pdfBytes;
         if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(doc.category))) {
             pdfBytes = await generateBASTMouPDF(doc, setting);
+        } else if (doc.type === 'SURAT_PESANAN' || doc.category === 'Pesanan') {
+            pdfBytes = await generateSuratPesananPDF(doc, setting);
         } else if (doc.type === 'SURAT_KELUAR' && doc.category === 'Tugas') {
             pdfBytes = await generateSuratTugasPDF(doc, setting);
         } else {
