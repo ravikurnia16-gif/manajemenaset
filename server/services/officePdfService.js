@@ -786,7 +786,11 @@ async function generateSuratPesananPDF(doc) {
     const term3 = '3. Surat pesanan ini merupakan dokumen resmi yang mengikat kedua belah pihak.';
     y = drawJustifiedText(page, term3, margin, y, width - margin * 2, 9, fontRegular);
     
-    y -= 40;
+    y -= 15;
+    const closingText = 'Demikianlah surat pesanan ini kami buat untuk dapat dipergunakan sebagaimana mestinya. Atas perhatian dan kerjasamanya kami ucapkan terima kasih.';
+    y = drawJustifiedText(page, closingText, margin, y, width - margin * 2, 11, fontRegular);
+
+    y -= 25;
     // Signatures
     const sigX = width - margin - 180;
 
