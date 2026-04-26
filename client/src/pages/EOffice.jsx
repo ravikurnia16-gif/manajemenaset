@@ -960,25 +960,15 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                         {formData.category === 'Pesanan' && (
                             <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100">
                                 <label className="col-span-full text-xs font-black text-emerald-600 uppercase tracking-widest block mb-2">3. Informasi Vendor / Penerima Pesanan</label>
-                                <div>
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Kepada Yth (Jabatan/Gelar)</label>
-                                    <input 
-                                        type="text"
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
-                                        value={formData.party2Title}
-                                        onChange={(e) => setFormData({ ...formData, party2Title: e.target.value })}
-                                        placeholder="Contoh: Pimpinan CV. Maju Jaya"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nama Penerima/PIC</label>
+                                <div className="col-span-full">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Kepada Yth (Jabatan / Nama)</label>
                                     <input 
                                         required
                                         type="text"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
                                         value={formData.party2Name}
                                         onChange={(e) => setFormData({ ...formData, party2Name: e.target.value })}
-                                        placeholder="Nama PIC Vendor"
+                                        placeholder="Contoh: Pimpinan CV. Maju Jaya"
                                     />
                                 </div>
                                 <div className="col-span-full">

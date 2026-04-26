@@ -169,6 +169,47 @@ async function createBasePDF() {
     return { pdfDoc, page, fontRegular, fontBold, margin, width, height, rgb };
 }
 
+/**
+ * Helper to draw justified text within a specified width
+ */
+function drawJustifiedText(page, text, x, y, maxWidth, size, font) {
+    const words = text.split(/\s+/);
+    let lines = [];
+    let currentLine = [];
+
+    words.forEach(word => {
+        const testLine = [...currentLine, word].join(' ');
+        const testWidth = font.widthOfTextAtSize(testLine, size);
+        if (testWidth > maxWidth && currentLine.length > 0) {
+            lines.push(currentLine.join(' '));
+            currentLine = [word];
+        } else {
+            currentLine.push(word);
+        }
+    });
+    lines.push(currentLine.join(' '));
+
+    let currentY = y;
+    lines.forEach((line, i) => {
+        const isLastLine = i === lines.length - 1;
+        if (isLastLine || line.split(' ').length <= 1) {
+            page.drawText(line, { x, y: currentY, size, font });
+        } else {
+            const lineWords = line.split(' ');
+            const totalWordsWidth = lineWords.reduce((acc, w) => acc + font.widthOfTextAtSize(w, size), 0);
+            const spaceWidth = (maxWidth - totalWordsWidth) / (lineWords.length - 1);
+            
+            let currentX = x;
+            lineWords.forEach((word, j) => {
+                page.drawText(word, { x: currentX, y: currentY, size, font });
+                currentX += font.widthOfTextAtSize(word, size) + spaceWidth;
+            });
+        }
+        currentY -= size * 1.5;
+    });
+    return currentY;
+}
+
 async function generateSuratPDF(doc, setting) {
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([595.28, 841.89]);
@@ -662,31 +703,20 @@ async function generateSuratPesananPDF(doc) {
     page.drawText(numText, { x: centerX - (numWidth / 2), y, size: 11, font: fontRegular });
     y -= 40;
 
-    // Vendor Info
+    // Recipient Info
     page.drawText('Kepada Yth,', { x: margin, y, size: 11, font: fontBold });
     y -= 15;
-    if (doc.party2Title) {
-        page.drawText(doc.party2Title, { x: margin, y, size: 10, font: fontBold });
-        y -= 14;
-    }
-    page.drawText(doc.party2Name || '............................', { x: margin, y, size: 10, font: fontRegular });
-    
-    if (doc.party2Org) {
-        y -= 14;
-        page.drawText(doc.party2Org, { x: margin, y, size: 10, font: fontRegular });
-    }
-    if (doc.party2Address) {
-        y -= 14;
-        page.drawText(doc.party2Address, { x: margin, y, size: 10, font: fontRegular, maxWidth: 250 });
-    }
+    page.drawText(doc.party2Name || '............................', { x: margin, y, size: 11, font: fontBold });
+    y -= 14;
+    page.drawText('di tempat', { x: margin, y, size: 10, font: fontRegular });
     y -= 35;
 
     page.drawText('Dengan hormat,', { x: margin, y, size: 11, font: fontRegular });
     y -= 15;
-    page.drawText('Sehubungan dengan kebutuhan sarana dan prasarana di lingkungan Yayasan Dar el-Iman,', { x: margin, y, size: 11, font: fontRegular });
-    y -= 14;
-    page.drawText('bersama ini kami sampaikan pesanan barang/jasa dengan rincian sebagai berikut:', { x: margin, y, size: 11, font: fontRegular });
-    y -= 25;
+    
+    const preambleText = 'Sehubungan dengan kebutuhan sarana dan prasarana di lingkungan Yayasan Dar el-Iman, bersama ini kami sampaikan pesanan barang/jasa dengan rincian sebagai berikut:';
+    y = drawJustifiedText(page, preambleText, margin, y, width - margin * 2, 11, fontRegular);
+    y -= 10;
 
     // Table Header
     const cols = {
@@ -747,13 +777,16 @@ async function generateSuratPesananPDF(doc) {
     y -= 45;
     page.drawText('Syarat & Ketentuan:', { x: margin, y, size: 10, font: fontBold });
     y -= 15;
-    page.drawText('1. Barang harus dikirimkan sesuai dengan spesifikasi dan kualitas yang telah disepakati.', { x: margin, y, size: 9, font: fontRegular });
-    y -= 12;
-    page.drawText('2. Pembayaran akan diproses setelah barang diterima dan diperiksa oleh tim Sarpras.', { x: margin, y, size: 9, font: fontRegular });
-    y -= 12;
-    page.drawText('3. Surat pesanan ini merupakan dokumen resmi yang mengikat kedua belah pihak.', { x: margin, y, size: 9, font: fontRegular });
+    const term1 = '1. Barang harus dikirimkan sesuai dengan spesifikasi dan kualitas yang telah disepakati.';
+    y = drawJustifiedText(page, term1, margin, y, width - margin * 2, 9, fontRegular);
     
-    y -= 60;
+    const term2 = '2. Pembayaran akan diproses setelah barang diterima dan diperiksa oleh tim Sarpras.';
+    y = drawJustifiedText(page, term2, margin, y, width - margin * 2, 9, fontRegular);
+    
+    const term3 = '3. Surat pesanan ini merupakan dokumen resmi yang mengikat kedua belah pihak.';
+    y = drawJustifiedText(page, term3, margin, y, width - margin * 2, 9, fontRegular);
+    
+    y -= 40;
     // Signatures
     const sigX1 = margin + 20;
     const sigX2 = width - margin - 180;
