@@ -26,7 +26,7 @@ router.post('/outgoing', ctrl.createOutgoingDocument);
 // Single document operations
 router.get('/:id', ctrl.getDocumentById);
 router.put('/:id', handleUpload('file', 'e-office/surat-masuk'), ctrl.updateDocument);
-router.delete('/:id', ctrl.deleteDocument);
+router.delete('/:id', authorizeRole(['SUPER_ADMIN']), ctrl.deleteDocument);
 
 // Workflow
 router.post('/:id/submit', ctrl.submitForApproval);

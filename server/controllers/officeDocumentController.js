@@ -244,10 +244,10 @@ exports.deleteDocument = async (req, res) => {
         const id = parseInt(req.params.id);
         const existing = await prisma.officeDocument.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Document not found' });
-        if (existing.status !== 'DRAFT') {
-            return res.status(400).json({ error: 'Hanya dokumen DRAFT yang bisa dihapus' });
-        }
-
+        
+        // As per request, deletion is now restricted via route to SUPER_ADMIN.
+        // We allow SUPER_ADMIN to delete documents regardless of status.
+        
         await prisma.officeDocument.delete({ where: { id } });
         res.json({ message: 'Document deleted' });
     } catch (error) {

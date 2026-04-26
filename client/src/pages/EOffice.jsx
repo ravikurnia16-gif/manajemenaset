@@ -40,6 +40,7 @@ const EOffice = () => {
 
     const user = JSON.parse(localStorage.getItem('user'));
     const isKabidSarpras = user?.role === 'KABID_SARPRAS' || user?.role === 'SUPER_ADMIN';
+    const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
     useEffect(() => {
         fetchStats();
@@ -269,6 +270,15 @@ const EOffice = () => {
                                                     title="Edit"
                                                 >
                                                     <Edit2 size={18} />
+                                                </button>
+                                            )}
+                                            {isSuperAdmin && (
+                                                <button 
+                                                    onClick={() => handleDelete(doc.id)}
+                                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                    title="Hapus Dokumen"
+                                                >
+                                                    <Trash2 size={18} />
                                                 </button>
                                             )}
                                         </div>
@@ -513,6 +523,15 @@ const EOffice = () => {
                                     <FileSignature size={18} /> Tandatangani Kepala Bidang
                                 </button>
                             )}
+                            
+                            {isSuperAdmin && (
+                                <button 
+                                    onClick={() => handleDelete(viewingDoc.id)}
+                                    className="px-5 py-2.5 bg-rose-50 text-rose-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-rose-100 transition-all"
+                                >
+                                    <Trash2 size={18} /> Hapus Dokumen
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -528,6 +547,19 @@ const EOffice = () => {
             <div className="text-slate-800 font-bold leading-relaxed">{value || '-'}</div>
         </div>
     );
+
+    const handleDelete = async (id) => {
+        if (!window.confirm('Apakah Anda yakin ingin menghapus dokumen ini secara permanen?')) return;
+        try {
+            await api.delete(`/office-documents/${id}`);
+            alert('Dokumen berhasil dihapus');
+            setViewingDoc(null);
+            fetchDocuments();
+            fetchStats();
+        } catch (err) {
+            alert('Gagal menghapus: ' + (err.response?.data?.error || err.message));
+        }
+    };
 
     const handleSubmitForApproval = async (id) => {
         if (!window.confirm('Ajukan dokumen ini untuk ditandatangani oleh pimpinan?')) return;
