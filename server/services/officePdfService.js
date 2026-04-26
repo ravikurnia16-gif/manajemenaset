@@ -385,20 +385,20 @@ async function generateBASTMouPDF(doc, setting) {
         } catch (e) { console.error('Sig Embed Error:', e); }
     };
 
-    if (doc.party1Signature) await embedSig(doc.party1Signature, col1X, y + 5);
+    if (doc.party1Signature) {
+        await embedSig(doc.party1Signature, col1X, y + 5);
+    } else if (doc.party1SignedAt) {
+        // Pihak 1 signed electronically (TTE)
+        try {
+            const qrData = doc.qrCodeData || await generateVerificationQR(doc.uuid);
+            const qrBytes = Buffer.from(qrData.replace(/^data:image\/png;base64,/, ''), 'base64');
+            const qrImage = await pdfDoc.embedPng(qrBytes);
+            page.drawImage(qrImage, { x: col1X + 20, y: y + 5, width: 60, height: 60 });
+        } catch (e) { console.error('P1 QR Embed Error:', e); }
+    }
     
     // Only embed party 2 if they have a signature (they always use pad as per request)
     if (doc.party2Signature) await embedSig(doc.party2Signature, col2X, y + 5);
-
-    // If Pihak 1 is the main signer and doc is SIGNED, we might add QR there too
-    if (doc.status === 'SIGNED' && doc.qrCodeData) {
-        try {
-            const qrBytes = Buffer.from(doc.qrCodeData.replace(/^data:image\/png;base64,/, ''), 'base64');
-            const qrImage = await pdfDoc.embedPng(qrBytes);
-            // Draw QR near Pihak 1 if they use electronic sign
-            page.drawImage(qrImage, { x: col1X + 20, y: y + 5, width: 60, height: 60 });
-        } catch (e) { }
-    }
 
     // Names
     y -= 5;

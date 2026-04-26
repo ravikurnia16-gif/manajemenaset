@@ -315,12 +315,16 @@ exports.approveAndSign = async (req, res) => {
             return res.status(400).json({ error: 'Dokumen harus berstatus PENDING_APPROVAL' });
         }
 
+        // Generate QR code for verification
+        const qrCodeData = await generateVerificationQR(doc.uuid);
+
         // Build update data
         const updateData = {
             status: 'SIGNED',
             signedById: req.user.id,
             signedAt: new Date(),
             signatureData: signatureData || null,
+            qrCodeData, // Save QR data to DB
             approvalNote,
         };
 
