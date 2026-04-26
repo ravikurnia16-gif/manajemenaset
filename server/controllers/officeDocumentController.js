@@ -90,7 +90,7 @@ exports.getOutgoingDocuments = async (req, res) => {
         const where = { type: { not: 'SURAT_MASUK' } };
         
         if (typeGroup === 'OUTGOING_STANDARD') {
-            where.type = { in: ['SURAT_KELUAR', 'BAST', 'MOU'] };
+            where.type = { in: ['SURAT_KELUAR', 'BAST'] };
         }
 
         if (type) where.type = type;

@@ -1108,6 +1108,7 @@ enum OfficeDocumentType {
   SURAT_KEPUTUSAN
   SURAT_PESANAN
   BAST
+  MOU
   INVOICE
   LAINNYA
 }
