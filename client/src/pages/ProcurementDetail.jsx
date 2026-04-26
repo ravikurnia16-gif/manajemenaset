@@ -1209,7 +1209,6 @@ const ProcurementDetail = () => {
                                     </div>
                                 )}
 
-                                {/* Submit */}
                                 <button
                                     disabled={!bastDate}
                                     onClick={handleBAST}
@@ -1229,6 +1228,41 @@ const ProcurementDetail = () => {
                                     <CheckCircle size={18} />
                                     Selesaikan Pengadaan &amp; Buat Aset
                                 </button>
+                                
+                                <div style={{ 
+                                    padding: '16px', borderRadius: 12, border: `1.5px solid ${T.border}`,
+                                    background: T.white, display: 'flex', flexDirection: 'column', gap: 10
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <FileText size={16} color={T.navy} />
+                                        <span style={{ fontWeight: 700, fontSize: 13, color: T.navy }}>Dokumen E-Office</span>
+                                    </div>
+                                    <p style={{ fontSize: 11.5, color: T.slate, margin: 0 }}>
+                                        Buat dokumen Berita Acara Serah Terima (BAST) resmi di modul E-Office untuk penandatanganan digital.
+                                    </p>
+                                    <Btn variant="ghost" style={{ width: '100%', justifyContent: 'center' }} onClick={() => {
+                                        const bastItems = req.items.map(it => ({
+                                            name: it.name,
+                                            qty: it.qty,
+                                            condition: 'Baik'
+                                        }));
+                                        navigate('/e-office/surat-keluar', { 
+                                            state: { 
+                                                autoCreate: true,
+                                                type: 'SURAT_KELUAR',
+                                                category: 'Serah Terima Barang',
+                                                subject: `BAST Pengadaan: ${req.title}`,
+                                                party1Name: 'Kepala Bidang Sarana Prasarana',
+                                                party1Title: 'Pemberi',
+                                                party2Name: req.vendor?.name || '',
+                                                party2Title: 'Penerima',
+                                                bastItems
+                                            } 
+                                        });
+                                    }}>
+                                        <QrCode size={14} /> Buat BAST Resmi di E-Office
+                                    </Btn>
+                                </div>
                             </div>
                         ) : (
                             /* COMPLETED STATE */
@@ -1284,10 +1318,30 @@ const ProcurementDetail = () => {
                                         }
                                     </div>
                                 </div>
+
+                                <Btn variant="ghost" style={{ width: '100%', justifyContent: 'center' }} onClick={() => {
+                                    const bastItems = req.items.map(it => ({
+                                        name: it.name,
+                                        qty: it.qty,
+                                        condition: 'Baik'
+                                    }));
+                                    navigate('/e-office/surat-keluar', { 
+                                        state: { 
+                                            autoCreate: true,
+                                            type: 'SURAT_KELUAR',
+                                            category: 'Serah Terima Barang',
+                                            subject: `BAST Pengadaan: ${req.title}`,
+                                            party1Name: 'Kepala Bidang Sarana Prasarana',
+                                            party1Title: 'Pemberi',
+                                            party2Name: req.vendor?.name || '',
+                                            party2Title: 'Penerima',
+                                            bastItems
+                                        } 
+                                    });
+                                }}>
+                                    <QrCode size={14} /> Buat Ulang / Lihat BAST Resmi di E-Office
+                                </Btn>
                             </div>
-                        )}
-                    </div>
-                </Card>
             )}
         </div>
     );

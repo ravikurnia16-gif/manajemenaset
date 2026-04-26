@@ -317,64 +317,77 @@ async function generateBASTMouPDF(doc, setting) {
         const colQtyX = margin + 250;
         const colKondisiX = margin + 330;
 
-        page.drawLine({ start: { x: margin, y: y + 12 }, end: { x: width - margin, y: y + 12 }, thickness: 1 });
-        page.drawText('No', { x: colNoX + 5, y, size: 10, font: fontBold });
-        page.drawText('Jenis Barang', { x: colNamaX + 5, y, size: 10, font: fontBold });
-        page.drawText('Kuantitas', { x: colQtyX + 5, y, size: 10, font: fontBold });
-        page.drawText('Kondisi', { x: colKondisiX + 5, y, size: 10, font: fontBold });
-        y -= 8;
-        page.drawLine({ start: { x: margin, y: y + 12 }, end: { x: width - margin, y: y + 12 }, thickness: 1 });
-        y -= 15;
+        const drawTableHeader = (currentY) => {
+            page.drawLine({ start: { x: margin, y: currentY + 12 }, end: { x: width - margin, y: currentY + 12 }, thickness: 1 });
+            page.drawText('No', { x: colNoX + 5, y: currentY, size: 10, font: fontBold });
+            page.drawText('Jenis Barang', { x: colNamaX + 5, y: currentY, size: 10, font: fontBold });
+            page.drawText('Kuantitas', { x: colQtyX + 5, y: currentY, size: 10, font: fontBold });
+            page.drawText('Kondisi', { x: colKondisiX + 5, y: currentY, size: 10, font: fontBold });
+            page.drawLine({ start: { x: margin, y: currentY - 5 }, end: { x: width - margin, y: currentY - 5 }, thickness: 1 });
+            return currentY - 20;
+        };
+
+        y = drawTableHeader(y);
 
         // Isi Tabel
-        items.forEach((item, index) => {
-            page.drawText(`${index + 1}`, { x: colNoX + 5, y, size: 10, font: fontRegular });
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            
+            // Basic check for space
+            if (y < 120) {
+                // If we run out of space, we should ideally add a new page, but for this simplified generator
+                // we will just draw as much as possible or the user should keep it reasonable.
+                // In a future update, we can implement full multi-page table logic.
+            }
+
+            page.drawText(`${i + 1}`, { x: colNoX + 5, y, size: 10, font: fontRegular });
             page.drawText(item.name || '-', { x: colNamaX + 5, y, size: 10, font: fontRegular, maxWidth: 200 });
-            page.drawText(item.qty || '-', { x: colQtyX + 5, y, size: 10, font: fontRegular });
+            page.drawText(String(item.qty || '-'), { x: colQtyX + 5, y, size: 10, font: fontRegular });
             page.drawText(item.condition || '-', { x: colKondisiX + 5, y, size: 10, font: fontRegular });
-            y -= 15;
-            if (y < 100) { /* handle page break ideally, but simplified for now */ }
-        });
-        page.drawLine({ start: { x: margin, y: y + 12 }, end: { x: width - margin, y: y + 12 }, thickness: 1 });
-        y -= 20;
+            
+            y -= 18;
+        }
+        page.drawLine({ start: { x: margin, y: y + 15 }, end: { x: width - margin, y: y + 15 }, thickness: 1 });
+        y -= 25;
     } else {
         page.drawText('(Tidak ada rincian barang)', { x: margin, y, size: 11, font: fontItalic });
-        y -= 20;
+        y -= 25;
     }
 
     // Penutup
     page.drawText('Demikian Berita Acara Serah Terima ini dibuat dalam keadaan sadar dan tanpa paksaan dari pihak manapun untuk dapat dipergunakan sebagaimana mestinya.', {
         x: margin, y, size: 11, font: fontRegular, maxWidth: width - margin * 2, lineHeight: 15
     });
-    y -= 50;
+    y -= 60;
 
     // Tanda Tangan
     const col1X = margin + 20;
-    const col2X = width - margin - 150;
+    const col2X = width - margin - 180;
 
-    page.drawText('PIHAK PERTAMA', { x: col1X, y, size: 11, font: fontBold });
-    page.drawText('PIHAK KEDUA', { x: col2X, y, size: 11, font: fontBold });
+    page.drawText('PIHAK PERTAMA,', { x: col1X, y, size: 11, font: fontBold });
+    page.drawText('PIHAK KEDUA,', { x: col2X, y, size: 11, font: fontBold });
     y -= 15;
     page.drawText(doc.party1Title || '', { x: col1X, y, size: 10, font: fontRegular });
     page.drawText(doc.party2Title || '', { x: col2X, y, size: 10, font: fontRegular });
 
-    y -= 60; // Space for signature
+    y -= 65; // Space for signature
 
     // Embed Signatures
-    const embedSig = async (sigBase64, xPos) => {
+    const embedSig = async (sigBase64, xPos, yPos) => {
         if (!sigBase64) return;
         try {
             const sigData = sigBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
             const sigBytes = Buffer.from(sigData, 'base64');
             const sigImage = sigBase64.includes('image/png') ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
-            page.drawImage(sigImage, { x: xPos, y: y + 5, width: 100, height: 50 });
-        } catch (e) { }
+            page.drawImage(sigImage, { x: xPos, y: yPos, width: 100, height: 55 });
+        } catch (e) { console.error('Sig Embed Error:', e); }
     };
 
-    if (doc.party1Signature) await embedSig(doc.party1Signature, col1X);
-    if (doc.party2Signature) await embedSig(doc.party2Signature, col2X);
+    if (doc.party1Signature) await embedSig(doc.party1Signature, col1X, y + 5);
+    if (doc.party2Signature) await embedSig(doc.party2Signature, col2X, y + 5);
 
     // Names
+    y -= 5;
     page.drawText(doc.party1Name || '____________________', { x: col1X, y, size: 11, font: fontBold });
     page.drawText(doc.party2Name || '____________________', { x: col2X, y, size: 11, font: fontBold });
 

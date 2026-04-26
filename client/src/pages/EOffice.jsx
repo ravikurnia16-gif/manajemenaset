@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../lib/axios';
 import { 
     FileText, Inbox, Send, Plus, Search, Filter, 
@@ -8,6 +8,7 @@ import {
     Calendar, User, Tag, ArrowRight, ShieldCheck,
     AlertCircle, Save, X, Edit2, QrCode, LayoutDashboard
 } from 'lucide-react';
+import SignaturePad from '../components/SignaturePad';
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const BULAN_FULL = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const formatDate = (dateStr, type = 'short') => {
@@ -26,6 +27,7 @@ const formatDate = (dateStr, type = 'short') => {
 const EOffice = () => {
     const { tab = 'dashboard' } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [documents, setDocuments] = useState([]);
@@ -42,7 +44,25 @@ const EOffice = () => {
     useEffect(() => {
         fetchStats();
         fetchDocuments();
-    }, [tab]);
+        
+        if (location.state?.autoCreate) {
+            const s = location.state;
+            setFormData(prev => ({
+                ...prev,
+                type: s.type || 'SURAT_KELUAR',
+                category: s.category || 'Serah Terima Barang',
+                subject: s.subject || '',
+                party1Name: s.party1Name || '',
+                party1Title: s.party1Title || '',
+                party2Name: s.party2Name || '',
+                party2Title: s.party2Title || '',
+            }));
+            if (s.bastItems) setBastItems(s.bastItems);
+            setIsFormOpen(true);
+            // Clear state so it doesn't reopen on refresh
+            window.history.replaceState({}, document.title);
+        }
+    }, [tab, location.state]);
 
     const fetchStats = async () => {
         try {
@@ -1259,9 +1279,9 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     };
 
-    const handleSign = async () => {
+    const handleSign = async (dataUrl = null) => {
         try {
-            const signatureData = party ? canvasRef.current.toDataURL('image/png') : null;
+            const signatureData = dataUrl;
             
             if (party) {
                 // Multi-party sign
@@ -1302,52 +1322,46 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
 
                 <div className="px-8 pb-8 space-y-6">
                     {party ? (
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Goreskan Tanda Tangan</label>
-                                <button onClick={clearCanvas} className="text-[10px] font-black text-blue-600 uppercase hover:underline">Hapus</button>
-                            </div>
-                            <div className="border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 overflow-hidden cursor-crosshair">
-                                <canvas 
-                                    ref={canvasRef}
-                                    width={448}
-                                    height={200}
-                                    onMouseDown={startDrawing}
-                                    onMouseMove={draw}
-                                    onMouseUp={stopDrawing}
-                                    onMouseLeave={stopDrawing}
-                                    className="w-full"
-                                />
-                            </div>
+                        <div className="animate-in fade-in zoom-in duration-300">
+                            <SignaturePad 
+                                title={`Tanda Tangan ${party === 'party1' ? 'Pihak Pertama' : 'Pihak Kedua'}`}
+                                onCancel={onClose}
+                                onSave={(dataUrl) => handleSign(dataUrl)}
+                            />
+                            <p className="mt-4 text-[10px] text-center text-slate-400 font-medium leading-relaxed">
+                                Dengan menandatangani secara digital, Anda menyatakan bahwa data yang tercantum dalam dokumen adalah benar dan sah sesuai kesepakatan.
+                            </p>
                         </div>
                     ) : (
-                        <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 flex flex-col items-center text-center space-y-3">
-                            <ShieldCheck className="text-emerald-600" size={40} />
-                            <div>
-                                <div className="text-emerald-800 font-black uppercase tracking-widest text-[10px] mb-1">Otentikasi Digital</div>
-                                <p className="text-emerald-700 text-sm font-medium">Sistem akan menyematkan Tanda Tangan Elektronik (QR Code) resmi atas nama Anda.</p>
+                        <>
+                            <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 flex flex-col items-center text-center space-y-3">
+                                <ShieldCheck className="text-emerald-600" size={40} />
+                                <div>
+                                    <div className="text-emerald-800 font-black uppercase tracking-widest text-[10px] mb-1">Otentikasi Digital</div>
+                                    <p className="text-emerald-700 text-sm font-medium">Sistem akan menyematkan Tanda Tangan Elektronik (QR Code) resmi atas nama Anda.</p>
+                                </div>
                             </div>
-                        </div>
+
+                            <div>
+                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Catatan Persetujuan (Opsional)</label>
+                                <textarea 
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-medium text-sm"
+                                    placeholder="Tambahkan instruksi atau catatan jika ada..."
+                                    value={approvalNote}
+                                    onChange={(e) => setApprovalNote(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 pt-2">
+                                <button onClick={onClose} className="px-6 py-4 rounded-2xl font-black text-slate-500 hover:bg-slate-100 transition-all uppercase tracking-widest text-xs">
+                                    Batal
+                                </button>
+                                <button onClick={() => handleSign()} className="px-6 py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-all uppercase tracking-widest text-xs">
+                                    Setujui & Terbitkan TTE
+                                </button>
+                            </div>
+                        </>
                     )}
-
-                    <div>
-                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Catatan Persetujuan (Opsional)</label>
-                        <textarea 
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-medium text-sm"
-                            placeholder="Tambahkan instruksi atau catatan jika ada..."
-                            value={approvalNote}
-                            onChange={(e) => setApprovalNote(e.target.value)}
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 pt-2">
-                        <button onClick={onClose} className="px-6 py-4 rounded-2xl font-black text-slate-500 hover:bg-slate-100 transition-all uppercase tracking-widest text-xs">
-                            Batal
-                        </button>
-                        <button onClick={handleSign} className="px-6 py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-all uppercase tracking-widest text-xs">
-                            {party ? 'Simpan Tanda Tangan' : 'Setujui & Terbitkan TTE'}
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>

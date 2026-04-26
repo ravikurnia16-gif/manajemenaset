@@ -55,6 +55,7 @@ import ModulePlaceholder from './components/ModulePlaceholder';
 import OfficialResidence from './pages/OfficialResidence';
 import QuickComplete from './pages/QuickComplete';
 import EOffice from './pages/EOffice';
+import PublicVerify from './pages/PublicVerify';
 
 
 // Komponen untuk melindungi route yang butuh login
@@ -78,6 +79,7 @@ function App() {
         <Route path="/public/invoice-bus/:id" element={<BusInvoicePublic />} />
         <Route path="/public/confirm-bus/:id/:token" element={<BusConfirmationPublic />} />
         <Route path="/q/:token" element={<QuickComplete />} />
+        <Route path="/verify/:uuid" element={<PublicVerify />} />
 
         {/* Semua route di dalam sini diproteksi */}
         <Route path="/" element={
