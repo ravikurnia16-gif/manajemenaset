@@ -774,7 +774,7 @@ async function generateSuratPesananPDF(doc) {
     page.drawText('TOTAL KESELURUHAN', { x: cols.price - 60, y: y - 5, size: 10, font: fontBold });
     page.drawText(`Rp ${grandTotal.toLocaleString('id-ID')}`, { x: cols.total + 5, y: y - 5, size: 11, font: fontBold, color: rgb(0.1, 0.3, 0.7) });
 
-    y -= 15;
+    y -= 40;
     const closingText = 'Demikianlah surat pesanan ini kami buat untuk dapat dipergunakan sebagaimana mestinya. Atas perhatian dan kerjasamanya kami ucapkan terima kasih.';
     y = drawJustifiedText(page, closingText, margin, y, width - margin * 2, 11, fontRegular);
 
