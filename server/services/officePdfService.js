@@ -100,7 +100,7 @@ function drawKopSuratSync(page, fontBold, fontRegular, images) {
         color: lineOrange,
     });
 
-    return y - 15;
+    return y - 25;
 }
 
 async function drawKopSurat(page, fontBold, fontRegular) {
@@ -1099,13 +1099,13 @@ async function generateSuratEdaranPDF(doc, setting) {
     const numberText = `Nomor: ${doc.number || '.......................................'}`;
     const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
     page.drawText(numberText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
-    y -= 12;
+    y -= 18;
 
     // TENTANG
     const tentangLabel = "TENTANG";
     const tentangLabelWidth = fontBold.widthOfTextAtSize(tentangLabel, 12);
     page.drawText(tentangLabel, { x: (width - tentangLabelWidth) / 2, y, size: 12, font: fontBold });
-    y -= 8;
+    y -= 12;
 
     // Subject (centered)
     const subjectLines = wrapText((doc.subject || '').toUpperCase(), width - 140, fontBold, 12);
@@ -1114,7 +1114,7 @@ async function generateSuratEdaranPDF(doc, setting) {
         page.drawText(line, { x: (width - lw) / 2, y, size: 12, font: fontBold });
         y -= 15;
     });
-    y -= 12;
+    y -= 20;
 
     // Recipient
     page.drawText(`Yth. ${doc.party2Name || "......................................."}`, { x: margin, y, size: 11, font: fontBold });
@@ -1122,7 +1122,7 @@ async function generateSuratEdaranPDF(doc, setting) {
     page.drawText("di", { x: margin, y, size: 11, font: fontRegular });
     y -= 12;
     page.drawText(doc.party2Address || "Tempat", { x: margin, y, size: 11, font: fontBold });
-    y -= 15;
+    y -= 25;
 
     // Content Parsing
     let content = { background: '', points: [] };
@@ -1274,13 +1274,13 @@ async function generateKeputusanPDF(doc, setting) {
     const numberText = `Nomor: ${doc.number || '.......................................'}`;
     const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
     page.drawText(numberText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
-    y -= 25;
+    y -= 20;
 
     // TENTANG
     const tentangLabel = "TENTANG";
     const tentangLabelWidth = fontBold.widthOfTextAtSize(tentangLabel, 12);
     page.drawText(tentangLabel, { x: (width - tentangLabelWidth) / 2, y, size: 12, font: fontBold });
-    y -= 8;
+    y -= 12;
 
     // Subject
     const subjectLines = wrapText((doc.subject || '').toUpperCase(), contentWidth, fontBold, 12);
@@ -1289,7 +1289,7 @@ async function generateKeputusanPDF(doc, setting) {
         page.drawText(line, { x: (width - lw) / 2, y, size: 12, font: fontBold });
         y -= 15;
     });
-    y -= 15;
+    y -= 25;
 
     let content = { menimbang: [], mengingat: [], menetapkan: [], tembusan: [] };
     try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
@@ -1461,7 +1461,7 @@ async function generatePemberitahuanPDF(doc, setting) {
         page.drawText(line, { x: idx === 0 ? perihalValueX : perihalValueX, y, size: 11, font: fontBold });
         y -= 14;
     });
-    y -= 10;
+    y -= 15;
 
     // Recipient
     page.drawText(`Yth. ${doc.party2Name || "......................................."}`, { x: margin, y, size: 11, font: fontBold });
@@ -1469,7 +1469,7 @@ async function generatePemberitahuanPDF(doc, setting) {
     page.drawText("di", { x: margin, y, size: 11, font: fontRegular });
     y -= 12;
     page.drawText(doc.party2Address || "Tempat", { x: margin, y, size: 11, font: fontBold });
-    y -= 15;
+    y -= 25;
 
     // Content parsing
     let content = { pembukaan: '', points: [], penutup: '' };
