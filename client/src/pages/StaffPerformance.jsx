@@ -1951,11 +1951,16 @@ const UpdateProgresModal = ({ open, onClose, onSubmit, submitting, assignment })
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1.5 mb-4 max-h-32 overflow-y-auto no-scrollbar">
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Sub Item Pekerjaan:</p>
                             {subItems.map((item, idx) => (
-                                <div key={idx} className="flex items-start gap-2 text-xs font-bold text-slate-600">
-                                    <div className="mt-0.5 text-slate-400">
-                                        {(item.isDone || item.percentage === 100) ? <CheckSquare size={14} className="text-emerald-500" /> : <Square size={14} />}
+                                <div key={idx} className="flex items-start justify-between gap-2 text-xs font-bold text-slate-600">
+                                    <div className="flex items-start gap-2 flex-1">
+                                        <div className="mt-0.5 text-slate-400">
+                                            {(item.isDone || item.percentage === 100) ? <CheckSquare size={14} className="text-emerald-500" /> : <Square size={14} />}
+                                        </div>
+                                        <span className={(item.isDone || item.percentage === 100) ? 'line-through text-slate-400' : ''}>{item.text}</span>
                                     </div>
-                                    <span className={(item.isDone || item.percentage === 100) ? 'line-through text-slate-400' : ''}>{item.text}</span>
+                                    <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-md shadow-sm shrink-0">
+                                        {item.percentage || 0}%
+                                    </span>
                                 </div>
                             ))}
                         </div>
