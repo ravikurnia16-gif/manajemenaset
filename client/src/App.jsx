@@ -70,7 +70,15 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   const user = JSON.parse(localStorage.getItem('user')) || {};
   const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role);
-  const isStaffSarpras = isGlobalAdmin || user.unit?.name?.toLowerCase().includes('sarana dan prasarana');
+  const sarprasKeywords = [
+      'sarana dan prasarana',
+      'manajemen aset',
+      'gudang dan logistik',
+      'teknisi',
+      'keuangan dan administrasi',
+      'kendaraan'
+  ];
+  const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position?.toLowerCase().includes(kw));
 
   return (
     <BrowserRouter>
