@@ -235,30 +235,48 @@ const WarehouseStockForm = () => {
                     </div>
                 )}
 
-                {/* Al Qur'an: Photo Upload */}
-                {isAlQuran && (
-                    <div className="space-y-2">
-                        <label className="block text-sm font-semibold text-slate-700">Foto Al Qur'an</label>
-                        <div className="flex items-center gap-4">
-                            <div className="w-24 h-24 bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden">
-                                {form.image ? (
-                                    <img src={getMediaUrl(form.image)} alt="Preview" className="w-full h-full object-cover" />
-                                ) : (
-                                    <Package className="text-slate-300" size={32} />
-                                )}
-                            </div>
-                            <div className="flex-1">
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleFileChange}
-                                    className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                                />
-                                <p className="text-[10px] text-slate-400 mt-1">Format: JPG, PNG. Rekomendasi 1:1</p>
-                            </div>
+                {/* Photo Upload */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                    <label className="block text-sm font-bold text-slate-700 flex items-center gap-2">📸 Foto Barang</label>
+                    <div className="flex items-center gap-6">
+                        <div className="w-28 h-28 bg-white rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden shadow-sm relative group">
+                            {form.image ? (
+                                <>
+                                    <img src={getMediaUrl(form.image)} alt="Preview" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <p className="text-[10px] text-white font-bold bg-black/50 px-2 py-1 rounded">Ganti Foto</p>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex flex-col items-center gap-1">
+                                    <Package className="text-slate-200" size={40} />
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">No Photo</span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex-1 space-y-3">
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleFileChange}
+                                id="photo-upload"
+                                className="hidden"
+                            />
+                            <label 
+                                htmlFor="photo-upload" 
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 hover:border-indigo-300 cursor-pointer transition-all shadow-sm"
+                            >
+                                {form.image ? 'Ganti Foto' : 'Pilih Foto...'}
+                            </label>
+                            <p className="text-[10px] text-slate-400 font-medium">Format: JPG, PNG. Ukuran maksimal 2MB. Rekomendasi rasio 1:1.</p>
+                            {file && (
+                                <div className="flex items-center gap-2 text-[10px] text-green-600 font-bold bg-green-50 px-2 py-1 rounded-lg w-fit">
+                                    ✓ File terpilih: {(file.size / 1024).toFixed(0)} KB
+                                </div>
+                            )}
                         </div>
                     </div>
-                )}
+                </div>
 
                 <button type="submit" disabled={saving} className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center justify-center gap-2">
                     <Save size={18} /> {saving ? 'Menyimpan...' : isEdit ? 'Update' : 'Simpan'}
