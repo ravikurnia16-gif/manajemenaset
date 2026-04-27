@@ -930,6 +930,30 @@ async function generateInvoicePDF(doc, setting) {
     
     page.drawText(doc.party1Name || 'Ravi Kurnia', { x: sigX, y: y - 70, size: 10, font: fontBold });
 
+    // LUNAS Stamp
+    try {
+        const parsed = JSON.parse(doc.content || '{}');
+        if (parsed.paymentStatus === 'PAID') {
+            const stampX = width / 2 - 50;
+            const stampY = 50;
+            page.drawRectangle({
+                x: stampX,
+                y: stampY,
+                width: 100,
+                height: 40,
+                borderColor: rgb(0, 0.6, 0),
+                borderWidth: 2,
+            });
+            page.drawText('LUNAS', {
+                x: stampX + 15,
+                y: stampY + 12,
+                size: 20,
+                font: fontBold,
+                color: rgb(0, 0.6, 0),
+            });
+        }
+    } catch (e) {}
+
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 }

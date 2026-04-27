@@ -1113,6 +1113,7 @@ enum OfficeDocumentType {
   LAINNYA
 }
 
+
 enum OfficeDocumentStatus {
   DRAFT
   PENDING_APPROVAL

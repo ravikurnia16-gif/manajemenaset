@@ -167,6 +167,16 @@ const EOffice = () => {
         </div>
     );
 
+    const getPaymentStatus = (doc) => {
+        if (doc.type !== 'INVOICE') return null;
+        try {
+            const parsed = JSON.parse(doc.content || '{}');
+            return parsed.paymentStatus || 'UNPAID';
+        } catch (e) {
+            return 'UNPAID';
+        }
+    };
+
     const ListView = () => (
         <div className="space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -234,6 +244,15 @@ const EOffice = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <StatusBadge status={doc.status} />
+                                        {doc.type === 'INVOICE' && (
+                                            <div className="mt-1">
+                                                {getPaymentStatus(doc) === 'PAID' ? (
+                                                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-black uppercase tracking-widest">LUNAS</span>
+                                                ) : (
+                                                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest">BELUM LUNAS</span>
+                                                )}
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
@@ -694,7 +713,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         bankAccountName: '',
         bankAccountNumber: '',
         dueDate: formatDate(new Date(), 'input'),
-        notes: ''
+        notes: '',
+        paymentStatus: 'UNPAID'
     });
     const [recipientType, setRecipientType] = useState('external');
 
@@ -1250,6 +1270,17 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         value={invoiceData.dueDate}
                                         onChange={(e) => setInvoiceData({ ...invoiceData, dueDate: e.target.value })}
                                     />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Status Pembayaran</label>
+                                    <select 
+                                        className={`w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold ${invoiceData.paymentStatus === 'PAID' ? 'text-green-600' : 'text-amber-600'}`}
+                                        value={invoiceData.paymentStatus}
+                                        onChange={(e) => setInvoiceData({ ...invoiceData, paymentStatus: e.target.value })}
+                                    >
+                                        <option value="UNPAID">🔴 BELUM LUNAS</option>
+                                        <option value="PAID">🟢 LUNAS</option>
+                                    </select>
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Catatan Tambahan</label>
