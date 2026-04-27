@@ -626,7 +626,7 @@ exports.checkInvoiceDueDates = async () => {
                 const phone = doc.party2Title;
                 if (!phone) continue;
 
-                const publicUrl = `${process.env.BASE_URL || 'http://localhost:5173'}/verify/${doc.uuid}`;
+                const publicUrl = `https://sarpras.dareliman.or.id/verify/${doc.uuid}`;
                 
                 let title = "🔔 PENGINGAT TAGIHAN";
                 if (diffDays === 0) title = "⚠️ JATUH TEMPO HARI INI";
@@ -706,7 +706,7 @@ exports.sendInvoiceWA = async (req, res) => {
         let content = {};
         try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
 
-        const publicUrl = `${process.env.BASE_URL || 'http://localhost:5173'}/verify/${doc.uuid}`;
+        const publicUrl = `https://sarpras.dareliman.or.id/verify/${doc.uuid}`;
         
         const message = `*INVOICE TAGIHAN - ${setting?.orgName || 'SARPRAS'}*\n\n` +
             `Halo Bapak/Ibu *${doc.party2Name}*,\n` +
