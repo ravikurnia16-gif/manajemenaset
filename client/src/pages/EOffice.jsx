@@ -6,7 +6,7 @@ import {
     MoreVertical, CheckCircle2, XCircle, Clock, 
     FileSignature, Download, Eye, Trash2, Printer,
     Calendar, User, Tag, ArrowRight, ShieldCheck,
-    AlertCircle, Save, X, Edit2, QrCode, LayoutDashboard
+    AlertCircle, Save, X, Edit2, QrCode, LayoutDashboard, Paperclip
 } from 'lucide-react';
 import SignaturePad from '../components/SignaturePad';
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
