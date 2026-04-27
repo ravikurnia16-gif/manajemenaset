@@ -808,6 +808,125 @@ async function generateSuratPesananPDF(doc) {
     y = drawJustifiedText(page, term3, margin, y, width - margin * 2, 8, fontRegular);
 
     const pdfBytes = await pdfDoc.save();
+}
+
+async function generateInvoicePDF(doc, setting) {
+    const pdfDoc = await PDFDocument.create();
+    // A5 Size (Setengah A4) - [Width, Height]
+    // A4 is [595.28, 841.89] -> A5 is [595.28, 420.94]
+    const page = pdfDoc.addPage([595.28, 420.94]);
+    const { width, height } = page.getSize();
+
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    const margin = 35;
+    let y = height - margin;
+
+    // Header - INVOICE
+    page.drawText('INVOICE', { x: width - margin - 120, y, size: 24, font: fontBold, color: rgb(0.1, 0.3, 0.7) });
+    
+    // Org Info
+    const orgName = setting?.orgName || 'Manajemen Aset';
+    page.drawText(orgName, { x: margin, y: y + 10, size: 14, font: fontBold });
+    page.drawText('Sarana & Prasarana', { x: margin, y: y - 5, size: 10, font: fontRegular });
+    
+    y -= 50;
+    
+    // Invoice Details
+    page.drawText(`No. Invoice: ${doc.number || '-'}`, { x: margin, y, size: 10, font: fontBold });
+    page.drawText(`Tanggal: ${new Date(doc.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, { x: width - margin - 150, y, size: 10, font: fontRegular });
+    
+    y -= 35;
+    
+    // Bill To
+    page.drawText('TAGIHAN KEPADA:', { x: margin, y, size: 9, font: fontBold, color: rgb(0.5, 0.5, 0.5) });
+    y -= 15;
+    page.drawText(doc.party2Name || '............................', { x: margin, y, size: 11, font: fontBold });
+    y -= 12;
+    page.drawText('di tempat', { x: margin, y, size: 9, font: fontRegular });
+    
+    y -= 30;
+    
+    // Table Header
+    const cols = {
+        no: margin,
+        desc: margin + 30,
+        qty: margin + 250,
+        price: margin + 310,
+        total: margin + 420
+    };
+    
+    page.drawRectangle({ x: margin, y: y - 5, width: width - margin * 2, height: 20, color: rgb(0.95, 0.96, 0.98) });
+    page.drawText('NO', { x: cols.no + 5, y, size: 8, font: fontBold });
+    page.drawText('DESKRIPSI', { x: cols.desc + 5, y, size: 8, font: fontBold });
+    page.drawText('QTY', { x: cols.qty + 5, y, size: 8, font: fontBold });
+    page.drawText('HARGA', { x: cols.price + 5, y, size: 8, font: fontBold });
+    page.drawText('TOTAL', { x: cols.total + 5, y, size: 8, font: fontBold });
+    
+    y -= 25;
+    
+    let items = [];
+    let bankInfo = {};
+    let dueDate = '';
+    let notes = '';
+    try { 
+        const parsed = JSON.parse(doc.content || '{}');
+        if (Array.isArray(parsed)) {
+            items = parsed;
+        } else {
+            items = parsed.items || [];
+            bankInfo = parsed.bankInfo || {};
+            dueDate = parsed.dueDate || '';
+            notes = parsed.notes || '';
+        }
+    } catch (e) {}
+
+    let grandTotal = 0;
+    items.forEach((item, index) => {
+        const itemPrice = parseFloat(item.price) || 0;
+        const itemTotal = (parseFloat(item.qty) || 0) * itemPrice;
+        grandTotal += itemTotal;
+        
+        page.drawText(String(index + 1), { x: cols.no + 5, y, size: 9, font: fontRegular });
+        page.drawText(item.name || '-', { x: cols.desc + 5, y, size: 9, font: fontBold });
+        page.drawText(String(item.qty || 0), { x: cols.qty + 5, y, size: 9, font: fontRegular });
+        page.drawText(itemPrice.toLocaleString('id-ID'), { x: cols.price + 5, y, size: 9, font: fontRegular });
+        page.drawText(itemTotal.toLocaleString('id-ID'), { x: cols.total + 5, y, size: 9, font: fontBold });
+        
+        y -= 18;
+    });
+    
+    y -= 10;
+    page.drawLine({ start: { x: margin, y: y + 5 }, end: { x: width - margin, y: y + 5 }, thickness: 1, color: rgb(0.1, 0.3, 0.7) });
+    
+    // Grand Total
+    page.drawText('TOTAL PEMBAYARAN', { x: cols.price - 60, y: y - 5, size: 10, font: fontBold });
+    page.drawText(`Rp ${grandTotal.toLocaleString('id-ID')}`, { x: cols.total + 5, y: y - 5, size: 12, font: fontBold, color: rgb(0.1, 0.3, 0.7) });
+    
+    y -= 50;
+    
+    // Payment Info (Left)
+    if (bankInfo.bankName) {
+        page.drawText('Informasi Pembayaran:', { x: margin, y: y + 25, size: 8, font: fontBold, color: rgb(0.4, 0.4, 0.4) });
+        page.drawText(`Bank: ${bankInfo.bankName}`, { x: margin, y: y + 10, size: 9, font: fontRegular });
+        page.drawText(`No. Rek: ${bankInfo.bankAccountNumber}`, { x: margin, y: y - 5, size: 10, font: fontBold });
+        page.drawText(`A/N: ${bankInfo.bankAccountName}`, { x: margin, y: y - 20, size: 9, font: fontRegular });
+    }
+    
+    if (dueDate) {
+        page.drawText(`Jatuh Tempo: ${new Date(dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, { x: margin, y: y - 35, size: 9, font: fontBold, color: rgb(0.8, 0.1, 0.1) });
+    }
+    
+    // Signature (Right)
+    const sigX = width - margin - 150;
+    page.drawText('Hormat Kami,', { x: sigX, y: y + 10, size: 10, font: fontBold });
+    
+    // TTE for Kabid
+    await drawDigitalSignature(page, doc, sigX + 10, y - 50, 60);
+    
+    page.drawText(doc.party1Name || 'Ravi Kurnia', { x: sigX, y: y - 70, size: 10, font: fontBold });
+
+    const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 }
 
@@ -817,4 +936,5 @@ module.exports = {
     generateBASTMouPDF,
     generateSuratTugasPDF,
     generateSuratPesananPDF,
+    generateInvoicePDF,
 };

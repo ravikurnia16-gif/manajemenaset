@@ -689,6 +689,13 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         location: '',
         carbonCopy: ['']
     });
+    const [invoiceData, setInvoiceData] = useState({
+        bankName: '',
+        bankAccountName: '',
+        bankAccountNumber: '',
+        dueDate: formatDate(new Date(), 'input'),
+        notes: ''
+    });
 
     useEffect(() => {
         if (isOpen && formData.category === 'Tugas') {
@@ -734,6 +741,25 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     setPurchasingItems(JSON.parse(doc.content));
                 } catch (e) {
                     console.error('Failed to parse Purchasing content JSON', e);
+                }
+            }
+            if ((doc.type === 'INVOICE' || doc.category === 'Invoice') && doc.content) {
+                try {
+                    const parsed = JSON.parse(doc.content);
+                    if (parsed.items) {
+                        setPurchasingItems(parsed.items);
+                        setInvoiceData({
+                            bankName: parsed.bankInfo?.bankName || '',
+                            bankAccountName: parsed.bankInfo?.bankAccountName || '',
+                            bankAccountNumber: parsed.bankInfo?.bankAccountNumber || '',
+                            dueDate: parsed.dueDate || formatDate(new Date(), 'input'),
+                            notes: parsed.notes || ''
+                        });
+                    } else if (Array.isArray(parsed)) {
+                        setPurchasingItems(parsed);
+                    }
+                } catch (e) {
+                    console.error('Failed to parse Invoice content JSON', e);
                 }
             }
             if (doc.category === 'Tugas' && doc.content) {
@@ -813,6 +839,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 payload = { ...formData, content: JSON.stringify(bastItems) };
             } else if (formData.category === 'Pesanan') {
                 payload = { ...formData, type: 'SURAT_PESANAN', content: JSON.stringify(purchasingItems) };
+            } else if (formData.type === 'INVOICE' || formData.category === 'Invoice') {
+                payload = { ...formData, content: JSON.stringify({ items: purchasingItems, bankInfo: invoiceData, dueDate: invoiceData.dueDate, notes: invoiceData.notes }) };
             } else if (formData.type === 'SURAT_KELUAR' && formData.category === 'Tugas') {
                 payload = { ...formData, content: JSON.stringify(taskData) };
             }
@@ -984,6 +1012,33 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
+                        {formData.type === 'INVOICE' && (
+                            <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-amber-50/50 p-6 rounded-2xl border border-amber-100">
+                                <label className="col-span-full text-xs font-black text-amber-600 uppercase tracking-widest block mb-2">3. Informasi Penagihan (Bill To)</label>
+                                <div className="col-span-full">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Kepada Yth (Nama / Instansi)</label>
+                                    <input 
+                                        required
+                                        type="text"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                        value={formData.party2Name}
+                                        onChange={(e) => setFormData({ ...formData, party2Name: e.target.value })}
+                                        placeholder="Contoh: Pimpinan CV. Maju Jaya"
+                                    />
+                                </div>
+                                <div className="col-span-full">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Alamat Penerima Tagihan</label>
+                                    <input 
+                                        type="text"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                        value={formData.party2Address}
+                                        onChange={(e) => setFormData({ ...formData, party2Address: e.target.value })}
+                                        placeholder="Alamat lengkap penerima tagihan..."
+                                    />
+                                </div>
+                            </div>
+                        )}
+
                         {(['BAST', 'MOU'].includes(formData.type) || ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category)) && (
                             <div className="col-span-full">
                                 <div className="flex items-center justify-between mb-2">
@@ -1029,12 +1084,12 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {formData.category === 'Pesanan' && (
+                        {(formData.category === 'Pesanan' || formData.type === 'INVOICE') && (
                             <div className="col-span-full">
                                 <div className="flex items-center justify-between mb-2">
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Daftar Barang Pesanan (Purchasing)</label>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Daftar Barang / Jasa</label>
                                     <button type="button" onClick={() => setPurchasingItems([...purchasingItems, { name: '', spec: '', qty: '', unit: 'Pcs', price: '', total: 0 }])} className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:text-blue-700">
-                                        <Plus size={14} /> Tambah Barang
+                                        <Plus size={14} /> Tambah Baris
                                     </button>
                                 </div>
                                 <div className="border border-slate-200 rounded-xl overflow-hidden">
@@ -1092,6 +1147,61 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             </tr>
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {formData.type === 'INVOICE' && (
+                            <div className="col-span-full grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
+                                <label className="col-span-full text-xs font-black text-blue-600 uppercase tracking-widest block mb-2">4. Informasi Pembayaran (Bank)</label>
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nama Bank</label>
+                                    <input 
+                                        type="text"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                        value={invoiceData.bankName}
+                                        onChange={(e) => setInvoiceData({ ...invoiceData, bankName: e.target.value })}
+                                        placeholder="Contoh: Bank Nagari / BSI"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nomor Rekening</label>
+                                    <input 
+                                        type="text"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                        value={invoiceData.bankAccountNumber}
+                                        onChange={(e) => setInvoiceData({ ...invoiceData, bankAccountNumber: e.target.value })}
+                                        placeholder="0123-4567-89"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nama Pemilik Rekening</label>
+                                    <input 
+                                        type="text"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                        value={invoiceData.bankAccountName}
+                                        onChange={(e) => setInvoiceData({ ...invoiceData, bankAccountName: e.target.value })}
+                                        placeholder="Nama Lengkap"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Jatuh Tempo</label>
+                                    <input 
+                                        type="date"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold text-red-600"
+                                        value={invoiceData.dueDate}
+                                        onChange={(e) => setInvoiceData({ ...invoiceData, dueDate: e.target.value })}
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Catatan Tambahan</label>
+                                    <input 
+                                        type="text"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-medium"
+                                        value={invoiceData.notes}
+                                        onChange={(e) => setInvoiceData({ ...invoiceData, notes: e.target.value })}
+                                        placeholder="Misal: Pembayaran harap menyertakan nomor invoice"
+                                    />
                                 </div>
                             </div>
                         )}
