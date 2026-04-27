@@ -343,10 +343,24 @@ exports.getReports = async (req, res) => {
 // --- ASSIGNMENTS ---
 
 exports.createAssignment = async (req, res) => {
-    const { assigneeId, title, description, startDate, dueDate, category, location, items, addToCalendar, priority } = req.body;
+    const { assigneeId, title, description, startDate, dueDate, category, location, items, addToCalendar, priority, photos } = req.body;
     const user = req.user;
 
     try {
+        // Initialize notes with initial photos if provided
+        let notes = null;
+        if (photos && Array.isArray(photos) && photos.length > 0) {
+            notes = JSON.stringify({
+                text: description || '',
+                history: [{
+                    date: new Date().toISOString(),
+                    percentage: 0,
+                    note: 'Dokumentasi Awal Penugasan',
+                    photos: photos
+                }]
+            });
+        }
+
         const assignment = await prisma.personnelAssignment.create({
             data: {
                 assignerId: user.id,
@@ -359,7 +373,8 @@ exports.createAssignment = async (req, res) => {
                 startDate: startDate ? new Date(startDate) : null,
                 dueDate: dueDate ? new Date(dueDate) : null,
                 status: 'PENDING',
-                items: items || []
+                items: items || [],
+                notes: notes
             }
         });
 
@@ -518,7 +533,7 @@ exports.getAssignments = async (req, res) => {
 
 exports.updateAssignmentStatus = async (req, res) => {
     const { id } = req.params;
-    const { status, progressPercentage, notes, items, title, description } = req.body;
+    const { status, progressPercentage, notes, items, title, description, photos } = req.body;
     const user = req.user;
 
     try {
@@ -599,7 +614,28 @@ exports.updateAssignmentStatus = async (req, res) => {
             }
         }
 
-        if (notes !== undefined) data.notes = notes;
+        if (photos && Array.isArray(photos) && photos.length > 0) {
+            let currentNotes = { text: description || assignment.description || '', history: [] };
+            if (assignment.notes) {
+                try {
+                    const p = JSON.parse(assignment.notes);
+                    if (p && Array.isArray(p.history)) currentNotes = p;
+                } catch (e) {
+                    currentNotes.text = assignment.notes;
+                }
+            }
+            currentNotes.history.push({
+                date: new Date().toISOString(),
+                percentage: data.progressPercentage !== undefined ? data.progressPercentage : (assignment.progressPercentage || 0),
+                note: 'Dokumentasi Tambahan',
+                photos
+            });
+            data.notes = JSON.stringify(currentNotes);
+        } else if (notes !== undefined) {
+            // Only update notes if it's explicitly provided and likely a JSON history 
+            // (or if we trust the caller)
+            data.notes = notes;
+        }
 
         const updated = await prisma.personnelAssignment.update({
             where: { id: parseInt(id) },
@@ -1329,29 +1365,10 @@ exports.generateRoutineTasks = async () => {
                     data: { lastGenerated: today }
                 });
 
-                // Notify WA
-                if (assignment.assignee?.phone) {
-                    const checklist = Array.isArray(routine.items)
-                        ? routine.items.map((it, idx) => `${idx + 1}. ${it.text}`).join('\n')
-                        : '';
-
-                    const msg = `*Bismillah*\n\n` +
-                        `Telah masuk *TUGAS RUTIN* otomatis Dengan Rinciannya:\n\n` +
-                        `📌 *Judul* : ${routine.title}\n` +
-                        `📅 *Deadline* : Hari ini (23:59)\n` +
-                        `👤 *Pemberi Tugas* : ${assignment.assigner?.name || 'Sistem'}\n\n` +
-                        `*Deskripsi* :\n${checklist || routine.description}\n\n` +
-                        `Mohon bantuan untuk segera dilaksanakan ya Ustadz. Semangat!`;
-
-                    try {
-                        await waTemplateService.send('PERSONNEL_ASSIGNMENT_EVALUATED', assignment.assignee.phone, {
-                            judul_tugas: routine.title,
-                            pemberi_tugas: assignment.assigner?.name || 'Sistem',
-                            deskripsi_tugas: checklist || routine.description || '-'
-                        }, msg);
-                    } catch (e) { }
-                }
+                // WhatsApp notification for routine generation disabled per user request
+                // (Only visible in app to reduce daily notification noise)
             }
+        }
         }
     } catch (err) {
         console.error('[Routine Task] Sync Error:', err.message);

@@ -664,13 +664,11 @@ const StaffPerformance = () => {
             if (editingAssignment || formData.id) {
                 const id = editingAssignment?.id || formData.id;
                 await api.put(`/personnel/assignments/${id}/status`, {
-                    ...formData,
-                    description: formData.description || formData.notes
+                    ...formData
                 });
             } else {
                 await api.post('/personnel/assignments', {
                     ...formData,
-                    description: formData.description || formData.notes,
                     items: formData.items.map(it => ({ ...it, isDone: false, percentage: 0 }))
                 });
             }
@@ -1764,8 +1762,9 @@ const TugasFormModal = ({ open, onClose, onSubmit, submitting, staffList, editin
     const [startDate, setStartDate] = useState(today());
     const [dueDate, setDueDate] = useState('');
     const [location, setLocation] = useState('');
-    const [notes, setNotes] = useState('');
+    const [description, setDescription] = useState('');
     const [items, setItems] = useState([{ text: '' }]);
+    const [photos, setPhotos] = useState([]);
 
     useEffect(() => {
         if (open) { 
@@ -1776,10 +1775,12 @@ const TugasFormModal = ({ open, onClose, onSubmit, submitting, staffList, editin
                 setStartDate(editing.startDate ? new Date(editing.startDate).toISOString().split('T')[0] : today());
                 setDueDate(editing.dueDate ? new Date(editing.dueDate).toISOString().split('T')[0] : '');
                 setLocation(editing.location || '');
-                setNotes(editing.description || '');
+                setDescription(editing.description || '');
                 setItems(Array.isArray(editing.items) ? editing.items : [{ text: '' }]);
+                setPhotos([]);
             } else {
-                setTitle(''); setAssigneeId(''); setPriority('MEDIUM'); setStartDate(today()); setDueDate(''); setLocation(''); setNotes(''); setItems([{ text: '' }]); 
+                setTitle(''); setAssigneeId(''); setPriority('MEDIUM'); setStartDate(today()); setDueDate(''); setLocation(''); setDescription(''); setItems([{ text: '' }]); 
+                setPhotos([]);
             }
         }
     }, [open, editing]);
@@ -1788,11 +1789,35 @@ const TugasFormModal = ({ open, onClose, onSubmit, submitting, staffList, editin
     const removeItem = idx => setItems(items.filter((_, i) => i !== idx));
     const updateItem = (idx, val) => { const n = [...items]; n[idx].text = val; setItems(n); };
 
+    const handlePhotoUpload = (e) => {
+        const files = Array.from(e.target.files);
+        if (photos.length + files.length > 3) { alert('Maksimal 3 foto'); return; }
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const img = new window.Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    const max = 800;
+                    if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
+                    else if (h > max) { w = Math.round(w * max / h); h = max; }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    setPhotos(prev => [...prev, canvas.toDataURL('image/jpeg', 0.6)]);
+                };
+                img.src = reader.result;
+            };
+            reader.readAsDataURL(file);
+        });
+        e.target.value = '';
+    };
+
     const submit = e => {
         e.preventDefault();
         if (!title.trim()) return alert('Judul tugas wajib diisi');
         if (!assigneeId) return alert('Pilih staf penerima tugas');
-        onSubmit({ title, assigneeId, priority, startDate, dueDate, location, notes, items });
+        onSubmit({ title, assigneeId, priority, startDate, dueDate, location, description, items, photos });
     };
 
     return (
@@ -1851,6 +1876,30 @@ const TugasFormModal = ({ open, onClose, onSubmit, submitting, staffList, editin
                         </button>
                     </div>
                 </div>
+
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5 block">
+                        <Camera size={12} /> Foto Dokumentasi Penugasan ({photos.length}/3)
+                    </label>
+                    {photos.length > 0 && (
+                        <div className="flex gap-3 flex-wrap mb-3">
+                            {photos.map((p, i) => (
+                                <div key={i} className="relative group">
+                                    <img src={p} alt="Doc" className="w-20 h-20 object-cover rounded-xl border-2 border-slate-200 shadow-sm" />
+                                    <button type="button" onClick={() => setPhotos(photos.filter((_, idx) => idx !== i))}
+                                        className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full text-[10px] font-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">✕</button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {photos.length < 3 && (
+                        <label className="flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-200 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest hover:border-indigo-200 hover:text-indigo-500 transition-all cursor-pointer">
+                            <ImageIcon size={16} /> Pilih Foto Penugasan
+                            <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} className="hidden" />
+                        </label>
+                    )}
+                </div>
+
                 <button type="submit" disabled={submitting} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black tracking-widest hover:bg-slate-800 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
                     {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                     {submitting ? 'Menyimpan...' : (editing ? 'Simpan Perubahan' : 'Delegasikan Tugas')}
