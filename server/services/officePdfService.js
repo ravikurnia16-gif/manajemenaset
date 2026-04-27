@@ -812,9 +812,9 @@ async function generateSuratPesananPDF(doc) {
 
 async function generateInvoicePDF(doc, setting) {
     const pdfDoc = await PDFDocument.create();
-    // A5 Size (Setengah A4) - [Width, Height]
-    // A4 is [595.28, 841.89] -> A5 is [595.28, 420.94]
-    const page = pdfDoc.addPage([595.28, 420.94]);
+    // A5 Size (Setengah A4) - Portrait
+    // A4 is [595.28, 841.89] -> A5 is [420.94, 595.28]
+    const page = pdfDoc.addPage([420.94, 595.28]);
     const { width, height } = page.getSize();
 
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
@@ -854,10 +854,10 @@ async function generateInvoicePDF(doc, setting) {
     // Table Header
     const cols = {
         no: margin,
-        desc: margin + 30,
-        qty: margin + 250,
-        price: margin + 310,
-        total: margin + 420
+        desc: margin + 25,
+        qty: margin + 185,
+        price: margin + 225,
+        total: margin + 285
     };
     
     page.drawRectangle({ x: margin, y: y - 5, width: width - margin * 2, height: 20, color: rgb(0.95, 0.96, 0.98) });
