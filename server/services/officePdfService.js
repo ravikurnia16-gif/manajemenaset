@@ -174,22 +174,34 @@ async function createBasePDF() {
  */
 function wrapText(text, maxWidth, font, size) {
     if (!text) return [];
-    const words = text.split(' ');
-    let lines = [];
-    let currentLine = words[0];
-
-    for (let i = 1; i < words.length; i++) {
-        const word = words[i];
-        const width = font.widthOfTextAtSize(currentLine + " " + word, size);
-        if (width < maxWidth) {
-            currentLine += " " + word;
-        } else {
-            lines.push(currentLine);
-            currentLine = word;
+    
+    // Clean text from character that cannot be encoded by WinAnsi (like \n)
+    // We split by \n to handle paragraphs
+    const paragraphs = text.split('\n');
+    let allLines = [];
+    
+    paragraphs.forEach(paragraph => {
+        const words = paragraph.split(/\s+/).filter(w => w.length > 0);
+        if (words.length === 0) {
+            allLines.push(""); // Empty line for empty paragraph
+            return;
         }
-    }
-    lines.push(currentLine);
-    return lines;
+        
+        let currentLine = words[0];
+        for (let i = 1; i < words.length; i++) {
+            const word = words[i];
+            const width = font.widthOfTextAtSize(currentLine + " " + word, size);
+            if (width < maxWidth) {
+                currentLine += " " + word;
+            } else {
+                allLines.push(currentLine);
+                currentLine = word;
+            }
+        }
+        allLines.push(currentLine);
+    });
+    
+    return allLines;
 }
 
 /**
