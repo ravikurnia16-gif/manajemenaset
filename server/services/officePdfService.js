@@ -364,10 +364,14 @@ async function generateBASTMouPDF(doc, setting) {
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
-    page.drawText(`Pada hari ini ${days[docDate.getDay()]}, tanggal ${docDate.getDate()} bulan ${months[docDate.getMonth()]} tahun ${docDate.getFullYear()}, kami yang bertanda tangan di bawah ini:`, {
-        x: margin, y, size: 11, font: fontRegular, maxWidth: width - margin * 2, lineHeight: 15
+    const bastLocation = doc.party1Address || 'Padang';
+    const openingText = `Pada hari ini, ${days[docDate.getDay()]} tanggal ${docDate.getDate()} bulan ${months[docDate.getMonth()]} tahun ${docDate.getFullYear()}, bertempat di ${bastLocation}, kami yang bertanda tangan di bawah ini:`;
+    const openingLines = wrapText(openingText, width - margin * 2, fontRegular, 11);
+    openingLines.forEach(line => {
+        page.drawText(line, { x: margin, y, size: 11, font: fontRegular });
+        y -= 15;
     });
-    y -= 30;
+    y -= 10;
 
     // Pihak 1
     page.drawText('1. Nama', { x: margin, y, size: 11, font: fontRegular });
