@@ -3,6 +3,7 @@ const prisma = new PrismaClient();
 const { generateDocumentNumber, getCategoryCodes } = require('../services/documentNumberingService');
 const { generateVerificationQR, generateSuratPDF, generateBASTMouPDF, generateSuratTugasPDF, generateSuratPesananPDF, generateInvoicePDF, generateSuratEdaranPDF, generateKeputusanPDF, generatePemberitahuanPDF } = require('../services/officePdfService');
 const crypto = require('crypto');
+const whatsappService = require('../services/whatsappService');
 
 // ==================== SURAT MASUK ====================
 
@@ -293,6 +294,24 @@ exports.submitForApproval = async (req, res) => {
         });
 
         res.json(updated);
+
+        // --- NOTIFIKASI WHATSAPP KE KABID SARPRAS ---
+        (async () => {
+            try {
+                const kabid = await prisma.user.findFirst({
+                    where: { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } }
+                });
+
+                if (kabid && kabid.phone) {
+                    const docTypeLabel = updated.type.replace(/_/g, ' ');
+                    const waMessage = `*NOTIFIKASI E-OFFICE*\n\nHalo Pak ${kabid.name},\n\nAda dokumen baru yang diajukan untuk ditandatangani:\n\n- *Jenis*: ${docTypeLabel}\n- *Judul*: ${updated.subject}\n- *Nomor*: ${updated.number}\n- *Pengaju*: ${updated.author.name}\n\nSilakan cek aplikasi untuk melakukan tanda tangan elektronik. Terima kasih.`;
+                    
+                    await whatsappService.sendMessage(kabid.phone, waMessage);
+                }
+            } catch (err) {
+                console.error('[E-Office Notif Error]', err);
+            }
+        })();
     } catch (error) {
         console.error('submitForApproval error:', error);
         res.status(500).json({ error: 'Failed to submit document' });
