@@ -735,7 +735,7 @@ exports.sendInvoiceWA = async (req, res) => {
         let content = {};
         try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
 
-        const publicUrl = `https://sarpras.dareliman.or.id/verify/${doc.uuid}`;
+        const publicUrl = `https://sarpras.dareliman.or.id/api/office-documents/verify/${doc.uuid}/pdf`;
         
         const message = `*INVOICE TAGIHAN - ${setting?.orgName || 'SARPRAS'}*\n\n` +
             `Halo Bapak/Ibu *${doc.party2Name}*,\n` +
