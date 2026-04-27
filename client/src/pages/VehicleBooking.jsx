@@ -410,12 +410,25 @@ const VehicleBooking = () => {
         }
     };
 
-    const handleCancel = async (id) => {
-        if (!confirm('Batalkan permohonan ini?')) return;
+    const handleCancelClick = (booking) => {
+        setActionData({ ...actionData, reason: '' });
+        setShowActionModal({ type: 'CANCEL', data: booking });
+    };
+
+    const handleCancelSubmit = async () => {
+        if (submitting) return;
+        if (!actionData.reason || !actionData.reason.trim()) {
+            showToast('Alasan pembatalan wajib diisi', 'error');
+            return;
+        }
         try {
             setSubmitting(true);
-            await api.post(`/vehicles/booking/${id}/cancel`);
+            await api.post(`/vehicles/booking/${showActionModal.data.id}/cancel`, {
+                reason: actionData.reason
+            });
             showToast('Peminjaman telah dibatalkan.', 'success');
+            setShowActionModal(null);
+            setActionData({ ...actionData, reason: '' });
             fetchBookings();
         } catch (err) { showToast('Gagal membatalkan: ' + (err.response?.data?.error || err.message), 'error'); }
         finally { setSubmitting(false); }
@@ -1440,7 +1453,7 @@ const VehicleBooking = () => {
                                                 {['PENDING', 'APPROVED'].includes(b.status) && !b.startKm && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
                                                     <button
                                                         disabled={submitting}
-                                                        onClick={() => handleCancel(b.id)}
+                                                        onClick={() => handleCancelClick(b)}
                                                         className={`flex-1 py-2.5 ${b.status === 'APPROVED' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-white border border-red-100 text-red-500'} rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50`}
                                                     >
                                                         <Trash2 size={16} /> Batalkan
@@ -1540,7 +1553,7 @@ const VehicleBooking = () => {
                                                             {['PENDING', 'APPROVED'].includes(b.status) && !b.startKm && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
                                                                 <button
                                                                     disabled={submitting}
-                                                                    onClick={() => handleCancel(b.id)}
+                                                                    onClick={() => handleCancelClick(b)}
                                                                     className={`p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 ${b.status === 'APPROVED' ? 'border border-red-100 px-2' : ''}`}
                                                                     title="Batalkan Peminjaman"
                                                                 >
@@ -2459,6 +2472,7 @@ const VehicleBooking = () => {
                             <div className="flex justify-between items-start mb-6">
                                 <h3 className="text-xl font-bold text-slate-800">
                                     {showActionModal.type === 'REJECT' && 'Tolak Permohonan'}
+                                    {showActionModal.type === 'CANCEL' && 'Batalkan Peminjaman'}
                                     {showActionModal.type === 'START' && 'Mulai Perjalanan'}
                                     {showActionModal.type === 'END' && 'Selesai Perjalanan'}
                                     {showActionModal.type === 'EXTEND' && 'Perpanjang Jadwal'}
@@ -2468,11 +2482,13 @@ const VehicleBooking = () => {
                                 </button>
                             </div>
 
-                            {showActionModal.type === 'REJECT' && (
+                            {(showActionModal.type === 'REJECT' || showActionModal.type === 'CANCEL') && (
                                 <div className="space-y-4">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase">Alasan Penolakan</label>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase">
+                                        {showActionModal.type === 'REJECT' ? 'Alasan Penolakan' : 'Alasan Pembatalan'}
+                                    </label>
                                     <textarea
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                                        className={`w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 ${showActionModal.type === 'REJECT' ? 'focus:ring-red-500' : 'focus:ring-red-500'} outline-none`}
                                         rows={3} autoFocus
                                         placeholder="Wajib diisi..."
                                         value={actionData.reason}
@@ -2480,10 +2496,10 @@ const VehicleBooking = () => {
                                     />
                                     <button
                                         disabled={!actionData.reason || submitting}
-                                        onClick={() => handleAction(showActionModal.data.id, 'REJECT')}
+                                        onClick={showActionModal.type === 'REJECT' ? () => handleAction(showActionModal.data.id, 'REJECT') : handleCancelSubmit}
                                         className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-50 transition-all shadow-lg shadow-red-200"
                                     >
-                                        Konfirmasi Tolak
+                                        {showActionModal.type === 'REJECT' ? 'Konfirmasi Tolak' : 'Konfirmasi Batal'}
                                     </button>
                                 </div>
                             )}

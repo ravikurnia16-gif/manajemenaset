@@ -759,17 +759,26 @@ exports.getBookings = async (req, res) => {
 exports.cancelBooking = async (req, res) => {
     try {
         const { id } = req.params;
-        const booking = await prisma.vehicleBooking.findUnique({ where: { id: parseInt(id) } });
+        const { reason } = req.body;
+        const booking = await prisma.vehicleBooking.findUnique({ 
+            where: { id: parseInt(id) },
+            include: { user: true }
+        });
 
         if (!booking) return res.status(404).json({ error: 'Booking tidak ditemukan' });
+        
+        // Allow cancel if user is the requester or super admin
         if (booking.userId !== req.user.id && req.user.role !== 'SUPER_ADMIN') {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 
         const updated = await prisma.vehicleBooking.update({
             where: { id: parseInt(id) },
-            data: { status: 'CANCELLED' },
-            include: { vehicle: true }
+            data: { 
+                status: 'CANCELLED',
+                adminNote: reason ? `Dibatalkan User: ${reason}` : 'Dibatalkan oleh User'
+            },
+            include: { vehicle: { include: { pics: true } } }
         });
 
         // Notify PICs about cancellation
@@ -777,7 +786,7 @@ exports.cancelBooking = async (req, res) => {
             await createNotification(
                 pic.id,
                 'Peminjaman Kendaraan Dibatalkan',
-                `User ${req.user.name} membatalkan peminjaman ${updated.vehicle.name}.`,
+                `User ${booking.user.name} membatalkan peminjaman ${updated.vehicle.name}${reason ? ' dengan alasan: ' + reason : ''}.`,
                 'INFO',
                 '/kendaraan/peminjaman'
             );

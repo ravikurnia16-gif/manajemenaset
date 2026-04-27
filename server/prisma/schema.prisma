@@ -604,6 +604,7 @@ model VehicleBooking {
   status      String   @default("PENDING") // PENDING, APPROVED, REJECTED, COMPLETED, CANCELLED
   adminNote   String?
 
+
   isRented    Boolean @default(false) // Whether this booking is a rental
   rentalPrice Float? // Price for rental if applicable
 
