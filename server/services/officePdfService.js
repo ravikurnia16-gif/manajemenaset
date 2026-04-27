@@ -976,8 +976,14 @@ async function generateInvoicePDF(doc, setting) {
     return pdfBytes;
 }
 async function generateSuratEdaranPDF(doc, setting) {
-    const { pdfDoc, page, font, fontBold, fontItalic, width, height, qrImage } = await createBasePDF(doc, setting);
-    let y = height - 150;
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([595.28, 841.89]);
+    const { width, height } = page.getSize();
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+
+    const startY = await drawKopSurat(page, fontBold, fontRegular);
+    let y = startY - 20;
 
     // Title
     const title = "SURAT EDARAN";
@@ -989,8 +995,8 @@ async function generateSuratEdaranPDF(doc, setting) {
 
     // Number
     const numberText = `Nomor: ${doc.number || '.......................................'}`;
-    const numWidth = font.widthOfTextAtSize(numberText, 11);
-    page.drawText(numberText, { x: (width - numWidth) / 2, y, size: 11, font });
+    const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
+    page.drawText(numberText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
     y -= 30;
 
     // TENTANG
@@ -1013,7 +1019,7 @@ async function generateSuratEdaranPDF(doc, setting) {
     y -= 15;
     page.drawText(doc.party2Name || ".......................................", { x: 70, y, size: 11, font: fontBold });
     y -= 15;
-    page.drawText("di", { x: 70, y, size: 11, font });
+    page.drawText("di", { x: 70, y, size: 11, font: fontRegular });
     y -= 15;
     page.drawText(doc.party2Address || "Tempat", { x: 70, y, size: 11, font: fontBold });
     y -= 35;
@@ -1025,9 +1031,9 @@ async function generateSuratEdaranPDF(doc, setting) {
     // 1. Latar Belakang
     page.drawText("1. Latar Belakang", { x: 70, y, size: 11, font: fontBold });
     y -= 15;
-    const bgLines = wrapText(content.background || '-', width - 140, font, 11);
+    const bgLines = wrapText(content.background || '-', width - 140, fontRegular, 11);
     bgLines.forEach(line => {
-        page.drawText(line, { x: 70, y, size: 11, font });
+        page.drawText(line, { x: 70, y, size: 11, font: fontRegular });
         y -= 14;
     });
     y -= 15;
@@ -1035,18 +1041,18 @@ async function generateSuratEdaranPDF(doc, setting) {
     // 2. Ketentuan
     page.drawText("2. Ketentuan", { x: 70, y, size: 11, font: fontBold });
     y -= 15;
-    page.drawText("Melalui surat edaran ini, disampaikan bahwa:", { x: 70, y, size: 11, font });
+    page.drawText("Melalui surat edaran ini, disampaikan bahwa:", { x: 70, y, size: 11, font: fontRegular });
     y -= 15;
 
     const points = content.points || [];
     points.forEach((p, idx) => {
-        const pLines = wrapText(p, width - 160, font, 11);
+        const pLines = wrapText(p, width - 160, fontRegular, 11);
         pLines.forEach((line, lineIdx) => {
             if (lineIdx === 0) {
-                page.drawText(`${idx + 1}.`, { x: 80, y, size: 11, font });
-                page.drawText(line, { x: 100, y, size: 11, font });
+                page.drawText(`${idx + 1}.`, { x: 80, y, size: 11, font: fontRegular });
+                page.drawText(line, { x: 100, y, size: 11, font: fontRegular });
             } else {
-                page.drawText(line, { x: 100, y, size: 11, font });
+                page.drawText(line, { x: 100, y, size: 11, font: fontRegular });
             }
             y -= 14;
         });
@@ -1058,31 +1064,29 @@ async function generateSuratEdaranPDF(doc, setting) {
     page.drawText("3. Penutup", { x: 70, y, size: 11, font: fontBold });
     y -= 15;
     const closing = "Demikian surat edaran ini disampaikan untuk diketahui dan dilaksanakan sebagaimana mestinya. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.";
-    const closingLines = wrapText(closing, width - 140, font, 11);
+    const closingLines = wrapText(closing, width - 140, fontRegular, 11);
     closingLines.forEach(line => {
-        page.drawText(line, { x: 70, y, size: 11, font });
+        page.drawText(line, { x: 70, y, size: 11, font: fontRegular });
         y -= 14;
     });
     y -= 40;
 
     // Footer & Signature
     const sigX = width - 250;
-    page.drawText("Ditetapkan di: Padang", { x: sigX, y, size: 10, font });
+    page.drawText("Ditetapkan di: Padang", { x: sigX, y, size: 10, font: fontRegular });
     y -= 14;
-    page.drawText(`Pada tanggal: ${doc.signedAt ? formatDate(doc.signedAt) : formatDate(new Date())}`, { x: sigX, y, size: 10, font });
+    page.drawText(`Pada tanggal: ${doc.signedAt ? formatDate(doc.signedAt) : formatDate(new Date())}`, { x: sigX, y, size: 10, font: fontRegular });
     y -= 25;
 
     page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarpras', { x: sigX, y, size: 10, font: fontBold });
-    y -= 50;
+    y -= 60;
 
-    if (qrImage) {
-        page.drawImage(qrImage, { x: sigX, y, width: 45, height: 45 });
-        y -= 15;
-    }
+    await drawDigitalSignature(page, doc, sigX, y, 60);
+    y -= 15;
 
     page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: sigX, y, size: 10, font: fontBold });
     y -= 12;
-    page.drawText(`NIY. ${doc.signedBy?.nip || '-'}`, { x: sigX, y, size: 9, font });
+    page.drawText(`NIY. ${doc.signedBy?.nip || '-'}`, { x: sigX, y, size: 9, font: fontRegular });
 
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
