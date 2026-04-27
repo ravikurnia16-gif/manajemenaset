@@ -1369,6 +1369,170 @@ async function generateKeputusanPDF(doc, setting) {
     return pdfBytes;
 }
 
+async function generatePemberitahuanPDF(doc, setting) {
+    const pdfDoc = await PDFDocument.create();
+    let page = pdfDoc.addPage([595.28, 841.89]);
+    let { width, height } = page.getSize();
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    const fontItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+    const margin = 70;
+    const contentWidth = width - margin * 2;
+    const bottomMargin = 80;
+
+    const startY = await drawKopSurat(page, fontBold, fontRegular);
+    let y = startY + 10;
+
+    const checkPage = (needed = 30) => {
+        if (y - needed < bottomMargin) {
+            page = pdfDoc.addPage([595.28, 841.89]);
+            y = height - 60;
+        }
+    };
+
+    const drawJustified = (text, x, maxW, font, size = 11, lineSpacing = 1.4) => {
+        const paragraphs = (text || '').split('\n');
+        paragraphs.forEach(para => {
+            const words = para.split(/\s+/).filter(w => w.length > 0);
+            if (words.length === 0) { y -= 8; return; }
+            let lines = [];
+            let currentLine = [words[0]];
+            for (let i = 1; i < words.length; i++) {
+                const testLine = [...currentLine, words[i]].join(' ');
+                if (font.widthOfTextAtSize(testLine, size) > maxW) {
+                    lines.push(currentLine);
+                    currentLine = [words[i]];
+                } else {
+                    currentLine.push(words[i]);
+                }
+            }
+            lines.push(currentLine);
+
+            lines.forEach((lineWords, li) => {
+                checkPage(size * lineSpacing + 2);
+                const isLast = li === lines.length - 1;
+                if (isLast || lineWords.length <= 1) {
+                    page.drawText(lineWords.join(' '), { x, y, size, font });
+                } else {
+                    const totalW = lineWords.reduce((a, w) => a + font.widthOfTextAtSize(w, size), 0);
+                    const space = (maxW - totalW) / (lineWords.length - 1);
+                    let cx = x;
+                    lineWords.forEach(word => {
+                        page.drawText(word, { x: cx, y, size, font });
+                        cx += font.widthOfTextAtSize(word, size) + space;
+                    });
+                }
+                y -= size * lineSpacing;
+            });
+        });
+    };
+
+    // Title: SURAT PEMBERITAHUAN
+    const title = "SURAT PEMBERITAHUAN";
+    const titleWidth = fontBold.widthOfTextAtSize(title, 14);
+    page.drawText(title, { x: (width - titleWidth) / 2, y, size: 14, font: fontBold });
+    y -= 2;
+    page.drawLine({ start: { x: (width - titleWidth) / 2, y }, end: { x: (width + titleWidth) / 2, y }, thickness: 1.5 });
+    y -= 15;
+
+    // Number
+    const numberText = `Nomor: ${doc.number || '.......................................'}`;
+    const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
+    page.drawText(numberText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
+    y -= 25;
+
+    // Perihal
+    const perihalLabel = "Perihal:";
+    page.drawText(perihalLabel, { x: margin, y, size: 11, font: fontBold });
+    const perihalValueX = margin + fontBold.widthOfTextAtSize(perihalLabel, 11) + 8;
+    const subjectLines = wrapText(doc.subject || '', contentWidth - (perihalValueX - margin), fontBold, 11);
+    subjectLines.forEach((line, idx) => {
+        page.drawText(line, { x: idx === 0 ? perihalValueX : perihalValueX, y, size: 11, font: fontBold });
+        y -= 14;
+    });
+    y -= 15;
+
+    // Recipient
+    page.drawText(`Yth. ${doc.party2Name || "......................................."}`, { x: margin, y, size: 11, font: fontBold });
+    y -= 12;
+    page.drawText("di", { x: margin, y, size: 11, font: fontRegular });
+    y -= 12;
+    page.drawText(doc.party2Address || "Tempat", { x: margin, y, size: 11, font: fontBold });
+    y -= 25;
+
+    // Content parsing
+    let content = { pembukaan: '', points: [], penutup: '' };
+    try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
+
+    // Salam Pembuka
+    checkPage(20);
+    page.drawText("Assalamu'alaikum Warahmatullahi Wabarakatuh,", { x: margin, y, size: 11, font: fontItalic });
+    y -= 20;
+
+    checkPage(20);
+    page.drawText("Dengan hormat,", { x: margin, y, size: 11, font: fontRegular });
+    y -= 15;
+
+    // Fixed intro
+    checkPage(30);
+    const introText = "Segala puji bagi Allah Subhaanahu wa Ta'ala, shalawat dan salam semoga tercurah kepada Nabi Muhammad Shallallahu 'alaihi wa sallam.";
+    drawJustified(introText, margin, contentWidth, fontRegular, 11);
+    y -= 8;
+
+    // Pembukaan paragraph
+    if (content.pembukaan) {
+        checkPage(30);
+        drawJustified(content.pembukaan, margin, contentWidth, fontRegular, 11);
+        y -= 8;
+    }
+
+    // Points intro
+    const points = (content.points || []).filter(p => p);
+    if (points.length > 0) {
+        checkPage(20);
+        page.drawText("Adapun poin-poin penting yang perlu diperhatikan adalah:", { x: margin, y, size: 11, font: fontRegular });
+        y -= 18;
+
+        points.forEach((point, idx) => {
+            checkPage(25);
+            const label = `${idx + 1}. `;
+            const labelWidth = fontBold.widthOfTextAtSize(label, 11);
+            page.drawText(label, { x: margin + 15, y, size: 11, font: fontBold });
+            drawJustified(point, margin + 15 + labelWidth + 3, contentWidth - 15 - labelWidth - 3, fontRegular, 11);
+            y -= 5;
+        });
+        y -= 5;
+    }
+
+    // Penutup
+    if (content.penutup) {
+        checkPage(30);
+        drawJustified(content.penutup, margin, contentWidth, fontRegular, 11);
+        y -= 8;
+    }
+
+    // Salam Penutup
+    checkPage(20);
+    page.drawText("Wassalamu'alaikum Warahmatullahi Wabarakatuh.", { x: margin, y, size: 11, font: fontItalic });
+    y -= 30;
+
+    // Signature block
+    checkPage(130);
+    const sigX = width - 250;
+    page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana dan Prasarana,', { x: sigX, y, size: 10, font: fontBold });
+    y -= 75;
+
+    await drawDigitalSignature(page, doc, sigX, y, 60);
+    y -= 15;
+
+    page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: sigX, y, size: 10, font: fontBold });
+    y -= 12;
+    page.drawText(`NIY. ${doc.signedBy?.nip || '-'}`, { x: sigX, y, size: 9, font: fontRegular });
+
+    const pdfBytes = await pdfDoc.save();
+    return pdfBytes;
+}
+
 module.exports = {
     generateVerificationQR,
     generateSuratPDF,
@@ -1377,5 +1541,6 @@ module.exports = {
     generateSuratPesananPDF,
     generateInvoicePDF,
     generateSuratEdaranPDF,
-    generateKeputusanPDF
+    generateKeputusanPDF,
+    generatePemberitahuanPDF
 };

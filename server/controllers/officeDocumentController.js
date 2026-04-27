@@ -1,7 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { generateDocumentNumber, getCategoryCodes } = require('../services/documentNumberingService');
-const { generateVerificationQR, generateSuratPDF, generateBASTMouPDF, generateSuratTugasPDF, generateSuratPesananPDF, generateInvoicePDF, generateSuratEdaranPDF, generateKeputusanPDF } = require('../services/officePdfService');
+const { generateVerificationQR, generateSuratPDF, generateBASTMouPDF, generateSuratTugasPDF, generateSuratPesananPDF, generateInvoicePDF, generateSuratEdaranPDF, generateKeputusanPDF, generatePemberitahuanPDF } = require('../services/officePdfService');
 const crypto = require('crypto');
 
 // ==================== SURAT MASUK ====================
@@ -485,6 +485,8 @@ exports.generatePDF = async (req, res) => {
             pdfBytes = await generateSuratEdaranPDF(doc, setting);
         } else if (doc.category === 'Keputusan') {
             pdfBytes = await generateKeputusanPDF(doc, setting);
+        } else if (doc.category === 'Pemberitahuan') {
+            pdfBytes = await generatePemberitahuanPDF(doc, setting);
         } else if (doc.type === 'SURAT_KELUAR' && doc.category === 'Tugas') {
             pdfBytes = await generateSuratTugasPDF(doc, setting);
         } else {
@@ -761,6 +763,8 @@ exports.generatePublicPDF = async (req, res) => {
             pdfBytes = await generateSuratEdaranPDF(doc, setting);
         } else if (doc.category === 'Keputusan') {
             pdfBytes = await generateKeputusanPDF(doc, setting);
+        } else if (doc.category === 'Pemberitahuan') {
+            pdfBytes = await generatePemberitahuanPDF(doc, setting);
         } else if (doc.type === 'SURAT_KELUAR' && doc.category === 'Tugas') {
             pdfBytes = await generateSuratTugasPDF(doc, setting);
         } else {

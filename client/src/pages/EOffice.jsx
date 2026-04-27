@@ -616,6 +616,39 @@ const EOffice = () => {
                                             } catch (e) { return <p className="text-red-500">Error parsing content</p>; }
                                         })()}
                                     </div>
+                            ) : viewingDoc.category === 'Pemberitahuan' ? (
+                                <div className="space-y-5">
+                                    {(() => {
+                                        try {
+                                            const data = JSON.parse(viewingDoc.content || '{}');
+                                            return (
+                                                <div className="space-y-5 text-xs">
+                                                    <div className="text-center border-y border-slate-100 py-4">
+                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Pemberitahuan Perihal</div>
+                                                        <div className="text-sm font-black text-slate-900 leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
+                                                    </div>
+                                                    <div className="italic text-slate-500 text-[11px]">Assalamu'alaikum Warahmatullahi Wabarakatuh,</div>
+                                                    {data.pembukaan && <div className="text-slate-700 leading-relaxed">{data.pembukaan}</div>}
+                                                    {data.points && data.points.filter(p => p).length > 0 && (
+                                                        <div>
+                                                            <div className="text-[10px] font-black text-green-700 uppercase tracking-widest mb-2">Poin-poin Penting</div>
+                                                            <ul className="space-y-1.5 pl-4">
+                                                                {data.points.filter(p => p).map((item, idx) => (
+                                                                    <li key={idx} className="text-slate-700 flex gap-2">
+                                                                        <span className="font-bold text-green-500">{idx + 1}.</span>
+                                                                        <span className="leading-relaxed">{item}</span>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                    {data.penutup && <div className="text-slate-700 leading-relaxed">{data.penutup}</div>}
+                                                    <div className="italic text-slate-500 text-[11px]">Wassalamu'alaikum Warahmatullahi Wabarakatuh.</div>
+                                                </div>
+                                            );
+                                        } catch (e) { return <p className="text-red-500">Error parsing content</p>; }
+                                    })()}
+                                </div>
                             ) : viewingDoc.category === 'Tugas' ? (
                                 <div className="space-y-6 bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
                                     {(() => {
@@ -973,6 +1006,11 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         menetapkan: [{ label: 'PERTAMA', text: '' }, { label: 'KEDUA', text: '' }],
         tembusan: ['']
     });
+    const [pemberitahuanData, setPemberitahuanData] = useState({
+        pembukaan: '',
+        points: [''],
+        penutup: ''
+    });
     const [recipientType, setRecipientType] = useState('external');
 
     useEffect(() => {
@@ -1092,6 +1130,13 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     console.error('Failed to parse Keputusan content JSON', e);
                 }
             }
+            if (doc.category === 'Pemberitahuan' && doc.content) {
+                try {
+                    setPemberitahuanData(JSON.parse(doc.content));
+                } catch (e) {
+                    console.error('Failed to parse Pemberitahuan content JSON', e);
+                }
+            }
         } else {
             setFormData({
                 type: defaultType,
@@ -1159,6 +1204,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 payload = { ...formData, content: JSON.stringify(edaranData) };
             } else if (formData.category === 'Keputusan') {
                 payload = { ...formData, content: JSON.stringify(keputusanData) };
+            } else if (formData.category === 'Pemberitahuan') {
+                payload = { ...formData, content: JSON.stringify(pemberitahuanData) };
             }
 
             if (doc && doc.id) {
@@ -1842,6 +1889,90 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
+                        {formData.category === 'Pemberitahuan' && (
+                            <div className="col-span-full space-y-6 bg-green-50/30 p-6 rounded-2xl border border-green-100">
+                                <label className="text-xs font-black text-green-700 uppercase tracking-widest block mb-2">3. Isi Surat Pemberitahuan</label>
+
+                                {/* Kepada */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Yth. (Kepada)</label>
+                                        <input
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold"
+                                            placeholder="Contoh: Seluruh Staff Yayasan"
+                                            value={formData.party2Name}
+                                            onChange={(e) => setFormData({...formData, party2Name: e.target.value})}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Tempat</label>
+                                        <input
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold"
+                                            placeholder="di Tempat"
+                                            value={formData.party2Address}
+                                            onChange={(e) => setFormData({...formData, party2Address: e.target.value})}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Pembukaan */}
+                                <div className="pt-4 border-t border-green-100/50">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Paragraf Pembukaan</label>
+                                    <textarea
+                                        rows={4}
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm leading-relaxed"
+                                        placeholder="Melalui surat ini, kami Bidang Sarana dan Prasarana ingin memberitahukan kepada seluruh pihak terkait mengenai..."
+                                        value={pemberitahuanData.pembukaan}
+                                        onChange={(e) => setPemberitahuanData({...pemberitahuanData, pembukaan: e.target.value})}
+                                    />
+                                </div>
+
+                                {/* Poin-poin */}
+                                <div className="pt-4 border-t border-green-100/50">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Poin-poin Penting</label>
+                                        <button type="button" onClick={() => setPemberitahuanData({...pemberitahuanData, points: [...pemberitahuanData.points, '']})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                            <Plus size={12} /> Tambah Poin
+                                        </button>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {pemberitahuanData.points.map((point, idx) => (
+                                            <div key={idx} className="flex gap-2">
+                                                <div className="w-8 h-8 rounded-lg bg-green-50 border border-green-100 flex items-center justify-center text-[10px] font-bold text-green-600 shrink-0">{idx + 1}</div>
+                                                <textarea
+                                                    className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
+                                                    placeholder={`Poin penting ${idx + 1}...`}
+                                                    rows={2}
+                                                    value={point}
+                                                    onChange={(e) => {
+                                                        const newPoints = [...pemberitahuanData.points];
+                                                        newPoints[idx] = e.target.value;
+                                                        setPemberitahuanData({...pemberitahuanData, points: newPoints});
+                                                    }}
+                                                />
+                                                {pemberitahuanData.points.length > 1 && (
+                                                    <button type="button" onClick={() => setPemberitahuanData({...pemberitahuanData, points: pemberitahuanData.points.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Penutup */}
+                                <div className="pt-4 border-t border-green-100/50">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Paragraf Penutup</label>
+                                    <textarea
+                                        rows={3}
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm leading-relaxed"
+                                        placeholder="Demikian pemberitahuan ini kami sampaikan. Atas perhatian dan kerja samanya, kami ucapkan Jazaakumullahu Khayran."
+                                        value={pemberitahuanData.penutup}
+                                        onChange={(e) => setPemberitahuanData({...pemberitahuanData, penutup: e.target.value})}
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         {formData.category === 'Tugas' && (
                             <div className="col-span-full space-y-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
