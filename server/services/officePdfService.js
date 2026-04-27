@@ -842,6 +842,10 @@ async function generateInvoicePDF(doc, setting) {
     page.drawText('TAGIHAN KEPADA:', { x: margin, y, size: 9, font: fontBold, color: rgb(0.5, 0.5, 0.5) });
     y -= 15;
     page.drawText(doc.party2Name || '............................', { x: margin, y, size: 11, font: fontBold });
+    if (doc.party2Title) {
+        y -= 12;
+        page.drawText(`Telp: ${doc.party2Title}`, { x: margin, y, size: 9, font: fontRegular });
+    }
     y -= 12;
     page.drawText('di tempat', { x: margin, y, size: 9, font: fontRegular });
     

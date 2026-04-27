@@ -696,12 +696,13 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         dueDate: formatDate(new Date(), 'input'),
         notes: ''
     });
+    const [recipientType, setRecipientType] = useState('external');
 
     useEffect(() => {
-        if (isOpen && formData.category === 'Tugas') {
+        if (isOpen && (formData.category === 'Tugas' || formData.type === 'INVOICE')) {
             fetchStaff();
         }
-    }, [isOpen, formData.category]);
+    }, [isOpen, formData.category, formData.type]);
 
     const fetchStaff = async () => {
         try {
@@ -1014,26 +1015,82 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
 
                         {formData.type === 'INVOICE' && (
                             <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-amber-50/50 p-6 rounded-2xl border border-amber-100">
-                                <label className="col-span-full text-xs font-black text-amber-600 uppercase tracking-widest block mb-2">3. Informasi Penagihan (Bill To)</label>
-                                <div className="col-span-full">
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Kepada Yth (Nama / Instansi)</label>
-                                    <input 
-                                        required
-                                        type="text"
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
-                                        value={formData.party2Name}
-                                        onChange={(e) => setFormData({ ...formData, party2Name: e.target.value })}
-                                        placeholder="Contoh: Pimpinan CV. Maju Jaya"
-                                    />
+                                <div className="col-span-full flex items-center justify-between">
+                                    <label className="text-xs font-black text-amber-600 uppercase tracking-widest block">3. Informasi Penagihan (Bill To)</label>
+                                    <div className="flex bg-white rounded-lg p-1 border border-amber-200">
+                                        <button 
+                                            type="button"
+                                            onClick={() => setRecipientType('internal')}
+                                            className={`px-3 py-1 rounded-md text-[10px] font-black uppercase transition-all ${recipientType === 'internal' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            Internal
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setRecipientType('external')}
+                                            className={`px-3 py-1 rounded-md text-[10px] font-black uppercase transition-all ${recipientType === 'external' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            Eksternal
+                                        </button>
+                                    </div>
                                 </div>
+
+                                {recipientType === 'internal' ? (
+                                    <div className="col-span-full">
+                                        <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Pilih Admin Unit / Staff</label>
+                                        <select 
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                            value={formData.party2Name}
+                                            onChange={(e) => {
+                                                const selected = staffList.find(s => s.name === e.target.value);
+                                                setFormData({ 
+                                                    ...formData, 
+                                                    party2Name: e.target.value,
+                                                    party2Org: selected?.unit?.name || '',
+                                                    party2Address: selected?.unit?.address || '',
+                                                    party2Title: selected?.phone || ''
+                                                });
+                                            }}
+                                        >
+                                            <option value="">-- Pilih Penerima --</option>
+                                            {staffList.map(s => (
+                                                <option key={s.id} value={s.name}>{s.name} - {s.unit?.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="col-span-full">
+                                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nama / Instansi Eksternal</label>
+                                            <input 
+                                                required
+                                                type="text"
+                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                                value={formData.party2Name}
+                                                onChange={(e) => setFormData({ ...formData, party2Name: e.target.value })}
+                                                placeholder="Contoh: Pimpinan CV. Maju Jaya"
+                                            />
+                                        </div>
+                                        <div className="col-span-full">
+                                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nomor HP / WhatsApp</label>
+                                            <input 
+                                                type="text"
+                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                                value={formData.party2Title}
+                                                onChange={(e) => setFormData({ ...formData, party2Title: e.target.value })}
+                                                placeholder="0812-xxxx-xxxx"
+                                            />
+                                        </div>
+                                    </>
+                                )}
                                 <div className="col-span-full">
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Alamat Penerima Tagihan</label>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Alamat Penerima</label>
                                     <input 
                                         type="text"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
                                         value={formData.party2Address}
                                         onChange={(e) => setFormData({ ...formData, party2Address: e.target.value })}
-                                        placeholder="Alamat lengkap penerima tagihan..."
+                                        placeholder="Alamat lengkap penerima..."
                                     />
                                 </div>
                             </div>
