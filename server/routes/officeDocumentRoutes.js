@@ -43,6 +43,9 @@ router.post('/:id/reject',
 // Multi-party signing (BAST/MOU)
 router.post('/:id/sign-party', ctrl.signAsParty);
 
+// Invoice Payment Status
+router.patch('/:id/payment-status', ctrl.updatePaymentStatus);
+
 // PDF generation
 router.get('/:id/pdf', ctrl.generatePDF);
 

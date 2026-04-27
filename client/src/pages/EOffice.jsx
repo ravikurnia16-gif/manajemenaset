@@ -543,6 +543,19 @@ const EOffice = () => {
                                 </button>
                             )}
                             
+                            {viewingDoc.type === 'INVOICE' && (
+                                <button 
+                                    onClick={() => handleTogglePaymentStatus(viewingDoc.id, getPaymentStatus(viewingDoc))}
+                                    className={`px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg ${
+                                        getPaymentStatus(viewingDoc) === 'PAID' 
+                                        ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 shadow-amber-600/10' 
+                                        : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/20'
+                                    }`}
+                                >
+                                    <CheckCircle size={18} /> {getPaymentStatus(viewingDoc) === 'PAID' ? 'Set Belum Lunas' : 'Tandai Lunas'}
+                                </button>
+                            )}
+
                             {isSuperAdmin && (
                                 <button 
                                     onClick={() => handleDelete(viewingDoc.id)}
@@ -577,6 +590,21 @@ const EOffice = () => {
             fetchStats();
         } catch (err) {
             alert('Gagal menghapus: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleTogglePaymentStatus = async (id, currentStatus) => {
+        const newStatus = currentStatus === 'PAID' ? 'UNPAID' : 'PAID';
+        const msg = newStatus === 'PAID' ? 'Tandai invoice ini sebagai LUNAS?' : 'Tandai invoice ini sebagai BELUM LUNAS?';
+        if (!window.confirm(msg)) return;
+
+        try {
+            const res = await api.patch(`/office-documents/${id}/payment-status`, { status: newStatus });
+            alert(res.data.message);
+            setViewingDoc(res.data.doc);
+            fetchDocuments();
+        } catch (err) {
+            alert('Gagal mengubah status: ' + (err.response?.data?.error || err.message));
         }
     };
 

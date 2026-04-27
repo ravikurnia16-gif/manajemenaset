@@ -590,6 +590,38 @@ exports.getStats = async (req, res) => {
     }
 };
 
+/**
+ * PATCH /api/office-documents/:id/payment-status
+ * Update payment status for INVOICE
+ */
+exports.updatePaymentStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body; // 'PAID' or 'UNPAID'
+
+        const doc = await prisma.officeDocument.findUnique({ where: { id: parseInt(id) } });
+        if (!doc || doc.type !== 'INVOICE') {
+            return res.status(404).json({ error: 'Invoice tidak ditemukan' });
+        }
+
+        let content = {};
+        try {
+            content = JSON.parse(doc.content || '{}');
+        } catch (e) {}
+
+        content.paymentStatus = status;
+
+        const updated = await prisma.officeDocument.update({
+            where: { id: parseInt(id) },
+            data: { content: JSON.stringify(content) }
+        });
+
+        res.json({ message: 'Status pembayaran berhasil diperbarui', doc: updated });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // ==================== CATEGORY CODES ====================
 
 /**
