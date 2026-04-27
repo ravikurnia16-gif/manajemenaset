@@ -1030,7 +1030,7 @@ async function generateSuratEdaranPDF(doc, setting) {
     const bottomMargin = 80;
 
     const startY = await drawKopSurat(page, fontBold, fontRegular);
-    let y = startY - 20;
+    let y = startY + 10;
 
     // Helper: check if we need a new page
     const checkPage = (needed = 30) => {
