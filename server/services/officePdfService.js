@@ -1071,7 +1071,6 @@ async function generateSuratEdaranPDF(doc, setting) {
             lines.forEach((lineWords, li) => {
                 const isLast = li === lines.length - 1;
                 checkPage(16 + (isLast ? reserveSpaceForLastLine : 0));
-                const isLast = li === lines.length - 1;
                 if (isLast || lineWords.length <= 1) {
                     page.drawText(lineWords.join(' '), { x, y, size, font });
                 } else {
