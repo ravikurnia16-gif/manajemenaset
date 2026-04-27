@@ -416,6 +416,74 @@ const EOffice = () => {
                                         </tbody>
                                     </table>
                                 </div>
+                            ) : (viewingDoc.type === 'INVOICE' || viewingDoc.category === 'Invoice') ? (
+                                <div className="space-y-6">
+                                    {(() => {
+                                        try {
+                                            const data = JSON.parse(viewingDoc.content || '{}');
+                                            const items = data.items || [];
+                                            const total = items.reduce((acc, curr) => acc + (curr.total || 0), 0);
+                                            return (
+                                                <div className="space-y-6">
+                                                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                                        <table className="w-full text-left border-collapse text-xs">
+                                                            <thead className="bg-slate-50 text-slate-600 font-bold uppercase">
+                                                                <tr>
+                                                                    <th className="p-3 border-b border-slate-200">Barang / Jasa</th>
+                                                                    <th className="p-3 border-b border-slate-200 w-16">Qty</th>
+                                                                    <th className="p-3 border-b border-slate-200 w-32 text-right">Total</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {items.map((item, i) => (
+                                                                    <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                                        <td className="p-3 border-b border-slate-100 font-medium">
+                                                                            {item.name}
+                                                                            {item.spec && <div className="text-[10px] text-slate-400 font-normal">{item.spec}</div>}
+                                                                        </td>
+                                                                        <td className="p-3 border-b border-slate-100 font-bold">{item.qty} {item.unit}</td>
+                                                                        <td className="p-3 border-b border-slate-100 text-right font-black text-blue-700">
+                                                                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(item.total || 0)}
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                                <tr className="bg-blue-50/30">
+                                                                    <td colSpan="2" className="p-3 text-right font-bold text-slate-500 uppercase tracking-widest text-[10px]">Total Tagihan</td>
+                                                                    <td className="p-3 text-right font-black text-blue-800 text-sm">
+                                                                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(total)}
+                                                                    </td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Informasi Pembayaran</span>
+                                                            <div className="space-y-1">
+                                                                <div className="text-sm font-bold text-slate-800">{data.bankInfo?.bankName || '-'}</div>
+                                                                <div className="text-xs font-medium text-slate-500">{data.bankInfo?.bankAccountNumber || '-'} a.n {data.bankInfo?.bankAccountName || '-'}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100">
+                                                            <span className="block text-[10px] font-black text-amber-600 uppercase tracking-widest mb-2">Jatuh Tempo</span>
+                                                            <div className="text-sm font-black text-amber-900">{data.dueDate ? formatDate(data.dueDate, 'full') : '-'}</div>
+                                                        </div>
+                                                    </div>
+
+                                                    {data.notes && (
+                                                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 italic text-sm text-slate-600">
+                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest not-italic mb-1">Catatan Tambahan</span>
+                                                            {data.notes}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        } catch (e) {
+                                            return <p className="text-red-500 italic">Gagal memuat rincian invoice</p>;
+                                        }
+                                    })()}
+                                </div>
                             ) : viewingDoc.category === 'Tugas' ? (
                                 <div className="space-y-6 bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
                                     {(() => {
@@ -1555,12 +1623,12 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             <div className="col-span-full">
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Isi Dokumen / Pesan</label>
                                 <textarea 
-                                    required
+                                    required={formData.type !== 'INVOICE'}
                                     rows={6}
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-medium leading-relaxed"
                                     value={formData.content}
                                     onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                                    placeholder="Tuliskan isi surat secara lengkap di sini..."
+                                    placeholder={formData.type === 'INVOICE' ? 'Opsional: catatan tambahan untuk invoice...' : 'Tuliskan isi surat secara lengkap di sini...'}
                                 />
                             </div>
                         )}
