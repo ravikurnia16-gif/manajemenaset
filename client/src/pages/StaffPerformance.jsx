@@ -497,6 +497,8 @@ const StaffPerformance = () => {
     const [editingAssignment, setEditingAssignment] = useState(null);
     const [showLiburModal, setShowLiburModal] = useState(false);
     const [liburTask, setLiburTask] = useState(null);
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+    const [taskToUpdate, setTaskToUpdate] = useState(null);
 
     // Filters
     const [filterStaff, setFilterStaff] = useState('ALL');
@@ -845,7 +847,19 @@ const StaffPerformance = () => {
                     ) : (
                         <>
                               {activeTab === 'RINGKASAN' && <SummaryTab assignments={assignments} plans={plans} routineAssignments={routineAssignments} dailyLogs={dailyLogs} aiSummary={aiSummary} aiSummaryLoading={aiSummaryLoading} />}
-                              {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab plans={plans.filter(p => inDateRange(p.metadata?.startDate || p.date))} assignments={assignments.filter(a => inDateRange(a.startDate || a.createdAt))} onUpdatePlanItem={handleUpdatePlanItem} onUpdateAssignment={handleUpdateAssignment} onEditPlan={(p) => { setEditingPlan(p); setShowRencanaModal(true); }} setLiburTask={setLiburTask} setShowLiburModal={setShowLiburModal} userId={user.id} isKabid={isKabid} />}
+                              {activeTab === 'RENCANA_TUGAS' && <RencanaTugasTab 
+                                plans={plans.filter(p => inDateRange(p.metadata?.startDate || p.date))} 
+                                assignments={assignments.filter(a => inDateRange(a.startDate || a.createdAt))} 
+                                onUpdatePlanItem={handleUpdatePlanItem} 
+                                onUpdateAssignment={handleUpdateAssignment} 
+                                onEditPlan={p => { setEditingPlan(p); setShowRencanaModal(true); }}
+                                setLiburTask={setLiburTask}
+                                setShowLiburModal={setShowLiburModal}
+                                setTaskToUpdate={setTaskToUpdate}
+                                setShowUpdateModal={setShowUpdateModal}
+                                userId={user?.id}
+                                isKabid={isKabid}
+                            />}
                               {activeTab === 'RUTINITAS' && <RutinitasTab assignments={routineAssignments.filter(a => inDateRange(a.createdAt))} templates={routineTemplates} onUpdate={handleUpdateAssignment} onDeleteRoutine={handleDeleteRoutine} onEditRoutine={(t) => { setEditingRoutine(t); setShowRutinitasModal(true); }} onEditAssignment={(a) => { setEditingAssignment(a); setShowTugasModal(true); }} setLiburTask={setLiburTask} setShowLiburModal={setShowLiburModal} userId={user.id} isKabid={isKabid} isAdmin={isAdmin} />}
                               {activeTab === 'LAPORAN' && <LaporanTab logs={dailyLogs.filter(l => inDateRange(l.date))} isKabid={isKabid} />}
                               {activeTab === 'KPI' && <KPITab leaderboard={leaderboard} diagMsg={kpiDiag} />}
@@ -877,6 +891,7 @@ const StaffPerformance = () => {
             <RencanaFormModal open={showRencanaModal} onClose={() => { setShowRencanaModal(false); setEditingPlan(null); }} onSubmit={handleCreatePlan} submitting={submitting} editing={editingPlan} />
             <TugasFormModal open={showTugasModal} onClose={() => { setShowTugasModal(false); setEditingAssignment(null); }} onSubmit={handleCreateTask} submitting={submitting} staffList={staffList} editing={editingAssignment} />
             <LiburFormModal open={showLiburModal} onClose={() => setShowLiburModal(false)} onSubmit={handleUpdateAssignment} submitting={submitting} task={liburTask} />
+            <UpdateProgresModal open={showUpdateModal} onClose={() => setShowUpdateModal(false)} onSubmit={(id, data) => handleUpdateAssignment(id, data).then(() => setShowUpdateModal(false))} submitting={submitting} assignment={taskToUpdate} />
             <DailyActivityFormModal open={showDailyModal} onClose={() => setShowDailyModal(false)} onSubmit={handleCreateDailyReport} submitting={submitting} assignments={[...assignments, ...routineAssignments]} />
             <RutinitasFormModal open={showRutinitasModal} onClose={() => { setShowRutinitasModal(false); setEditingRoutine(null); }} onSubmit={async (formData) => {
                 setSubmitting(true);
@@ -900,7 +915,7 @@ const StaffPerformance = () => {
 // ============================================
 // TAB: RENCANA & TUGAS (COMBINED)
 // ============================================
-const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignment, onEditPlan, setLiburTask, setShowLiburModal, userId, isKabid }) => {
+const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignment, onEditPlan, setLiburTask, setShowLiburModal, setTaskToUpdate, setShowUpdateModal, userId, isKabid }) => {
     const [expanded, setExpanded] = useState([]);
     const toggle = id => setExpanded(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
     const sortedPlans = [...plans].sort((a, b) => {
@@ -1026,10 +1041,19 @@ const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignm
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
+                                            {a.status !== 'LIBUR' && a.status !== 'COMPLETED' && isAssignee && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); setTaskToUpdate(a); setShowUpdateModal(true); }} 
+                                                    className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 text-[10px] font-black text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl transition-all uppercase tracking-widest shadow-sm active:scale-95"
+                                                >
+                                                    <TrendingUp size={12} />
+                                                    <span>Update Progres</span>
+                                                </button>
+                                            )}
                                             {a.status !== 'LIBUR' && a.status !== 'COMPLETED' && (isAssignee || isKabid) && (
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); setLiburTask(a); setShowLiburModal(true); }} 
-                                                    className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 text-[10px] font-black text-slate-500 hover:bg-indigo-600 hover:text-white rounded-xl transition-all uppercase tracking-widest shadow-sm active:scale-95"
+                                                    className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 text-[10px] font-black text-slate-500 hover:bg-slate-200 rounded-xl transition-all uppercase tracking-widest shadow-sm active:scale-95"
                                                 >
                                                     <Coffee size={12} />
                                                     <span>Libur</span>
@@ -1057,7 +1081,17 @@ const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignm
                                                             </button>
                                                         )}
                                                     </div>
-                                                    <p className="text-xs font-bold text-slate-600">{a.notes || 'Tidak ada alasan spesifik'}</p>
+                                                    <p className="text-xs font-bold text-slate-600">
+                                                        {(() => {
+                                                            if (!a.notes) return 'Tidak ada alasan spesifik';
+                                                            try {
+                                                                const p = JSON.parse(a.notes);
+                                                                return p.text || 'Tidak ada alasan spesifik';
+                                                            } catch(e) {
+                                                                return a.notes;
+                                                            }
+                                                        })()}
+                                                    </p>
                                                 </div>
                                             </div>
                                         </div>
@@ -1224,6 +1258,47 @@ const TaskChecklist = ({ assignment, onUpdate, isAssignee, isAdmin }) => {
                     );
                 })}
             </div>
+
+            {/* Riwayat Update Progres */}
+            {(() => {
+                let parsedNotes = { text: assignment.notes, history: [] };
+                try {
+                    const p = JSON.parse(assignment.notes);
+                    if (p && Array.isArray(p.history)) parsedNotes = p;
+                } catch (e) {}
+
+                if (parsedNotes.history.length === 0) return null;
+
+                return (
+                    <div className="mt-6 pt-6 border-t border-slate-200/60">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">⏱ Riwayat Update Progres</p>
+                        <div className="space-y-4">
+                            {parsedNotes.history.slice().reverse().map((h, i) => (
+                                <div key={i} className="flex gap-3">
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-2 h-2 rounded-full bg-indigo-400 mt-1.5" />
+                                        {i !== parsedNotes.history.length - 1 && <div className="flex-1 w-px bg-indigo-100 my-1" />}
+                                    </div>
+                                    <div className="flex-1 bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="text-[9px] font-bold text-slate-400">{fmtDate(h.date)} {new Date(h.date).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})}</span>
+                                            <Badge className="bg-indigo-50 text-indigo-600 font-black">{h.percentage}%</Badge>
+                                        </div>
+                                        <p className="text-xs font-bold text-slate-700 leading-relaxed mb-2">{h.note}</p>
+                                        {h.photos && h.photos.length > 0 && (
+                                            <div className="flex gap-2 flex-wrap">
+                                                {h.photos.map((p, pIdx) => (
+                                                    <img key={pIdx} src={p} alt="Doc" onClick={() => window.open(p, '_blank')} className="w-12 h-12 rounded-lg object-cover border border-slate-200 cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-all" />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })()}
 
             {(isAssignee || isAdmin) && (
                 <div className="flex gap-2 p-3 bg-white/50 rounded-xl border border-dashed border-slate-200">
@@ -1765,10 +1840,138 @@ const TugasFormModal = ({ open, onClose, onSubmit, submitting, staffList, editin
     );
 };
 
+const UpdateProgresModal = ({ open, onClose, onSubmit, submitting, assignment }) => {
+    const [percentage, setPercentage] = useState(0);
+    const [note, setNote] = useState('');
+    const [photos, setPhotos] = useState([]);
+
+    useEffect(() => {
+        if (open && assignment) {
+            setPercentage(assignment.progressPercentage || 0);
+            setNote('');
+            setPhotos([]);
+        }
+    }, [open, assignment]);
+
+    const handlePhotoUpload = (e) => {
+        const files = Array.from(e.target.files);
+        if (photos.length + files.length > 3) { alert('Maksimal 3 foto'); return; }
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const img = new window.Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    const max = 800;
+                    if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
+                    else if (h > max) { w = Math.round(w * max / h); h = max; }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    setPhotos(prev => [...prev, canvas.toDataURL('image/jpeg', 0.6)]);
+                };
+                img.src = reader.result;
+            };
+            reader.readAsDataURL(file);
+        });
+        e.target.value = '';
+    };
+
+    const submit = (e) => {
+        e.preventDefault();
+        if (!note.trim()) return alert('Detail pekerjaan wajib diisi');
+        
+        // Parse existing notes
+        let parsedNotes = { text: '', history: [] };
+        if (assignment.notes) {
+            try {
+                const p = JSON.parse(assignment.notes);
+                if (p && Array.isArray(p.history)) parsedNotes = p;
+                else parsedNotes.text = assignment.notes;
+            } catch (err) {
+                parsedNotes.text = assignment.notes;
+            }
+        }
+
+        // Add new history entry
+        parsedNotes.history.push({
+            date: new Date().toISOString(),
+            percentage: parseInt(percentage),
+            note: note.trim(),
+            photos
+        });
+
+        onSubmit(assignment.id, {
+            progressPercentage: parseInt(percentage),
+            status: parseInt(percentage) === 100 ? 'COMPLETED' : 'IN_PROGRESS',
+            notes: JSON.stringify(parsedNotes)
+        });
+    };
+
+    if (!assignment) return null;
+
+    return (
+        <Modal open={open} onClose={onClose} title="Update Progres Penugasan" icon={TrendingUp}>
+            <form onSubmit={submit} className="space-y-6">
+                <div>
+                    <h3 className="text-sm font-black text-slate-800 uppercase italic mb-1">{assignment.title}</h3>
+                    <p className="text-[10px] font-bold text-slate-400">Progres saat ini: {assignment.progressPercentage || 0}%</p>
+                </div>
+
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex justify-between">
+                        <span>Persentase Pekerjaan</span>
+                        <span className="text-indigo-600">{percentage}%</span>
+                    </label>
+                    <input type="range" min="0" max="100" step="5" value={percentage} onChange={e => setPercentage(e.target.value)}
+                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
+                    <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-300">
+                        <span>0%</span><span>50%</span><span>100%</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📝 Detail Pekerjaan / Catatan</label>
+                    <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="Jelaskan apa yang sudah dikerjakan..."
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                </div>
+
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5 block">
+                        <Camera size={12} /> Foto Dokumentasi ({photos.length}/3)
+                    </label>
+                    {photos.length > 0 && (
+                        <div className="flex gap-3 flex-wrap mb-3">
+                            {photos.map((p, i) => (
+                                <div key={i} className="relative group">
+                                    <img src={p} alt="Doc" className="w-20 h-20 object-cover rounded-xl border-2 border-slate-200 shadow-sm" />
+                                    <button type="button" onClick={() => setPhotos(photos.filter((_, idx) => idx !== i))}
+                                        className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full text-[10px] font-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">✕</button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {photos.length < 3 && (
+                        <label className="flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-200 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest hover:border-indigo-200 hover:text-indigo-500 transition-all cursor-pointer">
+                            <ImageIcon size={16} /> Pilih Foto
+                            <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} className="hidden" />
+                        </label>
+                    )}
+                </div>
+
+                <button type="submit" disabled={submitting} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
+                    {submitting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                    {submitting ? 'Menyimpan...' : 'Simpan Progres'}
+                </button>
+            </form>
+        </Modal>
+    );
+};
+
 const DailyActivityFormModal = ({ open, onClose, onSubmit, submitting, assignments = [] }) => {
     const [date, setDate] = useState(today());
-    const [startTime, setStartTime] = useState('');
-    const [endTime, setEndTime] = useState('');
+    const [startTime, setStartTime] = useState('07:15');
+    const [endTime, setEndTime] = useState('16:15');
     const [items, setItems] = useState([{ activity: '', status: 'SELESAI', note: '' }]);
     const [photos, setPhotos] = useState([]);
     const [assignmentId, setAssignmentId] = useState('');
@@ -1777,8 +1980,8 @@ const DailyActivityFormModal = ({ open, onClose, onSubmit, submitting, assignmen
     useEffect(() => {
         if (open) { 
             setDate(today()); 
-            setStartTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })); 
-            setEndTime('');
+            setStartTime('07:15'); 
+            setEndTime('16:15');
             setItems([{ activity: '', status: 'SELESAI', note: '' }]); 
             setPhotos([]);
             setAssignmentId('');
@@ -2091,7 +2294,18 @@ const LiburFormModal = ({ open, onClose, onSubmit, submitting, task }) => {
 
     const submit = e => {
         e.preventDefault();
-        onSubmit(task.id, { status: 'LIBUR', notes: reason });
+        
+        let parsedNotes = { text: reason, history: [] };
+        if (task?.notes) {
+            try {
+                const p = JSON.parse(task.notes);
+                if (p && Array.isArray(p.history)) {
+                    parsedNotes.history = p.history;
+                }
+            } catch (err) {}
+        }
+        
+        onSubmit(task.id, { status: 'LIBUR', notes: JSON.stringify(parsedNotes) });
     };
 
     return (
