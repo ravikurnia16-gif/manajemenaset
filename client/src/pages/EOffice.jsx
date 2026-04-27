@@ -552,7 +552,7 @@ const EOffice = () => {
                                         : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/20'
                                     }`}
                                 >
-                                    <CheckCircle size={18} /> {getPaymentStatus(viewingDoc) === 'PAID' ? 'Set Belum Lunas' : 'Tandai Lunas'}
+                                    <CheckCircle2 size={18} /> {getPaymentStatus(viewingDoc) === 'PAID' ? 'Set Belum Lunas' : 'Tandai Lunas'}
                                 </button>
                             )}
 
