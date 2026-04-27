@@ -794,9 +794,17 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 });
             } else {
                 // If it's a new document with just a type selected
+                const overrides = {};
+                if (doc.type === 'INVOICE') {
+                    overrides.category = 'Invoice';
+                    overrides.party1Name = 'Bidang Sarana dan Prasarana';
+                    overrides.party1Title = 'Kepala Bidang Sarpras';
+                    overrides.party1Org = 'Yayasan Dar el-Iman';
+                }
                 setFormData(prev => ({
                     ...prev,
                     ...doc,
+                    ...overrides,
                     receivedDate: formatDate(new Date(), 'input'),
                 }));
             }
