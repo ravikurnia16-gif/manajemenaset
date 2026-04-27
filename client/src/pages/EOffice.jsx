@@ -527,7 +527,7 @@ const EOffice = () => {
                                                             <div className="text-[11px] font-black text-amber-600 uppercase tracking-widest mb-2 flex items-center gap-2">
                                                                 <span className="w-5 h-5 rounded bg-amber-100 flex items-center justify-center text-[10px]">1</span> Latar Belakang
                                                             </div>
-                                                            <div className="text-xs text-slate-600 leading-relaxed pl-7">{data.background || '-'}</div>
+                                                            <div className="text-xs text-slate-600 leading-relaxed pl-7 text-justify">{data.background || '-'}</div>
                                                         </div>
 
                                                         <div>
@@ -541,14 +541,14 @@ const EOffice = () => {
                                                                         <div key={i}>
                                                                             <div className="flex gap-3 items-start">
                                                                                 <div className="text-[10px] font-bold text-slate-400 mt-0.5">{i+1}.</div>
-                                                                                <div className="text-xs text-slate-700 leading-relaxed">{pt.text}</div>
+                                                                                <div className="text-xs text-slate-700 leading-relaxed text-justify">{pt.text}</div>
                                                                             </div>
                                                                             {pt.subs && pt.subs.filter(s => s).length > 0 && (
                                                                                 <div className="ml-8 mt-1 space-y-1">
                                                                                     {pt.subs.filter(s => s).map((s, j) => (
                                                                                         <div key={j} className="flex gap-2 items-start">
                                                                                             <div className="text-[9px] font-bold text-slate-300 mt-0.5">{String.fromCharCode(97+j)}.</div>
-                                                                                            <div className="text-[11px] text-slate-500 leading-relaxed">{s}</div>
+                                                                                            <div className="text-[11px] text-slate-500 leading-relaxed text-justify">{s}</div>
                                                                                         </div>
                                                                                     ))}
                                                                                 </div>
@@ -584,7 +584,7 @@ const EOffice = () => {
                                                                 {(data.menimbang || []).map((item, idx) => (
                                                                     <li key={idx} className="text-slate-700 flex gap-2">
                                                                         <span className="font-bold text-amber-500">{String.fromCharCode(97 + idx)}.</span>
-                                                                        <span className="leading-relaxed">{item}</span>
+                                                                        <span className="leading-relaxed text-justify">{item}</span>
                                                                     </li>
                                                                 ))}
                                                             </ul>
@@ -596,7 +596,7 @@ const EOffice = () => {
                                                                 {(data.mengingat || []).map((item, idx) => (
                                                                     <li key={idx} className="text-slate-700 flex gap-2">
                                                                         <span className="font-bold text-amber-500">{idx + 1}.</span>
-                                                                        <span className="leading-relaxed">{item}</span>
+                                                                        <span className="leading-relaxed text-justify">{item}</span>
                                                                     </li>
                                                                 ))}
                                                             </ul>
@@ -608,7 +608,7 @@ const EOffice = () => {
                                                                 {(data.menetapkan || []).map((item, idx) => (
                                                                     <div key={idx}>
                                                                         <div className="font-black text-amber-700 uppercase text-[9px] mb-1">{item.label}:</div>
-                                                                        <div className="text-slate-800 leading-relaxed font-medium">{item.text}</div>
+                                                                        <div className="text-slate-800 leading-relaxed font-medium text-justify">{item.text}</div>
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -646,7 +646,7 @@ const EOffice = () => {
                                                     <div className="text-slate-700 leading-relaxed">
                                                         <div className="mb-2">Dengan hormat,</div>
                                                         <div className="mb-4 text-justify">Segala puji bagi Allah <span className="italic">Subhaanahu wa ta'aala</span> yang senantiasa melimpahkan nikmat dan hidayah-Nya kepada kita semua. Shalawat dan salam atas Nabi Muhammad <span className="italic">Shalallaahu 'alaihi wa sallam</span>. Kami mendo'akan semoga Bapak/Ibu selalu berada dalam lindungan Allah <span className="italic">Subhaanahu wa ta'aala</span>, Amin.</div>
-                                                        {data.pembukaan}
+                                                        <div className="text-justify">{data.pembukaan}</div>
                                                     </div>
                                                     {data.points && data.points.filter(p => p).length > 0 && (
                                                         <div>
@@ -655,7 +655,7 @@ const EOffice = () => {
                                                                 {data.points.filter(p => p).map((item, idx) => (
                                                                     <li key={idx} className="text-slate-700 flex gap-2">
                                                                         <span className="font-bold text-green-500">{idx + 1}.</span>
-                                                                        <span className="leading-relaxed">{item}</span>
+                                                                        <span className="leading-relaxed text-justify">{item}</span>
                                                                     </li>
                                                                 ))}
                                                             </ul>
