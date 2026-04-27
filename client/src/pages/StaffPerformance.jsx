@@ -1935,19 +1935,30 @@ const UpdateProgresModal = ({ open, onClose, onSubmit, submitting, assignment })
             <form onSubmit={submit} className="space-y-6">
                 <div>
                     <h3 className="text-sm font-black text-slate-800 uppercase italic mb-1">{assignment.title}</h3>
-                    <p className="text-[10px] font-bold text-slate-400">Progres saat ini: {assignment.progressPercentage || 0}%</p>
+                    <p className="text-[10px] font-bold text-slate-400 mb-3">Progres saat ini: {assignment.progressPercentage || 0}%</p>
+                    {Array.isArray(assignment.items) && assignment.items.length > 0 && (
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1.5 mb-4 max-h-32 overflow-y-auto no-scrollbar">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Sub Item Pekerjaan:</p>
+                            {assignment.items.map((item, idx) => (
+                                <div key={idx} className="flex items-start gap-2 text-xs font-bold text-slate-600">
+                                    <div className="mt-0.5 text-slate-400">
+                                        {(item.isDone || item.percentage === 100) ? <CheckSquare size={14} className="text-emerald-500" /> : <Square size={14} />}
+                                    </div>
+                                    <span className={(item.isDone || item.percentage === 100) ? 'line-through text-slate-400' : ''}>{item.text}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 <div>
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex justify-between">
-                        <span>Persentase Pekerjaan</span>
-                        <span className="text-indigo-600">{percentage}%</span>
+                        <span>Persentase Pekerjaan Baru (%)</span>
                     </label>
-                    <input type="range" min="0" max="100" step="5" value={percentage} onChange={e => setPercentage(e.target.value)}
-                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
-                    <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-300">
-                        <span>0%</span><span>50%</span><span>100%</span>
-                    </div>
+                    <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value === '' ? '' : Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-black text-indigo-700 focus:ring-2 focus:ring-indigo-200 outline-none text-center"
+                        placeholder="Contoh: 50" required />
+                </div>
                 </div>
 
                 <div>

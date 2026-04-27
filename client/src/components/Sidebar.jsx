@@ -49,10 +49,17 @@ const Sidebar = ({ isOpen = true }) => {
     const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user?.role);
     const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
 
-    const isKabidSarpras = user?.position?.toLowerCase().includes('kepala bidang') && 
-                           user?.position?.toLowerCase().includes('sarana dan prasarana');
+    const isKabidSarpras = user?.position?.toLowerCase() === 'kepala bidang sarana dan prasarana';
 
-    const isStaffSarpras = isGlobalAdmin || user.unit?.name?.toLowerCase().includes('sarana dan prasarana');
+    const sarprasKeywords = [
+        'sarana dan prasarana',
+        'manajemen aset',
+        'gudang dan logistik',
+        'teknisi',
+        'keuangan dan administrasi',
+        'kendaraan'
+    ];
+    const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position?.toLowerCase().includes(kw));
 
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">
