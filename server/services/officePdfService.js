@@ -951,6 +951,24 @@ async function generateInvoicePDF(doc, setting) {
                 font: fontBold,
                 color: rgb(0, 0.6, 0),
             });
+        } else {
+            const stampX = width / 2 - 65;
+            const stampY = 50;
+            page.drawRectangle({
+                x: stampX,
+                y: stampY,
+                width: 130,
+                height: 40,
+                borderColor: rgb(0.8, 0, 0),
+                borderWidth: 2,
+            });
+            page.drawText('BELUM LUNAS', {
+                x: stampX + 12,
+                y: stampY + 13,
+                size: 14,
+                font: fontBold,
+                color: rgb(0.8, 0, 0),
+            });
         }
     } catch (e) {}
 
