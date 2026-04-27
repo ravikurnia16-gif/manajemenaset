@@ -6,7 +6,7 @@ import {
     MapPin, Loader2, Target, Timer, TrendingUp, Sparkles, Users,
     Activity, Crown, Medal, Send, Trash2, RotateCcw, Tag, Edit3,
     ShieldCheck, MessageSquare, ListChecks, Flag, LayoutDashboard,
-    PieChart as PieIcon, BarChart3, Coffee, CalendarX, Undo
+    PieChart as PieIcon, BarChart3, Coffee, CalendarX, Undo, Camera, Image as ImageIcon, Link2, Search
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -369,31 +369,58 @@ const SummaryTab = ({ assignments, plans, routineAssignments, dailyLogs, aiSumma
             <SummarySection title="Laporan Harian" icon={Flag} color="bg-rose-500" count={recentLogs.length} emptyMsg="Belum ada laporan harian">
                 {recentLogs.map((log, idx) => {
                     const items = log.metadata?.items || [];
+                    const photos = log.metadata?.photos || [];
                     return (
-                        <div key={log.id || idx} className="px-6 py-4 hover:bg-slate-50/50 transition-all">
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center shrink-0"><Flag size={12} className="text-rose-400" /></div>
-                                <div>
-                                    <span className="text-[10px] font-black text-slate-700">{log.user?.name || 'Staf'}</span>
-                                    <span className="text-[9px] font-bold text-slate-400 ml-2">• {fmtDate(log.date)}</span>
-                                    {log.metadata?.startTime && <span className="text-[9px] font-bold text-slate-400 ml-2">{log.metadata.startTime}{log.metadata.endTime ? ` – ${log.metadata.endTime}` : ''}</span>}
+                        <div key={log.id || idx} className="px-6 py-4 hover:bg-slate-50/50 transition-all border-b border-slate-50 last:border-0">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded-lg bg-rose-50 flex items-center justify-center shrink-0"><Flag size={12} className="text-rose-400" /></div>
+                                    <div>
+                                        <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{log.user?.name || 'Staf'}</span>
+                                        <span className="text-[9px] font-bold text-slate-400 ml-2">• {fmtDate(log.date)}</span>
+                                    </div>
                                 </div>
+                                {log.metadata?.assignmentId && (
+                                    <div className="flex items-center gap-1 text-indigo-400">
+                                        <Link2 size={10} />
+                                        <span className="text-[8px] font-black uppercase tracking-widest">Terkait Tugas</span>
+                                    </div>
+                                )}
                             </div>
+                            
                             {items.length > 0 ? (
-                                <div className="ml-9 space-y-1">
-                                    {items.map((it, i) => (
-                                        <div key={i} className="flex items-start gap-2">
-                                            <span className={`mt-0.5 shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded ${
-                                                it.status === 'SELESAI' ? 'bg-emerald-100 text-emerald-600'
-                                                : it.status === 'PROSES' ? 'bg-amber-100 text-amber-600'
-                                                : 'bg-slate-100 text-slate-500'
-                                            }`}>{it.status || 'SELESAI'}</span>
-                                            <p className="text-[10px] font-bold text-slate-600 leading-relaxed">{it.activity}</p>
+                                <div className="ml-9 space-y-1.5">
+                                    {items.slice(0, 3).map((it, i) => (
+                                        <div key={i}>
+                                            <div className="flex items-start gap-2">
+                                                <span className={`mt-0.5 shrink-0 text-[7px] font-black px-1 py-0.5 rounded ${
+                                                    it.status === 'SELESAI' ? 'bg-emerald-100 text-emerald-600'
+                                                    : it.status === 'PROSES' ? 'bg-amber-100 text-amber-600'
+                                                    : 'bg-slate-100 text-slate-500'
+                                                }`}>{it.status || 'SELESAI'}</span>
+                                                <p className="text-[10px] font-bold text-slate-600 leading-relaxed truncate">{it.activity}</p>
+                                            </div>
+                                            {it.note && <p className="ml-5 text-[8px] text-slate-400 italic font-medium truncate">— {it.note}</p>}
                                         </div>
                                     ))}
+                                    {items.length > 3 && <p className="text-[8px] font-bold text-slate-300 ml-5">+{items.length - 3} kegiatan lainnya...</p>}
                                 </div>
                             ) : (
                                 <p className="ml-9 text-[10px] font-bold text-slate-500 italic">{log.content || 'Tidak ada detail kegiatan'}</p>
+                            )}
+
+                            {/* Photo Previews in Summary */}
+                            {photos.length > 0 && (
+                                <div className="ml-9 mt-3 flex gap-1.5">
+                                    {photos.slice(0, 4).map((p, i) => (
+                                        <img key={i} src={p} alt="Thumb" className="w-10 h-10 object-cover rounded-lg border border-slate-100 shadow-sm" />
+                                    ))}
+                                    {photos.length > 4 && (
+                                        <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-[9px] font-black text-slate-400">
+                                            +{photos.length - 4}
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     );
@@ -663,6 +690,10 @@ const StaffPerformance = () => {
                     items: formData.items,
                     startTime: formData.startTime,
                     endTime: formData.endTime,
+                    photos: formData.photos || [],
+                    assignmentId: formData.assignmentId || null,
+                    assignmentTitle: formData.assignmentTitle || null,
+                    progressNote: formData.progressNote || '',
                     timestamp: new Date().toISOString()
                 }
             });
@@ -846,7 +877,7 @@ const StaffPerformance = () => {
             <RencanaFormModal open={showRencanaModal} onClose={() => { setShowRencanaModal(false); setEditingPlan(null); }} onSubmit={handleCreatePlan} submitting={submitting} editing={editingPlan} />
             <TugasFormModal open={showTugasModal} onClose={() => { setShowTugasModal(false); setEditingAssignment(null); }} onSubmit={handleCreateTask} submitting={submitting} staffList={staffList} editing={editingAssignment} />
             <LiburFormModal open={showLiburModal} onClose={() => setShowLiburModal(false)} onSubmit={handleUpdateAssignment} submitting={submitting} task={liburTask} />
-            <DailyActivityFormModal open={showDailyModal} onClose={() => setShowDailyModal(false)} onSubmit={handleCreateDailyReport} submitting={submitting} />
+            <DailyActivityFormModal open={showDailyModal} onClose={() => setShowDailyModal(false)} onSubmit={handleCreateDailyReport} submitting={submitting} assignments={[...assignments, ...routineAssignments]} />
             <RutinitasFormModal open={showRutinitasModal} onClose={() => { setShowRutinitasModal(false); setEditingRoutine(null); }} onSubmit={async (formData) => {
                 setSubmitting(true);
                 try {
@@ -1402,7 +1433,17 @@ const LaporanTab = ({ logs, isKabid }) => {
                                         </span>
                                         {isKabid && log.user && <span className="text-[9px] font-black text-indigo-500 uppercase">{log.user.name}</span>}
                                     </div>
+                                    
+                                    {/* Linked Assignment Title if exists */}
+                                    {log.metadata?.assignmentTitle && (
+                                        <div className="mb-2 flex items-center gap-1.5 text-indigo-600">
+                                            <Link2 size={12} />
+                                            <span className="text-[10px] font-black uppercase tracking-tight">Terkait: {log.metadata.assignmentTitle.replace('[RUTIN] ', '')}</span>
+                                        </div>
+                                    )}
+
                                     <p className="text-xs font-bold text-slate-700 leading-relaxed">{log.content || log.metadata?.sourceTitle || '-'}</p>
+                                    
                                     {log.metadata?.progressPercentage !== undefined && (
                                         <div className="mt-2 flex items-center gap-2">
                                             <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -1411,14 +1452,44 @@ const LaporanTab = ({ logs, isKabid }) => {
                                             <span className="text-[9px] font-black text-indigo-600">{log.metadata.progressPercentage}%</span>
                                         </div>
                                     )}
-                                    {/* Insidental items */}
-                                    {!log.metadata?.autoLog && log.metadata?.items && (
-                                        <div className="mt-2 space-y-1">
+
+                                    {/* Activity items with notes */}
+                                    {log.metadata?.items && (
+                                        <div className="mt-2 space-y-1.5">
                                             {log.metadata.items.map((it, i) => (
-                                                <div key={i} className="flex items-center gap-2 text-[10px] text-slate-500">
-                                                    <CheckCircle size={12} className={it.status === 'SELESAI' ? 'text-emerald-500' : 'text-slate-300'} />
-                                                    <span className="font-bold">{it.activity}</span>
-                                                    <Badge className={it.status === 'SELESAI' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}>{it.status}</Badge>
+                                                <div key={i} className="bg-slate-50/50 p-2 rounded-lg border border-slate-50">
+                                                    <div className="flex items-center gap-2 text-[10px] text-slate-600">
+                                                        <CheckCircle size={12} className={it.status === 'SELESAI' ? 'text-emerald-500' : 'text-slate-300'} />
+                                                        <span className="font-bold">{it.activity}</span>
+                                                        <Badge className={it.status === 'SELESAI' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}>{it.status}</Badge>
+                                                    </div>
+                                                    {it.note && (
+                                                        <p className="mt-1 ml-5 text-[9px] text-slate-400 italic font-medium leading-tight border-l border-slate-200 pl-2">
+                                                            {it.note}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Overall Progress Note */}
+                                    {log.metadata?.progressNote && (
+                                        <div className="mt-3 p-3 bg-indigo-50/50 rounded-xl border border-indigo-50">
+                                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Keterangan Perkembangan:</p>
+                                            <p className="text-[10px] font-bold text-slate-600 leading-relaxed">{log.metadata.progressNote}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Photos Grid */}
+                                    {log.metadata?.photos && log.metadata.photos.length > 0 && (
+                                        <div className="mt-3 flex gap-2 flex-wrap">
+                                            {log.metadata.photos.map((p, i) => (
+                                                <div key={i} className="relative group cursor-pointer" onClick={() => window.open(p, '_blank')}>
+                                                    <img src={p} alt={`Dokumentasi ${i+1}`} className="w-16 h-16 object-cover rounded-lg border border-slate-200 shadow-sm hover:ring-2 hover:ring-indigo-400 transition-all" />
+                                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 rounded-lg flex items-center justify-center transition-opacity">
+                                                        <Search size={12} className="text-white" />
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -1694,31 +1765,74 @@ const TugasFormModal = ({ open, onClose, onSubmit, submitting, staffList, editin
     );
 };
 
-const DailyActivityFormModal = ({ open, onClose, onSubmit, submitting }) => {
+const DailyActivityFormModal = ({ open, onClose, onSubmit, submitting, assignments = [] }) => {
     const [date, setDate] = useState(today());
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
-    const [items, setItems] = useState([{ activity: '', status: 'SELESAI' }]);
+    const [items, setItems] = useState([{ activity: '', status: 'SELESAI', note: '' }]);
+    const [photos, setPhotos] = useState([]);
+    const [assignmentId, setAssignmentId] = useState('');
+    const [progressNote, setProgressNote] = useState('');
 
     useEffect(() => {
         if (open) { 
             setDate(today()); 
             setStartTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })); 
             setEndTime('');
-            setItems([{ activity: '', status: 'SELESAI' }]); 
+            setItems([{ activity: '', status: 'SELESAI', note: '' }]); 
+            setPhotos([]);
+            setAssignmentId('');
+            setProgressNote('');
         }
     }, [open]);
 
-    const addItem = () => setItems([...items, { activity: '', status: 'SELESAI' }]);
+    const addItem = () => setItems([...items, { activity: '', status: 'SELESAI', note: '' }]);
     const removeItem = idx => setItems(items.filter((_, i) => i !== idx));
     const updateItem = (idx, field, val) => { const n = [...items]; n[idx][field] = val; setItems(n); };
+
+    const handlePhotoUpload = (e) => {
+        const files = Array.from(e.target.files);
+        if (photos.length + files.length > 5) { alert('Maksimal 5 foto'); return; }
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                // Compress via canvas
+                const img = new window.Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    const max = 800;
+                    if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
+                    else if (h > max) { w = Math.round(w * max / h); h = max; }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+                    setPhotos(prev => [...prev, dataUrl]);
+                };
+                img.src = reader.result;
+            };
+            reader.readAsDataURL(file);
+        });
+        e.target.value = '';
+    };
+
+    const removePhoto = idx => setPhotos(photos.filter((_, i) => i !== idx));
+
+    const selectedAssignment = assignments.find(a => String(a.id) === String(assignmentId));
 
     const submit = e => {
         e.preventDefault();
         const validItems = items.filter(i => i.activity.trim());
         if (validItems.length === 0) return alert('Silakan isi setidaknya satu aktivitas');
-        onSubmit({ items: validItems, date, startTime, endTime });
+        onSubmit({ 
+            items: validItems, date, startTime, endTime, photos,
+            assignmentId: assignmentId || null,
+            assignmentTitle: selectedAssignment?.title || null,
+            progressNote
+        });
     };
+
+    const activeAssignments = assignments.filter(a => a.status !== 'COMPLETED' && a.status !== 'LIBUR');
 
     return (
         <Modal open={open} onClose={onClose} title="Laporan Aktivitas Harian" icon={Flag} wide>
@@ -1738,34 +1852,100 @@ const DailyActivityFormModal = ({ open, onClose, onSubmit, submitting }) => {
                     </div>
                 </div>
 
+                {/* Linked Assignment */}
+                {activeAssignments.length > 0 && (
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5 block">
+                            <Link2 size={12} /> Terkait Penugasan (Opsional)
+                        </label>
+                        <select value={assignmentId} onChange={e => setAssignmentId(e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none">
+                            <option value="">— Tidak terkait penugasan —</option>
+                            {activeAssignments.map(a => (
+                                <option key={a.id} value={a.id}>
+                                    {a.title?.replace('[RUTIN] ', '')} — {a.assignee?.name || ''}
+                                </option>
+                            ))}
+                        </select>
+                        {selectedAssignment && (
+                            <div className="mt-2 p-3 bg-indigo-50 rounded-xl border border-indigo-100 text-[10px]">
+                                <span className="font-black text-indigo-600 uppercase">Penugasan:</span>
+                                <span className="font-bold text-slate-600 ml-1">{selectedAssignment.title?.replace('[RUTIN] ', '')}</span>
+                                <span className="text-slate-400 ml-2">• Progres: {selectedAssignment.progressPercentage || 0}%</span>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Activity Items */}
                 <div>
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">📝 Daftar Kegiatan</label>
                     <div className="space-y-3">
                         {items.map((it, idx) => (
-                            <div key={idx} className="flex gap-3 items-start animate-in slide-in-from-right-2 duration-300">
-                                <div className="flex-1 space-y-2">
-                                    <textarea value={it.activity} onChange={e => updateItem(idx, 'activity', e.target.value)} rows={2} placeholder="Sebutkan apa yang dikerjakan..."
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
-                                    <div className="flex gap-2">
-                                        {['SELESAI', 'PROSES', 'PENDING'].map(s => (
-                                            <button key={s} type="button" onClick={() => updateItem(idx, 'status', s)}
-                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black transition-all ${it.status === s ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
-                                                {s}
-                                            </button>
-                                        ))}
+                            <div key={idx} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-3 animate-in slide-in-from-right-2 duration-300">
+                                <div className="flex gap-3 items-start">
+                                    <div className="flex-1 space-y-2">
+                                        <textarea value={it.activity} onChange={e => updateItem(idx, 'activity', e.target.value)} rows={2} placeholder="Sebutkan apa yang dikerjakan..."
+                                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                                        <div className="flex gap-2">
+                                            {['SELESAI', 'PROSES', 'PENDING'].map(s => (
+                                                <button key={s} type="button" onClick={() => updateItem(idx, 'status', s)}
+                                                    className={`px-3 py-1.5 rounded-lg text-[9px] font-black transition-all ${it.status === s ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
+                                                    {s}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
+                                    {items.length > 1 && (
+                                        <button type="button" onClick={() => removeItem(idx)} className="p-2 text-rose-300 hover:text-rose-500 mt-2 transition-colors">
+                                            <Trash2 size={18} />
+                                        </button>
+                                    )}
                                 </div>
-                                {items.length > 1 && (
-                                    <button type="button" onClick={() => removeItem(idx)} className="p-2 text-rose-300 hover:text-rose-500 mt-2 transition-colors">
-                                        <Trash2 size={18} />
-                                    </button>
-                                )}
+                                {/* Per-item note */}
+                                <input type="text" value={it.note || ''} onChange={e => updateItem(idx, 'note', e.target.value)}
+                                    placeholder="Catatan/keterangan tambahan untuk kegiatan ini..."
+                                    className="w-full px-3 py-2 bg-white border border-dashed border-slate-200 rounded-lg text-[11px] font-bold text-slate-600 outline-none focus:border-indigo-300 placeholder:text-slate-300" />
                             </div>
                         ))}
                         <button type="button" onClick={addItem} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-[10px] font-black text-slate-400 uppercase tracking-widest hover:border-indigo-200 hover:text-indigo-500 transition-all flex items-center justify-center gap-2">
                             <Plus size={16} />Tambah Kegiatan
                         </button>
                     </div>
+                </div>
+
+                {/* Keterangan Perkembangan */}
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📋 Keterangan Perkembangan</label>
+                    <textarea value={progressNote} onChange={e => setProgressNote(e.target.value)} rows={3}
+                        placeholder="Jelaskan perkembangan, kendala, atau hal penting lainnya..."
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-200 outline-none" />
+                </div>
+
+                {/* Photo Upload */}
+                <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5 block">
+                        <Camera size={12} /> Foto Dokumentasi ({photos.length}/5)
+                    </label>
+                    {photos.length > 0 && (
+                        <div className="flex gap-3 flex-wrap mb-3">
+                            {photos.map((p, i) => (
+                                <div key={i} className="relative group">
+                                    <img src={p} alt={`Foto ${i+1}`} className="w-20 h-20 object-cover rounded-xl border-2 border-slate-200 shadow-sm" />
+                                    <button type="button" onClick={() => removePhoto(i)}
+                                        className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full text-[10px] font-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
+                                        ✕
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {photos.length < 5 && (
+                        <label className="flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-200 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest hover:border-indigo-200 hover:text-indigo-500 transition-all cursor-pointer">
+                            <ImageIcon size={16} /> Pilih Foto
+                            <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} className="hidden" />
+                        </label>
+                    )}
                 </div>
 
                 <button type="submit" disabled={submitting} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">

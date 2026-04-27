@@ -322,14 +322,21 @@ const WarehouseDashboard = () => {
                         </div>
                         <div className="space-y-3">
                             {data.lowStockItems?.map((item, i) => (
-                                <div key={i} className="group p-4 bg-slate-50 rounded-2xl border border-transparent hover:border-red-100 hover:bg-red-50/50 transition-all flex items-center justify-between">
-                                    <div>
-                                        <div className="text-xs font-black text-slate-800 group-hover:text-red-700">{item.name}</div>
-                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">{item.category}</div>
+                                <div key={i} className="group p-4 bg-slate-50 rounded-2xl border border-transparent hover:border-red-100 hover:bg-red-50/50 transition-all flex items-center gap-4">
+                                    {item.image ? (
+                                        <img src={item.image} alt={item.name} className="w-12 h-12 rounded-xl object-cover border border-slate-200" />
+                                    ) : (
+                                        <div className="w-12 h-12 rounded-xl bg-slate-200 flex items-center justify-center text-slate-400">
+                                            <Package size={18} />
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-xs font-black text-slate-800 group-hover:text-red-700 truncate">{item.name}</div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">{item.category?.name || item.category}</div>
                                     </div>
-                                    <div className="text-right">
+                                    <div className="text-right shrink-0">
                                         <div className="text-lg font-black text-red-600">{item.stock}</div>
-                                        <div className="text-[9px] font-bold text-slate-400 uppercase">PIN: {item.minStock}</div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase">MIN: {item.minStock}</div>
                                     </div>
                                 </div>
                             ))}

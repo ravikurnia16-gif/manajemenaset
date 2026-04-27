@@ -37,6 +37,7 @@ const EOffice = () => {
     const [viewingDoc, setViewingDoc] = useState(null);
     const [signatureRequest, setSignatureRequest] = useState(null);
     const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
+    const [sendingWA, setSendingWA] = useState(null);
 
     const user = JSON.parse(localStorage.getItem('user'));
     const isKabidSarpras = user?.role === 'KABID_SARPRAS' || user?.role === 'SUPER_ADMIN';
@@ -100,6 +101,19 @@ const EOffice = () => {
             console.error('Fetch documents error:', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSendWA = async (id) => {
+        try {
+            setSendingWA(id);
+            const res = await api.post(`/office-documents/${id}/send-wa`);
+            alert(res.data.message || 'Notifikasi WhatsApp sedang dikirim!');
+        } catch (err) {
+            console.error('Send WA error:', err);
+            alert(err.response?.data?.error || 'Gagal mengirim notifikasi');
+        } finally {
+            setSendingWA(null);
         }
     };
 
@@ -745,6 +759,15 @@ const EOffice = () => {
                             >
                                 <Printer size={18} /> Cetak PDF
                             </button>
+                            {(viewingDoc.type === 'INVOICE' || viewingDoc.category === 'Invoice') && (
+                                <button 
+                                    onClick={() => handleSendWA(viewingDoc.id)}
+                                    disabled={sendingWA === viewingDoc.id}
+                                    className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                                >
+                                    <Send size={18} /> {sendingWA === viewingDoc.id ? 'Mengirim...' : 'Kirim WA'}
+                                </button>
+                            )}
                         </div>
                         <div className="flex items-center gap-2">
                             {viewingDoc.status === 'DRAFT' && (

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Search } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Search, Package } from 'lucide-react';
 import api from '../lib/axios';
 
 const WarehouseTransactionForm = () => {
@@ -132,15 +132,28 @@ const WarehouseTransactionForm = () => {
                                             <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-40 overflow-y-auto">
                                                 {getFilteredItems(row.search).map(item => (
                                                     <button key={item.id} type="button" onClick={() => selectItem(idx, item)}
-                                                        className="w-full text-left p-2.5 hover:bg-slate-50 border-b border-slate-100 text-xs">
-                                                        <span className="font-mono text-indigo-600">{item.code}</span>
-                                                        <span className="ml-1 font-bold">{item.name}</span>
-                                                        {item.type && <span className="text-indigo-500 font-bold ml-1">[{item.type}]</span>}
-                                                        {item.itemUnit && <span className="text-slate-500 font-bold ml-1">({item.itemUnit})</span>}
-                                                        {item.size && <span className="text-slate-400 ml-1">({item.size})</span>}
-                                                        {item.gender && <span className="text-slate-400 ml-1 ml-1">{item.gender === 'L' ? 'Ikhwan' : 'Akhwat'}</span>}
-                                                        {item.purchaseYear && <span className="text-slate-400 ml-1">[{item.purchaseYear}]</span>}
-                                                        <span className={`ml-2 font-bold ${item.stock <= item.minStock ? 'text-red-500' : 'text-green-600'}`}>Stok: {item.stock}</span>
+                                                        className="w-full text-left p-2.5 hover:bg-slate-50 border-b border-slate-100 flex items-center gap-3">
+                                                        {item.image ? (
+                                                            <img src={item.image} alt={item.name} className="w-8 h-8 rounded bg-slate-200 object-cover border border-slate-100 shrink-0" />
+                                                        ) : (
+                                                            <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-300 shrink-0">
+                                                                <Package size={14} />
+                                                            </div>
+                                                        )}
+                                                        <div className="flex-1 overflow-hidden">
+                                                            <div className="text-xs truncate">
+                                                                <span className="font-mono text-indigo-600">{item.code}</span>
+                                                                <span className="ml-1 font-bold">{item.name}</span>
+                                                                {item.type && <span className="text-indigo-500 font-bold ml-1">[{item.type}]</span>}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400 truncate">
+                                                                {item.itemUnit && <span>{item.itemUnit}</span>}
+                                                                {item.size && <span className="ml-1">({item.size})</span>}
+                                                                {item.gender && <span className="ml-1">{item.gender === 'L' ? 'Ikhwan' : 'Akhwat'}</span>}
+                                                                {item.purchaseYear && <span className="ml-1">[{item.purchaseYear}]</span>}
+                                                                <span className={`ml-2 font-bold ${item.stock <= item.minStock ? 'text-red-500' : 'text-green-600'}`}>Stok: {item.stock}</span>
+                                                            </div>
+                                                        </div>
                                                     </button>
                                                 ))}
                                             </div>
