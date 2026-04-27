@@ -21,86 +21,77 @@ async function generateVerificationQR(uuid) {
 /**
  * Draw the official Yayasan Dar el-Iman letterhead
  */
-async function drawKopSurat(page, fontBold, fontRegular) {
-    const { width, height } = page.getSize();
-    let y = height - 40;
-    const centerX = width / 2;
-
-    // Embed and draw Yayasan Logo (Left Side)
+async function embedKopSuratImages(pdfDoc) {
+    let logoImage = null;
+    let sarprasImage = null;
     try {
         const logoPath = path.join(__dirname, '../assets/logo_yayasan.jpg');
         if (fs.existsSync(logoPath)) {
             const logoBytes = fs.readFileSync(logoPath);
-            const logoImage = await page.doc.embedJpg(logoBytes);
-            page.drawImage(logoImage, {
-                x: 45,
-                y: height - 120,
-                width: 100, // Widened to avoid 'ramping' look
-                height: 85,
-            });
+            logoImage = await pdfDoc.embedJpg(logoBytes);
         }
-    } catch (e) {
-        console.error('Failed to embed yayasan logo:', e);
-    }
-
-    // Embed and draw Sarpras Logo (Right Side)
-    try {
         const sarprasPath = path.join(__dirname, '../assets/sarpras.jpeg');
         if (fs.existsSync(sarprasPath)) {
             const sarprasBytes = fs.readFileSync(sarprasPath);
-            const sarprasImage = await page.doc.embedJpg(sarprasBytes);
-            page.drawImage(sarprasImage, {
-                x: width - 125,
-                y: height - 115,
-                width: 75, // Smaller as requested
-                height: 75,
-            });
+            sarprasImage = await pdfDoc.embedJpg(sarprasBytes);
         }
     } catch (e) {
-        console.error('Failed to embed sarpras logo:', e);
+        console.error('Failed to embed kop surat logos:', e);
+    }
+    return { logoImage, sarprasImage };
+}
+
+function drawKopSuratSync(page, fontBold, fontRegular, images) {
+    const { width, height } = page.getSize();
+    let y = height - 40;
+    const centerX = width / 2;
+
+    if (images && images.logoImage) {
+        page.drawImage(images.logoImage, {
+            x: 45, y: height - 120, width: 100, height: 85,
+        });
     }
 
-    const green = rgb(0.37, 0.77, 0.64); // YAYASAN DAR EL-IMAN
-    const orange = rgb(0.95, 0.65, 0.48); // BIDANG SARANA
-    const gray = rgb(0.4, 0.4, 0.4); // Text
+    if (images && images.sarprasImage) {
+        page.drawImage(images.sarprasImage, {
+            x: width - 125, y: height - 115, width: 75, height: 75,
+        });
+    }
 
-    // 1. YAYASAN DAR EL-IMAN
+    const green = rgb(0.37, 0.77, 0.64);
+    const orange = rgb(0.95, 0.65, 0.48);
+    const gray = rgb(0.4, 0.4, 0.4);
+
     const t1 = 'YAYASAN DAR EL-IMAN';
     const w1 = fontBold.widthOfTextAtSize(t1, 16);
     page.drawText(t1, { x: centerX - (w1 / 2), y, size: 16, font: fontBold, color: green });
-    y -= 18;
+    y -= 16;
 
-    // 2. BIDANG SARANA DAN PRASARANA
     const t2 = 'BIDANG SARANA DAN PRASARANA';
     const w2 = fontBold.widthOfTextAtSize(t2, 16);
     page.drawText(t2, { x: centerX - (w2 / 2), y, size: 16, font: fontBold, color: orange });
-    y -= 18;
+    y -= 16;
 
-    // 3. Motto
     const t3 = '"Merawat dengan Ikhlas, Melayani dengan Sunnah."';
     const w3 = fontRegular.widthOfTextAtSize(t3, 11);
     page.drawText(t3, { x: centerX - (w3 / 2), y, size: 11, font: fontRegular, color: gray });
     y -= 14;
 
-    // 4. Address Line 1
     const t4 = 'Komplek Islamic Center, Surau Gadang, Kec. Nanggalo, Kota Padang,';
     const w4 = fontRegular.widthOfTextAtSize(t4, 10);
     page.drawText(t4, { x: centerX - (w4 / 2), y, size: 10, font: fontRegular, color: gray });
     y -= 12;
 
-    // 5. Address Line 2
     const t5 = 'Sumatera Barat 25173.';
     const w5 = fontRegular.widthOfTextAtSize(t5, 10);
     page.drawText(t5, { x: centerX - (w5 / 2), y, size: 10, font: fontRegular, color: gray });
-    y -= 16;
+    y -= 12;
 
-    // 6. Contact Info
     const t6 = 'WA : 0895-3202-42508                 Email : dar.el.imansarpras@gmail.com';
     const w6 = fontRegular.widthOfTextAtSize(t6, 10);
     page.drawText(t6, { x: centerX - (w6 / 2), y, size: 10, font: fontRegular, color: gray });
-    y -= 12;
+    y -= 10;
 
-    // 7. Thick Orange Line
     const lineOrange = rgb(0.96, 0.69, 0.51);
     page.drawLine({
         start: { x: 40, y },
@@ -109,7 +100,12 @@ async function drawKopSurat(page, fontBold, fontRegular) {
         color: lineOrange,
     });
 
-    return y - 30; // Posisi Y awal untuk konten surat
+    return y - 15;
+}
+
+async function drawKopSurat(page, fontBold, fontRegular) {
+    const images = await embedKopSuratImages(page.doc);
+    return drawKopSuratSync(page, fontBold, fontRegular, images);
 }
 
 /**
@@ -1041,14 +1037,15 @@ async function generateSuratEdaranPDF(doc, setting) {
     const contentWidth = width - margin * 2;
     const bottomMargin = 60;
 
-    const startY = await drawKopSurat(page, fontBold, fontRegular);
+    const kopImages = await embedKopSuratImages(pdfDoc);
+    const startY = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
     let y = startY;
 
     // Helper: check if we need a new page
     const checkPage = (needed = 30) => {
         if (y - needed < bottomMargin) {
             page = pdfDoc.addPage([595.28, 841.89]);
-            y = height - 60;
+            y = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
         }
     };
 
@@ -1216,13 +1213,14 @@ async function generateKeputusanPDF(doc, setting) {
     const contentWidth = width - margin * 2;
     const bottomMargin = 60;
 
-    const startY = await drawKopSurat(page, fontBold, fontRegular);
+    const kopImages = await embedKopSuratImages(pdfDoc);
+    const startY = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
     let y = startY - 10;
 
     const checkPage = (needed = 30) => {
         if (y - needed < bottomMargin) {
             page = pdfDoc.addPage([595.28, 841.89]);
-            y = height - 60;
+            y = drawKopSuratSync(page, fontBold, fontRegular, kopImages) - 10;
         }
     };
 
@@ -1392,13 +1390,14 @@ async function generatePemberitahuanPDF(doc, setting) {
     const contentWidth = width - margin * 2;
     const bottomMargin = 60;
 
-    const startY = await drawKopSurat(page, fontBold, fontRegular);
+    const kopImages = await embedKopSuratImages(pdfDoc);
+    const startY = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
     let y = startY;
 
     const checkPage = (needed = 30) => {
         if (y - needed < bottomMargin) {
             page = pdfDoc.addPage([595.28, 841.89]);
-            y = height - 60;
+            y = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
         }
     };
 
