@@ -1369,7 +1369,6 @@ exports.generateRoutineTasks = async () => {
                 // (Only visible in app to reduce daily notification noise)
             }
         }
-        }
     } catch (err) {
         console.error('[Routine Task] Sync Error:', err.message);
     }
