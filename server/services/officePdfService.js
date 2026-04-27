@@ -1183,7 +1183,7 @@ async function generateSuratEdaranPDF(doc, setting) {
     y -= 25;
 
     page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarpras', { x: sigX, y, size: 10, font: fontBold });
-    y -= 60;
+    y -= 75;
 
     await drawDigitalSignature(page, doc, sigX, y, 60);
     y -= 15;
