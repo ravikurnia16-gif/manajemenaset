@@ -551,7 +551,7 @@ const EOffice = () => {
                                         }
                                     })()}
                                 </div>
-                                ) : viewingDoc.category === 'Keputusan' ? (
+                            ) : viewingDoc.category === 'Keputusan' ? (
                                     <div className="space-y-6">
                                         {(() => {
                                             try {
@@ -1698,6 +1698,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     </div>
                                 </div>
                             </div>
+                        )}
+
                         {formData.category === 'Keputusan' && (
                             <div className="col-span-full space-y-6 bg-amber-50/30 p-6 rounded-2xl border border-amber-100">
                                 <label className="text-xs font-black text-amber-700 uppercase tracking-widest block mb-2">3. Struktur Surat Keputusan</label>
