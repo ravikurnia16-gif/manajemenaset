@@ -5,6 +5,7 @@ const { handleUpload } = require('../middleware/uploadMiddleware');
 
 // Public verification endpoint (no auth needed)
 router.get('/verify/:uuid', ctrl.verifyDocument);
+router.get('/verify/:uuid/pdf', ctrl.generatePublicPDF);
 
 // All other routes require authentication and Sarpras/Admin access
 router.use(verifyToken);
@@ -45,6 +46,7 @@ router.post('/:id/sign-party', ctrl.signAsParty);
 
 // Invoice Payment Status
 router.patch('/:id/payment-status', ctrl.updatePaymentStatus);
+router.post('/:id/send-wa', ctrl.sendInvoiceWA);
 
 // PDF generation
 router.get('/:id/pdf', ctrl.generatePDF);

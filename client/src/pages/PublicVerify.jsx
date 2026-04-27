@@ -159,9 +159,22 @@ const PublicVerify = () => {
                             </div>
                         </div>
 
-                        <div className="p-4 bg-slate-900 text-slate-400 text-center">
+                        <div className="p-4 bg-slate-900 text-slate-400 text-center relative overflow-hidden group">
                             <p className="text-[10px] font-bold tracking-widest uppercase mb-1">Kode Verifikasi (UUID)</p>
                             <p className="text-[11px] font-mono break-all">{doc.uuid}</p>
+                            
+                            {isValid && (
+                                <div className="mt-4 pt-4 border-t border-slate-800">
+                                    <a 
+                                        href={`${api.defaults.baseURL}/office-documents/verify/${doc.uuid}/pdf`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-900"
+                                    >
+                                        <FileText size={16} /> Download PDF Resmi
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

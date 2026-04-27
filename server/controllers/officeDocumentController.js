@@ -591,6 +591,68 @@ exports.getStats = async (req, res) => {
 };
 
 /**
+ * Scheduler Task: Check for due invoices and send reminders
+ */
+exports.checkInvoiceDueDates = async () => {
+    try {
+        const setting = await prisma.setting.findUnique({ where: { id: 1 } });
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        
+        // Find all invoices
+        const invoices = await prisma.officeDocument.findMany({
+            where: {
+                type: 'INVOICE',
+                status: 'SIGNED',
+            }
+        });
+
+        for (const doc of invoices) {
+            let content = {};
+            try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
+            
+            // Skip if already paid
+            if (content.paymentStatus === 'PAID') continue;
+            
+            const dueDate = content.dueDate ? new Date(content.dueDate) : null;
+            if (!dueDate) continue;
+            dueDate.setHours(0, 0, 0, 0);
+
+            const diffTime = dueDate.getTime() - now.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            // Remind at: 3 days before, on due date, and 1 day after (overdue)
+            if ([3, 0, -1].includes(diffDays)) {
+                const phone = doc.party2Title;
+                if (!phone) continue;
+
+                const publicUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify/${doc.uuid}`;
+                
+                let title = "🔔 PENGINGAT TAGIHAN";
+                if (diffDays === 0) title = "⚠️ JATUH TEMPO HARI INI";
+                if (diffDays < 0) title = "❌ TAGIHAN MELEWATI JATUH TEMPO";
+
+                const message = `*${title}*\n` +
+                    `_Sistem Manajemen Aset & Dokumen_\n\n` +
+                    `Halo *${doc.party2Name}*,\n` +
+                    `Kami menginformasikan bahwa tagihan Anda belum terlunasi:\n\n` +
+                    `▫️ *No:* ${doc.number || '-'}\n` +
+                    `▫️ *Perihal:* ${doc.subject}\n` +
+                    `▫️ *Jatuh Tempo:* ${dueDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}\n\n` +
+                    `Silakan unduh invoice & lakukan pembayaran di:\n` +
+                    `${publicUrl}\n\n` +
+                    `Abaikan jika sudah membayar.\n` +
+                    `Terima kasih.`;
+
+                await require('../services/whatsappService').sendMessage(phone, message);
+            }
+        }
+    } catch (error) {
+        console.error('checkInvoiceDueDates error:', error);
+    }
+};
+
+/**
  * PATCH /api/office-documents/:id/payment-status
  * Update payment status for INVOICE
  */
@@ -619,6 +681,90 @@ exports.updatePaymentStatus = async (req, res) => {
         res.json({ message: 'Status pembayaran berhasil diperbarui', doc: updated });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * POST /api/office-documents/:id/send-wa
+ * Manually send invoice notification via WhatsApp
+ */
+exports.sendInvoiceWA = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { whatsappService } = require('../services/whatsappService');
+        const setting = await prisma.setting.findUnique({ where: { id: 1 } });
+        
+        const doc = await prisma.officeDocument.findUnique({
+            where: { id: parseInt(id) }
+        });
+
+        if (!doc) return res.status(404).json({ error: 'Invoice tidak ditemukan' });
+
+        const phone = doc.party2Title; // We store phone in party2Title
+        if (!phone) return res.status(400).json({ error: 'Nomor HP penerima tidak ditemukan' });
+
+        let content = {};
+        try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
+
+        const publicUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify/${doc.uuid}`;
+        
+        const message = `*INVOICE TAGIHAN - ${setting?.orgName || 'SARPRAS'}*\n\n` +
+            `Halo Bapak/Ibu *${doc.party2Name}*,\n` +
+            `Berikut adalah rincian tagihan Anda:\n\n` +
+            `▫️ *No. Invoice:* ${doc.number || '-'}\n` +
+            `▫️ *Perihal:* ${doc.subject}\n` +
+            `▫️ *Jatuh Tempo:* ${content.dueDate ? new Date(content.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}\n\n` +
+            `Silakan unduh dokumen invoice resmi pada link berikut:\n` +
+            `${publicUrl}\n\n` +
+            `Mohon segera melakukan pembayaran. Abaikan pesan ini jika Anda sudah melunasi tagihan.\n` +
+            `Terima kasih.`;
+
+        const result = await require('../services/whatsappService').sendMessage(phone, message);
+        res.json({ message: 'Notifikasi WhatsApp sedang dikirim...', result });
+    } catch (error) {
+        console.error('sendInvoiceWA error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * GET /api/office-documents/verify/:uuid/pdf
+ * Public PDF download
+ */
+exports.generatePublicPDF = async (req, res) => {
+    try {
+        const { uuid } = req.params;
+        const doc = await prisma.officeDocument.findUnique({
+            where: { uuid },
+            include: {
+                author: { select: { id: true, name: true, nip: true, position: true } },
+                signedBy: { select: { id: true, name: true, nip: true, position: true } },
+            },
+        });
+
+        if (!doc) return res.status(404).send('Document not found');
+        
+        const setting = await prisma.setting.findUnique({ where: { id: 1 } });
+
+        let pdfBytes;
+        if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(doc.category))) {
+            pdfBytes = await generateBASTMouPDF(doc, setting);
+        } else if (doc.type === 'SURAT_PESANAN' || doc.category === 'Pesanan') {
+            pdfBytes = await generateSuratPesananPDF(doc, setting);
+        } else if (doc.type === 'INVOICE' || doc.category === 'Invoice') {
+            pdfBytes = await generateInvoicePDF(doc, setting);
+        } else if (doc.type === 'SURAT_KELUAR' && doc.category === 'Tugas') {
+            pdfBytes = await generateSuratTugasPDF(doc, setting);
+        } else {
+            pdfBytes = await generateSuratPDF(doc, setting);
+        }
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${doc.number || 'dokumen'}.pdf"`);
+        res.send(Buffer.from(pdfBytes));
+    } catch (error) {
+        console.error('generatePublicPDF error:', error);
+        res.status(500).send('Failed to generate PDF');
     }
 };
 

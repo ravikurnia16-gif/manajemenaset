@@ -13,6 +13,7 @@ const {
 } = require('../controllers/personnelController');
 const { sendWeeklyAssetSummary } = require('./summaryNotification');
 const { checkBusBookingNotifications, checkUnpaidBusInvoices } = require('../controllers/busBookingController');
+const { checkInvoiceDueDates } = require('../controllers/officeDocumentController');
 
 let schedulerInterval = null;
 
@@ -79,6 +80,7 @@ const initScheduler = () => {
                 await checkOverdueLoans();
                 await checkBusBookingNotifications();
                 await checkUnpaidBusInvoices();
+                await checkInvoiceDueDates();
             } catch (err) {
                 console.error('[Scheduler] Error in Vehicle Checks:', err);
             }

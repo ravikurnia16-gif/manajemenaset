@@ -556,6 +556,15 @@ const EOffice = () => {
                                 </button>
                             )}
 
+                            {viewingDoc.type === 'INVOICE' && (
+                                <button 
+                                    onClick={() => handleSendInvoiceWA(viewingDoc.id)}
+                                    className="px-5 py-2.5 bg-blue-50 text-blue-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-100 transition-all shadow-lg shadow-blue-600/5"
+                                >
+                                    <Send size={18} /> Kirim Notif WA
+                                </button>
+                            )}
+
                             {isSuperAdmin && (
                                 <button 
                                     onClick={() => handleDelete(viewingDoc.id)}
@@ -605,6 +614,16 @@ const EOffice = () => {
             fetchDocuments();
         } catch (err) {
             alert('Gagal mengubah status: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
+    const handleSendInvoiceWA = async (id) => {
+        if (!window.confirm('Kirim notifikasi tagihan ke nomor WhatsApp penerima?')) return;
+        try {
+            const res = await api.post(`/office-documents/${id}/send-wa`);
+            alert(res.data.message);
+        } catch (err) {
+            alert('Gagal mengirim WA: ' + (err.response?.data?.error || err.message));
         }
     };
 
