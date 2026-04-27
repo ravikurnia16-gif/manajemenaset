@@ -484,6 +484,58 @@ const EOffice = () => {
                                         }
                                     })()}
                                 </div>
+                            ) : viewingDoc.category === 'Edaran' ? (
+                                <div className="space-y-6">
+                                    {(() => {
+                                        try {
+                                            const data = JSON.parse(viewingDoc.content || '{}');
+                                            return (
+                                                <div className="space-y-6">
+                                                    <div className="text-center border-y border-slate-100 py-4 mb-4">
+                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Tentang</div>
+                                                        <div className="text-sm font-black text-slate-900 uppercase leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-4 pb-6 border-b border-slate-100">
+                                                        <div>
+                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Kepada Yth.</span>
+                                                            <div className="text-xs font-bold text-slate-800">{viewingDoc.party2Name}</div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tempat</span>
+                                                            <div className="text-xs font-bold text-slate-800">{viewingDoc.party2Address}</div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-4">
+                                                        <div>
+                                                            <div className="text-[11px] font-black text-amber-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                                                <span className="w-5 h-5 rounded bg-amber-100 flex items-center justify-center text-[10px]">1</span> Latar Belakang
+                                                            </div>
+                                                            <div className="text-xs text-slate-600 leading-relaxed pl-7">{data.background || '-'}</div>
+                                                        </div>
+
+                                                        <div>
+                                                            <div className="text-[11px] font-black text-amber-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                                                <span className="w-5 h-5 rounded bg-amber-100 flex items-center justify-center text-[10px]">2</span> Ketentuan
+                                                            </div>
+                                                            <div className="space-y-3 pl-7">
+                                                                {(data.points || []).map((p, i) => (
+                                                                    <div key={i} className="flex gap-3 items-start">
+                                                                        <div className="text-[10px] font-bold text-slate-400 mt-0.5">{i+1}.</div>
+                                                                        <div className="text-xs text-slate-700 leading-relaxed">{p}</div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        } catch (e) {
+                                            return <p className="text-red-500 italic">Gagal memuat rincian edaran</p>;
+                                        }
+                                    })()}
+                                </div>
                             ) : viewingDoc.category === 'Tugas' ? (
                                 <div className="space-y-6 bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
                                     {(() => {
@@ -831,6 +883,10 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         notes: '',
         paymentStatus: 'UNPAID'
     });
+    const [edaranData, setEdaranData] = useState({
+        background: '',
+        points: [''],
+    });
     const [recipientType, setRecipientType] = useState('external');
 
     useEffect(() => {
@@ -928,6 +984,17 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     console.error('Failed to parse Task content JSON', e);
                 }
             }
+            if (doc.category === 'Edaran' && doc.content) {
+                try {
+                    const parsed = JSON.parse(doc.content);
+                    setEdaranData({
+                        background: parsed.background || '',
+                        points: parsed.points || [''],
+                    });
+                } catch (e) {
+                    console.error('Failed to parse Edaran content JSON', e);
+                }
+            }
         } else {
             setFormData({
                 type: defaultType,
@@ -991,6 +1058,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 payload = { ...formData, content: JSON.stringify({ items: purchasingItems, bankInfo: invoiceData, dueDate: invoiceData.dueDate, notes: invoiceData.notes }) };
             } else if (formData.type === 'SURAT_KELUAR' && formData.category === 'Tugas') {
                 payload = { ...formData, content: JSON.stringify(taskData) };
+            } else if (formData.category === 'Edaran') {
+                payload = { ...formData, content: JSON.stringify(edaranData) };
             }
 
             if (doc && doc.id) {
@@ -1418,6 +1487,75 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         onChange={(e) => setInvoiceData({ ...invoiceData, notes: e.target.value })}
                                         placeholder="Misal: Pembayaran harap menyertakan nomor invoice"
                                     />
+                                </div>
+                            </div>
+                        )}
+
+                        {formData.category === 'Edaran' && (
+                            <div className="col-span-full space-y-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
+                                <div>
+                                    <label className="text-xs font-black text-amber-600 uppercase tracking-widest block mb-2">3. Struktur Surat Edaran</label>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Yth. (Kepada)</label>
+                                            <input 
+                                                className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold"
+                                                placeholder="Contoh: Seluruh Staff Sarpras / Unit Kerja"
+                                                value={formData.party2Name}
+                                                onChange={(e) => setFormData({...formData, party2Name: e.target.value})}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Tempat</label>
+                                            <input 
+                                                className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold"
+                                                placeholder="Contoh: Di Padang / Tempat"
+                                                value={formData.party2Address}
+                                                onChange={(e) => setFormData({...formData, party2Address: e.target.value})}
+                                            />
+                                        </div>
+                                        <div className="pt-4 border-t border-slate-100">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">1. Latar Belakang</label>
+                                            <textarea 
+                                                rows={4}
+                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm leading-relaxed"
+                                                placeholder="Tuliskan alasan/latar belakang surat edaran ini..."
+                                                value={edaranData.background}
+                                                onChange={(e) => setEdaranData({...edaranData, background: e.target.value})}
+                                            />
+                                        </div>
+                                        <div className="pt-4 border-t border-slate-100">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">2. Ketentuan / Isi Edaran</label>
+                                                <button type="button" onClick={() => setEdaranData({...edaranData, points: [...edaranData.points, '']})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                                    <Plus size={12} /> Tambah Poin
+                                                </button>
+                                            </div>
+                                            <div className="space-y-3">
+                                                {edaranData.points.map((p, idx) => (
+                                                    <div key={idx} className="flex gap-2">
+                                                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 shrink-0">{idx + 1}</div>
+                                                        <textarea 
+                                                            className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
+                                                            placeholder={`Ketentuan poin ${idx + 1}...`}
+                                                            rows={2}
+                                                            value={p}
+                                                            onChange={(e) => {
+                                                                const newList = [...edaranData.points];
+                                                                newList[idx] = e.target.value;
+                                                                setEdaranData({...edaranData, points: newList});
+                                                            }}
+                                                        />
+                                                        {edaranData.points.length > 1 && (
+                                                            <button type="button" onClick={() => setEdaranData({...edaranData, points: edaranData.points.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}

@@ -975,6 +975,119 @@ async function generateInvoicePDF(doc, setting) {
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 }
+async function generateSuratEdaranPDF(doc, setting) {
+    const { pdfDoc, page, font, fontBold, fontItalic, width, height, qrImage } = await createBasePDF(doc, setting);
+    let y = height - 150;
+
+    // Title
+    const title = "SURAT EDARAN";
+    const titleWidth = fontBold.widthOfTextAtSize(title, 14);
+    page.drawText(title, { x: (width - titleWidth) / 2, y, size: 14, font: fontBold });
+    y -= 5;
+    page.drawLine({ start: { x: (width - titleWidth) / 2, y }, end: { x: (width + titleWidth) / 2, y }, thickness: 1.5 });
+    y -= 15;
+
+    // Number
+    const numberText = `Nomor: ${doc.number || '.......................................'}`;
+    const numWidth = font.widthOfTextAtSize(numberText, 11);
+    page.drawText(numberText, { x: (width - numWidth) / 2, y, size: 11, font });
+    y -= 30;
+
+    // TENTANG
+    const tentangLabel = "TENTANG";
+    const tentangLabelWidth = fontBold.widthOfTextAtSize(tentangLabel, 12);
+    page.drawText(tentangLabel, { x: (width - tentangLabelWidth) / 2, y, size: 12, font: fontBold });
+    y -= 15;
+
+    // Subject
+    const subjectLines = wrapText(doc.subject.toUpperCase(), width - 140, fontBold, 12);
+    subjectLines.forEach(line => {
+        const lw = fontBold.widthOfTextAtSize(line, 12);
+        page.drawText(line, { x: (width - lw) / 2, y, size: 12, font: fontBold });
+        y -= 15;
+    });
+    y -= 25;
+
+    // Recipient
+    page.drawText("Yth.", { x: 70, y, size: 11, font: fontBold });
+    y -= 15;
+    page.drawText(doc.party2Name || ".......................................", { x: 70, y, size: 11, font: fontBold });
+    y -= 15;
+    page.drawText("di", { x: 70, y, size: 11, font });
+    y -= 15;
+    page.drawText(doc.party2Address || "Tempat", { x: 70, y, size: 11, font: fontBold });
+    y -= 35;
+
+    // Content Parsing
+    let content = { background: '', points: [] };
+    try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
+
+    // 1. Latar Belakang
+    page.drawText("1. Latar Belakang", { x: 70, y, size: 11, font: fontBold });
+    y -= 15;
+    const bgLines = wrapText(content.background || '-', width - 140, font, 11);
+    bgLines.forEach(line => {
+        page.drawText(line, { x: 70, y, size: 11, font });
+        y -= 14;
+    });
+    y -= 15;
+
+    // 2. Ketentuan
+    page.drawText("2. Ketentuan", { x: 70, y, size: 11, font: fontBold });
+    y -= 15;
+    page.drawText("Melalui surat edaran ini, disampaikan bahwa:", { x: 70, y, size: 11, font });
+    y -= 15;
+
+    const points = content.points || [];
+    points.forEach((p, idx) => {
+        const pLines = wrapText(p, width - 160, font, 11);
+        pLines.forEach((line, lineIdx) => {
+            if (lineIdx === 0) {
+                page.drawText(`${idx + 1}.`, { x: 80, y, size: 11, font });
+                page.drawText(line, { x: 100, y, size: 11, font });
+            } else {
+                page.drawText(line, { x: 100, y, size: 11, font });
+            }
+            y -= 14;
+        });
+        y -= 5;
+    });
+    y -= 10;
+
+    // 3. Penutup
+    page.drawText("3. Penutup", { x: 70, y, size: 11, font: fontBold });
+    y -= 15;
+    const closing = "Demikian surat edaran ini disampaikan untuk diketahui dan dilaksanakan sebagaimana mestinya. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.";
+    const closingLines = wrapText(closing, width - 140, font, 11);
+    closingLines.forEach(line => {
+        page.drawText(line, { x: 70, y, size: 11, font });
+        y -= 14;
+    });
+    y -= 40;
+
+    // Footer & Signature
+    const sigX = width - 250;
+    page.drawText("Ditetapkan di: Padang", { x: sigX, y, size: 10, font });
+    y -= 14;
+    page.drawText(`Pada tanggal: ${doc.signedAt ? formatDate(doc.signedAt) : formatDate(new Date())}`, { x: sigX, y, size: 10, font });
+    y -= 25;
+
+    page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarpras', { x: sigX, y, size: 10, font: fontBold });
+    y -= 50;
+
+    if (qrImage) {
+        page.drawImage(qrImage, { x: sigX, y, width: 45, height: 45 });
+        y -= 15;
+    }
+
+    page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: sigX, y, size: 10, font: fontBold });
+    y -= 12;
+    page.drawText(`NIY. ${doc.signedBy?.nip || '-'}`, { x: sigX, y, size: 9, font });
+
+    const pdfBytes = await pdfDoc.save();
+    return pdfBytes;
+}
+
 
 module.exports = {
     generateVerificationQR,
@@ -983,4 +1096,5 @@ module.exports = {
     generateSuratTugasPDF,
     generateSuratPesananPDF,
     generateInvoicePDF,
+    generateSuratEdaranPDF,
 };

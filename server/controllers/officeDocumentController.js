@@ -481,6 +481,8 @@ exports.generatePDF = async (req, res) => {
             pdfBytes = await generateSuratPesananPDF(doc, setting);
         } else if (doc.type === 'INVOICE' || doc.category === 'Invoice') {
             pdfBytes = await generateInvoicePDF(doc, setting);
+        } else if (doc.category === 'Edaran') {
+            pdfBytes = await generateSuratEdaranPDF(doc, setting);
         } else if (doc.type === 'SURAT_KELUAR' && doc.category === 'Tugas') {
             pdfBytes = await generateSuratTugasPDF(doc, setting);
         } else {
@@ -753,6 +755,8 @@ exports.generatePublicPDF = async (req, res) => {
             pdfBytes = await generateSuratPesananPDF(doc, setting);
         } else if (doc.type === 'INVOICE' || doc.category === 'Invoice') {
             pdfBytes = await generateInvoicePDF(doc, setting);
+        } else if (doc.category === 'Edaran') {
+            pdfBytes = await generateSuratEdaranPDF(doc, setting);
         } else if (doc.type === 'SURAT_KELUAR' && doc.category === 'Tugas') {
             pdfBytes = await generateSuratTugasPDF(doc, setting);
         } else {
