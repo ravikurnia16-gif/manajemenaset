@@ -794,7 +794,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         type: defaultType,
         subject: '',
         content: '',
-        category: 'Undangan',
+        category: 'Pemberitahuan',
         priority: 'BIASA',
         senderName: '',
         senderOrg: '',
@@ -1043,7 +1043,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             <div className="col-span-full bg-blue-50/50 p-6 rounded-2xl border border-blue-100 mb-2">
                                 <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 block">1. Pilih Kategori Surat Keluar</label>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                    {['Undangan', 'Tugas', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'BAST', 'Pesanan', 'Edaran', 'Lainnya'].map(c => (
+                                    {['Tugas', 'Keputusan', 'Pemberitahuan', 'BAST', 'Pesanan', 'Edaran', 'Lainnya'].map(c => (
                                         <button
                                             key={c}
                                             type="button"
