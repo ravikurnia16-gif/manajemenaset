@@ -551,6 +551,71 @@ const EOffice = () => {
                                         }
                                     })()}
                                 </div>
+                                ) : viewingDoc.category === 'Keputusan' ? (
+                                    <div className="space-y-6">
+                                        {(() => {
+                                            try {
+                                                const data = JSON.parse(viewingDoc.content || '{}');
+                                                return (
+                                                    <div className="space-y-6 text-xs">
+                                                        <div className="text-center border-y border-slate-100 py-4 mb-4">
+                                                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Keputusan Tentang</div>
+                                                            <div className="text-sm font-black text-slate-900 uppercase leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
+                                                        </div>
+
+                                                        <div>
+                                                            <div className="font-black text-amber-700 uppercase text-[10px] tracking-widest mb-2">Menimbang:</div>
+                                                            <ul className="space-y-1.5 pl-4">
+                                                                {(data.menimbang || []).map((item, idx) => (
+                                                                    <li key={idx} className="text-slate-700 flex gap-2">
+                                                                        <span className="font-bold text-amber-500">{String.fromCharCode(97 + idx)}.</span>
+                                                                        <span className="leading-relaxed">{item}</span>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+
+                                                        <div>
+                                                            <div className="font-black text-amber-700 uppercase text-[10px] tracking-widest mb-2">Mengingat:</div>
+                                                            <ul className="space-y-1.5 pl-4">
+                                                                {(data.mengingat || []).map((item, idx) => (
+                                                                    <li key={idx} className="text-slate-700 flex gap-2">
+                                                                        <span className="font-bold text-amber-500">{idx + 1}.</span>
+                                                                        <span className="leading-relaxed">{item}</span>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+
+                                                        <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100">
+                                                            <div className="text-center font-black text-slate-900 mb-4 tracking-widest">MEMUTUSKAN</div>
+                                                            <div className="space-y-4">
+                                                                {(data.menetapkan || []).map((item, idx) => (
+                                                                    <div key={idx}>
+                                                                        <div className="font-black text-amber-700 uppercase text-[9px] mb-1">{item.label}:</div>
+                                                                        <div className="text-slate-800 leading-relaxed font-medium">{item.text}</div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+
+                                                        {data.tembusan && data.tembusan.filter(t => t).length > 0 && (
+                                                            <div className="pt-4 border-t border-slate-100">
+                                                                <div className="font-black text-slate-400 uppercase text-[9px] mb-2">Tembusan:</div>
+                                                                <ul className="space-y-1 pl-4">
+                                                                    {data.tembusan.filter(t => t).map((item, idx) => (
+                                                                        <li key={idx} className="text-slate-500 italic flex gap-2">
+                                                                            <span>-</span> {item}
+                                                                        </li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            } catch (e) { return <p className="text-red-500">Error parsing content</p>; }
+                                        })()}
+                                    </div>
                             ) : viewingDoc.category === 'Tugas' ? (
                                 <div className="space-y-6 bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
                                     {(() => {
@@ -902,6 +967,12 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         background: '',
         points: [{ text: '', subs: [''] }],
     });
+    const [keputusanData, setKeputusanData] = useState({
+        menimbang: [''],
+        mengingat: [''],
+        menetapkan: [{ label: 'PERTAMA', text: '' }, { label: 'KEDUA', text: '' }],
+        tembusan: ['']
+    });
     const [recipientType, setRecipientType] = useState('external');
 
     useEffect(() => {
@@ -1002,7 +1073,6 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             if (doc.category === 'Edaran' && doc.content) {
                 try {
                     const parsed = JSON.parse(doc.content);
-                    // Handle backward compatibility: old format was string[], new is {text,subs}[]
                     let pts = parsed.points || [];
                     if (pts.length > 0 && typeof pts[0] === 'string') {
                         pts = pts.map(p => ({ text: p, subs: [''] }));
@@ -1013,6 +1083,13 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     });
                 } catch (e) {
                     console.error('Failed to parse Edaran content JSON', e);
+                }
+            }
+            if (doc.category === 'Keputusan' && doc.content) {
+                try {
+                    setKeputusanData(JSON.parse(doc.content));
+                } catch (e) {
+                    console.error('Failed to parse Keputusan content JSON', e);
                 }
             }
         } else {
@@ -1080,6 +1157,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 payload = { ...formData, content: JSON.stringify(taskData) };
             } else if (formData.category === 'Edaran') {
                 payload = { ...formData, content: JSON.stringify(edaranData) };
+            } else if (formData.category === 'Keputusan') {
+                payload = { ...formData, content: JSON.stringify(keputusanData) };
             }
 
             if (doc && doc.id) {
@@ -1619,7 +1698,148 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     </div>
                                 </div>
                             </div>
+                        {formData.category === 'Keputusan' && (
+                            <div className="col-span-full space-y-6 bg-amber-50/30 p-6 rounded-2xl border border-amber-100">
+                                <label className="text-xs font-black text-amber-700 uppercase tracking-widest block mb-2">3. Struktur Surat Keputusan</label>
+                                
+                                {/* Menimbang */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Menimbang (Alasan)</label>
+                                        <button type="button" onClick={() => setKeputusanData({...keputusanData, menimbang: [...keputusanData.menimbang, '']})} className="text-[10px] font-black text-blue-600 flex items-center gap-1 uppercase">
+                                            <Plus size={12} /> Tambah
+                                        </button>
+                                    </div>
+                                    {keputusanData.menimbang.map((item, idx) => (
+                                        <div key={idx} className="flex gap-2">
+                                            <div className="w-8 h-8 rounded bg-white border border-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600 shrink-0">{String.fromCharCode(97 + idx)}</div>
+                                            <textarea 
+                                                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
+                                                placeholder="Bahwa dalam rangka..."
+                                                rows={2}
+                                                value={item}
+                                                onChange={(e) => {
+                                                    const newList = [...keputusanData.menimbang];
+                                                    newList[idx] = e.target.value;
+                                                    setKeputusanData({...keputusanData, menimbang: newList});
+                                                }}
+                                            />
+                                            {keputusanData.menimbang.length > 1 && (
+                                                <button type="button" onClick={() => setKeputusanData({...keputusanData, menimbang: keputusanData.menimbang.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Mengingat */}
+                                <div className="space-y-3 pt-4 border-t border-amber-100/50">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Mengingat (Dasar Hukum)</label>
+                                        <button type="button" onClick={() => setKeputusanData({...keputusanData, mengingat: [...keputusanData.mengingat, '']})} className="text-[10px] font-black text-blue-600 flex items-center gap-1 uppercase">
+                                            <Plus size={12} /> Tambah
+                                        </button>
+                                    </div>
+                                    {keputusanData.mengingat.map((item, idx) => (
+                                        <div key={idx} className="flex gap-2">
+                                            <div className="w-8 h-8 rounded bg-white border border-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600 shrink-0">{idx + 1}</div>
+                                            <textarea 
+                                                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
+                                                placeholder="Anggaran Dasar Yayasan..."
+                                                rows={2}
+                                                value={item}
+                                                onChange={(e) => {
+                                                    const newList = [...keputusanData.mengingat];
+                                                    newList[idx] = e.target.value;
+                                                    setKeputusanData({...keputusanData, mengingat: newList});
+                                                }}
+                                            />
+                                            {keputusanData.mengingat.length > 1 && (
+                                                <button type="button" onClick={() => setKeputusanData({...keputusanData, mengingat: keputusanData.mengingat.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Menetapkan */}
+                                <div className="space-y-3 pt-4 border-t border-amber-100/50">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Menetapkan (Diktum)</label>
+                                        <button type="button" onClick={() => {
+                                            const dictums = ["PERTAMA", "KEDUA", "KETIGA", "KEEMPAT", "KELIMA", "KEENAM", "KETUJUH", "KEDELAPAN", "KESEMBILAN", "KESEPULUH"];
+                                            const nextLabel = dictums[keputusanData.menetapkan.length] || `POIN ${keputusanData.menetapkan.length + 1}`;
+                                            setKeputusanData({...keputusanData, menetapkan: [...keputusanData.menetapkan, { label: nextLabel, text: '' }]});
+                                        }} className="text-[10px] font-black text-blue-600 flex items-center gap-1 uppercase">
+                                            <Plus size={12} /> Tambah Diktum
+                                        </button>
+                                    </div>
+                                    {keputusanData.menetapkan.map((item, idx) => (
+                                        <div key={idx} className="bg-white/50 rounded-xl p-3 border border-amber-50 space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <input 
+                                                    className="bg-transparent border-none outline-none text-[10px] font-black text-amber-600 uppercase tracking-widest w-24"
+                                                    value={item.label}
+                                                    onChange={(e) => {
+                                                        const newList = [...keputusanData.menetapkan];
+                                                        newList[idx].label = e.target.value;
+                                                        setKeputusanData({...keputusanData, menetapkan: newList});
+                                                    }}
+                                                />
+                                                {keputusanData.menetapkan.length > 1 && (
+                                                    <button type="button" onClick={() => setKeputusanData({...keputusanData, menetapkan: keputusanData.menetapkan.filter((_, i) => i !== idx)})} className="text-red-400 hover:text-red-600">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <textarea 
+                                                className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
+                                                placeholder="Isi penetapan..."
+                                                rows={3}
+                                                value={item.text}
+                                                onChange={(e) => {
+                                                    const newList = [...keputusanData.menetapkan];
+                                                    newList[idx].text = e.target.value;
+                                                    setKeputusanData({...keputusanData, menetapkan: newList});
+                                                }}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Tembusan */}
+                                <div className="space-y-3 pt-4 border-t border-amber-100/50">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tembusan</label>
+                                        <button type="button" onClick={() => setKeputusanData({...keputusanData, tembusan: [...keputusanData.tembusan, '']})} className="text-[10px] font-black text-blue-600 flex items-center gap-1 uppercase">
+                                            <Plus size={12} /> Tambah
+                                        </button>
+                                    </div>
+                                    {keputusanData.tembusan.map((item, idx) => (
+                                        <div key={idx} className="flex gap-2">
+                                            <input 
+                                                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
+                                                placeholder="Contoh: Ketua Yayasan..."
+                                                value={item}
+                                                onChange={(e) => {
+                                                    const newList = [...keputusanData.tembusan];
+                                                    newList[idx] = e.target.value;
+                                                    setKeputusanData({...keputusanData, tembusan: newList});
+                                                }}
+                                            />
+                                            {keputusanData.tembusan.length > 1 && (
+                                                <button type="button" onClick={() => setKeputusanData({...keputusanData, tembusan: keputusanData.tembusan.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         )}
+
 
                         {formData.category === 'Tugas' && (
                             <div className="col-span-full space-y-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
