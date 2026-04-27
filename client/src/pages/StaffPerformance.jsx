@@ -1864,14 +1864,35 @@ const UpdateProgresModal = ({ open, onClose, onSubmit, submitting, assignment })
     const [percentage, setPercentage] = useState(0);
     const [note, setNote] = useState('');
     const [photos, setPhotos] = useState([]);
+    const [subItems, setSubItems] = useState([]);
 
     useEffect(() => {
         if (open && assignment) {
             setPercentage(assignment.progressPercentage || 0);
             setNote('');
             setPhotos([]);
+            
+            let parsedSubItems = [];
+            if (Array.isArray(assignment.items)) {
+                parsedSubItems = assignment.items;
+            } else if (typeof assignment.items === 'string') {
+                try {
+                    const parsed = JSON.parse(assignment.items);
+                    if (Array.isArray(parsed)) parsedSubItems = parsed;
+                } catch (e) {}
+            }
+            // Ensure every sub-item has a percentage field
+            setSubItems(parsedSubItems.map(item => ({ ...item, percentage: item.percentage || (item.isDone ? 100 : 0) })));
         }
     }, [open, assignment]);
+
+    const handleSubItemChange = (idx, newPct) => {
+        const val = Math.min(100, Math.max(0, parseInt(newPct) || 0));
+        const newItems = [...subItems];
+        newItems[idx].percentage = val;
+        newItems[idx].isDone = val === 100;
+        setSubItems(newItems);
+    };
 
     const handlePhotoUpload = (e) => {
         const files = Array.from(e.target.files);
@@ -1913,33 +1934,33 @@ const UpdateProgresModal = ({ open, onClose, onSubmit, submitting, assignment })
             }
         }
 
+        // Calculate overall percentage
+        let finalPercentage = parseInt(percentage) || 0;
+        let finalStatus = finalPercentage === 100 ? 'COMPLETED' : 'IN_PROGRESS';
+        
+        if (subItems.length > 0) {
+            finalPercentage = Math.round(subItems.reduce((acc, curr) => acc + curr.percentage, 0) / subItems.length);
+            const allDone = subItems.every(i => i.isDone || i.percentage === 100);
+            finalStatus = allDone ? 'COMPLETED' : (finalPercentage > 0 ? 'IN_PROGRESS' : 'PENDING');
+        }
+
         // Add new history entry
         parsedNotes.history.push({
             date: new Date().toISOString(),
-            percentage: parseInt(percentage),
+            percentage: finalPercentage,
             note: note.trim(),
             photos
         });
 
         onSubmit(assignment.id, {
-            progressPercentage: parseInt(percentage),
-            status: parseInt(percentage) === 100 ? 'COMPLETED' : 'IN_PROGRESS',
-            notes: JSON.stringify(parsedNotes)
+            progressPercentage: finalPercentage,
+            status: finalStatus,
+            notes: JSON.stringify(parsedNotes),
+            items: subItems.length > 0 ? subItems : undefined
         });
     };
 
     if (!assignment) return null;
-
-    // Robust parsing of sub-items
-    let subItems = [];
-    if (Array.isArray(assignment.items)) {
-        subItems = assignment.items;
-    } else if (typeof assignment.items === 'string') {
-        try {
-            const parsed = JSON.parse(assignment.items);
-            if (Array.isArray(parsed)) subItems = parsed;
-        } catch (e) {}
-    }
 
     return (
         <Modal open={open} onClose={onClose} title="Update Progres Penugasan" icon={TrendingUp}>
@@ -1948,33 +1969,37 @@ const UpdateProgresModal = ({ open, onClose, onSubmit, submitting, assignment })
                     <h3 className="text-sm font-black text-slate-800 uppercase italic mb-1">{assignment.title}</h3>
                     <p className="text-[10px] font-bold text-slate-400 mb-3">Progres saat ini: {assignment.progressPercentage || 0}%</p>
                     {subItems.length > 0 && (
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1.5 mb-4 max-h-32 overflow-y-auto no-scrollbar">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Sub Item Pekerjaan:</p>
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-3 mb-4 max-h-48 overflow-y-auto no-scrollbar">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Update Persentase Sub Item:</p>
                             {subItems.map((item, idx) => (
-                                <div key={idx} className="flex items-start justify-between gap-2 text-xs font-bold text-slate-600">
-                                    <div className="flex items-start gap-2 flex-1">
-                                        <div className="mt-0.5 text-slate-400">
-                                            {(item.isDone || item.percentage === 100) ? <CheckSquare size={14} className="text-emerald-500" /> : <Square size={14} />}
+                                <div key={idx} className="flex items-center justify-between gap-3 text-xs font-bold text-slate-600 bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
+                                    <div className="flex items-center gap-2 flex-1">
+                                        <div className="text-slate-400">
+                                            {(item.isDone || item.percentage === 100) ? <CheckSquare size={16} className="text-emerald-500" /> : <Square size={16} />}
                                         </div>
                                         <span className={(item.isDone || item.percentage === 100) ? 'line-through text-slate-400' : ''}>{item.text}</span>
                                     </div>
-                                    <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-md shadow-sm shrink-0">
-                                        {item.percentage || 0}%
-                                    </span>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        <input type="number" min="0" max="100" value={item.percentage} onChange={e => handleSubItemChange(idx, e.target.value === '' ? '' : e.target.value)}
+                                            className="w-16 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-sm font-black text-indigo-700 focus:ring-2 focus:ring-indigo-200 outline-none text-center" />
+                                        <span className="text-[10px] font-black text-slate-400">%</span>
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     )}
                 </div>
 
-                <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex justify-between">
-                        <span>Persentase Pekerjaan Baru (%)</span>
-                    </label>
-                    <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value === '' ? '' : Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-black text-indigo-700 focus:ring-2 focus:ring-indigo-200 outline-none text-center"
-                        placeholder="Contoh: 50" required />
-                </div>
+                {subItems.length === 0 && (
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex justify-between">
+                            <span>Persentase Pekerjaan Baru (%)</span>
+                        </label>
+                        <input type="number" min="0" max="100" value={percentage} onChange={e => setPercentage(e.target.value === '' ? '' : Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-black text-indigo-700 focus:ring-2 focus:ring-indigo-200 outline-none text-center"
+                            placeholder="Contoh: 50" required />
+                    </div>
+                )}
 
                 <div>
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📝 Detail Pekerjaan / Catatan</label>
