@@ -5,6 +5,7 @@ const { verifyToken, authorizeRole, authorizeSarprasAdmin } = require('../middle
 
 router.get('/', verifyToken, userController.getAllUsers);
 router.get('/staff', verifyToken, authorizeSarprasAdmin(), userController.getSarprasStaff);
+router.get('/unit-admins', verifyToken, userController.getUnitAdmins);
 router.get('/profile', verifyToken, userController.getProfile);
 router.put('/profile', verifyToken, userController.updateProfile);
 router.post('/', verifyToken, authorizeRole(['SUPER_ADMIN']), userController.createUser);

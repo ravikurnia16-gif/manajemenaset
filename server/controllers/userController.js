@@ -172,6 +172,28 @@ exports.updateProfile = async (req, res) => {
     }
 };
 
+exports.getUnitAdmins = async (req, res) => {
+    try {
+        const staff = await prisma.user.findMany({
+            where: {
+                role: 'ADMIN_UNIT'
+            },
+            select: { 
+                id: true, 
+                name: true, 
+                username: true, 
+                position: true,
+                phone: true,
+                unit: { select: { name: true, address: true } }
+            },
+            orderBy: { name: 'asc' }
+        });
+        res.json(staff);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.getSarprasStaff = async (req, res) => {
     try {
         const staff = await prisma.user.findMany({

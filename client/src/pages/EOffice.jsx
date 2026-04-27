@@ -719,14 +719,18 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     const [recipientType, setRecipientType] = useState('external');
 
     useEffect(() => {
-        if (isOpen && (formData.category === 'Tugas' || formData.type === 'INVOICE')) {
-            fetchStaff();
+        if (isOpen) {
+            if (formData.category === 'Tugas') {
+                fetchStaff('/users/staff');
+            } else if (formData.type === 'INVOICE') {
+                fetchStaff('/users/unit-admins');
+            }
         }
     }, [isOpen, formData.category, formData.type]);
 
-    const fetchStaff = async () => {
+    const fetchStaff = async (endpoint = '/users/staff') => {
         try {
-            const res = await api.get('/users/staff');
+            const res = await api.get(endpoint);
             setStaffList(res.data);
         } catch (err) {
             console.error('Failed to fetch staff:', err);
