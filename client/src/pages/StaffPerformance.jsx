@@ -1930,16 +1930,27 @@ const UpdateProgresModal = ({ open, onClose, onSubmit, submitting, assignment })
 
     if (!assignment) return null;
 
+    // Robust parsing of sub-items
+    let subItems = [];
+    if (Array.isArray(assignment.items)) {
+        subItems = assignment.items;
+    } else if (typeof assignment.items === 'string') {
+        try {
+            const parsed = JSON.parse(assignment.items);
+            if (Array.isArray(parsed)) subItems = parsed;
+        } catch (e) {}
+    }
+
     return (
         <Modal open={open} onClose={onClose} title="Update Progres Penugasan" icon={TrendingUp}>
             <form onSubmit={submit} className="space-y-6">
                 <div>
                     <h3 className="text-sm font-black text-slate-800 uppercase italic mb-1">{assignment.title}</h3>
                     <p className="text-[10px] font-bold text-slate-400 mb-3">Progres saat ini: {assignment.progressPercentage || 0}%</p>
-                    {Array.isArray(assignment.items) && assignment.items.length > 0 && (
+                    {subItems.length > 0 && (
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1.5 mb-4 max-h-32 overflow-y-auto no-scrollbar">
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Sub Item Pekerjaan:</p>
-                            {assignment.items.map((item, idx) => (
+                            {subItems.map((item, idx) => (
                                 <div key={idx} className="flex items-start gap-2 text-xs font-bold text-slate-600">
                                     <div className="mt-0.5 text-slate-400">
                                         {(item.isDone || item.percentage === 100) ? <CheckSquare size={14} className="text-emerald-500" /> : <Square size={14} />}
