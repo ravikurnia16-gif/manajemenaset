@@ -1188,10 +1188,10 @@ async function generateSuratEdaranPDF(doc, setting) {
     page.drawText("Ditetapkan di: Padang", { x: sigX, y, size: 10, font: fontRegular });
     y -= 14;
     page.drawText(`Pada tanggal: ${doc.signedAt ? formatDate(doc.signedAt) : formatDate(new Date())}`, { x: sigX, y, size: 10, font: fontRegular });
-    y -= 25;
+    y -= 18;
 
     page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarpras', { x: sigX, y, size: 10, font: fontBold });
-    y -= 75;
+    y -= 50;
 
     await drawDigitalSignature(page, doc, sigX, y, 60);
     y -= 15;
@@ -1350,10 +1350,10 @@ async function generateKeputusanPDF(doc, setting) {
     page.drawText("Ditetapkan di: Padang", { x: sigX, y, size: 10, font: fontRegular });
     y -= 14;
     page.drawText(`Pada tanggal: ${doc.signedAt ? formatDate(doc.signedAt) : formatDate(new Date())}`, { x: sigX, y, size: 10, font: fontRegular });
-    y -= 25;
+    y -= 18;
 
     page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarpras', { x: sigX, y, size: 10, font: fontBold });
-    y -= 75;
+    y -= 50;
 
     await drawDigitalSignature(page, doc, sigX, y, 60);
     y -= 15;
@@ -1526,12 +1526,12 @@ async function generatePemberitahuanPDF(doc, setting) {
     // Salam Penutup + Signature block
     checkPage(180);
     page.drawText("Wassalamu'alaikum Warahmatullahi Wabarakatuh.", { x: margin, y, size: 11, font: fontItalic });
-    y -= 30;
+    y -= 20;
 
     // Signature block
     const sigX = width - 250;
     page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana dan Prasarana,', { x: sigX, y, size: 10, font: fontBold });
-    y -= 75;
+    y -= 50;
 
     await drawDigitalSignature(page, doc, sigX, y, 60);
     y -= 15;
