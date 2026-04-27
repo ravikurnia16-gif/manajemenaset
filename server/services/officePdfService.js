@@ -170,6 +170,29 @@ async function createBasePDF() {
 }
 
 /**
+ * Helper to wrap text into multiple lines
+ */
+function wrapText(text, maxWidth, font, size) {
+    if (!text) return [];
+    const words = text.split(' ');
+    let lines = [];
+    let currentLine = words[0];
+
+    for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const width = font.widthOfTextAtSize(currentLine + " " + word, size);
+        if (width < maxWidth) {
+            currentLine += " " + word;
+        } else {
+            lines.push(currentLine);
+            currentLine = word;
+        }
+    }
+    lines.push(currentLine);
+    return lines;
+}
+
+/**
  * Helper to draw justified text within a specified width
  */
 function drawJustifiedText(page, text, x, y, maxWidth, size, font) {
