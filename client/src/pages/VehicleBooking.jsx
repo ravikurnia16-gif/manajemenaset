@@ -1437,11 +1437,11 @@ const VehicleBooking = () => {
                                                         <LogOut size={16} /> End Trip
                                                     </button>
                                                 )}
-                                                {b.status === 'PENDING' && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
+                                                {['PENDING', 'APPROVED'].includes(b.status) && !b.startKm && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
                                                     <button
                                                         disabled={submitting}
                                                         onClick={() => handleCancel(b.id)}
-                                                        className="flex-1 py-2.5 bg-white border border-red-100 text-red-500 rounded-xl text-xs font-bold hover:bg-red-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                                        className={`flex-1 py-2.5 ${b.status === 'APPROVED' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-white border border-red-100 text-red-500'} rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50`}
                                                     >
                                                         <Trash2 size={16} /> Batalkan
                                                     </button>
@@ -1537,13 +1537,15 @@ const VehicleBooking = () => {
                                                                     <LogOut size={14} /> End Trip
                                                                 </button>
                                                             )}
-                                                            {b.status === 'PENDING' && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
+                                                            {['PENDING', 'APPROVED'].includes(b.status) && !b.startKm && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
                                                                 <button
                                                                     disabled={submitting}
                                                                     onClick={() => handleCancel(b.id)}
-                                                                    className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                                                                    className={`p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 ${b.status === 'APPROVED' ? 'border border-red-100 px-2' : ''}`}
+                                                                    title="Batalkan Peminjaman"
                                                                 >
                                                                     <Trash2 size={18} />
+                                                                    {b.status === 'APPROVED' && <span className="text-[10px] font-bold">Batal</span>}
                                                                 </button>
                                                             )}
                                                             <button
