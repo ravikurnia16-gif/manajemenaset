@@ -1187,6 +1187,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Jatuh Tempo</label>
                                     <input 
+                                        required
                                         type="date"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold text-red-600"
                                         value={invoiceData.dueDate}
