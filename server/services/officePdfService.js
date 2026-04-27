@@ -1082,7 +1082,7 @@ async function generateSuratEdaranPDF(doc, setting) {
     const title = "SURAT EDARAN";
     const titleWidth = fontBold.widthOfTextAtSize(title, 14);
     page.drawText(title, { x: (width - titleWidth) / 2, y, size: 14, font: fontBold });
-    y -= 5;
+    y -= 2;
     page.drawLine({ start: { x: (width - titleWidth) / 2, y }, end: { x: (width + titleWidth) / 2, y }, thickness: 1.5 });
     y -= 15;
 
