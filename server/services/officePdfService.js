@@ -1050,7 +1050,7 @@ async function generateSuratEdaranPDF(doc, setting) {
     };
 
     // Helper: draw justified paragraph
-    const drawJustified = (text, x, maxW, font, size = 11) => {
+    const drawJustified = (text, x, maxW, font, size = 11, reserveSpaceForLastLine = 0) => {
         const paragraphs = (text || '').split('\n');
         paragraphs.forEach(para => {
             const words = para.split(/\s+/).filter(w => w.length > 0);
@@ -1069,7 +1069,8 @@ async function generateSuratEdaranPDF(doc, setting) {
             lines.push(currentLine);
 
             lines.forEach((lineWords, li) => {
-                checkPage(16);
+                const isLast = li === lines.length - 1;
+                checkPage(16 + (isLast ? reserveSpaceForLastLine : 0));
                 const isLast = li === lines.length - 1;
                 if (isLast || lineWords.length <= 1) {
                     page.drawText(lineWords.join(' '), { x, y, size, font });
@@ -1125,7 +1126,7 @@ async function generateSuratEdaranPDF(doc, setting) {
     y -= 25;
 
     // Content Parsing
-    let content = { background: '', points: [] };
+    let content = { background: '', points: [], penutup: '' };
     try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
 
     // 1. Latar Belakang (justified)
@@ -1172,16 +1173,16 @@ async function generateSuratEdaranPDF(doc, setting) {
     });
     y -= 10;
 
-    // 3. Penutup + Signature block — keep together on same page
-    // Penutup needs ~40px, signature needs ~110px = ~150px total
-    checkPage(150);
+    // 3. Penutup
+    checkPage(30);
     page.drawText("3. Penutup", { x: margin, y, size: 11, font: fontBold });
     y -= 15;
     const closing = "Demikian surat edaran ini disampaikan untuk diketahui dan dilaksanakan sebagaimana mestinya. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.";
-    drawJustified(closing, margin, contentWidth, fontRegular, 11);
+    drawJustified(closing, margin, contentWidth, fontRegular, 11, 150);
     y -= 20;
 
     const sigX = width - 250;
+    checkPage(120); // Fallback for signature block
     page.drawText("Ditetapkan di: Padang", { x: sigX, y, size: 10, font: fontRegular });
     y -= 14;
     page.drawText(`Pada tanggal: ${doc.signedAt ? formatDate(doc.signedAt) : formatDate(new Date())}`, { x: sigX, y, size: 10, font: fontRegular });
@@ -1224,7 +1225,7 @@ async function generateKeputusanPDF(doc, setting) {
         }
     };
 
-    const drawJustified = (text, x, maxW, font, size = 11, lineSpacing = 1.4) => {
+    const drawJustified = (text, x, maxW, font, size = 11, lineSpacing = 1.4, reserveSpaceForLastLine = 0) => {
         const paragraphs = (text || '').split('\n');
         paragraphs.forEach(para => {
             const words = para.split(/\s+/).filter(w => w.length > 0);
@@ -1243,8 +1244,8 @@ async function generateKeputusanPDF(doc, setting) {
             lines.push(currentLine);
 
             lines.forEach((lineWords, li) => {
-                checkPage(size * lineSpacing + 2);
                 const isLast = li === lines.length - 1;
+                checkPage(size * lineSpacing + 2 + (isLast ? reserveSpaceForLastLine : 0));
                 if (isLast || lineWords.length <= 1) {
                     page.drawText(lineWords.join(' '), { x, y, size, font });
                 } else {
@@ -1333,11 +1334,12 @@ async function generateKeputusanPDF(doc, setting) {
     y -= 15;
 
     const menetapkan = content.menetapkan || [];
-    menetapkan.forEach((item) => {
+    menetapkan.forEach((item, idx) => {
+        const isLastItem = idx === menetapkan.length - 1;
         checkPage(30);
         page.drawText(`${item.label} :`, { x: margin + 30, y, size: 11, font: fontBold });
         y -= 15;
-        drawJustified(item.text, margin + 30, contentWidth - 30, fontRegular, 11);
+        drawJustified(item.text, margin + 30, contentWidth - 30, fontRegular, 11, 1.4, isLastItem ? 150 : 0);
         y -= 10;
     });
     y -= 20;
@@ -1401,7 +1403,7 @@ async function generatePemberitahuanPDF(doc, setting) {
         }
     };
 
-    const drawJustified = (text, x, maxW, font, size = 11, lineSpacing = 1.4) => {
+    const drawJustified = (text, x, maxW, font, size = 11, lineSpacing = 1.4, reserveSpaceForLastLine = 0) => {
         const paragraphs = (text || '').split('\n');
         paragraphs.forEach(para => {
             const words = para.split(/\s+/).filter(w => w.length > 0);
@@ -1420,8 +1422,8 @@ async function generatePemberitahuanPDF(doc, setting) {
             lines.push(currentLine);
 
             lines.forEach((lineWords, li) => {
-                checkPage(size * lineSpacing + 2);
                 const isLast = li === lines.length - 1;
+                checkPage(size * lineSpacing + 2 + (isLast ? reserveSpaceForLastLine : 0));
                 if (isLast || lineWords.length <= 1) {
                     page.drawText(lineWords.join(' '), { x, y, size, font });
                 } else {
