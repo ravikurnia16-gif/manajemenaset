@@ -1039,7 +1039,7 @@ async function generateSuratEdaranPDF(doc, setting) {
     const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
     const margin = 70;
     const contentWidth = width - margin * 2;
-    const bottomMargin = 80;
+    const bottomMargin = 60;
 
     const startY = await drawKopSurat(page, fontBold, fontRegular);
     let y = startY + 10;
@@ -1176,8 +1176,8 @@ async function generateSuratEdaranPDF(doc, setting) {
     y -= 10;
 
     // 3. Penutup + Signature block — keep together on same page
-    // Penutup needs ~60px, signature needs ~140px = ~200px total
-    checkPage(200);
+    // Penutup needs ~40px, signature needs ~110px = ~150px total
+    checkPage(150);
     page.drawText("3. Penutup", { x: margin, y, size: 11, font: fontBold });
     y -= 15;
     const closing = "Demikian surat edaran ini disampaikan untuk diketahui dan dilaksanakan sebagaimana mestinya. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.";
@@ -1214,7 +1214,7 @@ async function generateKeputusanPDF(doc, setting) {
     const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
     const margin = 70;
     const contentWidth = width - margin * 2;
-    const bottomMargin = 80;
+    const bottomMargin = 60;
 
     const startY = await drawKopSurat(page, fontBold, fontRegular);
     let y = startY - 10;
@@ -1390,7 +1390,7 @@ async function generatePemberitahuanPDF(doc, setting) {
     const fontItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
     const margin = 70;
     const contentWidth = width - margin * 2;
-    const bottomMargin = 80;
+    const bottomMargin = 60;
 
     const startY = await drawKopSurat(page, fontBold, fontRegular);
     let y = startY + 10;
@@ -1524,7 +1524,7 @@ async function generatePemberitahuanPDF(doc, setting) {
     }
 
     // Salam Penutup + Signature block
-    checkPage(180);
+    checkPage(130);
     page.drawText("Wassalamu'alaikum Warahmatullahi Wabarakatuh.", { x: margin, y, size: 11, font: fontItalic });
     y -= 20;
 
