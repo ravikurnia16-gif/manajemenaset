@@ -1175,16 +1175,14 @@ async function generateSuratEdaranPDF(doc, setting) {
     });
     y -= 10;
 
-    // 3. Penutup (justified)
-    checkPage(30);
+    // 3. Penutup + Signature block — keep together on same page
+    // Penutup needs ~60px, signature needs ~140px = ~200px total
+    checkPage(200);
     page.drawText("3. Penutup", { x: margin, y, size: 11, font: fontBold });
     y -= 15;
     const closing = "Demikian surat edaran ini disampaikan untuk diketahui dan dilaksanakan sebagaimana mestinya. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.";
     drawJustified(closing, margin, contentWidth, fontRegular, 11);
     y -= 20;
-
-    // === Signature block — ensure it fits on same page (needs ~130px) ===
-    checkPage(130);
 
     const sigX = width - 250;
     page.drawText("Ditetapkan di: Padang", { x: sigX, y, size: 10, font: fontRegular });
@@ -1525,13 +1523,12 @@ async function generatePemberitahuanPDF(doc, setting) {
         y -= 8;
     }
 
-    // Salam Penutup
-    checkPage(20);
+    // Salam Penutup + Signature block
+    checkPage(180);
     page.drawText("Wassalamu'alaikum Warahmatullahi Wabarakatuh.", { x: margin, y, size: 11, font: fontItalic });
     y -= 30;
 
     // Signature block
-    checkPage(130);
     const sigX = width - 250;
     page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana dan Prasarana,', { x: sigX, y, size: 10, font: fontBold });
     y -= 75;
