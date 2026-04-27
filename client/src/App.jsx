@@ -68,6 +68,10 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role);
+  const isStaffSarpras = isGlobalAdmin || user.unit?.name?.toLowerCase().includes('sarana dan prasarana');
+
   return (
     <BrowserRouter>
       <Routes>
@@ -149,8 +153,12 @@ function App() {
           <Route path="laporan" element={<ReportPage />} />
 
           {/* Module: E-Office */}
-          <Route path="e-office" element={<EOffice />} />
-          <Route path="e-office/:tab" element={<EOffice />} />
+          <Route path="e-office" element={
+            isStaffSarpras ? <EOffice /> : <Navigate to="/dashboard" />
+          } />
+          <Route path="e-office/:tab" element={
+            isStaffSarpras ? <EOffice /> : <Navigate to="/dashboard" />
+          } />
 
 
           <Route path="*" element={<div className="p-8 text-center text-slate-500">Feature Under Development</div>} />

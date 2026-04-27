@@ -1,13 +1,14 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/officeDocumentController');
-const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
+const { verifyToken, authorizeRole, authorizeEOfficeAccess } = require('../middleware/authMiddleware');
 const { handleUpload } = require('../middleware/uploadMiddleware');
 
 // Public verification endpoint (no auth needed)
 router.get('/verify/:uuid', ctrl.verifyDocument);
 
-// All other routes require authentication
+// All other routes require authentication and Sarpras/Admin access
 router.use(verifyToken);
+router.use(authorizeEOfficeAccess());
 
 // Statistics
 router.get('/stats', ctrl.getStats);

@@ -19,9 +19,7 @@ const CATEGORY_CODES = {
     'Edaran': 'SE',
     'Rekomendasi': 'RK',
     'Pengumuman': 'PGM',
-    'Berita Acara': 'BA',
     'BAST': 'BA',
-    'Serah Terima Barang': 'BA',
     'MOU': 'MOU',
     'Lainnya': 'UM',
 };
@@ -52,6 +50,8 @@ async function generateDocumentNumber(category, type) {
         catCode = 'MOU';
     } else if (type === 'SURAT_PESANAN') {
         catCode = 'PO';
+    } else if (type === 'INVOICE') {
+        catCode = 'INV';
     } else {
         catCode = CATEGORY_CODES[category] || 'UM';
     }

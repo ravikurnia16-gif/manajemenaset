@@ -51,7 +51,7 @@ const EOffice = () => {
             setFormData(prev => ({
                 ...prev,
                 type: s.type || 'SURAT_KELUAR',
-                category: s.category || 'Serah Terima Barang',
+                category: s.category || 'BAST',
                 subject: s.subject || '',
                 party1Name: s.party1Name || '',
                 party1Title: s.party1Title || '',
@@ -363,7 +363,7 @@ const EOffice = () => {
 
                         <div className="space-y-4">
                             <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Isi Dokumen / Rincian</label>
-                            {['BAST', 'SURAT_KELUAR'].includes(viewingDoc.type) && ['Berita Acara', 'Serah Terima Barang'].includes(viewingDoc.category) ? (
+                            {['BAST', 'SURAT_KELUAR'].includes(viewingDoc.type) && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(viewingDoc.category) ? (
                                 <div className="border border-slate-200 rounded-xl overflow-hidden">
                                     <table className="w-full text-left border-collapse text-sm">
                                         <thead className="bg-slate-50 text-slate-600 font-bold">
@@ -501,7 +501,7 @@ const EOffice = () => {
                             )}
                             
                             {/* Multi-party signing: Pihak 2 (Pad) button */}
-                            {(['BAST', 'MOU'].includes(viewingDoc.type) || (viewingDoc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(viewingDoc.category))) && (
+                            {(['BAST', 'MOU'].includes(viewingDoc.type) || (viewingDoc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(viewingDoc.category))) && (
                                 <>
                                     {!viewingDoc.party2Signature && (
                                         <button 
@@ -809,7 +809,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     payload.append('file', file);
                 }
                 config = { headers: { 'Content-Type': 'multipart/form-data' } };
-            } else if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(formData.category))) {
+            } else if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) {
                 payload = { ...formData, content: JSON.stringify(bastItems) };
             } else if (formData.category === 'Pesanan') {
                 payload = { ...formData, type: 'SURAT_PESANAN', content: JSON.stringify(purchasingItems) };
@@ -867,7 +867,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             <div className="col-span-full bg-blue-50/50 p-6 rounded-2xl border border-blue-100 mb-2">
                                 <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 block">1. Pilih Kategori Surat Keluar</label>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                    {['Undangan', 'Tugas', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'Berita Acara', 'Serah Terima Barang', 'Pesanan', 'Edaran', 'Lainnya'].map(c => (
+                                    {['Undangan', 'Tugas', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'BAST', 'Pesanan', 'Edaran', 'Lainnya'].map(c => (
                                         <button
                                             key={c}
                                             type="button"
@@ -984,7 +984,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {(['BAST', 'MOU'].includes(formData.type) || ['Berita Acara', 'Serah Terima Barang'].includes(formData.category)) && (
+                        {(['BAST', 'MOU'].includes(formData.type) || ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category)) && (
                             <div className="col-span-full">
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Daftar Barang Serah Terima</label>

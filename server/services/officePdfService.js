@@ -301,7 +301,7 @@ async function generateBASTMouPDF(doc, setting) {
     let y = startY;
 
     // Judul
-    const isBAST = doc.type === 'BAST' || (doc.type === 'SURAT_KELUAR' && (doc.category === 'Serah Terima Barang' || doc.category === 'Berita Acara'));
+    const isBAST = doc.type === 'BAST' || (doc.type === 'SURAT_KELUAR' && (doc.category === 'Serah Terima Barang' || doc.category === 'Berita Acara' || doc.category === 'BAST'));
     const title = isBAST ? 'BERITA ACARA SERAH TERIMA' : 'MEMORANDUM OF UNDERSTANDING';
     const titleWidth = fontBold.widthOfTextAtSize(title, 14);
     page.drawText(title, { x: (width - titleWidth) / 2, y, size: 14, font: fontBold });

@@ -47,3 +47,18 @@ exports.authorizeSarprasAdmin = () => {
         next();
     };
 };
+
+exports.authorizeEOfficeAccess = () => {
+    return (req, res, next) => {
+        const role = req.user.role;
+        const pos = (req.user.position || '').toLowerCase();
+        
+        const isSuperAdmin = role === 'SUPER_ADMIN';
+        const isSarprasDivision = role === 'KABID_SARPRAS' || pos.includes('sarpras');
+
+        if (!isSuperAdmin && !isSarprasDivision) {
+            return res.status(403).json({ error: 'Akses E-Office hanya untuk Staff Sarpras dan Super Admin' });
+        }
+        next();
+    };
+};

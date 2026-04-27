@@ -52,6 +52,8 @@ const Sidebar = ({ isOpen = true }) => {
     const isKabidSarpras = user?.position?.toLowerCase().includes('kepala bidang') && 
                            user?.position?.toLowerCase().includes('sarana dan prasarana');
 
+    const isStaffSarpras = isGlobalAdmin || user.unit?.name?.toLowerCase().includes('sarana dan prasarana');
+
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">
             <button
@@ -239,9 +241,11 @@ const Sidebar = ({ isOpen = true }) => {
 
 
                 {/* 5. E-Office (Document Management) */}
-                <Link to="/e-office" className={navItemClass('/e-office')}>
-                    <FileSignature size={18} /> E-Office
-                </Link>
+                {isStaffSarpras && (
+                    <Link to="/e-office" className={navItemClass('/e-office')}>
+                        <FileSignature size={18} /> E-Office
+                    </Link>
+                )}
 
                 {/* System & Settings */}
                 <div className="pt-4 mt-2 border-t border-slate-800">
