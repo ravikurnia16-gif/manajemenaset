@@ -1970,7 +1970,6 @@ const UpdateProgresModal = ({ open, onClose, onSubmit, submitting, assignment })
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-black text-indigo-700 focus:ring-2 focus:ring-indigo-200 outline-none text-center"
                         placeholder="Contoh: 50" required />
                 </div>
-                </div>
 
                 <div>
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">📝 Detail Pekerjaan / Catatan</label>
