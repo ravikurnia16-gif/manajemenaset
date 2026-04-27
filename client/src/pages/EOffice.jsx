@@ -145,10 +145,11 @@ const EOffice = () => {
 
     const DashboardView = () => (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <StatCard title="Surat Masuk" value={stats?.totalIncoming || 0} icon={<Inbox className="text-blue-500" size={22} />} color="blue" />
                 <StatCard title="Surat Keluar" value={stats?.totalOutgoing || 0} icon={<Send className="text-emerald-500" size={22} />} color="emerald" />
-                <StatCard title="Menunggu TTE" value={stats?.pendingApproval || 0} icon={<Clock className="text-amber-500" size={22} />} color="amber" />
+                <StatCard title="Invoice" value={stats?.totalInvoices || 0} icon={<FileText className="text-amber-500" size={22} />} color="amber" />
+                <StatCard title="Menunggu TTE" value={stats?.pendingApproval || 0} icon={<Clock className="text-rose-500" size={22} />} color="rose" />
                 <StatCard title="Signed Bulan Ini" value={stats?.signedThisMonth || 0} icon={<CheckCircle2 className="text-indigo-500" size={22} />} color="indigo" />
             </div>
 

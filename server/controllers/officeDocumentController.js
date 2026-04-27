@@ -575,15 +575,17 @@ exports.getStats = async (req, res) => {
 
         const [
             totalIncoming,
+            totalInvoices,
             totalOutgoing,
             pendingApproval,
             signedThisMonth,
             recentDocuments,
         ] = await Promise.all([
             prisma.officeDocument.count({ where: { type: 'SURAT_MASUK' } }),
+            prisma.officeDocument.count({ where: { type: 'INVOICE' } }),
             prisma.officeDocument.count({ 
                 where: { 
-                    type: { not: 'SURAT_MASUK' } 
+                    type: { notIn: ['SURAT_MASUK', 'INVOICE'] } 
                 } 
             }),
             prisma.officeDocument.count({ where: { status: 'PENDING_APPROVAL' } }),
@@ -598,12 +600,14 @@ exports.getStats = async (req, res) => {
                 orderBy: { updatedAt: 'desc' },
                 include: {
                     author: { select: { id: true, name: true } },
+                    signedBy: { select: { id: true, name: true } },
                 },
             }),
         ]);
 
         res.json({
             totalIncoming,
+            totalInvoices,
             totalOutgoing,
             pendingApproval,
             signedThisMonth,
