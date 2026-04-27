@@ -1,7 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { generateDocumentNumber, getCategoryCodes } = require('../services/documentNumberingService');
-const { generateVerificationQR, generateSuratPDF, generateBASTMouPDF, generateSuratTugasPDF, generateSuratPesananPDF, generateInvoicePDF } = require('../services/officePdfService');
+const { generateVerificationQR, generateSuratPDF, generateBASTMouPDF, generateSuratTugasPDF, generateSuratPesananPDF, generateInvoicePDF, generateSuratEdaranPDF } = require('../services/officePdfService');
 const crypto = require('crypto');
 
 // ==================== SURAT MASUK ====================
