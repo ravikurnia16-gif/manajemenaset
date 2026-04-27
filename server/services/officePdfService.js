@@ -812,9 +812,9 @@ async function generateSuratPesananPDF(doc) {
 
 async function generateInvoicePDF(doc, setting) {
     const pdfDoc = await PDFDocument.create();
-    // A5 Size (Setengah A4) - Portrait
-    // A4 is [595.28, 841.89] -> A5 is [420.94, 595.28]
-    const page = pdfDoc.addPage([420.94, 595.28]);
+    // A5 Size (Setengah A4) - Landscape (Wide)
+    // A4 is [595.28, 841.89] -> A5 is [595.28, 420.94]
+    const page = pdfDoc.addPage([595.28, 420.94]);
     const { width, height } = page.getSize();
 
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
@@ -854,10 +854,10 @@ async function generateInvoicePDF(doc, setting) {
     // Table Header
     const cols = {
         no: margin,
-        desc: margin + 25,
-        qty: margin + 185,
-        price: margin + 225,
-        total: margin + 285
+        desc: margin + 30,
+        qty: margin + 280,
+        price: margin + 330,
+        total: margin + 440
     };
     
     page.drawRectangle({ x: margin, y: y - 5, width: width - margin * 2, height: 20, color: rgb(0.95, 0.96, 0.98) });
@@ -904,7 +904,7 @@ async function generateInvoicePDF(doc, setting) {
     page.drawLine({ start: { x: margin, y: y + 5 }, end: { x: width - margin, y: y + 5 }, thickness: 1, color: rgb(0.1, 0.3, 0.7) });
     
     // Grand Total
-    page.drawText('TOTAL PEMBAYARAN', { x: cols.price - 60, y: y - 5, size: 10, font: fontBold });
+    page.drawText('TOTAL PEMBAYARAN', { x: cols.total - 120, y: y - 5, size: 10, font: fontBold });
     page.drawText(`Rp ${grandTotal.toLocaleString('id-ID')}`, { x: cols.total + 5, y: y - 5, size: 12, font: fontBold, color: rgb(0.1, 0.3, 0.7) });
     
     y -= 50;
