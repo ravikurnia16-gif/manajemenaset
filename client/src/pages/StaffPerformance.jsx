@@ -1022,7 +1022,7 @@ const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignm
                             const isOpen = expanded.includes(`task-${a.id}`);
                             const sc = statusCfg[a.status] || statusCfg.PENDING;
                             const pc = priorityCfg[a.priority] || priorityCfg.MEDIUM;
-                            const isAssignee = a.assigneeId === userId;
+                            const isAssignee = String(a.assigneeId) === String(userId);
                             return (
                                 <div key={a.id} className={`border-b border-slate-50 ${idx % 2 ? 'bg-slate-50/30' : ''} transition-all`}>
                                     <div className="p-4 md:p-5 flex items-center gap-4 cursor-pointer" onClick={() => toggle(`task-${a.id}`)}>
@@ -1041,7 +1041,7 @@ const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignm
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            {a.status !== 'LIBUR' && a.status !== 'COMPLETED' && isAssignee && (
+                                            {a.status !== 'LIBUR' && a.status !== 'COMPLETED' && (isAssignee || isKabid) && (
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); setTaskToUpdate(a); setShowUpdateModal(true); }} 
                                                     className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 text-[10px] font-black text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl transition-all uppercase tracking-widest shadow-sm active:scale-95"
