@@ -1475,7 +1475,7 @@ async function generatePemberitahuanPDF(doc, setting) {
 
     // Fixed intro
     checkPage(30);
-    const introText = "Segala puji bagi Allah Subhaanahu wa Ta'ala, shalawat dan salam semoga tercurah kepada Nabi Muhammad Shallallahu 'alaihi wa sallam.";
+    const introText = "Segala puji bagi Allah Subhaanahu wa ta'aala yang senantiasa melimpahkan nikmat dan hidayah-Nya kepada kita semua. Shalawat dan salam atas Nabi Muhammad Shalallaahu 'alaihi wa sallam. Kami mendo'akan semoga Bapak/Ibu selalu berada dalam lindungan Allah Subhaanahu wa ta'aala, Amin.";
     drawJustified(introText, margin, contentWidth, fontRegular, 11);
     y -= 8;
 

@@ -628,7 +628,11 @@ const EOffice = () => {
                                                         <div className="text-sm font-black text-slate-900 leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
                                                     </div>
                                                     <div className="italic text-slate-500 text-[11px]">Assalamu'alaikum Warahmatullahi Wabarakatuh,</div>
-                                                    {data.pembukaan && <div className="text-slate-700 leading-relaxed">{data.pembukaan}</div>}
+                                                    <div className="text-slate-700 leading-relaxed">
+                                                        <div className="mb-2">Dengan hormat,</div>
+                                                        <div className="mb-4 text-justify">Segala puji bagi Allah <span className="italic">Subhaanahu wa ta'aala</span> yang senantiasa melimpahkan nikmat dan hidayah-Nya kepada kita semua. Shalawat dan salam atas Nabi Muhammad <span className="italic">Shalallaahu 'alaihi wa sallam</span>. Kami mendo'akan semoga Bapak/Ibu selalu berada dalam lindungan Allah <span className="italic">Subhaanahu wa ta'aala</span>, Amin.</div>
+                                                        {data.pembukaan}
+                                                    </div>
                                                     {data.points && data.points.filter(p => p).length > 0 && (
                                                         <div>
                                                             <div className="text-[10px] font-black text-green-700 uppercase tracking-widest mb-2">Poin-poin Penting</div>
