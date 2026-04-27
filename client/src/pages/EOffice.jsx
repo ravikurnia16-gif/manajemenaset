@@ -520,12 +520,27 @@ const EOffice = () => {
                                                                 <span className="w-5 h-5 rounded bg-amber-100 flex items-center justify-center text-[10px]">2</span> Ketentuan
                                                             </div>
                                                             <div className="space-y-3 pl-7">
-                                                                {(data.points || []).map((p, i) => (
-                                                                    <div key={i} className="flex gap-3 items-start">
-                                                                        <div className="text-[10px] font-bold text-slate-400 mt-0.5">{i+1}.</div>
-                                                                        <div className="text-xs text-slate-700 leading-relaxed">{p}</div>
-                                                                    </div>
-                                                                ))}
+                                                                {(data.points || []).map((p, i) => {
+                                                                    const pt = typeof p === 'string' ? { text: p, subs: [] } : p;
+                                                                    return (
+                                                                        <div key={i}>
+                                                                            <div className="flex gap-3 items-start">
+                                                                                <div className="text-[10px] font-bold text-slate-400 mt-0.5">{i+1}.</div>
+                                                                                <div className="text-xs text-slate-700 leading-relaxed">{pt.text}</div>
+                                                                            </div>
+                                                                            {pt.subs && pt.subs.filter(s => s).length > 0 && (
+                                                                                <div className="ml-8 mt-1 space-y-1">
+                                                                                    {pt.subs.filter(s => s).map((s, j) => (
+                                                                                        <div key={j} className="flex gap-2 items-start">
+                                                                                            <div className="text-[9px] font-bold text-slate-300 mt-0.5">{String.fromCharCode(97+j)}.</div>
+                                                                                            <div className="text-[11px] text-slate-500 leading-relaxed">{s}</div>
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -885,7 +900,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     });
     const [edaranData, setEdaranData] = useState({
         background: '',
-        points: [''],
+        points: [{ text: '', subs: [''] }],
     });
     const [recipientType, setRecipientType] = useState('external');
 
@@ -987,9 +1002,14 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             if (doc.category === 'Edaran' && doc.content) {
                 try {
                     const parsed = JSON.parse(doc.content);
+                    // Handle backward compatibility: old format was string[], new is {text,subs}[]
+                    let pts = parsed.points || [];
+                    if (pts.length > 0 && typeof pts[0] === 'string') {
+                        pts = pts.map(p => ({ text: p, subs: [''] }));
+                    }
                     setEdaranData({
                         background: parsed.background || '',
-                        points: parsed.points || [''],
+                        points: pts.length > 0 ? pts : [{ text: '', subs: [''] }],
                     });
                 } catch (e) {
                     console.error('Failed to parse Edaran content JSON', e);
@@ -1527,30 +1547,71 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         <div className="pt-4 border-t border-slate-100">
                                             <div className="flex items-center justify-between mb-2">
                                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">2. Ketentuan / Isi Edaran</label>
-                                                <button type="button" onClick={() => setEdaranData({...edaranData, points: [...edaranData.points, '']})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                                <button type="button" onClick={() => setEdaranData({...edaranData, points: [...edaranData.points, { text: '', subs: [''] }]})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
                                                     <Plus size={12} /> Tambah Poin
                                                 </button>
                                             </div>
-                                            <div className="space-y-3">
-                                                {edaranData.points.map((p, idx) => (
-                                                    <div key={idx} className="flex gap-2">
-                                                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 shrink-0">{idx + 1}</div>
-                                                        <textarea 
-                                                            className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
-                                                            placeholder={`Ketentuan poin ${idx + 1}...`}
-                                                            rows={2}
-                                                            value={p}
-                                                            onChange={(e) => {
-                                                                const newList = [...edaranData.points];
-                                                                newList[idx] = e.target.value;
-                                                                setEdaranData({...edaranData, points: newList});
-                                                            }}
-                                                        />
-                                                        {edaranData.points.length > 1 && (
-                                                            <button type="button" onClick={() => setEdaranData({...edaranData, points: edaranData.points.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        )}
+                                            <div className="space-y-4">
+                                                {edaranData.points.map((point, idx) => (
+                                                    <div key={idx} className="bg-white rounded-xl border border-slate-100 p-3 space-y-2">
+                                                        <div className="flex gap-2">
+                                                            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-[10px] font-bold text-blue-600 shrink-0">{idx + 1}</div>
+                                                            <textarea 
+                                                                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
+                                                                placeholder={`Ketentuan poin ${idx + 1}...`}
+                                                                rows={2}
+                                                                value={point.text}
+                                                                onChange={(e) => {
+                                                                    const newPoints = [...edaranData.points];
+                                                                    newPoints[idx] = { ...newPoints[idx], text: e.target.value };
+                                                                    setEdaranData({...edaranData, points: newPoints});
+                                                                }}
+                                                            />
+                                                            {edaranData.points.length > 1 && (
+                                                                <button type="button" onClick={() => setEdaranData({...edaranData, points: edaranData.points.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        {/* Sub-points */}
+                                                        <div className="ml-10 space-y-2">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Sub-ketentuan</span>
+                                                                <button type="button" onClick={() => {
+                                                                    const newPoints = [...edaranData.points];
+                                                                    newPoints[idx] = { ...newPoints[idx], subs: [...(newPoints[idx].subs || []), ''] };
+                                                                    setEdaranData({...edaranData, points: newPoints});
+                                                                }} className="text-[9px] font-bold text-blue-500 flex items-center gap-0.5">
+                                                                    <Plus size={10} /> Sub
+                                                                </button>
+                                                            </div>
+                                                            {(point.subs || ['']).map((sub, sIdx) => (
+                                                                <div key={sIdx} className="flex gap-2">
+                                                                    <div className="w-6 h-6 rounded bg-slate-50 flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0">{String.fromCharCode(97 + sIdx)}</div>
+                                                                    <input
+                                                                        className="flex-1 px-3 py-1.5 rounded-lg border border-slate-100 outline-none text-xs"
+                                                                        placeholder={`Sub-poin ${String.fromCharCode(97 + sIdx)}...`}
+                                                                        value={sub}
+                                                                        onChange={(e) => {
+                                                                            const newPoints = [...edaranData.points];
+                                                                            const newSubs = [...(newPoints[idx].subs || [])];
+                                                                            newSubs[sIdx] = e.target.value;
+                                                                            newPoints[idx] = { ...newPoints[idx], subs: newSubs };
+                                                                            setEdaranData({...edaranData, points: newPoints});
+                                                                        }}
+                                                                    />
+                                                                    {(point.subs || []).length > 1 && (
+                                                                        <button type="button" onClick={() => {
+                                                                            const newPoints = [...edaranData.points];
+                                                                            newPoints[idx] = { ...newPoints[idx], subs: newPoints[idx].subs.filter((_, i) => i !== sIdx) };
+                                                                            setEdaranData({...edaranData, points: newPoints});
+                                                                        }} className="p-1 text-red-400 hover:bg-red-50 rounded shrink-0">
+                                                                            <Trash2 size={12} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>

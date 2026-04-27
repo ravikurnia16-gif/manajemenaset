@@ -1021,13 +1021,62 @@ async function generateInvoicePDF(doc, setting) {
 }
 async function generateSuratEdaranPDF(doc, setting) {
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595.28, 841.89]);
-    const { width, height } = page.getSize();
+    let page = pdfDoc.addPage([595.28, 841.89]);
+    let { width, height } = page.getSize();
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
     const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    const margin = 70;
+    const contentWidth = width - margin * 2;
+    const bottomMargin = 80;
 
     const startY = await drawKopSurat(page, fontBold, fontRegular);
     let y = startY - 20;
+
+    // Helper: check if we need a new page
+    const checkPage = (needed = 30) => {
+        if (y - needed < bottomMargin) {
+            page = pdfDoc.addPage([595.28, 841.89]);
+            y = height - 60;
+        }
+    };
+
+    // Helper: draw justified paragraph
+    const drawJustified = (text, x, maxW, font, size = 11) => {
+        const paragraphs = (text || '').split('\n');
+        paragraphs.forEach(para => {
+            const words = para.split(/\s+/).filter(w => w.length > 0);
+            if (words.length === 0) { y -= 8; return; }
+            let lines = [];
+            let currentLine = [words[0]];
+            for (let i = 1; i < words.length; i++) {
+                const testLine = [...currentLine, words[i]].join(' ');
+                if (font.widthOfTextAtSize(testLine, size) > maxW) {
+                    lines.push(currentLine);
+                    currentLine = [words[i]];
+                } else {
+                    currentLine.push(words[i]);
+                }
+            }
+            lines.push(currentLine);
+
+            lines.forEach((lineWords, li) => {
+                checkPage(16);
+                const isLast = li === lines.length - 1;
+                if (isLast || lineWords.length <= 1) {
+                    page.drawText(lineWords.join(' '), { x, y, size, font });
+                } else {
+                    const totalW = lineWords.reduce((a, w) => a + font.widthOfTextAtSize(w, size), 0);
+                    const space = (maxW - totalW) / (lineWords.length - 1);
+                    let cx = x;
+                    lineWords.forEach(word => {
+                        page.drawText(word, { x: cx, y, size, font });
+                        cx += font.widthOfTextAtSize(word, size) + space;
+                    });
+                }
+                y -= 15;
+            });
+        });
+    };
 
     // Title
     const title = "SURAT EDARAN";
@@ -1049,8 +1098,8 @@ async function generateSuratEdaranPDF(doc, setting) {
     page.drawText(tentangLabel, { x: (width - tentangLabelWidth) / 2, y, size: 12, font: fontBold });
     y -= 15;
 
-    // Subject
-    const subjectLines = wrapText(doc.subject.toUpperCase(), width - 140, fontBold, 12);
+    // Subject (centered)
+    const subjectLines = wrapText((doc.subject || '').toUpperCase(), width - 140, fontBold, 12);
     subjectLines.forEach(line => {
         const lw = fontBold.widthOfTextAtSize(line, 12);
         page.drawText(line, { x: (width - lw) / 2, y, size: 12, font: fontBold });
@@ -1059,63 +1108,74 @@ async function generateSuratEdaranPDF(doc, setting) {
     y -= 25;
 
     // Recipient
-    page.drawText("Yth.", { x: 70, y, size: 11, font: fontBold });
+    page.drawText("Yth.", { x: margin, y, size: 11, font: fontBold });
     y -= 15;
-    page.drawText(doc.party2Name || ".......................................", { x: 70, y, size: 11, font: fontBold });
+    page.drawText(doc.party2Name || ".......................................", { x: margin, y, size: 11, font: fontBold });
     y -= 15;
-    page.drawText("di", { x: 70, y, size: 11, font: fontRegular });
+    page.drawText("di", { x: margin, y, size: 11, font: fontRegular });
     y -= 15;
-    page.drawText(doc.party2Address || "Tempat", { x: 70, y, size: 11, font: fontBold });
+    page.drawText(doc.party2Address || "Tempat", { x: margin, y, size: 11, font: fontBold });
     y -= 35;
 
     // Content Parsing
     let content = { background: '', points: [] };
     try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
 
-    // 1. Latar Belakang
-    page.drawText("1. Latar Belakang", { x: 70, y, size: 11, font: fontBold });
+    // 1. Latar Belakang (justified)
+    checkPage(30);
+    page.drawText("1. Latar Belakang", { x: margin, y, size: 11, font: fontBold });
     y -= 15;
-    const bgLines = wrapText(content.background || '-', width - 140, fontRegular, 11);
-    bgLines.forEach(line => {
-        page.drawText(line, { x: 70, y, size: 11, font: fontRegular });
-        y -= 14;
-    });
-    y -= 15;
+    drawJustified(content.background || '-', margin, contentWidth, fontRegular, 11);
+    y -= 10;
 
-    // 2. Ketentuan
-    page.drawText("2. Ketentuan", { x: 70, y, size: 11, font: fontBold });
+    // 2. Ketentuan (justified, with sub-points)
+    checkPage(30);
+    page.drawText("2. Ketentuan", { x: margin, y, size: 11, font: fontBold });
     y -= 15;
-    page.drawText("Melalui surat edaran ini, disampaikan bahwa:", { x: 70, y, size: 11, font: fontRegular });
-    y -= 15;
+    drawJustified("Melalui surat edaran ini, disampaikan bahwa:", margin, contentWidth, fontRegular, 11);
+    y -= 5;
 
     const points = content.points || [];
     points.forEach((p, idx) => {
-        const pLines = wrapText(p, width - 160, fontRegular, 11);
-        pLines.forEach((line, lineIdx) => {
-            if (lineIdx === 0) {
-                page.drawText(`${idx + 1}.`, { x: 80, y, size: 11, font: fontRegular });
-                page.drawText(line, { x: 100, y, size: 11, font: fontRegular });
-            } else {
-                page.drawText(line, { x: 100, y, size: 11, font: fontRegular });
-            }
-            y -= 14;
-        });
-        y -= 5;
+        // Handle both old string format and new {text, subs} format
+        const pt = typeof p === 'string' ? { text: p, subs: [] } : p;
+
+        checkPage(20);
+        // Draw point number
+        const numLabel = `${idx + 1}.`;
+        page.drawText(numLabel, { x: margin + 10, y, size: 11, font: fontRegular });
+        // Draw point text (justified, indented)
+        const pointX = margin + 30;
+        const pointW = contentWidth - 30;
+        drawJustified(pt.text || '', pointX, pointW, fontRegular, 11);
+
+        // Sub-points (a, b, c...)
+        const subs = (pt.subs || []).filter(s => s);
+        if (subs.length > 0) {
+            subs.forEach((sub, sIdx) => {
+                checkPage(16);
+                const subLabel = `${String.fromCharCode(97 + sIdx)}.`;
+                page.drawText(subLabel, { x: margin + 30, y, size: 10, font: fontRegular });
+                const subX = margin + 50;
+                const subW = contentWidth - 50;
+                drawJustified(sub, subX, subW, fontRegular, 10);
+            });
+        }
+        y -= 3;
     });
     y -= 10;
 
-    // 3. Penutup
-    page.drawText("3. Penutup", { x: 70, y, size: 11, font: fontBold });
+    // 3. Penutup (justified)
+    checkPage(30);
+    page.drawText("3. Penutup", { x: margin, y, size: 11, font: fontBold });
     y -= 15;
     const closing = "Demikian surat edaran ini disampaikan untuk diketahui dan dilaksanakan sebagaimana mestinya. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.";
-    const closingLines = wrapText(closing, width - 140, fontRegular, 11);
-    closingLines.forEach(line => {
-        page.drawText(line, { x: 70, y, size: 11, font: fontRegular });
-        y -= 14;
-    });
-    y -= 40;
+    drawJustified(closing, margin, contentWidth, fontRegular, 11);
+    y -= 20;
 
-    // Footer & Signature
+    // === Signature block — ensure it fits on same page (needs ~130px) ===
+    checkPage(130);
+
     const sigX = width - 250;
     page.drawText("Ditetapkan di: Padang", { x: sigX, y, size: 10, font: fontRegular });
     y -= 14;
