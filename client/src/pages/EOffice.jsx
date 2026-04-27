@@ -192,6 +192,41 @@ const EOffice = () => {
         }
     };
 
+    const LampiranPreview = ({ doc }) => {
+        let content = {};
+        try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
+        const hasText = content.lampiranText && content.lampiranText.trim();
+        const hasPhoto = doc.fileUrl && (doc.fileUrl.toLowerCase().endsWith('.jpg') || doc.fileUrl.toLowerCase().endsWith('.jpeg') || doc.fileUrl.toLowerCase().endsWith('.png'));
+    
+        if (!hasText && !hasPhoto) return null;
+    
+        return (
+            <div className="mt-8 pt-6 border-t border-slate-100">
+                <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <Paperclip size={14} /> Lampiran Dokumen
+                </div>
+                {hasText && (
+                    <div className="bg-slate-50 p-4 rounded-xl mb-4">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Teks Lampiran</div>
+                        <div className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{content.lampiranText}</div>
+                    </div>
+                )}
+                {hasPhoto && (
+                    <div className="space-y-2">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Foto / Gambar Lampiran</div>
+                        <div className="rounded-xl overflow-hidden border border-slate-100 shadow-sm bg-white p-2">
+                            <img 
+                                src={`/api/office-documents/file?path=${encodeURIComponent(doc.fileUrl)}`}
+                                alt="Lampiran" 
+                                className="w-full h-auto max-h-[400px] object-contain rounded-lg"
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const ListView = () => (
         <div className="space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -430,6 +465,7 @@ const EOffice = () => {
                                             })()}
                                         </tbody>
                                     </table>
+                                    <LampiranPreview doc={viewingDoc} />
                                 </div>
                             ) : (viewingDoc.type === 'INVOICE' || viewingDoc.category === 'Invoice') ? (
                                 <div className="space-y-6">
@@ -492,12 +528,46 @@ const EOffice = () => {
                                                             {data.notes}
                                                         </div>
                                                     )}
+                                                    <LampiranPreview doc={viewingDoc} />
                                                 </div>
                                             );
                                         } catch (e) {
                                             return <p className="text-red-500 italic">Gagal memuat rincian invoice</p>;
                                         }
                                     })()}
+                                </div>
+                            ) : viewingDoc.category === 'Pesanan' ? (
+                                <div className="space-y-6">
+                                    <div className="text-center border-y border-slate-100 py-4">
+                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Pesanan Perihal</div>
+                                        <div className="text-sm font-black text-slate-900 leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
+                                    </div>
+                                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                        <table className="w-full text-left border-collapse text-xs">
+                                            <thead className="bg-slate-50 text-slate-600 font-bold uppercase">
+                                                <tr>
+                                                    <th className="p-3 border-b border-slate-200">Nama Barang</th>
+                                                    <th className="p-3 border-b border-slate-200">Spek</th>
+                                                    <th className="p-3 border-b border-slate-200 w-16">Qty</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {(() => {
+                                                    try {
+                                                        const items = JSON.parse(viewingDoc.content || '[]');
+                                                        return items.map((item, i) => (
+                                                            <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                                <td className="p-3 border-b border-slate-100 font-bold text-slate-800">{item.name}</td>
+                                                                <td className="p-3 border-b border-slate-100 text-slate-500">{item.spec || '-'}</td>
+                                                                <td className="p-3 border-b border-slate-100 font-black text-blue-600">{item.qty} {item.unit}</td>
+                                                            </tr>
+                                                        ));
+                                                    } catch (e) { return null; }
+                                                })()}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <LampiranPreview doc={viewingDoc} />
                                 </div>
                             ) : viewingDoc.category === 'Edaran' ? (
                                 <div className="space-y-6">
@@ -559,6 +629,7 @@ const EOffice = () => {
                                                             </div>
                                                         </div>
                                                     </div>
+                                                    <LampiranPreview doc={viewingDoc} />
                                                 </div>
                                             );
                                         } catch (e) {
@@ -626,6 +697,7 @@ const EOffice = () => {
                                                                 </ul>
                                                             </div>
                                                         )}
+                                                        <LampiranPreview doc={viewingDoc} />
                                                     </div>
                                                 );
                                             } catch (e) { return <p className="text-red-500">Error parsing content</p>; }
@@ -663,6 +735,7 @@ const EOffice = () => {
                                                     )}
                                                     {data.penutup && <div className="text-slate-700 leading-relaxed">{data.penutup}</div>}
                                                     <div className="italic text-slate-500 text-[11px]">Wassalamu'alaikum Warahmatullahi Wabarakatuh.</div>
+                                                    <LampiranPreview doc={viewingDoc} />
                                                 </div>
                                             );
                                         } catch (e) { return <p className="text-red-500">Error parsing content</p>; }
@@ -737,6 +810,7 @@ const EOffice = () => {
                                                             </div>
                                                         </div>
                                                     )}
+                                                    <LampiranPreview doc={viewingDoc} />
                                                 </div>
                                             );
                                         } catch (e) {
@@ -1209,31 +1283,52 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             let payload = formData;
             let config = {};
 
-            if (isMultipart) {
+            if (isMultipart || file) {
                 payload = new FormData();
                 for (const key in formData) {
                     if (formData[key] !== null && formData[key] !== undefined) {
                         payload.append(key, formData[key]);
                     }
                 }
+                
+                let contentObj = {};
+                if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) {
+                    contentObj = bastItems;
+                } else if (formData.category === 'Pesanan') {
+                    contentObj = purchasingItems;
+                } else if (formData.type === 'INVOICE' || formData.category === 'Invoice') {
+                    contentObj = { items: purchasingItems, bankInfo: invoiceData, dueDate: invoiceData.dueDate, notes: invoiceData.notes };
+                } else if (formData.type === 'SURAT_KELUAR' && formData.category === 'Tugas') {
+                    contentObj = taskData;
+                } else if (formData.category === 'Edaran') {
+                    contentObj = edaranData;
+                } else if (formData.category === 'Keputusan') {
+                    contentObj = keputusanData;
+                } else if (formData.category === 'Pemberitahuan') {
+                    contentObj = pemberitahuanData;
+                }
+                
+                payload.set('content', JSON.stringify(contentObj));
                 if (file) {
                     payload.append('file', file);
                 }
                 config = { headers: { 'Content-Type': 'multipart/form-data' } };
-            } else if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) {
-                payload = { ...formData, content: JSON.stringify(bastItems) };
-            } else if (formData.category === 'Pesanan') {
-                payload = { ...formData, type: 'SURAT_PESANAN', content: JSON.stringify(purchasingItems) };
-            } else if (formData.type === 'INVOICE' || formData.category === 'Invoice') {
-                payload = { ...formData, content: JSON.stringify({ items: purchasingItems, bankInfo: invoiceData, dueDate: invoiceData.dueDate, notes: invoiceData.notes }) };
-            } else if (formData.type === 'SURAT_KELUAR' && formData.category === 'Tugas') {
-                payload = { ...formData, content: JSON.stringify(taskData) };
-            } else if (formData.category === 'Edaran') {
-                payload = { ...formData, content: JSON.stringify(edaranData) };
-            } else if (formData.category === 'Keputusan') {
-                payload = { ...formData, content: JSON.stringify(keputusanData) };
-            } else if (formData.category === 'Pemberitahuan') {
-                payload = { ...formData, content: JSON.stringify(pemberitahuanData) };
+            } else {
+                if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) {
+                    payload = { ...formData, content: JSON.stringify(bastItems) };
+                } else if (formData.category === 'Pesanan') {
+                    payload = { ...formData, type: 'SURAT_PESANAN', content: JSON.stringify(purchasingItems) };
+                } else if (formData.type === 'INVOICE' || formData.category === 'Invoice') {
+                    payload = { ...formData, content: JSON.stringify({ items: purchasingItems, bankInfo: invoiceData, dueDate: invoiceData.dueDate, notes: invoiceData.notes }) };
+                } else if (formData.type === 'SURAT_KELUAR' && formData.category === 'Tugas') {
+                    payload = { ...formData, content: JSON.stringify(taskData) };
+                } else if (formData.category === 'Edaran') {
+                    payload = { ...formData, content: JSON.stringify(edaranData) };
+                } else if (formData.category === 'Keputusan') {
+                    payload = { ...formData, content: JSON.stringify(keputusanData) };
+                } else if (formData.category === 'Pemberitahuan') {
+                    payload = { ...formData, content: JSON.stringify(pemberitahuanData) };
+                }
             }
 
             if (doc && doc.id) {
@@ -2199,7 +2294,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {formData.type !== 'SURAT_MASUK' && !['Berita Acara', 'Serah Terima Barang', 'Pesanan', 'Tugas'].includes(formData.category) && !['BAST', 'MOU'].includes(formData.type) && (
+                        {formData.type !== 'SURAT_MASUK' && !['Berita Acara', 'Serah Terima Barang', 'Pesanan', 'Tugas', 'Edaran', 'Keputusan', 'Pemberitahuan'].includes(formData.category) && !['BAST', 'MOU'].includes(formData.type) && (
                             <div className="col-span-full">
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Isi Dokumen / Pesan</label>
                                 <textarea 
@@ -2210,6 +2305,76 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                                     placeholder={formData.type === 'INVOICE' ? 'Opsional: catatan tambahan untuk invoice...' : 'Tuliskan isi surat secara lengkap di sini...'}
                                 />
+                            </div>
+                        )}
+
+                        {formData.type !== 'SURAT_MASUK' && ['Edaran', 'Keputusan', 'Pemberitahuan', 'Tugas', 'BAST', 'Pesanan'].includes(formData.category) && (
+                            <div className="col-span-full p-6 bg-slate-50/50 rounded-2xl border border-dashed border-slate-300">
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-4">4. Lampiran Dokumen (Opsional)</label>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Teks Lampiran (Jika ada rincian tambahan)</label>
+                                        <textarea 
+                                            rows={3}
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-medium"
+                                            placeholder="Misal: Rincian jadwal kegiatan, Daftar peserta tambahan, dll..."
+                                            value={(() => {
+                                                if (formData.category === 'Edaran') return edaranData.lampiranText || '';
+                                                if (formData.category === 'Keputusan') return keputusanData.lampiranText || '';
+                                                if (formData.category === 'Pemberitahuan') return pemberitahuanData.lampiranText || '';
+                                                if (formData.category === 'Tugas') return taskData.lampiranText || '';
+                                                return '';
+                                            })()}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (formData.category === 'Edaran') setEdaranData({...edaranData, lampiranText: val});
+                                                if (formData.category === 'Keputusan') setKeputusanData({...keputusanData, lampiranText: val});
+                                                if (formData.category === 'Pemberitahuan') setPemberitahuanData({...pemberitahuanData, lampiranText: val});
+                                                if (formData.category === 'Tugas') setTaskData({...taskData, lampiranText: val});
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex-1">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Foto / Dokumen Pendukung (Format: JPG, PNG, PDF)</label>
+                                            <div className="relative group">
+                                                <input 
+                                                    type="file" 
+                                                    id="lampiran-file"
+                                                    className="hidden" 
+                                                    accept="image/*,.pdf"
+                                                    onChange={(e) => setFile(e.target.files[0])}
+                                                />
+                                                <label 
+                                                    htmlFor="lampiran-file"
+                                                    className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-slate-200 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all"
+                                                >
+                                                    <div className="p-2 bg-slate-100 rounded-lg group-hover:bg-blue-100 group-hover:text-blue-600">
+                                                        <Paperclip size={18} />
+                                                    </div>
+                                                    <span className="text-sm font-bold text-slate-600">
+                                                        {file ? file.name : (formData.fileUrl ? 'File sudah ada (klik untuk ganti)' : 'Pilih file lampiran...')}
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        { (file || formData.fileUrl) && (
+                                            <button 
+                                                type="button" 
+                                                onClick={() => { setFile(null); setFormData({...formData, fileUrl: null}); }}
+                                                className="mt-5 p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                                title="Hapus Lampiran"
+                                            >
+                                                <Trash2 size={20} />
+                                            </button>
+                                        )}
+                                    </div>
+                                    { (file || formData.fileUrl) && (
+                                        <p className="text-[10px] font-medium text-slate-400 italic">
+                                            * Lampiran foto/dokumen akan ditampilkan pada halaman terpisah di akhir surat.
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         )}
 

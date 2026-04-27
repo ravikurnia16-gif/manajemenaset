@@ -23,11 +23,11 @@ router.post('/incoming', handleUpload('file', 'e-office/surat-masuk'), ctrl.crea
 
 // Surat Keluar / BAST / MOU (Outgoing Documents)
 router.get('/outgoing', ctrl.getOutgoingDocuments);
-router.post('/outgoing', ctrl.createOutgoingDocument);
+router.post('/outgoing', handleUpload('file', 'e-office/surat-keluar'), ctrl.createOutgoingDocument);
 
 // Single document operations
 router.get('/:id', ctrl.getDocumentById);
-router.put('/:id', handleUpload('file', 'e-office/surat-masuk'), ctrl.updateDocument);
+router.put('/:id', handleUpload('file', 'e-office'), ctrl.updateDocument);
 router.delete('/:id', authorizeRole(['SUPER_ADMIN']), ctrl.deleteDocument);
 
 // Workflow

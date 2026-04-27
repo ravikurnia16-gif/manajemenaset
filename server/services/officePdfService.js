@@ -271,7 +271,10 @@ async function generateSuratPDF(doc, setting) {
         page.drawText(`Nomor     : ${doc.number}`, { x: margin, y, size: 11, font: fontRegular });
         y -= 16;
     }
-    page.drawText(`Lampiran  : -`, { x: margin, y, size: 11, font: fontRegular });
+    let content = {};
+    try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
+    const hasLampiran = (content.lampiranText && content.lampiranText.trim()) || doc.fileUrl;
+    page.drawText(`Lampiran  : ${hasLampiran ? '1 Berkas' : '-'}`, { x: margin, y, size: 11, font: fontRegular });
     y -= 16;
     page.drawText(`Perihal   : ${doc.subject}`, {
         x: margin, y, size: 11, font: fontBold,
@@ -327,6 +330,7 @@ async function generateSuratPDF(doc, setting) {
     const signerName = doc.signedBy?.name || '____________________';
     page.drawText(signerName, { x: sigX, y, size: 11, font: fontBold });
 
+    await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 }
@@ -524,6 +528,7 @@ async function generateBASTMouPDF(doc, setting) {
     page.drawText(doc.party1Name || '____________________', { x: col1X, y, size: 11, font: fontBold });
     page.drawText(doc.party2Name || '____________________', { x: col2X, y, size: 11, font: fontBold });
 
+    await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 }
@@ -725,6 +730,7 @@ async function generateSuratTugasPDF(doc, setting) {
         });
     }
 
+    await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 }
@@ -855,6 +861,7 @@ async function generateSuratPesananPDF(doc) {
     const term3 = '3. Surat pesanan ini merupakan dokumen resmi yang mengikat kedua belah pihak.';
     y = drawJustifiedText(page, term3, margin, y, width - margin * 2, 8, fontRegular);
 
+    await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
     const pdfBytes = await pdfDoc.save();
 }
 
@@ -1020,6 +1027,7 @@ async function generateInvoicePDF(doc, setting) {
         }
     } catch (e) {}
 
+    await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 }
@@ -1194,6 +1202,7 @@ async function generateSuratEdaranPDF(doc, setting) {
     y -= 12;
     page.drawText(`NIY. ${doc.signedBy?.nip || '-'}`, { x: sigX, y, size: 9, font: fontRegular });
 
+    await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 }
@@ -1369,6 +1378,7 @@ async function generateKeputusanPDF(doc, setting) {
         });
     }
 
+    await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
 }
@@ -1533,8 +1543,91 @@ async function generatePemberitahuanPDF(doc, setting) {
     y -= 12;
     page.drawText(`NIY. ${doc.signedBy?.nip || '-'}`, { x: sigX, y, size: 9, font: fontRegular });
 
+    await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
     const pdfBytes = await pdfDoc.save();
     return pdfBytes;
+}
+
+async function drawLampiranSection(pdfDoc, doc, fontBold, fontRegular) {
+    let content = {};
+    try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
+
+    const hasTextLampiran = content.lampiranText && content.lampiranText.trim();
+    const hasPhotoLampiran = doc.fileUrl && (doc.fileUrl.toLowerCase().endsWith('.jpg') || doc.fileUrl.toLowerCase().endsWith('.jpeg') || doc.fileUrl.toLowerCase().endsWith('.png'));
+
+    if (!hasTextLampiran && !hasPhotoLampiran) return;
+
+    let page = pdfDoc.addPage([595.28, 841.89]);
+    const { width, height } = page.getSize();
+    const margin = 70;
+    const contentWidth = width - margin * 2;
+    let y = height - 60;
+
+    page.drawText("LAMPIRAN", { x: margin, y, size: 14, font: fontBold });
+    y -= 5;
+    page.drawLine({ start: { x: margin, y }, end: { x: margin + 80, y }, thickness: 1.5 });
+    y -= 30;
+
+    if (hasTextLampiran) {
+        const paragraphs = content.lampiranText.split('\n');
+        paragraphs.forEach(para => {
+            const lines = wrapText(para, contentWidth, fontRegular, 11);
+            lines.forEach(line => {
+                if (y < 60) {
+                    page = pdfDoc.addPage([595.28, 841.89]);
+                    y = height - 60;
+                }
+                page.drawText(line, { x: margin, y, size: 11, font: fontRegular });
+                y -= 15;
+            });
+            y -= 5;
+        });
+        y -= 20;
+    }
+
+    if (hasPhotoLampiran) {
+        try {
+            const filePath = path.join(__dirname, '..', doc.fileUrl);
+            if (fs.existsSync(filePath)) {
+                const imgBytes = fs.readFileSync(filePath);
+                const fileExt = path.extname(filePath).toLowerCase();
+                const img = (fileExt === '.png') ? await pdfDoc.embedPng(imgBytes) : await pdfDoc.embedJpg(imgBytes);
+                
+                const imgDims = img.scale(1);
+                const maxWidth = contentWidth;
+                const maxHeight = y - 100;
+                
+                let finalWidth = imgDims.width;
+                let finalHeight = imgDims.height;
+                
+                if (finalWidth > maxWidth) {
+                    const ratio = maxWidth / finalWidth;
+                    finalWidth = maxWidth;
+                    finalHeight = finalHeight * ratio;
+                }
+                
+                if (finalHeight > maxHeight) {
+                    const ratio = maxHeight / finalHeight;
+                    finalHeight = maxHeight;
+                    finalWidth = finalWidth * ratio;
+                }
+
+                if (y - finalHeight < 60) {
+                    page = pdfDoc.addPage([595.28, 841.89]);
+                    y = height - 60;
+                }
+
+                page.drawImage(img, {
+                    x: margin + (contentWidth - finalWidth) / 2,
+                    y: y - finalHeight,
+                    width: finalWidth,
+                    height: finalHeight
+                });
+            }
+        } catch (e) {
+            console.error('Failed to draw photo lampiran:', e);
+        }
+    }
 }
 
 module.exports = {
