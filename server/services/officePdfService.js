@@ -1108,9 +1108,8 @@ async function generateSuratEdaranPDF(doc, setting) {
     y -= 25;
 
     // Recipient
-    page.drawText("Yth.", { x: margin, y, size: 11, font: fontBold });
+    page.drawText(`Yth. ${doc.party2Name || "......................................."}`, { x: margin, y, size: 11, font: fontBold });
     y -= 15;
-    page.drawText(doc.party2Name || ".......................................", { x: margin, y, size: 11, font: fontBold });
     y -= 15;
     page.drawText("di", { x: margin, y, size: 11, font: fontRegular });
     y -= 15;
