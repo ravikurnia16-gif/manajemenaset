@@ -6,7 +6,7 @@ import {
     MapPin, Loader2, Target, Timer, TrendingUp, Sparkles, Users,
     Activity, Crown, Medal, Send, Trash2, RotateCcw, Tag, Edit3,
     ShieldCheck, MessageSquare, ListChecks, Flag, LayoutDashboard,
-    PieChart as PieIcon, BarChart3, Coffee, CalendarX, Undo, Camera, Image as ImageIcon, Link2, Search
+    PieChart as PieIcon, BarChart3, Coffee, CalendarX, Undo, Camera, Image as ImageIcon, Link2, Search, Save
 } from 'lucide-react';
 import api from '../lib/axios';
 
