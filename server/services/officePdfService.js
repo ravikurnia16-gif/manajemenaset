@@ -11,9 +11,10 @@ const BASE_URL = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
 async function generateVerificationQR(uuid) {
     const verifyUrl = `${BASE_URL}/verify/${uuid}`;
     const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
-        width: 150,
-        margin: 1,
-        color: { dark: '#1e293b', light: '#ffffff' },
+        errorCorrectionLevel: 'H',
+        width: 300,
+        margin: 2,
+        color: { dark: '#000000', light: '#ffffff' },
     });
     return qrDataUrl;
 }
@@ -180,7 +181,7 @@ async function drawDigitalSignature(page, doc, x, y, size = 70) {
             const sarprasBytes = fs.readFileSync(sarprasPath);
             const sarprasImage = await page.doc.embedJpg(sarprasBytes);
 
-            const logoSize = size * 0.28;
+            const logoSize = size * 0.22;
             const logoOffset = (size - logoSize) / 2;
 
             // White background for logo

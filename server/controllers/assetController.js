@@ -650,13 +650,35 @@ exports.batchImportAssets = async (req, res) => {
                     throw new Error(`Unit "${unitName}" tidak ditemukan di database.`);
                 }
 
-                // 3. Room Lookup/Create
+                // 3. Room Lookup/Create (Scoped by Unit)
                 const roomName = String(item['Ruangan Aset']).trim();
-                let room = await tx.room.findFirst({ where: { name: { equals: roomName } } });
+                let room = await tx.room.findFirst({ 
+                    where: { 
+                        name: { equals: roomName },
+                        unitId: unit.id
+                    } 
+                });
+
                 if (!room) {
-                    const count = await tx.room.count({ where: { unitId: unit.id } });
-                    const seq = (count + 1).toString().padStart(2, '0');
-                    const finalRoomCode = `${unit.code}-${seq}`;
+                    // Get next sequence for room code
+                    const lastRoom = await tx.room.findFirst({
+                        where: {
+                            unitId: unit.id,
+                            code: { startsWith: `${unit.code}-` }
+                        },
+                        orderBy: { code: 'desc' }
+                    });
+
+                    let nextSeq = 1;
+                    if (lastRoom) {
+                        const parts = lastRoom.code.split('-');
+                        const lastSeqPart = parts[parts.length - 1];
+                        const lastSeq = parseInt(lastSeqPart);
+                        if (!isNaN(lastSeq)) {
+                            nextSeq = lastSeq + 1;
+                        }
+                    }
+                    const finalRoomCode = `${unit.code}-${nextSeq.toString().padStart(2, '0')}`;
 
                     room = await tx.room.create({
                         data: {
