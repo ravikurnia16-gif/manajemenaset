@@ -1373,32 +1373,43 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     }
                 }
                 
-                let contentObj = {};
-                if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) {
-                    contentObj = bastItems;
-                } else if (formData.category === 'Pesanan') {
-                    contentObj = purchasingItems;
-                } else if (formData.type === 'INVOICE' || formData.category === 'Invoice') {
-                    contentObj = { items: purchasingItems, bankInfo: invoiceData, dueDate: invoiceData.dueDate, notes: invoiceData.notes };
-                } else if (formData.type === 'SURAT_KELUAR' && formData.category === 'Tugas') {
-                    contentObj = taskData;
-                } else if (formData.category === 'Edaran') {
-                    contentObj = edaranData;
-                } else if (formData.category === 'Keputusan') {
-                    contentObj = keputusanData;
-                } else if (formData.category === 'Pemberitahuan') {
-                    contentObj = pemberitahuanData;
+            let contentObj = {};
+            if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) {
+                contentObj = { items: bastItems };
+            } else if (formData.category === 'Pesanan') {
+                contentObj = { items: purchasingItems };
+            } else if (formData.type === 'INVOICE' || formData.category === 'Invoice') {
+                contentObj = { items: purchasingItems, bankInfo: invoiceData, dueDate: invoiceData.dueDate, notes: invoiceData.notes, paymentStatus: invoiceData.paymentStatus };
+            } else if (formData.type === 'SURAT_KELUAR' && formData.category === 'Tugas') {
+                contentObj = { ...taskData };
+            } else if (formData.category === 'Edaran') {
+                contentObj = { ...edaranData };
+            } else if (formData.category === 'Keputusan') {
+                contentObj = { ...keputusanData };
+            } else if (formData.category === 'Pemberitahuan') {
+                contentObj = { ...pemberitahuanData };
+            } else {
+                // Default for plain letters
+                contentObj = { text: formData.content };
+            }
+            
+            contentObj.recipientsData = recipientsData;
+            const contentJson = JSON.stringify(contentObj);
+
+            if (isMultipart || file) {
+                payload = new FormData();
+                for (const key in formData) {
+                    if (formData[key] !== null && formData[key] !== undefined) {
+                        payload.append(key, formData[key]);
+                    }
                 }
-                
-                contentObj.recipientsData = recipientsData;
-                payload.set('content', JSON.stringify(contentObj));
+                payload.set('content', contentJson);
                 if (file) {
                     payload.append('file', file);
                 }
                 config = { headers: { 'Content-Type': 'multipart/form-data' } };
             } else {
-                let contentObj = {};
-                payload = { ...formData, content: JSON.stringify({ ...contentObj, recipientsData }) };
+                payload = { ...formData, content: contentJson };
             }
 
             if (doc && doc.id) {

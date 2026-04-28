@@ -338,10 +338,18 @@ async function generateSuratPDF(doc, setting) {
         if (recipient) doc._currentRecipient = recipient;
         y = drawRecipientBlock(page, doc, recipientsData, margin, y, fontRegular, fontBold, margin, width);
 
-        // === ISI SURAT ===
-        if (doc.content) {
+        // ISI SURAT
+        let bodyText = doc.content || '';
+        if (bodyText.startsWith('{') && bodyText.endsWith('}')) {
+            try {
+                const parsed = JSON.parse(bodyText);
+                bodyText = parsed.text || bodyText;
+            } catch (e) {}
+        }
+
+        if (bodyText) {
             // Simplified content drawing for Surat Keluar
-            const plainText = doc.content
+            const plainText = bodyText
                 .replace(/<br\s*\/?>/gi, '\n')
                 .replace(/<\/p>/gi, '\n\n')
                 .replace(/<[^>]*>/g, '')
@@ -474,7 +482,11 @@ async function generateBASTMouPDF(doc, setting) {
     if (doc.content) {
         try {
             const parsed = JSON.parse(doc.content);
-            items = Array.isArray(parsed) ? parsed : [];
+            if (Array.isArray(parsed)) {
+                items = parsed;
+            } else if (parsed && typeof parsed === 'object') {
+                items = parsed.items || [];
+            }
         } catch (e) { }
     }
 
@@ -852,7 +864,14 @@ async function generateSuratPesananPDF(doc) {
     y -= 20;
 
     let items = [];
-    try { items = JSON.parse(doc.content || '[]'); } catch (e) {}
+    try { 
+        const parsed = JSON.parse(doc.content || '{}');
+        if (Array.isArray(parsed)) {
+            items = parsed;
+        } else if (parsed && typeof parsed === 'object') {
+            items = parsed.items || [];
+        }
+    } catch (e) {}
 
     let grandTotal = 0;
     for (let i = 0; i < items.length; i++) {
