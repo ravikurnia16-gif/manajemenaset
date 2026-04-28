@@ -332,7 +332,7 @@ const EOffice = () => {
                                                     <Printer size={18} />
                                                 </button>
                                             )}
-                                            {(doc.status === 'DRAFT' || doc.status === 'REJECTED') && (
+                                            {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
                                                 <button 
                                                     onClick={() => { setEditingDoc(doc); setIsFormOpen(true); }}
                                                     className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"

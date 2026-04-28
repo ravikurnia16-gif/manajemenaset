@@ -201,8 +201,8 @@ exports.updateDocument = async (req, res) => {
         const id = parseInt(req.params.id);
         const existing = await prisma.officeDocument.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ error: 'Document not found' });
-        if (existing.status !== 'DRAFT' && existing.status !== 'REJECTED') {
-            return res.status(400).json({ error: 'Dokumen hanya bisa diedit saat status DRAFT atau REJECTED' });
+        if (existing.status !== 'DRAFT' && existing.status !== 'REJECTED' && existing.status !== 'PENDING_APPROVAL') {
+            return res.status(400).json({ error: 'Dokumen hanya bisa diedit saat status DRAFT, REJECTED, atau PENDING_APPROVAL' });
         }
 
         const {
