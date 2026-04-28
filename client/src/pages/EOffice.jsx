@@ -486,22 +486,34 @@ const EOffice = () => {
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {items.map((item, i) => (
-                                                                    <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                                                        <td className="p-3 border-b border-slate-100 font-medium">
-                                                                            {item.name}
-                                                                            {item.spec && <div className="text-[10px] text-slate-400 font-normal">{item.spec}</div>}
-                                                                        </td>
-                                                                        <td className="p-3 border-b border-slate-100 font-bold">{item.qty} {item.unit}</td>
-                                                                        <td className="p-3 border-b border-slate-100 text-right font-black text-blue-700">
-                                                                            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(item.total || 0)}
-                                                                        </td>
-                                                                    </tr>
-                                                                ))}
+                                                                 {items.map((item, i) => {
+                                                                    const price = parseFloat(item.price) || 0;
+                                                                    const total = (parseFloat(item.qty) || 0) * price;
+                                                                    return (
+                                                                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                                            <td className="p-3 border-b border-slate-100 font-medium">
+                                                                                {item.name}
+                                                                                {item.spec && <div className="text-[10px] text-slate-400 font-normal">{item.spec}</div>}
+                                                                            </td>
+                                                                            <td className="p-3 border-b border-slate-100 font-bold">{item.qty} {item.unit}</td>
+                                                                            <td className="p-3 border-b border-slate-100 text-right font-black text-blue-700">
+                                                                                {price > 0 ? (
+                                                                                    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(total)
+                                                                                ) : (
+                                                                                    <span className="text-slate-400 italic font-medium">Menyusul</span>
+                                                                                )}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
                                                                 <tr className="bg-blue-50/30">
                                                                     <td colSpan="2" className="p-3 text-right font-bold text-slate-500 uppercase tracking-widest text-[10px]">Total Tagihan</td>
                                                                     <td className="p-3 text-right font-black text-blue-800 text-sm">
-                                                                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(total)}
+                                                                        {items.some(it => !(parseFloat(it.price) > 0)) ? (
+                                                                            <span className="text-slate-400 italic">Menyusul</span>
+                                                                        ) : (
+                                                                            new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(total)
+                                                                        )}
                                                                     </td>
                                                                 </tr>
                                                             </tbody>
@@ -549,19 +561,56 @@ const EOffice = () => {
                                                     <th className="p-3 border-b border-slate-200">Nama Barang</th>
                                                     <th className="p-3 border-b border-slate-200">Spek</th>
                                                     <th className="p-3 border-b border-slate-200 w-16">Qty</th>
+                                                    <th className="p-3 border-b border-slate-200 w-24 text-right">Harga</th>
+                                                    <th className="p-3 border-b border-slate-200 w-24 text-right">Total</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {(() => {
                                                     try {
                                                         const items = JSON.parse(viewingDoc.content || '[]');
-                                                        return items.map((item, i) => (
-                                                            <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                                                <td className="p-3 border-b border-slate-100 font-bold text-slate-800">{item.name}</td>
-                                                                <td className="p-3 border-b border-slate-100 text-slate-500">{item.spec || '-'}</td>
-                                                                <td className="p-3 border-b border-slate-100 font-black text-blue-600">{item.qty} {item.unit}</td>
-                                                            </tr>
-                                                        ));
+                                                        const hasUnknownPrice = items.some(it => !(parseFloat(it.price) > 0));
+                                                        const grandTotal = items.reduce((acc, curr) => acc + ((parseFloat(curr.qty) || 0) * (parseFloat(curr.price) || 0)), 0);
+                                                        
+                                                        return (
+                                                            <>
+                                                                {items.map((item, i) => {
+                                                                    const price = parseFloat(item.price) || 0;
+                                                                    const total = (parseFloat(item.qty) || 0) * price;
+                                                                    return (
+                                                                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                                            <td className="p-3 border-b border-slate-100 font-bold text-slate-800">{item.name}</td>
+                                                                            <td className="p-3 border-b border-slate-100 text-slate-500">{item.spec || '-'}</td>
+                                                                            <td className="p-3 border-b border-slate-100 font-black text-blue-600">{item.qty} {item.unit}</td>
+                                                                            <td className="p-3 border-b border-slate-100 text-right font-bold text-slate-700">
+                                                                                {price > 0 ? (
+                                                                                    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(price)
+                                                                                ) : (
+                                                                                    <span className="text-slate-400 italic font-medium">Menyusul</span>
+                                                                                )}
+                                                                            </td>
+                                                                            <td className="p-3 border-b border-slate-100 text-right font-black text-blue-700">
+                                                                                {price > 0 ? (
+                                                                                    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(total)
+                                                                                ) : (
+                                                                                    <span className="text-slate-400 italic font-medium">Menyusul</span>
+                                                                                )}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                                <tr className="bg-slate-50/50 font-black">
+                                                                    <td colSpan="4" className="p-3 text-right text-slate-500 uppercase tracking-widest text-[10px]">Total Perkiraan</td>
+                                                                    <td className="p-3 text-right text-blue-800 text-sm">
+                                                                        {hasUnknownPrice ? (
+                                                                            <span className="text-slate-400 italic">Menyusul</span>
+                                                                        ) : (
+                                                                            new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(grandTotal)
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            </>
+                                                        );
                                                     } catch (e) { return null; }
                                                 })()}
                                             </tbody>
@@ -845,6 +894,18 @@ const EOffice = () => {
                             )}
                         </div>
                         <div className="flex items-center gap-2">
+                            {(viewingDoc.status === 'DRAFT' || viewingDoc.status === 'REJECTED' || viewingDoc.status === 'PENDING_APPROVAL') && (
+                                <button 
+                                    onClick={() => {
+                                        setEditingDoc(viewingDoc);
+                                        setViewingDoc(null);
+                                        setIsFormOpen(true);
+                                    }}
+                                    className="px-5 py-2.5 bg-amber-50 text-amber-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-amber-100 transition-all shadow-lg shadow-amber-600/5"
+                                >
+                                    <Edit2 size={18} /> Edit Dokumen
+                                </button>
+                            )}
                             {viewingDoc.status === 'DRAFT' && (
                                 <button 
                                     onClick={() => handleSubmitForApproval(viewingDoc.id)}
@@ -1665,7 +1726,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                         <input required value={item.unit} onChange={(e) => { const newI = [...purchasingItems]; newI[index].unit = e.target.value; setPurchasingItems(newI); }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none" placeholder="Pcs" />
                                                     </td>
                                                     <td className="p-2 border-b border-slate-100">
-                                                        <input required type="number" value={item.price} onChange={(e) => { 
+                                                        <input type="number" value={item.price} onChange={(e) => { 
                                                             const newI = [...purchasingItems]; 
                                                             newI[index].price = e.target.value; 
                                                             newI[index].total = (parseFloat(newI[index].qty) || 0) * (parseFloat(e.target.value) || 0);
@@ -2433,7 +2494,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             Batal
                         </button>
                         <button type="submit" className="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all flex items-center gap-2">
-                            <Save size={18} /> Simpan Sebagai Draft
+                            <Save size={18} /> {doc ? 'Simpan Perubahan' : 'Simpan Sebagai Draft'}
                         </button>
                     </div>
                 </form>

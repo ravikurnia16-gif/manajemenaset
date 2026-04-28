@@ -806,10 +806,16 @@ async function generateSuratPesananPDF(doc) {
         
         const price = parseFloat(item.price) || 0;
         const total = (parseFloat(item.qty) || 0) * price;
-        grandTotal += total;
-
-        page.drawText(price.toLocaleString('id-ID'), { x: cols.price + 5, y, size: 9, font: fontRegular });
-        page.drawText(total.toLocaleString('id-ID'), { x: cols.total + 5, y, size: 9, font: fontBold });
+        const hasPrice = price > 0;
+        
+        if (hasPrice) {
+            grandTotal += total;
+            page.drawText(price.toLocaleString('id-ID'), { x: cols.price + 5, y, size: 9, font: fontRegular });
+            page.drawText(total.toLocaleString('id-ID'), { x: cols.total + 5, y, size: 9, font: fontBold });
+        } else {
+            page.drawText('Menyusul', { x: cols.price + 5, y, size: 8, font: fontRegular, color: rgb(0.5, 0.5, 0.5) });
+            page.drawText('Menyusul', { x: cols.total + 5, y, size: 8, font: fontRegular, color: rgb(0.5, 0.5, 0.5) });
+        }
         
         y -= 35; // Row spacing
         if (y < 120) {
@@ -822,7 +828,13 @@ async function generateSuratPesananPDF(doc) {
     y -= 5;
     page.drawLine({ start: { x: margin, y: y + 10 }, end: { x: width - margin, y: y + 10 }, thickness: 1 });
     page.drawText('TOTAL KESELURUHAN', { x: cols.price - 60, y: y - 5, size: 10, font: fontBold });
-    page.drawText(`Rp ${grandTotal.toLocaleString('id-ID')}`, { x: cols.total + 5, y: y - 5, size: 11, font: fontBold, color: rgb(0.1, 0.3, 0.7) });
+    
+    const hasAnyUnknownPrice = items.some(it => !(parseFloat(it.price) > 0));
+    if (hasAnyUnknownPrice) {
+        page.drawText('Menyusul', { x: cols.total + 5, y: y - 5, size: 10, font: fontBold, color: rgb(0.5, 0.5, 0.5) });
+    } else {
+        page.drawText(`Rp ${grandTotal.toLocaleString('id-ID')}`, { x: cols.total + 5, y: y - 5, size: 11, font: fontBold, color: rgb(0.1, 0.3, 0.7) });
+    }
 
     y -= 40;
     const closingText = 'Demikianlah surat pesanan ini kami buat untuk dapat dipergunakan sebagaimana mestinya. Atas perhatian dan kerjasamanya kami ucapkan terima kasih.';
