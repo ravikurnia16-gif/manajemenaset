@@ -1278,8 +1278,6 @@ async function generateSuratEdaranPDF(doc, setting) {
 
 async function generateKeputusanPDF(doc, setting) {
     const pdfDoc = await PDFDocument.create();
-async function generateKeputusanPDF(doc, setting) {
-    const pdfDoc = await PDFDocument.create();
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
     const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
     const kopImages = await embedKopSuratImages(pdfDoc);
