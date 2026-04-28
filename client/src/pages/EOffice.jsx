@@ -49,17 +49,10 @@ const EOffice = () => {
         
         if (location.state?.autoCreate) {
             const s = location.state;
-            setFormData(prev => ({
-                ...prev,
-                type: s.type || 'SURAT_KELUAR',
-                category: s.category || 'BAST',
-                subject: s.subject || '',
-                party1Name: s.party1Name || '',
-                party1Title: s.party1Title || '',
-                party2Name: s.party2Name || '',
-                party2Title: s.party2Title || '',
-            }));
-            if (s.bastItems) setBastItems(s.bastItems);
+            setEditingDoc({
+                ...s,
+                receivedDate: formatDate(new Date(), 'input'),
+            });
             setIsFormOpen(true);
             // Clear state so it doesn't reopen on refresh
             window.history.replaceState({}, document.title);
@@ -1145,8 +1138,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         mode: 'LIST', // LIST or MASSAL
         list: [{ name: '', title: '', address: '' }]
     });
-    const [bastItems, setBastItems] = useState([{ name: '', qty: '', condition: 'Baik' }]);
-    const [purchasingItems, setPurchasingItems] = useState([{ name: '', spec: '', qty: '', unit: 'Pcs', price: '', total: 0 }]);
+    const [bastItems, setBastItems] = useState([]);
+    const [purchasingItems, setPurchasingItems] = useState([]);
     const [staffList, setStaffList] = useState([]);
     const [taskData, setTaskData] = useState({
         basisList: [''],
@@ -1235,14 +1228,16 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
 
             if (doc.type === 'BAST' && doc.content) {
                 try {
-                    setBastItems(JSON.parse(doc.content));
+                    const parsed = JSON.parse(doc.content);
+                    setBastItems(Array.isArray(parsed) ? parsed : (parsed.items || []));
                 } catch (e) {
                     console.error('Failed to parse BAST content JSON', e);
                 }
             }
             if (doc.category === 'Pesanan' && doc.content) {
                 try {
-                    setPurchasingItems(JSON.parse(doc.content));
+                    const parsed = JSON.parse(doc.content);
+                    setPurchasingItems(Array.isArray(parsed) ? parsed : (parsed.items || []));
                 } catch (e) {
                     console.error('Failed to parse Purchasing content JSON', e);
                 }
@@ -1251,13 +1246,14 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 try {
                     const parsed = JSON.parse(doc.content);
                     if (parsed.items) {
-                        setPurchasingItems(parsed.items);
+                        setPurchasingItems(Array.isArray(parsed.items) ? parsed.items : []);
                         setInvoiceData({
                             bankName: parsed.bankInfo?.bankName || '',
                             bankAccountName: parsed.bankInfo?.bankAccountName || '',
                             bankAccountNumber: parsed.bankInfo?.bankAccountNumber || '',
                             dueDate: parsed.dueDate || formatDate(new Date(), 'input'),
-                            notes: parsed.notes || ''
+                            notes: parsed.notes || '',
+                            paymentStatus: parsed.paymentStatus || 'UNPAID'
                         });
                     } else if (Array.isArray(parsed)) {
                         setPurchasingItems(parsed);
@@ -1270,14 +1266,14 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 try {
                     const parsed = JSON.parse(doc.content);
                     setTaskData({
-                        basisList: parsed.basisList || (parsed.basis ? [parsed.basis] : ['']),
-                        personnelList: parsed.personnelList || (parsed.personnel ? [{ name: parsed.personnel, position: '', nip: '' }] : [{ name: '', position: '', nip: '' }]),
-                        purposeList: parsed.purposeList || (parsed.purpose ? [parsed.purpose] : ['']),
+                        basisList: Array.isArray(parsed.basisList) ? parsed.basisList : (parsed.basis ? [parsed.basis] : ['']),
+                        personnelList: Array.isArray(parsed.personnelList) ? parsed.personnelList : (parsed.personnel ? [{ name: parsed.personnel, position: '', nip: '' }] : [{ name: '', position: '', nip: '' }]),
+                        purposeList: Array.isArray(parsed.purposeList) ? parsed.purposeList : (parsed.purpose ? [parsed.purpose] : ['']),
                         dateStart: parsed.dateStart || (parsed.date ? formatDate(parsed.date, 'input') : formatDate(new Date(), 'input')),
                         dateEnd: parsed.dateEnd || parsed.dateStart || formatDate(new Date(), 'input'),
                         timeRange: parsed.timeRange || '08.00 s.d Selesai',
                         location: parsed.location || '',
-                        carbonCopy: parsed.carbonCopy || ['']
+                        carbonCopy: Array.isArray(parsed.carbonCopy) ? parsed.carbonCopy : ['']
                     });
                 } catch (e) {
                     console.error('Failed to parse Task content JSON', e);
@@ -1286,7 +1282,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             if (doc.category === 'Edaran' && doc.content) {
                 try {
                     const parsed = JSON.parse(doc.content);
-                    let pts = parsed.points || [];
+                    let pts = Array.isArray(parsed.points) ? parsed.points : [];
                     if (pts.length > 0 && typeof pts[0] === 'string') {
                         pts = pts.map(p => ({ text: p, subs: [''] }));
                     }
@@ -1300,14 +1296,27 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             }
             if (doc.category === 'Keputusan' && doc.content) {
                 try {
-                    setKeputusanData(JSON.parse(doc.content));
+                    const parsed = JSON.parse(doc.content);
+                    setKeputusanData(prev => ({
+                        ...prev,
+                        ...parsed,
+                        menimbang: Array.isArray(parsed.menimbang) ? parsed.menimbang : (prev.menimbang || ['']),
+                        mengingat: Array.isArray(parsed.mengingat) ? parsed.mengingat : (prev.mengingat || ['']),
+                        menetapkan: Array.isArray(parsed.menetapkan) ? parsed.menetapkan : (prev.menetapkan || []),
+                        tembusan: Array.isArray(parsed.tembusan) ? parsed.tembusan : (prev.tembusan || [])
+                    }));
                 } catch (e) {
                     console.error('Failed to parse Keputusan content JSON', e);
                 }
             }
             if (doc.category === 'Pemberitahuan' && doc.content) {
                 try {
-                    setPemberitahuanData(JSON.parse(doc.content));
+                    const parsed = JSON.parse(doc.content);
+                    setPemberitahuanData(prev => ({
+                        ...prev,
+                        ...parsed,
+                        points: Array.isArray(parsed.points) ? parsed.points : (prev.points || [''])
+                    }));
                 } catch (e) {
                     console.error('Failed to parse Pemberitahuan content JSON', e);
                 }
@@ -1684,7 +1693,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {recipientsData.list.map((r, idx) => (
+                                                    {(recipientsData.list || []).map((r, idx) => (
                                                         <tr key={idx}>
                                                             <td className="p-2 border-b border-slate-100">
                                                                 <input required value={r.name} onChange={(e) => { const newList = [...recipientsData.list]; newList[idx].name = e.target.value; setRecipientsData({ ...recipientsData, list: newList }); }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none font-bold" placeholder="Nama..." />
@@ -1768,7 +1777,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {bastItems.map((item, index) => (
+                                            {(bastItems || []).map((item, index) => (
                                                 <tr key={index}>
                                                     <td className="p-2 border-b border-slate-100">
                                                         <input required value={item.name} onChange={(e) => { const newI = [...bastItems]; newI[index].name = e.target.value; setBastItems(newI); }} className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none" placeholder="Nama barang..." />
@@ -1815,7 +1824,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {purchasingItems.map((item, index) => (
+                                            {(purchasingItems || []).map((item, index) => (
                                                 <tr key={index}>
                                                     <td className="p-2 border-b border-slate-100">
                                                         <input required value={item.name} onChange={(e) => { const newI = [...purchasingItems]; newI[index].name = e.target.value; setPurchasingItems(newI); }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none font-bold" placeholder="Nama barang..." />
@@ -1851,7 +1860,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             <tr className="bg-slate-50 font-black">
                                                 <td colSpan="4" className="p-3 text-right text-slate-500 uppercase tracking-widest text-[10px]">Total Keseluruhan</td>
                                                 <td className="p-3 text-blue-800 text-sm">
-                                                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(purchasingItems.reduce((acc, curr) => acc + (curr.total || 0), 0))}
+                                                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format((purchasingItems || []).reduce((acc, curr) => acc + (curr.total || 0), 0))}
                                                 </td>
                                                 <td></td>
                                             </tr>
@@ -1969,7 +1978,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                 </button>
                                             </div>
                                             <div className="space-y-4">
-                                                {edaranData.points.map((point, idx) => (
+                                                {(edaranData.points || []).map((point, idx) => (
                                                     <div key={idx} className="bg-white rounded-xl border border-slate-100 p-3 space-y-2">
                                                         <div className="flex gap-2">
                                                             <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-[10px] font-bold text-blue-600 shrink-0">{idx + 1}</div>
@@ -2002,7 +2011,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                                     <Plus size={10} /> Sub
                                                                 </button>
                                                             </div>
-                                                            {(point.subs || ['']).map((sub, sIdx) => (
+                                                            {(point.subs || []).map((sub, sIdx) => (
                                                                 <div key={sIdx} className="flex gap-2">
                                                                     <div className="w-6 h-6 rounded bg-slate-50 flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0">{String.fromCharCode(97 + sIdx)}</div>
                                                                     <input
@@ -2050,7 +2059,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             <Plus size={12} /> Tambah
                                         </button>
                                     </div>
-                                    {keputusanData.menimbang.map((item, idx) => (
+                                    {(keputusanData.menimbang || []).map((item, idx) => (
                                         <div key={idx} className="flex gap-2">
                                             <div className="w-8 h-8 rounded bg-white border border-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600 shrink-0">{String.fromCharCode(97 + idx)}</div>
                                             <textarea 
@@ -2081,7 +2090,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             <Plus size={12} /> Tambah
                                         </button>
                                     </div>
-                                    {keputusanData.mengingat.map((item, idx) => (
+                                    {(keputusanData.mengingat || []).map((item, idx) => (
                                         <div key={idx} className="flex gap-2">
                                             <div className="w-8 h-8 rounded bg-white border border-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600 shrink-0">{idx + 1}</div>
                                             <textarea 
@@ -2116,7 +2125,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             <Plus size={12} /> Tambah Diktum
                                         </button>
                                     </div>
-                                    {keputusanData.menetapkan.map((item, idx) => (
+                                    {(keputusanData.menetapkan || []).map((item, idx) => (
                                         <div key={idx} className="bg-white/50 rounded-xl p-3 border border-amber-50 space-y-2">
                                             <div className="flex items-center justify-between">
                                                 <input 
@@ -2157,7 +2166,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             <Plus size={12} /> Tambah
                                         </button>
                                     </div>
-                                    {keputusanData.tembusan.map((item, idx) => (
+                                    {(keputusanData.tembusan || []).map((item, idx) => (
                                         <div key={idx} className="flex gap-2">
                                             <input 
                                                 className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
@@ -2222,12 +2231,12 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div className="pt-4 border-t border-green-100/50">
                                     <div className="flex items-center justify-between mb-2">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Poin-poin Penting</label>
-                                        <button type="button" onClick={() => setPemberitahuanData({...pemberitahuanData, points: [...pemberitahuanData.points, '']})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                        <button type="button" onClick={() => setPemberitahuanData({...pemberitahuanData, points: [...(pemberitahuanData.points || []), '']})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
                                             <Plus size={12} /> Tambah Poin
                                         </button>
                                     </div>
                                     <div className="space-y-3">
-                                        {pemberitahuanData.points.map((point, idx) => (
+                                        {(pemberitahuanData.points || []).map((point, idx) => (
                                             <div key={idx} className="flex gap-2">
                                                 <div className="w-8 h-8 rounded-lg bg-green-50 border border-green-100 flex items-center justify-center text-[10px] font-bold text-green-600 shrink-0">{idx + 1}</div>
                                                 <textarea
@@ -2276,7 +2285,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         </button>
                                     </div>
                                     <div className="space-y-2">
-                                        {taskData.basisList.map((item, idx) => (
+                                        {(taskData.basisList || []).map((item, idx) => (
                                             <div key={idx} className="flex gap-2">
                                                 <input 
                                                     className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
@@ -2317,7 +2326,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {taskData.personnelList.map((p, idx) => (
+                                                {(taskData.personnelList || []).map((p, idx) => (
                                                     <tr key={idx}>
                                                         <td className="px-2 py-1 border-b">
                                                             <div className="relative group">
