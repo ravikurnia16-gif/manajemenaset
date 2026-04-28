@@ -1035,6 +1035,7 @@ exports.checkAssignmentDeadlines = async () => {
             where: {
                 status: { in: ['PENDING', 'IN_PROGRESS'] },
                 dueDate: { not: null },
+                routineId: null,
                 OR: [
                     { lastReminderSent: null },
                     { lastReminderSent: { lt: today } }
