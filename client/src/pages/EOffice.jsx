@@ -1364,15 +1364,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             const isMultipart = formData.type === 'SURAT_MASUK';
             let payload = formData;
             let config = {};
-
-            if (isMultipart || file) {
-                payload = new FormData();
-                for (const key in formData) {
-                    if (formData[key] !== null && formData[key] !== undefined) {
-                        payload.append(key, formData[key]);
-                    }
-                }
-                
+            
             let contentObj = {};
             if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) {
                 contentObj = { items: bastItems };
