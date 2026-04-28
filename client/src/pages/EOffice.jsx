@@ -1138,6 +1138,13 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         party2Address: '',
     });
     const [file, setFile] = useState(null);
+    const [isMultipart, setIsMultipart] = useState(false);
+    const [recipientType, setRecipientType] = useState('external');
+    const [recipientsData, setRecipientsData] = useState({
+        isMultiple: false,
+        mode: 'LIST', // LIST or MASSAL
+        list: [{ name: '', title: '', address: '' }]
+    });
     const [bastItems, setBastItems] = useState([{ name: '', qty: '', condition: 'Baik' }]);
     const [purchasingItems, setPurchasingItems] = useState([{ name: '', spec: '', qty: '', unit: 'Pcs', price: '', total: 0 }]);
     const [staffList, setStaffList] = useState([]);
@@ -1174,7 +1181,6 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         points: [''],
         penutup: ''
     });
-    const [recipientType, setRecipientType] = useState('external');
 
     useEffect(() => {
         if (isOpen) {
@@ -1197,14 +1203,12 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
 
     useEffect(() => {
         if (doc) {
-            // If it's an existing document (has ID)
             if (doc.id) {
                 setFormData({
                     ...doc,
                     receivedDate: doc.receivedDate ? formatDate(doc.receivedDate, 'input') : '',
                 });
             } else {
-                // If it's a new document with just a type selected
                 const overrides = {};
                 if (doc.type === 'INVOICE') {
                     overrides.category = 'Invoice';
@@ -1218,6 +1222,15 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     ...overrides,
                     receivedDate: formatDate(new Date(), 'input'),
                 }));
+            }
+
+            if (doc.content) {
+                try {
+                    const parsed = JSON.parse(doc.content);
+                    if (parsed.recipientsData) {
+                        setRecipientsData(parsed.recipientsData);
+                    }
+                } catch (e) {}
             }
 
             if (doc.type === 'BAST' && doc.content) {
@@ -1256,7 +1269,6 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             if (doc.category === 'Tugas' && doc.content) {
                 try {
                     const parsed = JSON.parse(doc.content);
-                    // Migration / Normalization
                     setTaskData({
                         basisList: parsed.basisList || (parsed.basis ? [parsed.basis] : ['']),
                         personnelList: parsed.personnelList || (parsed.personnel ? [{ name: parsed.personnel, position: '', nip: '' }] : [{ name: '', position: '', nip: '' }]),
@@ -1369,27 +1381,15 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     contentObj = pemberitahuanData;
                 }
                 
+                contentObj.recipientsData = recipientsData;
                 payload.set('content', JSON.stringify(contentObj));
                 if (file) {
                     payload.append('file', file);
                 }
                 config = { headers: { 'Content-Type': 'multipart/form-data' } };
             } else {
-                if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) {
-                    payload = { ...formData, content: JSON.stringify(bastItems) };
-                } else if (formData.category === 'Pesanan') {
-                    payload = { ...formData, type: 'SURAT_PESANAN', content: JSON.stringify(purchasingItems) };
-                } else if (formData.type === 'INVOICE' || formData.category === 'Invoice') {
-                    payload = { ...formData, content: JSON.stringify({ items: purchasingItems, bankInfo: invoiceData, dueDate: invoiceData.dueDate, notes: invoiceData.notes }) };
-                } else if (formData.type === 'SURAT_KELUAR' && formData.category === 'Tugas') {
-                    payload = { ...formData, content: JSON.stringify(taskData) };
-                } else if (formData.category === 'Edaran') {
-                    payload = { ...formData, content: JSON.stringify(edaranData) };
-                } else if (formData.category === 'Keputusan') {
-                    payload = { ...formData, content: JSON.stringify(keputusanData) };
-                } else if (formData.category === 'Pemberitahuan') {
-                    payload = { ...formData, content: JSON.stringify(pemberitahuanData) };
-                }
+                let contentObj = {};
+                payload = { ...formData, content: JSON.stringify({ ...contentObj, recipientsData }) };
             }
 
             if (doc && doc.id) {
@@ -1400,7 +1400,6 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             onSuccess();
             onClose();
             
-            // Auto-navigate to the correct tab for NEW documents
             if (!doc || !doc.id) {
                 if (formData.type === 'SURAT_MASUK') {
                     navigate('/e-office/surat-masuk');
@@ -1436,8 +1435,6 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     </div>
 
                     <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto max-h-[75vh]">
-                        {/* Remove Jenis Dokumen selection row as requested */}
-
                         {formData.type === 'SURAT_KELUAR' && (
                             <div className="col-span-full bg-blue-50/50 p-6 rounded-2xl border border-blue-100 mb-2">
                                 <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 block">1. Pilih Kategori Surat Keluar</label>
@@ -1629,16 +1626,126 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         </div>
                                     </>
                                 )}
-                                <div className="col-span-full">
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Alamat Penerima</label>
-                                    <input 
-                                        type="text"
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
-                                        value={formData.party2Address}
-                                        onChange={(e) => setFormData({ ...formData, party2Address: e.target.value })}
-                                        placeholder="Alamat lengkap penerima..."
-                                    />
+                            </div>
+                        )}
+
+                        {formData.type === 'SURAT_KELUAR' && !['Pesanan'].includes(formData.category) && (
+                            <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                                <label className="col-span-full text-xs font-black text-slate-600 uppercase tracking-widest block mb-2">3. Tujuan / Penerima Surat</label>
+                                
+                                <div className="col-span-full mb-2">
+                                    <label className="flex items-center gap-3 cursor-pointer p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-300 transition-all">
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-5 h-5 rounded-lg text-blue-600 focus:ring-blue-500"
+                                            checked={recipientsData.isMultiple}
+                                            onChange={(e) => setRecipientsData({ ...recipientsData, isMultiple: e.target.checked })}
+                                        />
+                                        <div>
+                                            <div className="text-sm font-black text-slate-900">Banyak Tujuan / Surat Massal?</div>
+                                            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Aktifkan untuk mengirim ke lebih dari satu penerima</div>
+                                        </div>
+                                    </label>
                                 </div>
+
+                                {recipientsData.isMultiple ? (
+                                    <div className="col-span-full space-y-4">
+                                        <div className="flex items-center justify-between p-4 bg-blue-50 rounded-xl border border-blue-100">
+                                            <div>
+                                                <div className="text-xs font-black text-blue-700 uppercase tracking-widest mb-1">Pilih Mode Penerima</div>
+                                                <div className="text-[10px] text-blue-600/70 font-medium">Massal akan membuat 1 halaman per orang</div>
+                                            </div>
+                                            <div className="flex bg-white rounded-lg p-1 border border-blue-200">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setRecipientsData({ ...recipientsData, mode: 'LIST' })}
+                                                    className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase transition-all ${recipientsData.mode === 'LIST' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                >
+                                                    Daftar (List)
+                                                </button>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setRecipientsData({ ...recipientsData, mode: 'MASSAL' })}
+                                                    className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase transition-all ${recipientsData.mode === 'MASSAL' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                >
+                                                    Massal (Merge)
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                                            <table className="w-full text-left border-collapse text-[11px]">
+                                                <thead className="bg-slate-50 font-black text-slate-600 uppercase tracking-tighter">
+                                                    <tr>
+                                                        <th className="p-3 border-b border-slate-200">Nama Penerima</th>
+                                                        <th className="p-3 border-b border-slate-200">Jabatan / Unit</th>
+                                                        <th className="p-3 border-b border-slate-200">Alamat / Di Tempat</th>
+                                                        <th className="p-3 border-b border-slate-200 w-10 text-center"></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {recipientsData.list.map((r, idx) => (
+                                                        <tr key={idx}>
+                                                            <td className="p-2 border-b border-slate-100">
+                                                                <input required value={r.name} onChange={(e) => { const newList = [...recipientsData.list]; newList[idx].name = e.target.value; setRecipientsData({ ...recipientsData, list: newList }); }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none font-bold" placeholder="Nama..." />
+                                                            </td>
+                                                            <td className="p-2 border-b border-slate-100">
+                                                                <input value={r.title} onChange={(e) => { const newList = [...recipientsData.list]; newList[idx].title = e.target.value; setRecipientsData({ ...recipientsData, list: newList }); }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none" placeholder="Jabatan..." />
+                                                            </td>
+                                                            <td className="p-2 border-b border-slate-100">
+                                                                <input value={r.address} onChange={(e) => { const newList = [...recipientsData.list]; newList[idx].address = e.target.value; setRecipientsData({ ...recipientsData, list: newList }); }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none" placeholder="Alamat..." />
+                                                            </td>
+                                                            <td className="p-2 border-b border-slate-100 text-center">
+                                                                <button type="button" onClick={() => { if (recipientsData.list.length > 1) { const newList = recipientsData.list.filter((_, i) => i !== idx); setRecipientsData({ ...recipientsData, list: newList }); } }} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setRecipientsData({ ...recipientsData, list: [...recipientsData.list, { name: '', title: '', address: '' }] })}
+                                                className="w-full py-3 bg-slate-50 text-blue-600 font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Plus size={14} /> Tambah Penerima Lain
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div>
+                                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Kepada Yth (Jabatan / Nama)</label>
+                                            <input 
+                                                required
+                                                type="text"
+                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                                value={formData.party2Name}
+                                                onChange={(e) => setFormData({ ...formData, party2Name: e.target.value })}
+                                                placeholder="Contoh: Seluruh Staff Sarpras"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Jabatan / Instansi</label>
+                                            <input 
+                                                type="text"
+                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                                value={formData.party2Title}
+                                                onChange={(e) => setFormData({ ...formData, party2Title: e.target.value })}
+                                                placeholder="Contoh: Staff Sarpras"
+                                            />
+                                        </div>
+                                        <div className="col-span-full">
+                                            <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Alamat / Di Tempat</label>
+                                            <input 
+                                                type="text"
+                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
+                                                value={formData.party2Address}
+                                                onChange={(e) => setFormData({ ...formData, party2Address: e.target.value })}
+                                                placeholder="Contoh: Di Tempat"
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         )}
 
