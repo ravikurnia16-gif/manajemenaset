@@ -273,21 +273,10 @@ exports.submitForApproval = async (req, res) => {
             return res.status(400).json({ error: 'Dokumen harus berstatus DRAFT untuk diajukan' });
         }
 
-        // Generate document number upon submission
-        const number = await generateDocumentNumber(doc.category, doc.type);
-
-        // Generate QR verification hash
-        const qrHash = crypto.createHash('sha256')
-            .update(`${doc.uuid}-${number}-${Date.now()}`)
-            .digest('hex')
-            .substring(0, 16);
-
         const updated = await prisma.officeDocument.update({
             where: { id },
             data: {
                 status: 'PENDING_APPROVAL',
-                number,
-                qrCodeData: qrHash,
             },
             include: {
                 author: { select: { id: true, name: true } },
@@ -305,7 +294,7 @@ exports.submitForApproval = async (req, res) => {
 
                 if (kabid && kabid.phone) {
                     const docTypeLabel = updated.type.replace(/_/g, ' ');
-                    const waMessage = `*NOTIFIKASI E-OFFICE*\n\nHalo Pak ${kabid.name},\n\nAda dokumen baru yang diajukan untuk ditandatangani:\n\n- *Jenis*: ${docTypeLabel}\n- *Judul*: ${updated.subject}\n- *Nomor*: ${updated.number}\n- *Pengaju*: ${updated.author.name}\n\nSilakan cek aplikasi untuk melakukan tanda tangan elektronik. Terima kasih.`;
+                    const waMessage = `*NOTIFIKASI E-OFFICE*\n\nHalo Pak ${kabid.name},\n\nAda dokumen baru yang diajukan untuk ditandatangani:\n\n- *Jenis*: ${docTypeLabel}\n- *Judul*: ${updated.subject}\n- *Pengaju*: ${updated.author.name}\n\nSilakan cek aplikasi untuk melakukan tanda tangan elektronik. Terima kasih.`;
                     
                     await whatsappService.sendMessage(kabid.phone, waMessage);
                 }
@@ -338,9 +327,16 @@ exports.approveAndSign = async (req, res) => {
         // Generate QR code for verification
         const qrCodeData = await generateVerificationQR(doc.uuid);
 
+        // Generate document number upon approval
+        let number = doc.number;
+        if (!number) {
+            number = await generateDocumentNumber(doc.category, doc.type);
+        }
+
         // Build update data
         const updateData = {
             status: 'SIGNED',
+            number,
             signedById: req.user.id,
             signedAt: new Date(),
             signatureData: signatureData || null,
