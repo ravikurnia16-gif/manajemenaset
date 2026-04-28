@@ -349,7 +349,7 @@ async function generateSuratPDF(doc, setting) {
 
             const lines = plainText.split('\n');
             for (const line of lines) {
-                if (y < 150) { /* logic page break? */ }
+                if (y < 28) { /* logic page break? */ }
                 if (line.trim() === '') { y -= 8; continue; }
 
                 page.drawText(line, {
@@ -1117,7 +1117,7 @@ async function generateSuratEdaranPDF(doc, setting) {
         const { width, height } = page.getSize();
         const margin = 70;
         const contentWidth = width - margin * 2;
-        const bottomMargin = 60;
+        const bottomMargin = 28;
         let y = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
 
         const checkPage = (needed = 30) => {
@@ -1291,7 +1291,7 @@ async function generateKeputusanPDF(doc, setting) {
         const { width, height } = page.getSize();
         const margin = 70;
         const contentWidth = width - margin * 2;
-        const bottomMargin = 60;
+        const bottomMargin = 28;
         let y = drawKopSuratSync(page, fontBold, fontRegular, kopImages) - 10;
 
         const checkPage = (needed = 30) => {
@@ -1486,7 +1486,7 @@ async function generatePemberitahuanPDF(doc, setting) {
         const { width, height } = page.getSize();
         const margin = 70;
         const contentWidth = width - margin * 2;
-        const bottomMargin = 60;
+        const bottomMargin = 28;
         let y = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
 
         const checkPage = (needed = 30) => {
