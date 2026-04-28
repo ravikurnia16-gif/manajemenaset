@@ -373,10 +373,10 @@ async function generateSuratPDF(doc, setting) {
         y -= 18;
 
         page.drawText('Kepala Bidang Sarpras,', { x: sigX, y, size: 11, font: fontBold });
-        y -= 85;
+        y -= 65;
 
-        await drawDigitalSignature(page, doc, sigX + 20, y);
-        y -= 25;
+        await drawDigitalSignature(page, doc, sigX + 20, y, 60);
+        y -= 10;
         const signerName = doc.signedBy?.name || '____________________';
         page.drawText(signerName, { x: sigX, y, size: 11, font: fontBold });
     };
@@ -1252,10 +1252,10 @@ async function generateSuratEdaranPDF(doc, setting) {
         y -= 18;
 
         page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarpras', { x: sigX, y, size: 10, font: fontBold });
-        y -= 50;
+        y -= 65; // Space for QR
 
         await drawDigitalSignature(page, doc, sigX, y, 60);
-        y -= 15;
+        y -= 10; // Space below QR
 
         page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: sigX, y, size: 10, font: fontBold });
         y -= 12;
@@ -1433,10 +1433,10 @@ async function generateKeputusanPDF(doc, setting) {
         y -= 18;
 
         page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarpras', { x: sigX, y, size: 10, font: fontBold });
-        y -= 50;
+        y -= 65; // Space for QR
 
         await drawDigitalSignature(page, doc, sigX, y, 60);
-        y -= 15;
+        y -= 10; // Space below QR
 
         page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: sigX, y, size: 10, font: fontBold });
         y -= 12;
@@ -1616,11 +1616,11 @@ async function generatePemberitahuanPDF(doc, setting) {
 
         // Signature
         const sigX = width - 250;
-        page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana dan Prasarana,', { x: sigX, y, size: 10, font: fontBold });
-        y -= 50;
+            page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana dan Prasarana,', { x: sigX, y, size: 10, font: fontBold });
+        y -= 65;
 
         await drawDigitalSignature(page, doc, sigX, y, 60);
-        y -= 15;
+        y -= 10;
 
         page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: sigX, y, size: 10, font: fontBold });
         y -= 12;
