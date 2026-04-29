@@ -59,12 +59,13 @@ exports.getMaintenanceLogById = async (req, res) => {
     }
 };
 
-// Create maintenance log
+// Create maintenance log (supports multi-item)
 exports.createMaintenanceLog = async (req, res) => {
     try {
         const { id: userId, role } = req.user;
         const {
-            vehicleId, date, category, type, description, cost, odometer, nextServiceOdometer, workshop, proofFile
+            vehicleId, date, category, type, description, cost, odometer, 
+            nextServiceOdometer, nextServiceDate, workshop, proofFile, items
         } = req.body;
 
         // 1. Mandatory Validation
@@ -84,13 +85,6 @@ exports.createMaintenanceLog = async (req, res) => {
             if (!isPic) return res.status(403).json({ error: 'Anda bukan PIC kendaraan ini.' });
         }
 
-        // 3. Conditional Validation for Routine
-        if (category === 'ROUTINE') {
-            if (!odometer || !nextServiceOdometer) {
-                return res.status(400).json({ error: 'Untuk Pemeliharaan Rutin, KM saat ini dan KM servis berikutnya wajib diisi.' });
-            }
-        }
-
         const log = await prisma.vehicleService.create({
             data: {
                 vehicleId: parseInt(vehicleId),
@@ -101,6 +95,8 @@ exports.createMaintenanceLog = async (req, res) => {
                 cost: parseFloat(cost),
                 odometer: odometer ? parseInt(odometer) : null,
                 nextServiceOdometer: nextServiceOdometer ? parseInt(nextServiceOdometer) : null,
+                nextServiceDate: nextServiceDate ? new Date(nextServiceDate) : null,
+                items: items || null,
                 workshop,
                 proofFile
             }
@@ -112,6 +108,58 @@ exports.createMaintenanceLog = async (req, res) => {
                 where: { id: parseInt(vehicleId) },
                 data: { odometer: parseInt(odometer) }
             });
+        }
+
+        // 4. Auto-update reminders for routine items
+        if (items && Array.isArray(items)) {
+            const routineItems = items.filter(item => item.isRoutine);
+            for (const item of routineItems) {
+                if (!item.name) continue;
+
+                // Calculate targets
+                const targetKm = (odometer && item.intervalKm) 
+                    ? parseInt(odometer) + parseInt(item.intervalKm) 
+                    : (item.nextKm ? parseInt(item.nextKm) : null);
+                
+                let targetDate = null;
+                if (item.intervalMonths) {
+                    targetDate = new Date(date);
+                    targetDate.setMonth(targetDate.getMonth() + parseInt(item.intervalMonths));
+                } else if (item.nextDate) {
+                    targetDate = new Date(item.nextDate);
+                }
+
+                await prisma.vehicleMaintenanceReminder.upsert({
+                    where: {
+                        vehicleId_componentName: {
+                            vehicleId: parseInt(vehicleId),
+                            componentName: item.name
+                        }
+                    },
+                    create: {
+                        vehicleId: parseInt(vehicleId),
+                        componentName: item.name,
+                        lastServicedKm: odometer ? parseInt(odometer) : null,
+                        lastServicedDate: new Date(date),
+                        intervalKm: item.intervalKm ? parseInt(item.intervalKm) : null,
+                        intervalMonths: item.intervalMonths ? parseInt(item.intervalMonths) : null,
+                        targetKm,
+                        targetDate,
+                        lastCost: item.cost ? parseFloat(item.cost) : null,
+                        status: 'OK'
+                    },
+                    update: {
+                        lastServicedKm: odometer ? parseInt(odometer) : null,
+                        lastServicedDate: new Date(date),
+                        intervalKm: item.intervalKm ? parseInt(item.intervalKm) : null,
+                        intervalMonths: item.intervalMonths ? parseInt(item.intervalMonths) : null,
+                        targetKm,
+                        targetDate,
+                        lastCost: item.cost ? parseFloat(item.cost) : null,
+                        status: 'OK'
+                    }
+                });
+            }
         }
 
         res.status(201).json(log);

@@ -29,6 +29,14 @@ router.post('/maintenance', verifyToken, maintenanceCtrl.createMaintenanceLog);
 router.put('/maintenance/:id', verifyToken, maintenanceCtrl.updateMaintenanceLog);
 router.delete('/maintenance/:id', verifyToken, maintenanceCtrl.deleteMaintenanceLog);
 
+// Maintenance Reminder Routes (Hybrid KM + Date)
+const reminderCtrl = require('../controllers/vehicleReminderController');
+router.get('/reminders/components', verifyToken, reminderCtrl.getRoutineComponents);
+router.get('/reminders/all', verifyToken, reminderCtrl.getAllReminders);
+router.get('/reminders/:vehicleId', verifyToken, reminderCtrl.getVehicleReminders);
+router.post('/reminders', verifyToken, reminderCtrl.upsertReminder);
+router.delete('/reminders/:id', verifyToken, reminderCtrl.deleteReminder);
+
 // Weekly Report Routes
 const reportCtrl = require('../controllers/vehicleReportController');
 router.get('/:id/reports/weekly/draft', verifyToken, reportCtrl.getWeeklyDraft);

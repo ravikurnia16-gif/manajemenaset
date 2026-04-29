@@ -537,6 +537,7 @@ model Vehicle {
   fuelLogs      VehicleFuelLog[]
   weeklyReports VehicleWeeklyReport[]
   inspections   VehicleInspection[]
+  maintenanceReminders VehicleMaintenanceReminder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -637,10 +638,32 @@ model VehicleService {
   cost                Float
   odometer            Int?
   nextServiceOdometer Int? // KM service berikutnya (Routine only)
+  nextServiceDate     DateTime? // Tanggal service berikutnya (hybrid reminder)
+  items               Json? // Array of { name, cost, nextKm?, nextDate?, isRoutine }
   workshop            String? // Bengkel
   proofFile           String? // Foto Nota
 
   createdAt DateTime @default(now())
+}
+
+model VehicleMaintenanceReminder {
+  id              Int       @id @default(autoincrement())
+  vehicleId       Int
+  vehicle         Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  componentName   String    // e.g. "Oli Mesin", "Kampas Rem", "Aki"
+  lastServicedKm  Int?      // KM saat terakhir servis
+  lastServicedDate DateTime? // Tanggal terakhir servis
+  intervalKm      Int?      // Interval KM (e.g. 5000)
+  intervalMonths  Int?      // Interval bulan (e.g. 6)
+  targetKm        Int?      // KM target berikutnya
+  targetDate      DateTime? // Tanggal target berikutnya
+  lastCost        Float?    // Biaya terakhir
+  status          String    @default("OK") // OK, WARNING, OVERDUE
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([vehicleId, componentName])
+  @@index([vehicleId])
 }
 
 model VehicleFuelLog {

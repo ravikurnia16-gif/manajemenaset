@@ -40,6 +40,7 @@ import VehicleMaintenanceDetail from './pages/VehicleMaintenanceDetail';
 import VehicleWeeklyReport from './pages/VehicleWeeklyReport';
 import VehicleInspectionForm from './pages/VehicleInspectionForm';
 import VehicleInspectionList from './pages/VehicleInspectionList';
+import VehicleReminderDashboard from './pages/VehicleReminderDashboard';
 import LoginPage from './pages/LoginPage';
 import PublicAssetView from './pages/PublicAssetView';
 import MutationList from './pages/MutationList';
@@ -136,6 +137,7 @@ function App() {
           <Route path="kendaraan/pemeliharaan/new" element={<VehicleMaintenanceForm />} />
           <Route path="kendaraan/pemeliharaan/edit/:id" element={<VehicleMaintenanceForm />} />
           <Route path="kendaraan/pemeliharaan/view/:id" element={<VehicleMaintenanceDetail />} />
+          <Route path="kendaraan/pemeliharaan/reminder" element={<VehicleReminderDashboard />} />
           <Route path="kendaraan/laporan-mingguan/:id" element={<VehicleWeeklyReport />} />
           <Route path="kendaraan/inspeksi/:id" element={<VehicleInspectionForm />} />
           <Route path="kendaraan/inspeksi/riwayat/:id" element={<VehicleInspectionList />} />

@@ -49,12 +49,20 @@ const VehicleMaintenanceList = () => {
                     </h1>
                     <p className="text-sm text-slate-500">Pantau servis rutin dan perbaikan armada.</p>
                 </div>
-                <button
-                    onClick={() => navigate('/kendaraan/pemeliharaan/new')}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all transform hover:-translate-y-0.5"
-                >
-                    <Plus size={20} /> <span className="sm:hidden lg:inline">Tambah Log Servis</span><span className="hidden sm:inline lg:hidden">Tambah Log</span>
-                </button>
+                <div className="flex gap-2 w-full sm:w-auto">
+                    <button
+                        onClick={() => navigate('/kendaraan/pemeliharaan/reminder')}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all transform hover:-translate-y-0.5 text-xs sm:text-sm"
+                    >
+                        🩺 <span>Health Monitor</span>
+                    </button>
+                    <button
+                        onClick={() => navigate('/kendaraan/pemeliharaan/new')}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all transform hover:-translate-y-0.5 text-xs sm:text-sm"
+                    >
+                        <Plus size={20} /> <span className="sm:hidden lg:inline">Tambah Log Servis</span><span className="hidden sm:inline lg:hidden">Tambah Log</span>
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
