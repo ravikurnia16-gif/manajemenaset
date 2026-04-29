@@ -23,7 +23,7 @@ const BusInvoicePublic = () => {
     if (loading) return <div className="p-10 text-center font-bold text-slate-500">Memuat Invoice...</div>;
     if (error || !invoice) return <div className="p-10 text-center font-bold text-red-500">{error}</div>;
 
-    const qrData = `${window.location.origin}/public/invoice-bus/${invoice.id}`;
+    const qrData = `${window.location.origin}/verify/bus-invoice/${invoice.id}`;
 
     return (
         <div className="min-h-screen bg-slate-100 p-4 font-sans print:bg-white print:p-0 print:min-h-0 print:block">

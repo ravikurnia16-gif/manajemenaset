@@ -32,6 +32,7 @@ import BusBookingPublic from './pages/BusBookingPublic';
 import BusInvoicePublic from './pages/BusInvoicePublic';
 import BusInvoiceBatchPrint from './pages/BusInvoiceBatchPrint';
 import BusConfirmationPublic from './pages/BusConfirmationPublic';
+import BusInvoiceVerify from './pages/BusInvoiceVerify';
 
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
 import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
@@ -92,6 +93,7 @@ function App() {
         <Route path="/public/confirm-bus/:id/:token" element={<BusConfirmationPublic />} />
         <Route path="/q/:token" element={<QuickComplete />} />
         <Route path="/verify/:uuid" element={<PublicVerify />} />
+        <Route path="/verify/bus-invoice/:id" element={<BusInvoiceVerify />} />
 
         {/* Semua route di dalam sini diproteksi */}
         <Route path="/" element={
