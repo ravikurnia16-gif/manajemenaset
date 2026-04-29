@@ -10,6 +10,7 @@ const ROUTINE_COMPONENTS = [
     { name: 'Oli Gardan', intervalKm: 20000, intervalMonths: 12, icon: '⚙️' },
     { name: 'Filter Udara', intervalKm: 15000, intervalMonths: 12, icon: '💨' },
     { name: 'Filter AC', intervalKm: 15000, intervalMonths: 12, icon: '❄️' },
+    { name: 'Filter BBM', intervalKm: 20000, intervalMonths: 12, icon: '⛽' },
     { name: 'Kampas Rem', intervalKm: 30000, intervalMonths: 18, icon: '🛑' },
     { name: 'Ban (Rotasi/Ganti)', intervalKm: 40000, intervalMonths: 24, icon: '🔘' },
     { name: 'Spooring & Balancing', intervalKm: 20000, intervalMonths: 12, icon: '🎯' },
