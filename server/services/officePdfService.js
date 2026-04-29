@@ -969,10 +969,12 @@ async function generateSuratPesananPDF(doc) {
 
     y -= 85;
     // TTE for Kabid
-    await drawDigitalSignature(page, doc, sigX + 10, y, 80);
+    await drawDigitalSignature(page, doc, sigX, y, 80);
 
-    y -= 25;
+    y -= 15;
     page.drawText(doc.party1Name || 'Ravi Kurnia', { x: sigX, y, size: 11, font: fontBold });
+    y -= 14;
+    page.drawText(`NIY. ${doc.signedBy?.nip || '-'}`, { x: sigX, y, size: 10, font: fontRegular });
 
     // Catatan / Syarat & Ketentuan at the very bottom
     y = 120;
