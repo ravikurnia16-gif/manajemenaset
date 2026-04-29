@@ -22,6 +22,7 @@ const CATEGORY_CODES = {
     'BAST': 'BA',
     'MOU': 'MOU',
     'Pesanan': 'PO',
+    'Umum': 'UMM',
     'Lainnya': 'UM',
 };
 

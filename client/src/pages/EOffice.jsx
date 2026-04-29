@@ -1164,6 +1164,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         background: '',
         points: [{ text: '', subs: [''] }],
     });
+    const [umumData, setUmumData] = useState({ subCategory: '', body: '' });
     const [keputusanData, setKeputusanData] = useState({
         menimbang: [''],
         mengingat: [''],
@@ -1323,6 +1324,17 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     console.error('Failed to parse Pemberitahuan content JSON', e);
                 }
             }
+            if (doc.category === 'Umum' && doc.content) {
+                try {
+                    const parsed = JSON.parse(doc.content);
+                    setUmumData({
+                        subCategory: parsed.subCategory || '',
+                        body: parsed.body || ''
+                    });
+                } catch (e) {
+                    console.error('Failed to parse Umum content JSON', e);
+                }
+            }
         } else {
             setFormData({
                 type: defaultType,
@@ -1382,6 +1394,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 contentObj = { ...keputusanData };
             } else if (formData.category === 'Pemberitahuan') {
                 contentObj = { ...pemberitahuanData };
+            } else if (formData.category === 'Umum') {
+                contentObj = { ...umumData };
             } else {
                 // Default for plain letters
                 contentObj = { text: formData.content };
@@ -1453,7 +1467,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             <div className="col-span-full bg-blue-50/50 p-6 rounded-2xl border border-blue-100 mb-2">
                                 <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 block">1. Pilih Kategori Surat Keluar</label>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                    {['Tugas', 'Keputusan', 'Pemberitahuan', 'BAST', 'Pesanan', 'Edaran', 'Lainnya'].map(c => (
+                                    {['Tugas', 'Keputusan', 'Pemberitahuan', 'BAST', 'Pesanan', 'Edaran', 'Umum', 'Lainnya'].map(c => (
                                         <button
                                             key={c}
                                             type="button"
@@ -1482,6 +1496,21 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 placeholder="Contoh: Undangan Rapat Koordinasi Sarpras"
                             />
                         </div>
+
+                        {formData.category === 'Umum' && (
+                            <div className="col-span-full animate-in slide-in-from-left duration-300">
+                                <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 block">Jenis Surat (Header)</label>
+                                <input 
+                                    required
+                                    type="text"
+                                    className="w-full px-4 py-3 rounded-xl border border-blue-200 bg-blue-50/30 outline-none font-bold"
+                                    value={umumData.subCategory}
+                                    onChange={(e) => setUmumData({ ...umumData, subCategory: e.target.value.toUpperCase() })}
+                                    placeholder="Contoh: SURAT KETERANGAN / SURAT PEMBERITAHUAN"
+                                />
+                                <p className="text-[10px] text-slate-400 mt-1">* Teks ini akan menjadi judul di tengah surat</p>
+                            </div>
+                        )}
 
                         {formData.type === 'SURAT_MASUK' ? (
                             <>
@@ -2502,7 +2531,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {formData.type !== 'SURAT_MASUK' && !['Berita Acara', 'Serah Terima Barang', 'Pesanan', 'Tugas', 'Edaran', 'Keputusan', 'Pemberitahuan'].includes(formData.category) && !['BAST', 'MOU'].includes(formData.type) && (
+                        {formData.type !== 'SURAT_MASUK' && !['Berita Acara', 'Serah Terima Barang', 'Pesanan', 'Tugas', 'Edaran', 'Keputusan', 'Pemberitahuan', 'Umum'].includes(formData.category) && !['BAST', 'MOU'].includes(formData.type) && (
                             <div className="col-span-full">
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Isi Dokumen / Pesan</label>
                                 <textarea 
@@ -2513,6 +2542,35 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                                     placeholder={formData.type === 'INVOICE' ? 'Opsional: catatan tambahan untuk invoice...' : 'Tuliskan isi surat secara lengkap di sini...'}
                                 />
+                            </div>
+                        )}
+
+                        {formData.category === 'Umum' && (
+                            <div className="col-span-full animate-in zoom-in duration-300">
+                                <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
+                                    3. Isi Inti Surat
+                                </label>
+                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4 opacity-60">
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Pembukaan (Otomatis):</div>
+                                    <p className="text-[11px] font-medium text-slate-600 leading-relaxed italic">
+                                        "Segala puji bagi Allah Subhaanahu wa ta'aala yang senantiasa melimpahkan nikmat dan hidayah-Nya kepada kita semua. Shalawat dan salam atas Nabi Muhammad Shalallaahu 'alaihi wa sallam. Kami mendo'akan semoga Bapak/Ibu selalu berada dalam lindungan Allah Subhaanahu wa ta'aala, Amin."
+                                    </p>
+                                </div>
+                                <textarea 
+                                    required
+                                    rows={10}
+                                    className="w-full px-5 py-4 rounded-2xl border-2 border-blue-100 focus:border-blue-500 focus:ring-0 outline-none font-medium leading-relaxed text-sm shadow-sm"
+                                    value={umumData.body}
+                                    onChange={(e) => setUmumData({ ...umumData, body: e.target.value })}
+                                    placeholder="Tuliskan inti surat di sini (tanpa perlu salam pembuka/penutup)..."
+                                />
+                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4 opacity-60">
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Penutup (Otomatis):</div>
+                                    <p className="text-[11px] font-medium text-slate-600 leading-relaxed italic">
+                                        "Demikianlah surat ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih. Jazakumullahu khairan."
+                                    </p>
+                                </div>
                             </div>
                         )}
 

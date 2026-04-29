@@ -513,6 +513,8 @@ exports.generatePDF = async (req, res) => {
             pdfBytes = await generatePemberitahuanPDF(doc, setting);
         } else if (doc.type === 'SURAT_KELUAR' && doc.category === 'Tugas') {
             pdfBytes = await generateSuratTugasPDF(doc, setting);
+        } else if (doc.category === 'Umum') {
+            pdfBytes = await generateSuratUmumPDF(doc, setting);
         } else {
             pdfBytes = await generateSuratPDF(doc, setting);
         }
