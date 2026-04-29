@@ -1,32 +1,91 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// Default routine maintenance items with their typical intervals
-const ROUTINE_COMPONENTS = [
-    { name: 'Oli Mesin', intervalKm: 5000, intervalMonths: 6, icon: '🛢️' },
-    { name: 'Filter Oli', intervalKm: 10000, intervalMonths: 6, icon: '🔧' },
-    { name: 'Oli Transmisi', intervalKm: 20000, intervalMonths: 12, icon: '⚙️' },
-    { name: 'Oli Gardan', intervalKm: 20000, intervalMonths: 12, icon: '⚙️' },
-    { name: 'Filter Udara', intervalKm: 15000, intervalMonths: 12, icon: '💨' },
-    { name: 'Filter AC', intervalKm: 15000, intervalMonths: 12, icon: '❄️' },
-    { name: 'Filter BBM', intervalKm: 20000, intervalMonths: 12, icon: '⛽' },
-    { name: 'Kampas Rem', intervalKm: 30000, intervalMonths: 18, icon: '🛑' },
-    { name: 'Ban (Rotasi/Ganti)', intervalKm: 40000, intervalMonths: 24, icon: '🔘' },
-    { name: 'Spooring & Balancing', intervalKm: 20000, intervalMonths: 12, icon: '🎯' },
-    { name: 'Aki (Battery)', intervalKm: null, intervalMonths: 18, icon: '🔋' },
-    { name: 'Air Radiator (Coolant)', intervalKm: 40000, intervalMonths: 24, icon: '🌡️' },
-    { name: 'Minyak Rem', intervalKm: 40000, intervalMonths: 24, icon: '💧' },
-    { name: 'Busi', intervalKm: 20000, intervalMonths: 12, icon: '⚡' },
-    { name: 'Timing Belt/Chain', intervalKm: 80000, intervalMonths: 48, icon: '🔗' },
-    { name: 'Tune Up / Servis Berkala', intervalKm: 10000, intervalMonths: 6, icon: '🔩' },
-];
+// Routine maintenance items categorized by vehicle type
+const ROUTINE_COMPONENTS_BY_TYPE = {
+    // ===== MOTOR / SEPEDA MOTOR =====
+    MOTOR: [
+        { name: 'Oli Mesin', intervalKm: 2000, intervalMonths: 2, icon: '🛢️' },
+        { name: 'Busi', intervalKm: 8000, intervalMonths: 6, icon: '⚡' },
+        { name: 'Filter Udara', intervalKm: 8000, intervalMonths: 6, icon: '💨' },
+        { name: 'Oli Gardan (Matic)', intervalKm: 8000, intervalMonths: 6, icon: '⚙️' },
+        { name: 'V-Belt (Matic)', intervalKm: 20000, intervalMonths: 18, icon: '🔗' },
+        { name: 'Roller (Matic)', intervalKm: 20000, intervalMonths: 18, icon: '🔘' },
+        { name: 'Rantai & Gir (Manual)', intervalKm: 15000, intervalMonths: 12, icon: '⛓️' },
+        { name: 'Kampas Rem', intervalKm: 15000, intervalMonths: 12, icon: '🛑' },
+        { name: 'Minyak Rem', intervalKm: 20000, intervalMonths: 18, icon: '💧' },
+        { name: 'Ban (Ganti)', intervalKm: 20000, intervalMonths: 18, icon: '🔘' },
+        { name: 'Aki (Battery)', intervalKm: null, intervalMonths: 12, icon: '🔋' },
+        { name: 'Air Radiator (Coolant)', intervalKm: 20000, intervalMonths: 24, icon: '🌡️' },
+        { name: 'Tune Up / Servis Berkala', intervalKm: 4000, intervalMonths: 3, icon: '🔩' },
+    ],
+
+    // ===== BUS / MICROBUS =====
+    BUS: [
+        { name: 'Oli Mesin', intervalKm: 10000, intervalMonths: 3, icon: '🛢️' },
+        { name: 'Filter Oli', intervalKm: 10000, intervalMonths: 3, icon: '🔧' },
+        { name: 'Oli Transmisi', intervalKm: 40000, intervalMonths: 12, icon: '⚙️' },
+        { name: 'Oli Gardan', intervalKm: 40000, intervalMonths: 12, icon: '⚙️' },
+        { name: 'Filter Udara', intervalKm: 15000, intervalMonths: 6, icon: '💨' },
+        { name: 'Filter AC', intervalKm: 15000, intervalMonths: 6, icon: '❄️' },
+        { name: 'Kompresor AC', intervalKm: null, intervalMonths: 24, icon: '❄️' },
+        { name: 'Filter BBM', intervalKm: 20000, intervalMonths: 6, icon: '⛽' },
+        { name: 'Filter Solar / Water Separator', intervalKm: 10000, intervalMonths: 6, icon: '⛽' },
+        { name: 'Kampas Rem', intervalKm: 30000, intervalMonths: 12, icon: '🛑' },
+        { name: 'Minyak Rem', intervalKm: 40000, intervalMonths: 18, icon: '💧' },
+        { name: 'Ban (Rotasi/Ganti)', intervalKm: 50000, intervalMonths: 18, icon: '🔘' },
+        { name: 'Spooring & Balancing', intervalKm: 20000, intervalMonths: 12, icon: '🎯' },
+        { name: 'Aki (Battery)', intervalKm: null, intervalMonths: 18, icon: '🔋' },
+        { name: 'Air Radiator (Coolant)', intervalKm: 40000, intervalMonths: 12, icon: '🌡️' },
+        { name: 'Greasing / Pelumasan', intervalKm: 5000, intervalMonths: 3, icon: '🧴' },
+        { name: 'Sistem Pneumatik (Angin Rem)', intervalKm: 20000, intervalMonths: 12, icon: '🌬️' },
+        { name: 'Busi / Nozzle Injector', intervalKm: 40000, intervalMonths: 12, icon: '⚡' },
+        { name: 'Timing Belt/Chain', intervalKm: 100000, intervalMonths: 48, icon: '🔗' },
+        { name: 'Tune Up / Servis Berkala', intervalKm: 10000, intervalMonths: 3, icon: '🔩' },
+    ],
+
+    // ===== GENERAL (Mobil, Pickup, Minibus, dll) =====
+    GENERAL: [
+        { name: 'Oli Mesin', intervalKm: 5000, intervalMonths: 6, icon: '🛢️' },
+        { name: 'Filter Oli', intervalKm: 10000, intervalMonths: 6, icon: '🔧' },
+        { name: 'Oli Transmisi', intervalKm: 20000, intervalMonths: 12, icon: '⚙️' },
+        { name: 'Oli Gardan', intervalKm: 20000, intervalMonths: 12, icon: '⚙️' },
+        { name: 'Filter Udara', intervalKm: 15000, intervalMonths: 12, icon: '💨' },
+        { name: 'Filter AC', intervalKm: 15000, intervalMonths: 12, icon: '❄️' },
+        { name: 'Filter BBM', intervalKm: 20000, intervalMonths: 12, icon: '⛽' },
+        { name: 'Kampas Rem', intervalKm: 30000, intervalMonths: 18, icon: '🛑' },
+        { name: 'Ban (Rotasi/Ganti)', intervalKm: 40000, intervalMonths: 24, icon: '🔘' },
+        { name: 'Spooring & Balancing', intervalKm: 20000, intervalMonths: 12, icon: '🎯' },
+        { name: 'Aki (Battery)', intervalKm: null, intervalMonths: 18, icon: '🔋' },
+        { name: 'Air Radiator (Coolant)', intervalKm: 40000, intervalMonths: 24, icon: '🌡️' },
+        { name: 'Minyak Rem', intervalKm: 40000, intervalMonths: 24, icon: '💧' },
+        { name: 'Busi', intervalKm: 20000, intervalMonths: 12, icon: '⚡' },
+        { name: 'Timing Belt/Chain', intervalKm: 80000, intervalMonths: 48, icon: '🔗' },
+        { name: 'Tune Up / Servis Berkala', intervalKm: 10000, intervalMonths: 6, icon: '🔩' },
+    ],
+};
+
+// Helper: resolve vehicle type string to component category
+function resolveVehicleCategory(vehicleType) {
+    if (!vehicleType) return 'GENERAL';
+    const t = vehicleType.toLowerCase();
+    if (t.includes('motor') || t.includes('sepeda')) return 'MOTOR';
+    if (t.includes('bus') || t.includes('microbus')) return 'BUS';
+    return 'GENERAL';
+}
+
+// Legacy flat list (for backward compat exports)
+const ROUTINE_COMPONENTS = ROUTINE_COMPONENTS_BY_TYPE.GENERAL;
 
 /**
- * Get the default list of routine components
+ * Get the list of routine components (optionally filtered by vehicleType)
+ * GET /api/vehicles/reminders/routine-components?vehicleType=Motor
  */
 exports.getRoutineComponents = async (req, res) => {
     try {
-        res.json(ROUTINE_COMPONENTS);
+        const { vehicleType } = req.query;
+        const category = resolveVehicleCategory(vehicleType);
+        res.json(ROUTINE_COMPONENTS_BY_TYPE[category]);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -229,3 +288,5 @@ function calculateStatus(reminder, currentKm, now) {
 
 exports.calculateStatus = calculateStatus;
 exports.ROUTINE_COMPONENTS = ROUTINE_COMPONENTS;
+exports.ROUTINE_COMPONENTS_BY_TYPE = ROUTINE_COMPONENTS_BY_TYPE;
+exports.resolveVehicleCategory = resolveVehicleCategory;

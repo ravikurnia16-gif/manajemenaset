@@ -3,24 +3,73 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Wrench, Save, Calendar, Car, Gauge, DollarSign, PenTool as Tool2, Plus, Trash2, CheckCircle2, Clock, Route } from 'lucide-react';
 import api from '../lib/axios';
 
-const ROUTINE_COMPONENTS = [
-    { name: 'Oli Mesin', intervalKm: 5000, intervalMonths: 6, icon: '🛢️' },
-    { name: 'Filter Oli', intervalKm: 10000, intervalMonths: 6, icon: '🔧' },
-    { name: 'Oli Transmisi', intervalKm: 20000, intervalMonths: 12, icon: '⚙️' },
-    { name: 'Oli Gardan', intervalKm: 20000, intervalMonths: 12, icon: '⚙️' },
-    { name: 'Filter Udara', intervalKm: 15000, intervalMonths: 12, icon: '💨' },
-    { name: 'Filter AC', intervalKm: 15000, intervalMonths: 12, icon: '❄️' },
-    { name: 'Filter BBM', intervalKm: 20000, intervalMonths: 12, icon: '⛽' },
-    { name: 'Kampas Rem', intervalKm: 30000, intervalMonths: 18, icon: '🛑' },
-    { name: 'Ban (Rotasi/Ganti)', intervalKm: 40000, intervalMonths: 24, icon: '🔘' },
-    { name: 'Spooring & Balancing', intervalKm: 20000, intervalMonths: 12, icon: '🎯' },
-    { name: 'Aki (Battery)', intervalKm: null, intervalMonths: 18, icon: '🔋' },
-    { name: 'Air Radiator (Coolant)', intervalKm: 40000, intervalMonths: 24, icon: '🌡️' },
-    { name: 'Minyak Rem', intervalKm: 40000, intervalMonths: 24, icon: '💧' },
-    { name: 'Busi', intervalKm: 20000, intervalMonths: 12, icon: '⚡' },
-    { name: 'Timing Belt/Chain', intervalKm: 80000, intervalMonths: 48, icon: '🔗' },
-    { name: 'Tune Up / Servis Berkala', intervalKm: 10000, intervalMonths: 6, icon: '🔩' },
-];
+// Helper: resolve vehicle type string to component category
+function resolveVehicleCategory(vehicleType) {
+    if (!vehicleType) return 'GENERAL';
+    const t = vehicleType.toLowerCase();
+    if (t.includes('motor') || t.includes('sepeda')) return 'MOTOR';
+    if (t.includes('bus') || t.includes('microbus')) return 'BUS';
+    return 'GENERAL';
+}
+
+// Routine maintenance items categorized by vehicle type
+const ROUTINE_COMPONENTS_BY_TYPE = {
+    MOTOR: [
+        { name: 'Oli Mesin', intervalKm: 2000, intervalMonths: 2, icon: '🛢️' },
+        { name: 'Busi', intervalKm: 8000, intervalMonths: 6, icon: '⚡' },
+        { name: 'Filter Udara', intervalKm: 8000, intervalMonths: 6, icon: '💨' },
+        { name: 'Oli Gardan (Matic)', intervalKm: 8000, intervalMonths: 6, icon: '⚙️' },
+        { name: 'V-Belt (Matic)', intervalKm: 20000, intervalMonths: 18, icon: '🔗' },
+        { name: 'Roller (Matic)', intervalKm: 20000, intervalMonths: 18, icon: '🔘' },
+        { name: 'Rantai & Gir (Manual)', intervalKm: 15000, intervalMonths: 12, icon: '⛓️' },
+        { name: 'Kampas Rem', intervalKm: 15000, intervalMonths: 12, icon: '🛑' },
+        { name: 'Minyak Rem', intervalKm: 20000, intervalMonths: 18, icon: '💧' },
+        { name: 'Ban (Ganti)', intervalKm: 20000, intervalMonths: 18, icon: '🔘' },
+        { name: 'Aki (Battery)', intervalKm: null, intervalMonths: 12, icon: '🔋' },
+        { name: 'Air Radiator (Coolant)', intervalKm: 20000, intervalMonths: 24, icon: '🌡️' },
+        { name: 'Tune Up / Servis Berkala', intervalKm: 4000, intervalMonths: 3, icon: '🔩' },
+    ],
+    BUS: [
+        { name: 'Oli Mesin', intervalKm: 10000, intervalMonths: 3, icon: '🛢️' },
+        { name: 'Filter Oli', intervalKm: 10000, intervalMonths: 3, icon: '🔧' },
+        { name: 'Oli Transmisi', intervalKm: 40000, intervalMonths: 12, icon: '⚙️' },
+        { name: 'Oli Gardan', intervalKm: 40000, intervalMonths: 12, icon: '⚙️' },
+        { name: 'Filter Udara', intervalKm: 15000, intervalMonths: 6, icon: '💨' },
+        { name: 'Filter AC', intervalKm: 15000, intervalMonths: 6, icon: '❄️' },
+        { name: 'Kompresor AC', intervalKm: null, intervalMonths: 24, icon: '❄️' },
+        { name: 'Filter BBM', intervalKm: 20000, intervalMonths: 6, icon: '⛽' },
+        { name: 'Filter Solar / Water Separator', intervalKm: 10000, intervalMonths: 6, icon: '⛽' },
+        { name: 'Kampas Rem', intervalKm: 30000, intervalMonths: 12, icon: '🛑' },
+        { name: 'Minyak Rem', intervalKm: 40000, intervalMonths: 18, icon: '💧' },
+        { name: 'Ban (Rotasi/Ganti)', intervalKm: 50000, intervalMonths: 18, icon: '🔘' },
+        { name: 'Spooring & Balancing', intervalKm: 20000, intervalMonths: 12, icon: '🎯' },
+        { name: 'Aki (Battery)', intervalKm: null, intervalMonths: 18, icon: '🔋' },
+        { name: 'Air Radiator (Coolant)', intervalKm: 40000, intervalMonths: 12, icon: '🌡️' },
+        { name: 'Greasing / Pelumasan', intervalKm: 5000, intervalMonths: 3, icon: '🧴' },
+        { name: 'Sistem Pneumatik (Angin Rem)', intervalKm: 20000, intervalMonths: 12, icon: '🌬️' },
+        { name: 'Busi / Nozzle Injector', intervalKm: 40000, intervalMonths: 12, icon: '⚡' },
+        { name: 'Timing Belt/Chain', intervalKm: 100000, intervalMonths: 48, icon: '🔗' },
+        { name: 'Tune Up / Servis Berkala', intervalKm: 10000, intervalMonths: 3, icon: '🔩' },
+    ],
+    GENERAL: [
+        { name: 'Oli Mesin', intervalKm: 5000, intervalMonths: 6, icon: '🛢️' },
+        { name: 'Filter Oli', intervalKm: 10000, intervalMonths: 6, icon: '🔧' },
+        { name: 'Oli Transmisi', intervalKm: 20000, intervalMonths: 12, icon: '⚙️' },
+        { name: 'Oli Gardan', intervalKm: 20000, intervalMonths: 12, icon: '⚙️' },
+        { name: 'Filter Udara', intervalKm: 15000, intervalMonths: 12, icon: '💨' },
+        { name: 'Filter AC', intervalKm: 15000, intervalMonths: 12, icon: '❄️' },
+        { name: 'Filter BBM', intervalKm: 20000, intervalMonths: 12, icon: '⛽' },
+        { name: 'Kampas Rem', intervalKm: 30000, intervalMonths: 18, icon: '🛑' },
+        { name: 'Ban (Rotasi/Ganti)', intervalKm: 40000, intervalMonths: 24, icon: '🔘' },
+        { name: 'Spooring & Balancing', intervalKm: 20000, intervalMonths: 12, icon: '🎯' },
+        { name: 'Aki (Battery)', intervalKm: null, intervalMonths: 18, icon: '🔋' },
+        { name: 'Air Radiator (Coolant)', intervalKm: 40000, intervalMonths: 24, icon: '🌡️' },
+        { name: 'Minyak Rem', intervalKm: 40000, intervalMonths: 24, icon: '💧' },
+        { name: 'Busi', intervalKm: 20000, intervalMonths: 12, icon: '⚡' },
+        { name: 'Timing Belt/Chain', intervalKm: 80000, intervalMonths: 48, icon: '🔗' },
+        { name: 'Tune Up / Servis Berkala', intervalKm: 10000, intervalMonths: 6, icon: '🔩' },
+    ],
+};
 
 const VehicleMaintenanceForm = () => {
     const { id } = useParams();
@@ -28,6 +77,8 @@ const VehicleMaintenanceForm = () => {
     const isEdit = !!id;
 
     const [vehicles, setVehicles] = useState([]);
+    const [routineComponents, setRoutineComponents] = useState(ROUTINE_COMPONENTS_BY_TYPE.GENERAL);
+    const [vehicleCategory, setVehicleCategory] = useState('GENERAL');
     const [form, setForm] = useState({
         vehicleId: '', date: new Date().toISOString().split('T')[0],
         odometer: '', workshop: '', description: '', proofFile: ''
@@ -49,6 +100,22 @@ const VehicleMaintenanceForm = () => {
             });
         }
     }, [id]);
+
+    // When selected vehicle changes, update routine components list
+    useEffect(() => {
+        if (!form.vehicleId || vehicles.length === 0) return;
+        const selectedVehicle = vehicles.find(v => v.id === parseInt(form.vehicleId));
+        if (selectedVehicle) {
+            const cat = resolveVehicleCategory(selectedVehicle.type);
+            setVehicleCategory(cat);
+            setRoutineComponents(ROUTINE_COMPONENTS_BY_TYPE[cat] || ROUTINE_COMPONENTS_BY_TYPE.GENERAL);
+            // Clear routine selections when vehicle type changes (only on new form)
+            if (!isEdit) {
+                setSelectedRoutine([]);
+            }
+        }
+    }, [form.vehicleId, vehicles]);
+
 
     const toggleRoutine = (comp) => {
         const exists = selectedRoutine.find(r => r.name === comp.name);
@@ -168,11 +235,22 @@ const VehicleMaintenanceForm = () => {
 
                 {/* Section 1: Routine Checklist */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-1"><CheckCircle2 size={18} className="text-green-600" /> Perawatan Rutin</h2>
-                    <p className="text-[11px] text-slate-400 mb-4">Centang item yang dilakukan. Sistem akan otomatis menghitung jadwal servis berikutnya.</p>
+                    <div className="flex items-center justify-between mb-1">
+                        <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2"><CheckCircle2 size={18} className="text-green-600" /> Perawatan Rutin</h2>
+                        {form.vehicleId && (
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                vehicleCategory === 'MOTOR' ? 'bg-purple-100 text-purple-700' :
+                                vehicleCategory === 'BUS' ? 'bg-indigo-100 text-indigo-700' :
+                                'bg-slate-100 text-slate-600'
+                            }`}>
+                                {vehicleCategory === 'MOTOR' ? '🏍️ Motor' : vehicleCategory === 'BUS' ? '🚌 Bus' : '🚗 Umum'}
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-[11px] text-slate-400 mb-4">Centang item yang dilakukan. Komponen & interval disesuaikan otomatis berdasarkan tipe kendaraan.</p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {ROUTINE_COMPONENTS.map(comp => {
+                        {routineComponents.map(comp => {
                             const isSelected = selectedRoutine.find(r => r.name === comp.name);
                             return (
                                 <div key={comp.name}>
