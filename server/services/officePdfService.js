@@ -1815,86 +1815,86 @@ module.exports = {
  * Pre-filled opening and closing, custom body and subcategory.
  */
 async function generateSuratUmumPDF(doc, setting) {
-    const { pdfDoc, page, fontBold, fontRegular, fontItalic, width, height, margin, contentWidth } = await createBasePDF(setting);
-    let y = height - 160;
+    const { pdfDoc, fontBold, fontRegular, fontItalic, width, height, margin } = await createBasePDF(setting);
+    let page = pdfDoc.getPages()[0];
+    const contentWidth = width - (2 * margin);
+    const cursor = { y: height - 160 };
 
     const content = typeof doc.content === 'string' ? JSON.parse(doc.content) : (doc.content || {});
 
     // Header Title (SubCategory)
     const title = content.subCategory || "SURAT";
     const titleWidth = fontBold.widthOfTextAtSize(title, 14);
-    page.drawText(title, { x: (width - titleWidth) / 2, y, size: 14, font: fontBold });
-    y -= 2;
-    page.drawLine({ start: { x: (width - titleWidth) / 2, y }, end: { x: (width + titleWidth) / 2, y }, thickness: 1.5 });
-    y -= 15;
+    page.drawText(title, { x: (width - titleWidth) / 2, y: cursor.y, size: 14, font: fontBold });
+    cursor.y -= 2;
+    page.drawLine({ start: { x: (width - titleWidth) / 2, y: cursor.y }, end: { x: (width + titleWidth) / 2, y: cursor.y }, thickness: 1.5 });
+    cursor.y -= 15;
 
     // Number
     if (doc.number) {
         const numberText = `Nomor: ${doc.number}`;
         const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
-        page.drawText(numberText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
-        y -= 25;
+        page.drawText(numberText, { x: (width - numWidth) / 2, y: cursor.y, size: 11, font: fontRegular });
+        cursor.y -= 25;
     }
 
     // Perihal
     const perihalLabel = "Perihal:";
-    page.drawText(perihalLabel, { x: margin, y, size: 11, font: fontBold });
+    page.drawText(perihalLabel, { x: margin, y: cursor.y, size: 11, font: fontBold });
     const perihalValueX = margin + fontBold.widthOfTextAtSize(perihalLabel, 11) + 8;
     const subjectLines = wrapText(doc.subject || '', contentWidth - (perihalValueX - margin), fontBold, 11);
     subjectLines.forEach((line) => {
-        page.drawText(line, { x: perihalValueX, y, size: 11, font: fontBold });
-        y -= 14;
+        page.drawText(line, { x: perihalValueX, y: cursor.y, size: 11, font: fontBold });
+        cursor.y -= 14;
     });
-    y -= 25;
+    cursor.y -= 25;
 
     // Recipient
-    // "Yth. [Name] \n di \n [Address/Tempat]"
-    page.drawText(`Yth. ${doc.party2Name || '....................'}`, { x: margin, y, size: 11, font: fontBold });
-    y -= 15;
-    page.drawText('di', { x: margin, y, size: 11, font: fontRegular });
-    y -= 15;
-    page.drawText(doc.party2Address || 'Tempat', { x: margin, y, size: 11, font: fontBold });
-    y -= 30;
+    page.drawText(`Yth. ${doc.party2Name || '....................'}`, { x: margin, y: cursor.y, size: 11, font: fontBold });
+    cursor.y -= 15;
+    page.drawText('di', { x: margin, y: cursor.y, size: 11, font: fontRegular });
+    cursor.y -= 15;
+    page.drawText(doc.party2Address || 'Tempat', { x: margin, y: cursor.y, size: 11, font: fontBold });
+    cursor.y -= 30;
 
     // Function to check page overflow
     const checkPage = (needed) => {
-        if (y < 60 + needed) {
-            const newP = pdfDoc.addPage([595.28, 841.89]);
-            y = height - 60;
-            return newP;
+        if (cursor.y < 60 + needed) {
+            page = pdfDoc.addPage([595.28, 841.89]);
+            cursor.y = height - 60;
         }
-        return page;
     };
 
     const drawJustified = (text, x, w, font, size) => {
         const lines = wrapText(text, w, font, size);
         lines.forEach((line, i) => {
             const isLast = i === lines.length - 1;
+            checkPage(20);
             if (isLast || line.split(' ').length <= 1) {
-                page.drawText(line, { x, y, size, font });
+                page.drawText(line, { x, y: cursor.y, size, font });
             } else {
                 const words = line.split(' ');
                 const totalW = words.reduce((acc, word) => acc + font.widthOfTextAtSize(word, size), 0);
                 const spaceW = (w - totalW) / (words.length - 1);
                 let curX = x;
                 words.forEach((word) => {
-                    page.drawText(word, { x: curX, y, size, font });
+                    page.drawText(word, { x: curX, y: cursor.y, size, font });
                     curX += font.widthOfTextAtSize(word, size) + spaceW;
                 });
             }
-            y -= 15;
-            checkPage(20);
+            cursor.y -= 15;
         });
     };
 
     // Salam Pembuka
-    page.drawText("Assalamu'alaikum Warahmatullahi Wabarakatuh,", { x: margin, y, size: 11, font: fontItalic });
-    y -= 20;
+    checkPage(20);
+    page.drawText("Assalamu'alaikum Warahmatullahi Wabarakatuh,", { x: margin, y: cursor.y, size: 11, font: fontItalic });
+    cursor.y -= 25;
 
     // Opening Text (Fixed)
     const openingText = "Segala puji bagi Allah Subhaanahu wa ta'aala yang senantiasa melimpahkan nikmat dan hidayah-Nya kepada kita semua. Shalawat dan salam atas Nabi Muhammad Shalallaahu 'alaihi wa sallam. Kami mendo'akan semoga Bapak/Ibu selalu berada dalam lindungan Allah Subhaanahu wa ta'aala, Amin.";
     drawJustified(openingText, margin, contentWidth, fontRegular, 11);
-    y -= 10;
+    cursor.y -= 10;
 
     // Body Text (User Input)
     if (content.body) {
@@ -1902,37 +1902,38 @@ async function generateSuratUmumPDF(doc, setting) {
         paragraphs.forEach(p => {
             if (p.trim()) {
                 drawJustified(p.trim(), margin, contentWidth, fontRegular, 11);
-                y -= 5;
+                cursor.y -= 8;
             } else {
-                y -= 10;
+                cursor.y -= 12;
             }
-            checkPage(20);
         });
     }
 
-    y -= 10;
+    cursor.y -= 10;
 
     // Closing Text (Fixed)
     const closingText = "Demikianlah surat ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih. Jazakumullahu khairan.";
     drawJustified(closingText, margin, contentWidth, fontRegular, 11);
-    y -= 10;
+    cursor.y -= 10;
 
     // Salam Penutup
-    page.drawText("Wassalamu'alaikum Warahmatullahi Wabarakatuh.", { x: margin, y, size: 11, font: fontItalic });
-    y -= 30;
+    checkPage(20);
+    page.drawText("Wassalamu'alaikum Warahmatullahi Wabarakatuh.", { x: margin, y: cursor.y, size: 11, font: fontItalic });
+    cursor.y -= 40;
 
     // Signature
     const sigX = width - 250;
-    page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana dan Prasarana,', { x: sigX, y, size: 10, font: fontBold });
-    y -= 65;
+    checkPage(100);
+    page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana dan Prasarana,', { x: sigX, y: cursor.y, size: 10, font: fontBold });
+    cursor.y -= 65;
 
-    await drawDigitalSignature(page, doc, sigX, y, 60);
-    y -= 10;
+    await drawDigitalSignature(page, doc, sigX, cursor.y, 60);
+    cursor.y -= 10;
 
-    page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: sigX, y, size: 10, font: fontBold });
-    y -= 14;
+    page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: sigX, y: cursor.y, size: 10, font: fontBold });
+    cursor.y -= 14;
     if (doc.signedBy?.nip || doc.party1Nip) {
-        page.drawText(`NIY. ${doc.signedBy?.nip || doc.party1Nip}`, { x: sigX, y, size: 10, font: fontRegular });
+        page.drawText(`NIY. ${doc.signedBy?.nip || doc.party1Nip}`, { x: sigX, y: cursor.y, size: 10, font: fontRegular });
     }
 
     return await pdfDoc.save();
