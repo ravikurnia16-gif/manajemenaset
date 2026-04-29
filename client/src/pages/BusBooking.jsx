@@ -55,7 +55,7 @@ const BusBooking = () => {
         user.position === 'Kepala Bidang Sarana dan Prasarana' ||
         user.role === 'SUPER_ADMIN';
 
-    const isSarpras = user.position?.toLowerCase().includes('sarana dan prasarana') || user.role === 'SUPER_ADMIN';
+    const isSarpras = user.position?.toLowerCase().includes('sarana dan prasarana') || ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
     const isAdminAset = user.role === 'ADMIN_ASET' || user.role === 'SUPER_ADMIN';
 
     const showToast = (message, type = 'success') => {

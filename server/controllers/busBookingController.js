@@ -455,7 +455,7 @@ const assignDriver = async (req, res) => {
         const currentUser = await prisma.user.findUnique({ where: { id: user.id } });
 
         const isSarpras = currentUser?.position?.toLowerCase().includes('sarana dan prasarana');
-        const isTechAdmin = ['SUPER_ADMIN', 'KABID_SARPRAS', 'BIDANG_IT'].includes(user.role);
+        const isTechAdmin = ['SUPER_ADMIN', 'KABID_SARPRAS', 'BIDANG_IT', 'ADMIN_ASET'].includes(user.role);
 
         if (!isSarpras && !isTechAdmin) {
             return res.status(403).json({ error: 'Akses ditolak. Hanya bagian Sarana dan Prasarana yang dapat menugaskan supir.' });
