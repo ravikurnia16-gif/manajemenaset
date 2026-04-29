@@ -101,7 +101,7 @@ function drawKopSuratSync(page, fontBold, fontRegular, images) {
         thickness: 1,
         color: lineOrange,
     });
-    return y - 30;
+    return y - 15;
 }
 
 /**
@@ -442,8 +442,10 @@ async function generateBASTMouPDF(doc, setting) {
         const numText = `Nomor: ${doc.number}`;
         const numWidth = fontRegular.widthOfTextAtSize(numText, 11);
         page.drawText(numText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
+        y -= 20;
+    } else {
+        y -= 15;
     }
-    y -= 30;
 
     // Tanggal Teks Pembuka
     const docDate = new Date(doc.date);
@@ -642,8 +644,10 @@ async function generateSuratTugasPDF(doc, setting) {
         const numText = `Nomor: ${doc.number}`;
         const numWidth = fontRegular.widthOfTextAtSize(numText, 11);
         page.drawText(numText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
+        y -= 25;
+    } else {
+        y -= 15;
     }
-    y -= 35;
 
     // Parse Content
     let task = {
@@ -826,9 +830,9 @@ async function generateSuratTugasPDF(doc, setting) {
  */
 async function generateSuratPesananPDF(doc) {
     const { pdfDoc, page, fontRegular, fontBold, margin, width, height, rgb } = await createBasePDF();
-    await drawKopSurat(page, fontBold, fontRegular);
+    const startY = await drawKopSurat(page, fontBold, fontRegular);
 
-    let y = height - 165;
+    let y = startY;
     const centerX = width / 2;
 
     // Title
@@ -842,9 +846,9 @@ async function generateSuratPesananPDF(doc) {
         const numText = `Nomor: ${doc.number}`;
         const numWidth = fontRegular.widthOfTextAtSize(numText, 11);
         page.drawText(numText, { x: centerX - (numWidth / 2), y, size: 11, font: fontRegular });
-        y -= 40;
-    } else {
         y -= 25;
+    } else {
+        y -= 15;
     }
 
     // Recipient Info
@@ -853,7 +857,7 @@ async function generateSuratPesananPDF(doc) {
     page.drawText(doc.party2Name || '............................', { x: margin, y, size: 11, font: fontBold });
     y -= 14;
     page.drawText('di tempat', { x: margin, y, size: 10, font: fontRegular });
-    y -= 35;
+    y -= 25;
 
     page.drawText('Dengan hormat,', { x: margin, y, size: 11, font: fontRegular });
     y -= 15;
