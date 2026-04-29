@@ -214,8 +214,9 @@ async function createBasePDF() {
     const { width, height } = page.getSize();
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
     const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    const fontItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
     const margin = 50;
-    return { pdfDoc, page, fontRegular, fontBold, margin, width, height, rgb };
+    return { pdfDoc, page, fontRegular, fontBold, fontItalic, margin, width, height, rgb };
 }
 
 /**
@@ -829,7 +830,7 @@ async function generateSuratTugasPDF(doc, setting) {
  * Generate PDF for Surat Pesanan (Purchasing Order)
  */
 async function generateSuratPesananPDF(doc) {
-    const { pdfDoc, page, fontRegular, fontBold, margin, width, height, rgb } = await createBasePDF();
+    const { pdfDoc, page, fontRegular, fontBold, fontItalic, margin, width, height, rgb } = await createBasePDF();
     const startY = await drawKopSurat(page, fontBold, fontRegular);
 
     let y = startY;
