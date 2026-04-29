@@ -237,190 +237,123 @@ exports.deleteMaintenanceLog = async (req, res) => {
 };
 
 /**
- * Checker for 5-month notification
- * This should ideally be run by a cron job or on server start periodically.
+ * Hybrid Reminder Notification Checker
+ * Reads from VehicleMaintenanceReminder table, calculates status,
+ * and sends WhatsApp for WARNING/OVERDUE items.
+ * Re-notifies every 4 days per vehicle.
  */
-exports.checkMaintenanceNotifications = async () => {
+exports.checkHybridReminderNotifications = async () => {
     try {
-        console.log('Checking for vehicle maintenance notifications (5 months)...');
+        console.log('[Hybrid Reminder] Checking maintenance reminders...');
+        const now = new Date();
+        const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
 
-        // Find Routine services from exactly 5 months ago
-        const fiveMonthsAgo = new Date();
-        fiveMonthsAgo.setMonth(fiveMonthsAgo.getMonth() - 5);
-
-        // Start of that day and end of that day
-        const startOfDay = new Date(fiveMonthsAgo.setHours(0, 0, 0, 0));
-        const endOfDay = new Date(fiveMonthsAgo.setHours(23, 59, 59, 999));
-
-        const dueLogs = await prisma.vehicleService.findMany({
-            where: {
-                category: 'ROUTINE',
-                date: {
-                    gte: startOfDay,
-                    lte: endOfDay
-                }
-            },
-            include: { vehicle: true }
-        });
-
-        if (dueLogs.length === 0) return;
-
-        // Find recipients: Leads (Kepala Bidang Sarana dan Prasarana) and Eldo
-        const recipients = await prisma.user.findMany({
-            where: {
-                OR: [
-                    { position: 'Kepala Bidang Sarana dan Prasarana' },
-                    { position: 'Staff Manajemen Aset' }
-                    // Eldo's position
-                ],
-                phone: { not: null, not: '' }
-            }
-        });
-
-        if (recipients.length === 0) {
-            console.log('Eldo or Leads not found or have no phone for notification.');
-            return;
-        }
-
-        for (const log of dueLogs) {
-            const message = `📢 *PENGINGAT PEMELIHARAAN KENDARAAN*\n\n` +
-                `Kendaraan *${log.vehicle.name} (${log.vehicle.plateNumber})* telah melewati 5 bulan sejak servis rutin terakhir pada tanggal ${new Date(log.date).toLocaleDateString('id-ID')}.\n\n` +
-                `Mohon segera agendakan pengecekan/servis berikutnya.\n` +
-                `KM Terakhir: ${log.odometer?.toLocaleString()} km\n` +
-                `Target Servis: ${log.nextServiceOdometer?.toLocaleString()} km`;
-
-            let cumulativeDelay = 0;
-            for (const person of recipients) {
-                const randomGap = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000;
-                cumulativeDelay += randomGap;
-
-                setTimeout(async () => {
-                    try {
-                        await sendMessage(person.phone, message);
-                        console.log(`Notification sent for ${log.vehicle.name} to ${person.name} (${person.phone})`);
-                    } catch (e) {
-                        console.error(`[Vehicle Maintenance] Failed to notify ${person.name}:`, e.message);
-                    }
-                }, cumulativeDelay);
-            }
-        }
-    } catch (error) {
-        console.error('Failed to check maintenance notifications:', error.message);
-    }
-};
-
-/**
- * Checker for KM-based Service Notifications
- * Sends WhatsApp to Syafrian & Ravi Kurnia when a vehicle's current KM
- * is within 500 km of its next service target.
- * Re-reminds every 4 days until nextServiceOdometer is updated.
- */
-exports.checkKmServiceNotifications = async () => {
-    try {
-        console.log('[KM Service] Checking for vehicles approaching next service KM...');
-
-        // Get all active vehicles with their latest ROUTINE service that has a nextServiceOdometer
         const vehicles = await prisma.vehicle.findMany({
             where: { status: 'ACTIVE' },
-            include: {
-                services: {
-                    where: { category: 'ROUTINE', nextServiceOdometer: { not: null } },
-                    orderBy: { date: 'desc' },
-                    take: 1
+            include: { maintenanceReminders: true }
+        });
+
+        const alertVehicles = [];
+        for (const vehicle of vehicles) {
+            if (!vehicle.maintenanceReminders.length) continue;
+
+            // 4-day cooldown
+            if (vehicle.lastKmNotifiedAt) {
+                const elapsed = now.getTime() - new Date(vehicle.lastKmNotifiedAt).getTime();
+                if (elapsed < FOUR_DAYS_MS) continue;
+            }
+
+            const alerts = [];
+            for (const r of vehicle.maintenanceReminders) {
+                let status = 'OK';
+                let detail = '';
+
+                if (r.targetKm && vehicle.odometer) {
+                    const kmRemaining = r.targetKm - vehicle.odometer;
+                    if (kmRemaining <= 0) { status = 'OVERDUE'; detail += `KM lewat ${Math.abs(kmRemaining).toLocaleString()} km. `; }
+                    else if (kmRemaining <= 500) { status = 'WARNING'; detail += `Sisa ${kmRemaining.toLocaleString()} km. `; }
+                }
+
+                if (r.targetDate) {
+                    const diffDays = Math.ceil((new Date(r.targetDate) - now) / (1000 * 60 * 60 * 24));
+                    if (diffDays <= 0 && status !== 'OVERDUE') { status = 'OVERDUE'; detail += `Lewat ${Math.abs(diffDays)} hari.`; }
+                    else if (diffDays <= 14 && status === 'OK') { status = 'WARNING'; detail += `Sisa ${diffDays} hari.`; }
+                }
+
+                if (status !== 'OK') {
+                    alerts.push({ name: r.componentName, status, detail });
                 }
             }
-        });
 
-        // Filter vehicles that are within 500 km of nextServiceOdometer
-        const dueVehicles = vehicles.filter(v => {
-            const latestService = v.services?.[0];
-            if (!latestService?.nextServiceOdometer) return false;
-            const kmRemaining = latestService.nextServiceOdometer - (v.odometer || 0);
-            return kmRemaining <= 500; // Within 500 km OR past due
-        });
+            if (alerts.length > 0) alertVehicles.push({ vehicle, alerts });
+        }
 
-        if (dueVehicles.length === 0) {
-            console.log('[KM Service] No vehicles approaching service KM threshold.');
+        if (alertVehicles.length === 0) {
+            console.log('[Hybrid Reminder] Semua kendaraan dalam kondisi OK.');
             return;
         }
 
-        console.log(`[KM Service] Found ${dueVehicles.length} vehicle(s) within 500 km of next service.`);
-
-        // Check 4-day cooldown: only notify if lastKmNotifiedAt is null or >= 4 days ago
-        const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
-        const now = new Date();
-
-        const vehiclesToNotify = dueVehicles.filter(v => {
-            if (!v.lastKmNotifiedAt) return true;
-            const elapsed = now.getTime() - new Date(v.lastKmNotifiedAt).getTime();
-            return elapsed >= FOUR_DAYS_MS;
-        });
-
-        if (vehiclesToNotify.length === 0) {
-            console.log('[KM Service] All due vehicles were notified recently (< 4 days). Skipping.');
-            return;
-        }
-
-        // Find recipients: Leads (Kepala Bidang Sarana dan Prasarana) and Syafrian
         const recipients = await prisma.user.findMany({
             where: {
                 OR: [
                     { position: 'Kepala Bidang Sarana dan Prasarana' },
-                    { position: 'Staff Keuangan dan Administrasi (Sarpras)' }
+                    { position: 'Staff Keuangan dan Administrasi (Sarpras)' },
+                    { position: 'Staff Manajemen Aset' }
                 ],
-                phone: { not: null, not: '' }
+                phone: { not: null }
             }
         });
 
-        if (recipients.length === 0) {
-            console.log('[KM Service] Syafrian or Ravi Kurnia not found or have no phone number.');
-            return;
-        }
+        if (recipients.length === 0) return;
 
         let globalDelay = 0;
+        for (const { vehicle, alerts } of alertVehicles) {
+            const overdueItems = alerts.filter(a => a.status === 'OVERDUE');
+            const warningItems = alerts.filter(a => a.status === 'WARNING');
 
-        for (const vehicle of vehiclesToNotify) {
-            const latestService = vehicle.services[0];
-            const kmRemaining = latestService.nextServiceOdometer - (vehicle.odometer || 0);
-            const statusText = kmRemaining <= 0
-                ? `⚠️ *SUDAH MELEWATI* target service (${Math.abs(kmRemaining).toLocaleString()} km lebih)`
-                : `Sisa *${kmRemaining.toLocaleString()} km* lagi menuju service berikutnya`;
+            let itemList = '';
+            if (overdueItems.length > 0) {
+                itemList += `\n🔴 *OVERDUE (${overdueItems.length}):*\n`;
+                overdueItems.forEach(a => { itemList += `  • ${a.name} — ${a.detail}\n`; });
+            }
+            if (warningItems.length > 0) {
+                itemList += `\n🟡 *SEGERA (${warningItems.length}):*\n`;
+                warningItems.forEach(a => { itemList += `  • ${a.name} — ${a.detail}\n`; });
+            }
 
-            const message = `🔧 *PENGINGAT SERVICE KENDARAAN*\n\n` +
-                `Kendaraan *${vehicle.name} (${vehicle.plateNumber})*\n\n` +
+            const message = `🔧 *PENGINGAT PEMELIHARAAN KENDARAAN*\n\n` +
+                `Kendaraan: *${vehicle.name} (${vehicle.plateNumber})*\n` +
                 `KM Saat Ini: *${(vehicle.odometer || 0).toLocaleString()} km*\n` +
-                `Target Service: *${latestService.nextServiceOdometer.toLocaleString()} km*\n\n` +
-                `${statusText}\n\n` +
-                `Mohon segera dijadwalkan untuk service rutin. Terima kasih.`;
+                itemList +
+                `\nMohon segera dijadwalkan untuk service. Terima kasih.`;
 
             for (const person of recipients) {
-                // Random delay between 30-60 seconds between each message
                 const randomGap = Math.floor(Math.random() * (60000 - 30000 + 1)) + 30000;
                 globalDelay += randomGap;
-
                 setTimeout(async () => {
                     try {
                         await sendMessage(person.phone, message);
-                        console.log(`[KM Service] Notification sent for ${vehicle.name} to ${person.name} (${person.phone})`);
+                        console.log(`[Hybrid Reminder] Sent for ${vehicle.name} to ${person.name}`);
                     } catch (e) {
-                        console.error(`[KM Service] Failed to notify ${person.name}:`, e.message);
+                        console.error(`[Hybrid Reminder] Failed: ${person.name}:`, e.message);
                     }
                 }, globalDelay);
             }
 
-            // Update lastKmNotifiedAt on the vehicle
             try {
                 await prisma.vehicle.update({
                     where: { id: vehicle.id },
                     data: { lastKmNotifiedAt: now }
                 });
-            } catch (e) {
-                console.error(`[KM Service] Failed to update lastKmNotifiedAt for ${vehicle.name}:`, e.message);
-            }
+            } catch (e) {}
         }
 
-        console.log(`[KM Service] Scheduled ${vehiclesToNotify.length * recipients.length} notification(s) with 30-60s delays.`);
+        console.log(`[Hybrid Reminder] Scheduled ${alertVehicles.length * recipients.length} notification(s).`);
     } catch (error) {
-        console.error('[KM Service] Failed to check KM notifications:', error.message);
+        console.error('[Hybrid Reminder] Error:', error.message);
     }
 };
+
+// Legacy aliases
+exports.checkMaintenanceNotifications = exports.checkHybridReminderNotifications;
+exports.checkKmServiceNotifications = exports.checkHybridReminderNotifications;
