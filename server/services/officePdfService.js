@@ -866,12 +866,24 @@ async function generateSuratPesananPDF(doc) {
     y = drawJustifiedText(page, preambleText, margin, y, width - margin * 2, 11, fontRegular);
     y -= 10;
 
+    let content = {};
+    try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
+    
+    let items = [];
+    if (Array.isArray(content)) {
+        items = content;
+    } else if (content && typeof content === 'object') {
+        items = content.items || [];
+    }
+    
+    const isPriceDetermined = content.priceDetermined !== false; // Default true
+
     // Table Header
     const cols = {
         no: margin,
         desc: margin + 30,
-        qty: margin + 230,
-        unit: margin + 270,
+        qty: isPriceDetermined ? margin + 230 : width - margin - 120,
+        unit: isPriceDetermined ? margin + 270 : width - margin - 70,
         price: margin + 320,
         total: margin + 420
     };
@@ -881,19 +893,12 @@ async function generateSuratPesananPDF(doc) {
     page.drawText('NAMA BARANG & SPESIFIKASI', { x: cols.desc + 5, y, size: 8, font: fontBold });
     page.drawText('QTY', { x: cols.qty + 5, y, size: 8, font: fontBold });
     page.drawText('SAT', { x: cols.unit + 5, y, size: 8, font: fontBold });
-    page.drawText('HARGA (Rp)', { x: cols.price + 5, y, size: 8, font: fontBold });
-    page.drawText('TOTAL (Rp)', { x: cols.total + 5, y, size: 8, font: fontBold });
+    
+    if (isPriceDetermined) {
+        page.drawText('HARGA (Rp)', { x: cols.price + 5, y, size: 8, font: fontBold });
+        page.drawText('TOTAL (Rp)', { x: cols.total + 5, y, size: 8, font: fontBold });
+    }
     y -= 20;
-
-    let items = [];
-    try { 
-        const parsed = JSON.parse(doc.content || '{}');
-        if (Array.isArray(parsed)) {
-            items = parsed;
-        } else if (parsed && typeof parsed === 'object') {
-            items = parsed.items || [];
-        }
-    } catch (e) {}
 
     let grandTotal = 0;
     for (let i = 0; i < items.length; i++) {
@@ -909,17 +914,19 @@ async function generateSuratPesananPDF(doc) {
         page.drawText(String(item.qty || 0), { x: cols.qty + 5, y, size: 9, font: fontRegular });
         page.drawText(item.unit || 'Pcs', { x: cols.unit + 5, y, size: 9, font: fontRegular });
         
-        const price = parseFloat(item.price) || 0;
-        const total = (parseFloat(item.qty) || 0) * price;
-        const hasPrice = price > 0;
-        
-        if (hasPrice) {
-            grandTotal += total;
-            page.drawText(price.toLocaleString('id-ID'), { x: cols.price + 5, y, size: 9, font: fontRegular });
-            page.drawText(total.toLocaleString('id-ID'), { x: cols.total + 5, y, size: 9, font: fontBold });
-        } else {
-            page.drawText('Menyusul', { x: cols.price + 5, y, size: 8, font: fontRegular, color: rgb(0.5, 0.5, 0.5) });
-            page.drawText('Menyusul', { x: cols.total + 5, y, size: 8, font: fontRegular, color: rgb(0.5, 0.5, 0.5) });
+        if (isPriceDetermined) {
+            const price = parseFloat(item.price) || 0;
+            const total = (parseFloat(item.qty) || 0) * price;
+            const hasPrice = price > 0;
+            
+            if (hasPrice) {
+                grandTotal += total;
+                page.drawText(price.toLocaleString('id-ID'), { x: cols.price + 5, y, size: 9, font: fontRegular });
+                page.drawText(total.toLocaleString('id-ID'), { x: cols.total + 5, y, size: 9, font: fontBold });
+            } else {
+                page.drawText('-', { x: cols.price + 5, y, size: 8, font: fontRegular, color: rgb(0.5, 0.5, 0.5) });
+                page.drawText('-', { x: cols.total + 5, y, size: 8, font: fontRegular, color: rgb(0.5, 0.5, 0.5) });
+            }
         }
         
         y -= 35; // Row spacing
@@ -930,15 +937,21 @@ async function generateSuratPesananPDF(doc) {
     }
 
     // Grand Total
-    y -= 5;
-    page.drawLine({ start: { x: margin, y: y + 10 }, end: { x: width - margin, y: y + 10 }, thickness: 1 });
-    page.drawText('TOTAL KESELURUHAN', { x: cols.price - 60, y: y - 5, size: 10, font: fontBold });
-    
-    const hasAnyUnknownPrice = items.some(it => !(parseFloat(it.price) > 0));
-    if (hasAnyUnknownPrice) {
-        page.drawText('Menyusul', { x: cols.total + 5, y: y - 5, size: 10, font: fontBold, color: rgb(0.5, 0.5, 0.5) });
+    if (isPriceDetermined) {
+        y -= 5;
+        page.drawLine({ start: { x: margin, y: y + 10 }, end: { x: width - margin, y: y + 10 }, thickness: 1 });
+        page.drawText('TOTAL KESELURUHAN', { x: cols.price - 60, y: y - 5, size: 10, font: fontBold });
+        
+        const hasAnyUnknownPrice = items.some(it => !(parseFloat(it.price) > 0));
+        if (hasAnyUnknownPrice) {
+            page.drawText('Menyusul', { x: cols.total + 5, y: y - 5, size: 10, font: fontBold, color: rgb(0.5, 0.5, 0.5) });
+        } else {
+            page.drawText(`Rp ${grandTotal.toLocaleString('id-ID')}`, { x: cols.total + 5, y: y - 5, size: 11, font: fontBold, color: rgb(0.1, 0.3, 0.7) });
+        }
     } else {
-        page.drawText(`Rp ${grandTotal.toLocaleString('id-ID')}`, { x: cols.total + 5, y: y - 5, size: 11, font: fontBold, color: rgb(0.1, 0.3, 0.7) });
+        y -= 5;
+        page.drawLine({ start: { x: margin, y: y + 10 }, end: { x: width - margin, y: y + 10 }, thickness: 1 });
+        page.drawText('* Harga akan ditentukan kemudian setelah konfirmasi/negosiasi.', { x: margin + 5, y: y - 5, size: 9, font: fontItalic, color: rgb(0.4, 0.4, 0.4) });
     }
 
     y -= 40;

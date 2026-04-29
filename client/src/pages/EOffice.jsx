@@ -1140,6 +1140,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     });
     const [bastItems, setBastItems] = useState([]);
     const [purchasingItems, setPurchasingItems] = useState([]);
+    const [priceDetermined, setPriceDetermined] = useState(true);
     const [staffList, setStaffList] = useState([]);
     const [taskData, setTaskData] = useState({
         basisList: [''],
@@ -1238,6 +1239,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 try {
                     const parsed = JSON.parse(doc.content);
                     setPurchasingItems(Array.isArray(parsed) ? parsed : (parsed.items || []));
+                    setPriceDetermined(parsed.priceDetermined !== undefined ? parsed.priceDetermined : true);
                 } catch (e) {
                     console.error('Failed to parse Purchasing content JSON', e);
                 }
@@ -1369,7 +1371,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) {
                 contentObj = { items: bastItems };
             } else if (formData.category === 'Pesanan') {
-                contentObj = { items: purchasingItems };
+                contentObj = { items: purchasingItems, priceDetermined };
             } else if (formData.type === 'INVOICE' || formData.category === 'Invoice') {
                 contentObj = { items: purchasingItems, bankInfo: invoiceData, dueDate: invoiceData.dueDate, notes: invoiceData.notes, paymentStatus: invoiceData.paymentStatus };
             } else if (formData.type === 'SURAT_KELUAR' && formData.category === 'Tugas') {
@@ -1809,7 +1811,23 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                         {(formData.category === 'Pesanan' || formData.type === 'INVOICE') && (
                             <div className="col-span-full">
                                 <div className="flex items-center justify-between mb-2">
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Daftar Barang / Jasa</label>
+                                    <div className="flex items-center gap-4">
+                                        <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Daftar Barang / Jasa</label>
+                                        {formData.category === 'Pesanan' && (
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <div className="relative inline-flex items-center cursor-pointer">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="sr-only peer" 
+                                                        checked={priceDetermined}
+                                                        onChange={(e) => setPriceDetermined(e.target.checked)}
+                                                    />
+                                                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                                                </div>
+                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tentukan Harga</span>
+                                            </label>
+                                        )}
+                                    </div>
                                     <button type="button" onClick={() => setPurchasingItems([...purchasingItems, { name: '', spec: '', qty: '', unit: 'Pcs', price: '', total: 0 }])} className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:text-blue-700">
                                         <Plus size={14} /> Tambah Baris
                                     </button>
@@ -1821,8 +1839,12 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                 <th className="p-3 border-b border-slate-200">Nama Barang & Spesifikasi</th>
                                                 <th className="p-3 border-b border-slate-200 w-16">Qty</th>
                                                 <th className="p-3 border-b border-slate-200 w-20">Satuan</th>
-                                                <th className="p-3 border-b border-slate-200 w-32">Harga Satuan</th>
-                                                <th className="p-3 border-b border-slate-200 w-32">Total</th>
+                                                {(priceDetermined || formData.type === 'INVOICE') && (
+                                                    <>
+                                                        <th className="p-3 border-b border-slate-200 w-32">Harga Satuan</th>
+                                                        <th className="p-3 border-b border-slate-200 w-32">Total</th>
+                                                    </>
+                                                )}
                                                 <th className="p-3 border-b border-slate-200 w-10 text-center"></th>
                                             </tr>
                                         </thead>
@@ -1844,29 +1866,35 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                     <td className="p-2 border-b border-slate-100">
                                                         <input required value={item.unit} onChange={(e) => { const newI = [...purchasingItems]; newI[index].unit = e.target.value; setPurchasingItems(newI); }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none" placeholder="Pcs" />
                                                     </td>
-                                                    <td className="p-2 border-b border-slate-100">
-                                                        <input type="number" value={item.price} onChange={(e) => { 
-                                                            const newI = [...purchasingItems]; 
-                                                            newI[index].price = e.target.value; 
-                                                            newI[index].total = (parseFloat(newI[index].qty) || 0) * (parseFloat(e.target.value) || 0);
-                                                            setPurchasingItems(newI); 
-                                                        }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none font-bold" placeholder="0" />
-                                                    </td>
-                                                    <td className="p-2 border-b border-slate-100 font-black text-blue-700">
-                                                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(item.total || 0)}
-                                                    </td>
+                                                    {(priceDetermined || formData.type === 'INVOICE') && (
+                                                        <>
+                                                            <td className="p-2 border-b border-slate-100">
+                                                                <input type="number" value={item.price} onChange={(e) => { 
+                                                                    const newI = [...purchasingItems]; 
+                                                                    newI[index].price = e.target.value; 
+                                                                    newI[index].total = (parseFloat(newI[index].qty) || 0) * (parseFloat(e.target.value) || 0);
+                                                                    setPurchasingItems(newI); 
+                                                                }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none font-bold" placeholder="0" />
+                                                            </td>
+                                                            <td className="p-2 border-b border-slate-100 font-black text-blue-700">
+                                                                {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(item.total || 0)}
+                                                            </td>
+                                                        </>
+                                                    )}
                                                     <td className="p-2 border-b border-slate-100 text-center">
                                                         <button type="button" onClick={() => setPurchasingItems(purchasingItems.filter((_, i) => i !== index))} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
                                                     </td>
                                                 </tr>
                                             ))}
-                                            <tr className="bg-slate-50 font-black">
-                                                <td colSpan="4" className="p-3 text-right text-slate-500 uppercase tracking-widest text-[10px]">Total Keseluruhan</td>
-                                                <td className="p-3 text-blue-800 text-sm">
-                                                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format((purchasingItems || []).reduce((acc, curr) => acc + (curr.total || 0), 0))}
-                                                </td>
-                                                <td></td>
-                                            </tr>
+                                            {(priceDetermined || formData.type === 'INVOICE') && (
+                                                <tr className="bg-slate-50 font-black">
+                                                    <td colSpan={formData.type === 'INVOICE' || priceDetermined ? 4 : 3} className="p-3 text-right text-slate-500 uppercase tracking-widest text-[10px]">Total Keseluruhan</td>
+                                                    <td className="p-3 text-blue-800 text-sm">
+                                                        {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format((purchasingItems || []).reduce((acc, curr) => acc + (curr.total || 0), 0))}
+                                                    </td>
+                                                    <td></td>
+                                                </tr>
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>
