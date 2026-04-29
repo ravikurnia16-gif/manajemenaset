@@ -170,6 +170,19 @@ exports.createRoom = async (req, res) => {
             }
         }
 
+        // Check for duplicate name in same unit
+        if (unitId) {
+            const existing = await prisma.room.findFirst({
+                where: { 
+                    name: { equals: name, mode: 'insensitive' }, 
+                    unitId: parseInt(unitId) 
+                }
+            });
+            if (existing) {
+                return res.status(400).json({ error: `Ruangan "${name}" sudah ada di unit ini.` });
+            }
+        }
+
         const room = await prisma.room.create({
             data: {
                 name,
@@ -189,6 +202,21 @@ exports.updateRoom = async (req, res) => {
     try {
         const { id } = req.params;
         const { name, code, floor, building, unitId } = req.body;
+
+        // Check for duplicate name in same unit (excluding current room)
+        if (unitId) {
+            const existing = await prisma.room.findFirst({
+                where: { 
+                    name: { equals: name, mode: 'insensitive' }, 
+                    unitId: parseInt(unitId),
+                    id: { not: parseInt(id) }
+                }
+            });
+            if (existing) {
+                return res.status(400).json({ error: `Ruangan "${name}" sudah ada di unit ini.` });
+            }
+        }
+
         const room = await prisma.room.update({
             where: { id: parseInt(id) },
             data: {
@@ -354,5 +382,82 @@ exports.deleteMultipleVendors = async (req, res) => {
         res.json({ message: 'Vendors deleted successfully' });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+exports.cleanupRooms = async (req, res) => {
+    try {
+        const rooms = await prisma.room.findMany({
+            include: { _count: { select: { assets: true } } }
+        });
+
+        const groups = {};
+        rooms.forEach(r => {
+            const key = `${r.name.toLowerCase().trim()}-${r.unitId}`;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(r);
+        });
+
+        let mergedCount = 0;
+        for (const key in groups) {
+            if (groups[key].length > 1) {
+                // Sort by asset count desc, then by id asc to pick the "master"
+                const sorted = groups[key].sort((a, b) => b._count.assets - a._count.assets || a.id - b.id);
+                const master = sorted[0];
+                const duplicates = sorted.slice(1);
+
+                for (const dupe of duplicates) {
+                    // Move assets to master
+                    await prisma.asset.updateMany({
+                        where: { roomId: dupe.id },
+                        data: { roomId: master.id }
+                    });
+                    // Delete dupe
+                    await prisma.room.delete({ where: { id: dupe.id } });
+                    mergedCount++;
+                }
+            }
+        }
+
+        res.json({ message: `Berhasil merapikan ruangan. ${mergedCount} duplikat digabungkan.` });
+    } catch (error) {
+        res.status(500).json({ error: 'Cleanup Error: ' + error.message });
+    }
+};
+
+exports.syncAssetCodes = async (req, res) => {
+    try {
+        const assets = await prisma.asset.findMany({
+            include: { unit: true, category: true }
+        });
+
+        const settings = await prisma.setting.findFirst() || { assetCodePrefix: 'DEI' };
+        const prefix = settings.assetCodePrefix;
+
+        let updatedCount = 0;
+        for (const asset of assets) {
+            if (!asset.unit || !asset.category) continue;
+
+            const parts = asset.code.split('.');
+            if (parts.length >= 5) {
+                const unitCode = asset.unit.code;
+                const catCode = asset.category.code;
+                const year = new Date(asset.purchaseDate).getFullYear();
+                const seq = parts[parts.length - 1];
+
+                const newCode = `${prefix}.${unitCode}.${catCode}.${year}.${seq}`;
+                if (newCode !== asset.code) {
+                    await prisma.asset.update({
+                        where: { id: asset.id },
+                        data: { code: newCode }
+                    });
+                    updatedCount++;
+                }
+            }
+        }
+
+        res.json({ message: `Berhasil mensinkronisasi kode aset. ${updatedCount} kode diperbarui.` });
+    } catch (error) {
+        res.status(500).json({ error: 'Sync Error: ' + error.message });
     }
 };

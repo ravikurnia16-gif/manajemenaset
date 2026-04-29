@@ -86,16 +86,28 @@ exports.createAsset = async (req, res) => {
                     finalRoomCode = `${unit.code}-${nextSeq.toString().padStart(2, '0')}`;
                 }
 
-                const newRoom = await tx.room.create({
-                    data: {
-                        name: newRoomName,
-                        code: finalRoomCode || `RM-${Math.floor(Math.random() * 9000) + 1000}`,
-                        floor: newRoomFloor || '1',
-                        building: newRoomBuilding || '-',
+                // Check if room with same name exists in this unit
+                const existingRoom = await tx.room.findFirst({
+                    where: {
+                        name: { equals: newRoomName, mode: 'insensitive' },
                         unitId: unitId ? parseInt(unitId) : null
                     }
                 });
-                finalRoomId = newRoom.id;
+
+                if (existingRoom) {
+                    finalRoomId = existingRoom.id;
+                } else {
+                    const newRoom = await tx.room.create({
+                        data: {
+                            name: newRoomName,
+                            code: finalRoomCode || `RM-${Math.floor(Math.random() * 9000) + 1000}`,
+                            floor: newRoomFloor || '1',
+                            building: newRoomBuilding || '-',
+                            unitId: unitId ? parseInt(unitId) : null
+                        }
+                    });
+                    finalRoomId = newRoom.id;
+                }
             }
 
             // 4. Validation & Setup for Asset Creation

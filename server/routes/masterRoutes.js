@@ -1,9 +1,9 @@
 const express = require('express');
 const {
     getAllUnits, getUnitById, createUnit, updateUnit, deleteUnit, deleteMultipleUnits,
-    getAllRooms, createRoom, updateRoom, deleteRoom, deleteMultipleRooms,
+    getAllRooms, createRoom, updateRoom, deleteRoom, deleteMultipleRooms, cleanupRooms,
     getAllCategories, createCategory, updateCategory, deleteCategory, deleteMultipleCategories,
-    getAllVendors, createVendor, updateVendor, deleteVendor, deleteMultipleVendors
+    getAllVendors, createVendor, updateVendor, deleteVendor, deleteMultipleVendors, syncAssetCodes
 } = require('../controllers/masterController');
 const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 const router = express.Router();
@@ -21,6 +21,8 @@ router.post('/rooms', verifyToken, createRoom);
 router.delete('/rooms/bulk', verifyToken, deleteMultipleRooms);
 router.put('/rooms/:id', verifyToken, updateRoom);
 router.delete('/rooms/:id', verifyToken, deleteRoom);
+router.post('/rooms/cleanup', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), cleanupRooms);
+router.post('/assets/sync', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), syncAssetCodes);
 
 router.get('/categories', verifyToken, getAllCategories);
 router.post('/categories', verifyToken, createCategory);

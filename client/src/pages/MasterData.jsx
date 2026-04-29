@@ -12,6 +12,8 @@ const MasterData = () => {
     const [rooms, setRooms] = useState([]);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [roomSearch, setRoomSearch] = useState('');
+    const [actionLoading, setActionLoading] = useState(false);
 
     // Form inputs
     const [newUnit, setNewUnit] = useState({
@@ -132,6 +134,28 @@ const MasterData = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleCleanupRooms = async () => {
+        if (!confirm('Gabungkan semua ruangan dengan nama yang sama dalam satu unit? Aset akan dipindahkan secara otomatis ke ruangan utama.')) return;
+        try {
+            setActionLoading(true);
+            const res = await api.post('/master/rooms/cleanup');
+            alert(res.data.message);
+            fetchData();
+        } catch (err) { alert(err.message); }
+        finally { setActionLoading(false); }
+    };
+
+    const handleSyncCodes = async () => {
+        if (!confirm('Sinkronisasi ulang semua kode aset berdasarkan kode unit dan kategori terbaru?')) return;
+        try {
+            setActionLoading(true);
+            const res = await api.post('/master/assets/sync');
+            alert(res.data.message);
+            fetchData();
+        } catch (err) { alert(err.message); }
+        finally { setActionLoading(false); }
     };
 
 
@@ -296,11 +320,31 @@ const MasterData = () => {
                         <button onClick={() => changeTab('categories')} className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'categories' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Kategori</button>
                     )}
                 </div>
-                {selectedIds.size > 0 && (
-                    <button onClick={handleBulkDelete} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-red-200 hover:bg-red-700 transition-all flex items-center gap-2 animate-in slide-in-from-right-5 fade-in">
-                        <Trash2 size={16} /> Hapus {selectedIds.size} Terpilih
-                    </button>
-                )}
+                <div className="flex gap-2">
+                    {isAdminAset && activeTab === 'rooms' && (
+                        <button 
+                            disabled={actionLoading}
+                            onClick={handleCleanupRooms} 
+                            className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-amber-100 hover:bg-amber-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                        >
+                            <Save size={16} /> {actionLoading ? 'Memproses...' : 'Bersihkan Duplikat'}
+                        </button>
+                    )}
+                    {isAdminAset && activeTab === 'units' && (
+                        <button 
+                            disabled={actionLoading}
+                            onClick={handleSyncCodes} 
+                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                        >
+                            <Database size={16} /> {actionLoading ? 'Memproses...' : 'Sinkronisasi Kode'}
+                        </button>
+                    )}
+                    {selectedIds.size > 0 && (
+                        <button onClick={handleBulkDelete} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-red-200 hover:bg-red-700 transition-all flex items-center gap-2 animate-in slide-in-from-right-5 fade-in">
+                            <Trash2 size={16} /> Hapus {selectedIds.size} Terpilih
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -447,7 +491,21 @@ const MasterData = () => {
                 <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden h-fit">
                     <div className="p-4 bg-slate-50/50 border-b border-slate-100 font-bold text-slate-700 flex items-center justify-between">
                         <span>Daftar {activeTab === 'units' ? 'Unit' : activeTab === 'rooms' ? 'Ruangan' : 'Kategori'}</span>
-                        <span className="text-xs font-normal text-slate-500">Total: {activeTab === 'units' ? units.length : activeTab === 'rooms' ? rooms.length : categories.length} item</span>
+                        <div className="flex items-center gap-3">
+                            {activeTab === 'rooms' && (
+                                <div className="relative">
+                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Cari ruangan..." 
+                                        value={roomSearch}
+                                        onChange={e => setRoomSearch(e.target.value)}
+                                        className="pl-8 pr-3 py-1 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 w-40 sm:w-60"
+                                    />
+                                </div>
+                            )}
+                            <span className="text-xs font-normal text-slate-500">Total: {activeTab === 'units' ? units.length : activeTab === 'rooms' ? rooms.length : categories.length} item</span>
+                        </div>
                     </div>
                     <div className="max-h-[500px] overflow-y-auto">
                         <table className="w-full text-sm text-left">
@@ -493,7 +551,9 @@ const MasterData = () => {
                                         </td>
                                     </tr>
                                 ))}
-                                {activeTab === 'rooms' && rooms.map(r => (
+                                 {activeTab === 'rooms' && rooms
+                                    .filter(r => r.name.toLowerCase().includes(roomSearch.toLowerCase()) || (r.unit?.name || '').toLowerCase().includes(roomSearch.toLowerCase()))
+                                    .map(r => (
                                     <tr key={r.id} className="hover:bg-slate-50/50">
                                         <td className="px-6 py-3">
                                             <input

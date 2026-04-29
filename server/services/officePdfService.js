@@ -339,12 +339,10 @@ async function generateSuratPDF(doc, setting) {
         y = drawRecipientBlock(page, doc, recipientsData, margin, y, fontRegular, fontBold, margin, width);
 
         // ISI SURAT
-        let bodyText = doc.content || '';
-        if (bodyText.startsWith('{') && bodyText.endsWith('}')) {
-            try {
-                const parsed = JSON.parse(bodyText);
-                bodyText = parsed.text || bodyText;
-            } catch (e) {}
+        let bodyText = content.text || '';
+        // Fallback: if content wasn't JSON, use raw doc.content
+        if (!bodyText && doc.content && !doc.content.startsWith('{')) {
+            bodyText = doc.content;
         }
 
         if (bodyText) {
@@ -354,6 +352,12 @@ async function generateSuratPDF(doc, setting) {
                 .replace(/<\/p>/gi, '\n\n')
                 .replace(/<[^>]*>/g, '')
                 .replace(/&nbsp;/g, ' ')
+                .replace(/[\u2018\u2019]/g, "'")
+                .replace(/[\u201C\u201D]/g, '"')
+                .replace(/\u2013/g, '-')
+                .replace(/\u2014/g, '--')
+                .replace(/\u2026/g, '...')
+                .replace(/[^\x00-\xFF]/g, '')
                 .trim();
 
             const lines = plainText.split('\n');
@@ -361,13 +365,23 @@ async function generateSuratPDF(doc, setting) {
                 if (y < 28) { /* logic page break? */ }
                 if (line.trim() === '') { y -= 8; continue; }
 
-                page.drawText(line, {
-                    x: margin, y, size: 11, font: fontRegular,
-                    maxWidth: width - margin * 2,
-                    lineHeight: 14
-                });
+                try {
+                    page.drawText(line, {
+                        x: margin, y, size: 11, font: fontRegular,
+                        maxWidth: width - margin * 2,
+                        lineHeight: 14
+                    });
+                } catch (drawErr) {
+                    // Fallback: strip any remaining problematic chars
+                    const safeLine = line.replace(/[^\x20-\x7E]/g, '');
+                    page.drawText(safeLine || '-', {
+                        x: margin, y, size: 11, font: fontRegular,
+                        maxWidth: width - margin * 2,
+                        lineHeight: 14
+                    });
+                }
 
-                const textWidth = fontRegular.widthOfTextAtSize(line, 11);
+                const textWidth = fontRegular.widthOfTextAtSize(line.replace(/[^\x20-\x7E]/g, '') || '-', 11);
                 const numLines = Math.ceil(textWidth / (width - margin * 2));
                 y -= (numLines * 16);
             }
@@ -954,6 +968,7 @@ async function generateSuratPesananPDF(doc) {
 
     await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
     const pdfBytes = await pdfDoc.save();
+    return pdfBytes;
 }
 
 async function generateInvoicePDF(doc, setting) {
