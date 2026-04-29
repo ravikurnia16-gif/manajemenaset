@@ -1818,7 +1818,7 @@ async function generateSuratUmumPDF(doc, setting) {
     const { pdfDoc, fontBold, fontRegular, fontItalic, width, height, margin } = await createBasePDF(setting);
     let page = pdfDoc.getPages()[0];
     const contentWidth = width - (2 * margin);
-    const cursor = { y: height - 160 };
+    const cursor = { y: height - 145 };
 
     // Draw Kop Surat
     await drawKopSurat(page, fontBold, fontRegular);
@@ -1850,7 +1850,7 @@ async function generateSuratUmumPDF(doc, setting) {
         page.drawText(line, { x: perihalValueX, y: cursor.y, size: 11, font: fontBold });
         cursor.y -= 14;
     });
-    cursor.y -= 25;
+    cursor.y -= 15;
 
     // Recipient
     page.drawText(`Yth. ${doc.party2Name || '....................'}`, { x: margin, y: cursor.y, size: 11, font: fontBold });
