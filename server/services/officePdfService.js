@@ -1820,6 +1820,9 @@ async function generateSuratUmumPDF(doc, setting) {
     const contentWidth = width - (2 * margin);
     const cursor = { y: height - 160 };
 
+    // Draw Kop Surat
+    await drawKopSurat(page, fontBold, fontRegular);
+
     const content = typeof doc.content === 'string' ? JSON.parse(doc.content) : (doc.content || {});
 
     // Header Title (SubCategory)
