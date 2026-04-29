@@ -447,9 +447,17 @@ exports.signAsParty = async (req, res) => {
         const p2Signed = refreshed.party2SignedAt || refreshed.party2Signature;
 
         if (p1Signed && p2Signed && refreshed.status !== 'SIGNED') {
+            let number = refreshed.number;
+            if (!number) {
+                number = await generateDocumentNumber(refreshed.category, refreshed.type);
+            }
             await prisma.officeDocument.update({
                 where: { id },
-                data: { status: 'SIGNED', signedAt: new Date() },
+                data: { 
+                    status: 'SIGNED', 
+                    signedAt: new Date(),
+                    number
+                },
             });
         }
 

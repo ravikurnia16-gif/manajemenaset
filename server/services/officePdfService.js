@@ -838,10 +838,14 @@ async function generateSuratPesananPDF(doc) {
     y -= 4;
     page.drawLine({ start: { x: centerX - (titleWidth / 2), y }, end: { x: centerX + (titleWidth / 2), y }, thickness: 1 });
     y -= 15;
-    const numText = `Nomor: ${doc.number || '............................'}`;
-    const numWidth = fontRegular.widthOfTextAtSize(numText, 11);
-    page.drawText(numText, { x: centerX - (numWidth / 2), y, size: 11, font: fontRegular });
-    y -= 40;
+    if (doc.number) {
+        const numText = `Nomor: ${doc.number}`;
+        const numWidth = fontRegular.widthOfTextAtSize(numText, 11);
+        page.drawText(numText, { x: centerX - (numWidth / 2), y, size: 11, font: fontRegular });
+        y -= 40;
+    } else {
+        y -= 25;
+    }
 
     // Recipient Info
     page.drawText('Kepada Yth,', { x: margin, y, size: 11, font: fontBold });
@@ -994,7 +998,9 @@ async function generateInvoicePDF(doc, setting) {
     y -= 50;
     
     // Invoice Details
-    page.drawText(`No. Invoice: ${doc.number || '-'}`, { x: margin, y, size: 10, font: fontBold });
+    if (doc.number) {
+        page.drawText(`No. Invoice: ${doc.number}`, { x: margin, y, size: 10, font: fontBold });
+    }
     page.drawText(`Tanggal: ${new Date(doc.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, { x: width - margin - 150, y, size: 10, font: fontRegular });
     
     y -= 35;
@@ -1208,10 +1214,12 @@ async function generateSuratEdaranPDF(doc, setting) {
         y -= 15;
 
         // Number
-        const numberText = `Nomor: ${doc.number || '.......................................'}`;
-        const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
-        page.drawText(numberText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
-        y -= 18;
+        if (doc.number) {
+            const numberText = `Nomor: ${doc.number}`;
+            const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
+            page.drawText(numberText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
+            y -= 18;
+        }
 
         // TENTANG
         const tentangLabel = "TENTANG";
@@ -1283,8 +1291,12 @@ async function generateSuratEdaranPDF(doc, setting) {
         checkPage(120);
         page.drawText("Ditetapkan di: Padang", { x: sigX, y, size: 10, font: fontRegular });
         y -= 14;
-        page.drawText(`Pada tanggal: ${doc.signedAt ? formatDate(doc.signedAt) : formatDate(new Date())}`, { x: sigX, y, size: 10, font: fontRegular });
-        y -= 18;
+        if (doc.signedAt) {
+            page.drawText(`Pada tanggal: ${formatDate(doc.signedAt)}`, { x: sigX, y, size: 10, font: fontRegular });
+            y -= 18;
+        } else {
+            y -= 18;
+        }
 
         page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarpras', { x: sigX, y, size: 10, font: fontBold });
         y -= 65; // Space for QR
@@ -1383,10 +1395,12 @@ async function generateKeputusanPDF(doc, setting) {
         });
 
         // Number
-        const numberText = `Nomor: ${doc.number || '.......................................'}`;
-        const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
-        page.drawText(numberText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
-        y -= 20;
+        if (doc.number) {
+            const numberText = `Nomor: ${doc.number}`;
+            const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
+            page.drawText(numberText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
+            y -= 20;
+        }
 
         // TENTANG
         const tentangLabel = "TENTANG";
@@ -1464,8 +1478,12 @@ async function generateKeputusanPDF(doc, setting) {
         const sigX = width - 250;
         page.drawText("Ditetapkan di: Padang", { x: sigX, y, size: 10, font: fontRegular });
         y -= 14;
-        page.drawText(`Pada tanggal: ${doc.signedAt ? formatDate(doc.signedAt) : formatDate(new Date())}`, { x: sigX, y, size: 10, font: fontRegular });
-        y -= 18;
+        if (doc.signedAt) {
+            page.drawText(`Pada tanggal: ${formatDate(doc.signedAt)}`, { x: sigX, y, size: 10, font: fontRegular });
+            y -= 18;
+        } else {
+            y -= 18;
+        }
 
         page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarpras', { x: sigX, y, size: 10, font: fontBold });
         y -= 65; // Space for QR
@@ -1577,10 +1595,12 @@ async function generatePemberitahuanPDF(doc, setting) {
         y -= 15;
 
         // Number
-        const numberText = `Nomor: ${doc.number || '.......................................'}`;
-        const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
-        page.drawText(numberText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
-        y -= 25;
+        if (doc.number) {
+            const numberText = `Nomor: ${doc.number}`;
+            const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
+            page.drawText(numberText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
+            y -= 25;
+        }
 
         // Perihal
         const perihalLabel = "Perihal:";
