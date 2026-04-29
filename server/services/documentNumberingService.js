@@ -21,6 +21,7 @@ const CATEGORY_CODES = {
     'Pengumuman': 'PGM',
     'BAST': 'BA',
     'MOU': 'MOU',
+    'Pesanan': 'PO',
     'Lainnya': 'UM',
 };
 
