@@ -19,13 +19,18 @@ const UniformOrderAdmin = () => {
     const navigate = useNavigate();
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState({ status: '', unit: '' });
+    const [filter, setFilter] = useState({ status: '', unit: '', search: '' });
     const [activeTab, setActiveTab] = useState('WARID');
     const [expandedId, setExpandedId] = useState(null);
     const [itemEdits, setItemEdits] = useState({});
     const [savingBulk, setSavingBulk] = useState(false);
 
-    useEffect(() => { fetchOrders(); }, [filter]);
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchOrders();
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [filter]);
 
     const fetchOrders = async () => {
         setLoading(true);
@@ -33,6 +38,7 @@ const UniformOrderAdmin = () => {
             const params = new URLSearchParams();
             if (filter.status) params.append('status', filter.status);
             if (filter.unit) params.append('unit', filter.unit);
+            if (filter.search) params.append('search', filter.search);
             const res = await api.get(`/uniform-order/admin/orders?${params}`);
             setOrders(res.data);
         } catch (e) { console.error(e); } finally { setLoading(false); }
@@ -54,23 +60,18 @@ const UniformOrderAdmin = () => {
         } catch (e) { alert('Gagal menghapus'); }
     };
 
-    // Helper to extract displayable order content
     const getOrderDisplay = (order) => {
-        // 1. Decoupled Mode: Check for "ITEM PESANAN:" marker in Note
         if (order.note && order.note.includes('ITEM PESANAN:')) {
             return order.note.split('ITEM PESANAN:')[1].trim();
         }
-
-        // 2. Legacy/Standard Mode: Check items array
         if (order.items && order.items.length > 0) {
             return order.items.map(oi =>
                 `${oi.itemName || oi.item?.name || 'Item'} (${oi.size || oi.item?.size || '-'}) x${oi.quantity}`
             ).join('\n');
         }
-
-        // 3. Fallback: Raw Note
         return order.note || '-';
     };
+
     const handleEditItem = (itemId, newStatus, pickupDetails = null) => {
         setItemEdits(prev => ({
             ...prev,
@@ -81,7 +82,6 @@ const UniformOrderAdmin = () => {
     const handleBulkSave = async (orderId) => {
         const order = orders.find(o => o.id === orderId);
         if (!order) return;
-
         const updates = order.items
             .map(item => {
                 if (itemEdits[item.id]) {
@@ -90,20 +90,14 @@ const UniformOrderAdmin = () => {
                 return null;
             })
             .filter(u => u !== null);
-
         if (updates.length === 0) return;
-
         if (!confirm('Simpan perubahan dan otomatis kirim 1 pesan WA rekapan ke pemesan?')) return;
-
         setSavingBulk(true);
         try {
             await api.put(`/uniform-order/admin/orders/${orderId}/bulk-items`, { updates });
-
-            // Remove saved edits from local state
             const newEdits = { ...itemEdits };
             updates.forEach(u => delete newEdits[u.id]);
             setItemEdits(newEdits);
-
             alert('Sukses menyimpan dan WA rekap terkirim!');
             fetchOrders();
         } catch (e) {
@@ -155,15 +149,22 @@ const UniformOrderAdmin = () => {
                     className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'UNIT' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                 >Pesanan Unit (Internal)</button>
             </div>
-
-            {/* Filter */}
             <div className="flex flex-wrap gap-3 items-center bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                <Filter size={16} className="text-slate-400" />
-                <select value={filter.status} onChange={e => setFilter({ ...filter, status: e.target.value })} className="bg-slate-50 border-none rounded-lg px-3 py-1.5 text-sm font-medium">
+                <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg flex-1 min-w-[200px]">
+                    <Filter size={16} className="text-slate-400" />
+                    <input
+                        type="text"
+                        placeholder="Cari nama atau kode..."
+                        className="bg-transparent border-none outline-none text-sm w-full font-medium"
+                        value={filter.search}
+                        onChange={e => setFilter({ ...filter, search: e.target.value })}
+                    />
+                </div>
+                <select value={filter.status} onChange={e => setFilter({ ...filter, status: e.target.value })} className="bg-slate-50 border-none rounded-lg px-3 py-1.5 text-sm font-medium outline-none">
                     <option value="">Semua Status</option>
                     {Object.entries(statusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
-                <select value={filter.unit} onChange={e => setFilter({ ...filter, unit: e.target.value })} className="bg-slate-50 border-none rounded-lg px-3 py-1.5 text-sm font-medium">
+                <select value={filter.unit} onChange={e => setFilter({ ...filter, unit: e.target.value })} className="bg-slate-50 border-none rounded-lg px-3 py-1.5 text-sm font-medium outline-none">
                     <option value="">Semua Unit</option>
                     {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
