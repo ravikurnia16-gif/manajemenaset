@@ -24,6 +24,7 @@ const CATEGORY_CODES = {
     'Pesanan': 'PO',
     'Umum': 'UMM',
     'Lainnya': 'UM',
+    'Berita Acara Kunjungan': 'BA',
 };
 
 const ROMAN_MONTHS = {
