@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Plus, Search, Calendar, Car, Wrench, Trash2, Pencil, Eye } from 'lucide-react';
+import { Settings, Plus, Search, Calendar, Car, Wrench, Trash2, Pencil, Eye, Download } from 'lucide-react';
 import api from '../lib/axios';
+import * as XLSX from 'xlsx';
 
 const VehicleMaintenanceList = () => {
     const navigate = useNavigate();
@@ -34,6 +35,41 @@ const VehicleMaintenanceList = () => {
         }
     };
 
+    const handleExport = () => {
+        const exportData = filteredLogs.map((log, index) => ({
+            'No': index + 1,
+            'Tanggal': new Date(log.date).toLocaleDateString('id-ID'),
+            'Kendaraan': log.vehicle?.name || 'Tanpa Nama',
+            'Plat Nomor': log.vehicle?.plateNumber || '-',
+            'Kategori': log.category === 'ROUTINE' ? 'Rutin' : 'Tidak Rutin',
+            'Tipe Servis': log.type,
+            'Deskripsi': log.description || '-',
+            'Odometer (km)': log.odometer || 0,
+            'Next Service (km)': log.nextServiceOdometer || '-',
+            'Biaya (Rp)': log.cost || 0
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        
+        const colWidths = [
+            { wch: 5 },  // No
+            { wch: 15 }, // Tanggal
+            { wch: 25 }, // Kendaraan
+            { wch: 15 }, // Plat Nomor
+            { wch: 15 }, // Kategori
+            { wch: 20 }, // Tipe Servis
+            { wch: 40 }, // Deskripsi
+            { wch: 15 }, // Odometer
+            { wch: 20 }, // Next Service
+            { wch: 15 }  // Biaya
+        ];
+        ws['!cols'] = colWidths;
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Riwayat Pemeliharaan");
+        XLSX.writeFile(wb, `Data_Pemeliharaan_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
     const filteredLogs = logs.filter(log =>
         log.vehicle?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.vehicle?.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -50,6 +86,12 @@ const VehicleMaintenanceList = () => {
                     <p className="text-sm text-slate-500">Pantau servis rutin dan perbaikan armada.</p>
                 </div>
                 <div className="flex gap-2 w-full sm:w-auto">
+                    <button
+                        onClick={handleExport}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-amber-500 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-amber-600 shadow-lg shadow-amber-500/20 transition-all transform hover:-translate-y-0.5 text-xs sm:text-sm"
+                    >
+                        <Download size={20} /> <span className="sm:hidden lg:inline">Ekspor Excel</span><span className="hidden sm:inline lg:hidden">Ekspor</span>
+                    </button>
                     <button
                         onClick={() => navigate('/kendaraan/pemeliharaan/reminder')}
                         className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all transform hover:-translate-y-0.5 text-xs sm:text-sm"

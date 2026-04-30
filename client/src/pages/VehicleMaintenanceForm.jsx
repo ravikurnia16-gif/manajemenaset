@@ -238,11 +238,10 @@ const VehicleMaintenanceForm = () => {
                     <div className="flex items-center justify-between mb-1">
                         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2"><CheckCircle2 size={18} className="text-green-600" /> Perawatan Rutin</h2>
                         {form.vehicleId && (
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                                vehicleCategory === 'MOTOR' ? 'bg-purple-100 text-purple-700' :
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${vehicleCategory === 'MOTOR' ? 'bg-purple-100 text-purple-700' :
                                 vehicleCategory === 'BUS' ? 'bg-indigo-100 text-indigo-700' :
-                                'bg-slate-100 text-slate-600'
-                            }`}>
+                                    'bg-slate-100 text-slate-600'
+                                }`}>
                                 {vehicleCategory === 'MOTOR' ? '🏍️ Motor' : vehicleCategory === 'BUS' ? '🚌 Bus' : '🚗 Umum'}
                             </span>
                         )}
