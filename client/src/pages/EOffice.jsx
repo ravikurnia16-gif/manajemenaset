@@ -1044,9 +1044,12 @@ const EOffice = () => {
                             {viewingDoc.type === 'INVOICE' && (
                                 <button
                                     onClick={() => handleSendInvoiceWA(viewingDoc.id)}
-                                    className="px-4 sm:px-5 py-2.5 bg-blue-50 text-blue-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-100 transition-all shadow-lg shadow-blue-600/5"
+                                    className={`px-4 sm:px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg ${getPaymentStatus(viewingDoc) === 'PAID'
+                                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 shadow-emerald-600/5'
+                                            : 'bg-blue-50 text-blue-600 hover:bg-blue-100 shadow-blue-600/5'
+                                        }`}
                                 >
-                                    <Send size={18} /> Tagihan
+                                    <Send size={18} /> {getPaymentStatus(viewingDoc) === 'PAID' ? 'Bukti Lunas' : 'Tagihan'}
                                 </button>
                             )}
 

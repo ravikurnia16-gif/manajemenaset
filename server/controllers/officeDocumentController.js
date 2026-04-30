@@ -753,7 +753,8 @@ exports.updatePaymentStatus = async (req, res) => {
             data: { content: JSON.stringify(content) }
         });
 
-        res.json({ message: 'Status pembayaran berhasil diperbarui', doc: updated });
+        const statusLabel = status === 'PAID' ? 'LUNAS' : 'BELUM LUNAS';
+        res.json({ message: `Status pembayaran berhasil diperbarui menjadi ${statusLabel}`, doc: updated });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -783,16 +784,31 @@ exports.sendInvoiceWA = async (req, res) => {
 
         const publicUrl = `https://sarpras.dareliman.or.id/api/office-documents/verify/${doc.uuid}/pdf`;
         
-        const message = `*INVOICE TAGIHAN - ${setting?.orgName || 'SARPRAS'}*\n\n` +
-            `Halo Bapak/Ibu *${doc.party2Name}*,\n` +
-            `Berikut adalah rincian tagihan Anda:\n\n` +
-            `▫️ *No. Invoice:* ${doc.number || '-'}\n` +
-            `▫️ *Perihal:* ${doc.subject}\n` +
-            `▫️ *Jatuh Tempo:* ${content.dueDate ? new Date(content.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}\n\n` +
-            `Silakan unduh dokumen invoice resmi pada link berikut:\n` +
-            `${publicUrl}\n\n` +
-            `Mohon segera melakukan pembayaran. Abaikan pesan ini jika Anda sudah melunasi tagihan.\n` +
-            `Terima kasih.`;
+        let message = '';
+        if (content.paymentStatus === 'PAID') {
+            message = `*KONFIRMASI PELUNASAN - ${setting?.orgName || 'SARPRAS'}*\n\n` +
+                `Halo Bapak/Ibu *${doc.party2Name}*,\n` +
+                `Pembayaran Anda untuk tagihan berikut telah kami terima dan diverifikasi:\n\n` +
+                `▫️ *No. Invoice:* ${doc.number || '-'}\n` +
+                `▫️ *Perihal:* ${doc.subject}\n` +
+                `▫️ *Status:* ✅ LUNAS\n\n` +
+                `Terima kasih telah melakukan pembayaran tepat waktu. Anda dapat mengunduh bukti pelunasan resmi pada link berikut:\n` +
+                `${publicUrl}\n\n` +
+                `Salam,\n` +
+                `${setting?.orgName || 'Bagian Sarana & Prasarana'}`;
+        } else {
+            message = `*INVOICE TAGIHAN - ${setting?.orgName || 'SARPRAS'}*\n\n` +
+                `Halo Bapak/Ibu *${doc.party2Name}*,\n` +
+                `Berikut adalah rincian tagihan Anda yang perlu segera diselesaikan:\n\n` +
+                `▫️ *No. Invoice:* ${doc.number || '-'}\n` +
+                `▫️ *Perihal:* ${doc.subject}\n` +
+                `▫️ *Jatuh Tempo:* ${content.dueDate ? new Date(content.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}\n` +
+                `▫️ *Status:* 🔴 BELUM LUNAS\n\n` +
+                `Silakan unduh dokumen invoice resmi pada link berikut:\n` +
+                `${publicUrl}\n\n` +
+                `Mohon segera melakukan pembayaran. Abaikan pesan ini jika Anda sudah melunasi tagihan.\n` +
+                `Terima kasih.`;
+        }
 
         const result = await require('../services/whatsappService').sendMessage(phone, message);
         res.json({ message: 'Notifikasi WhatsApp sedang dikirim...', result });
