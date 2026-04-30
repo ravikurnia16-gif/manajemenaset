@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Search, Filter, Trash2, Eye, Wrench, Calendar, AlertCircle } from 'lucide-react';
+import { Plus, Search, Filter, Trash2, Eye, Wrench, Calendar, AlertCircle, Download } from 'lucide-react';
 import api from '../lib/axios';
+import * as XLSX from 'xlsx';
 
 const statusColors = {
     SUBMITTED: 'bg-blue-100 text-blue-700',
@@ -70,6 +71,39 @@ const MaintenanceList = () => {
         }
     };
 
+    const handleExport = () => {
+        const exportData = filtered.map((r, index) => ({
+            'No': index + 1,
+            'Kode': r.code,
+            'Judul': r.title,
+            'Pelapor': `${r.user?.username || ''} (${r.unit?.name || ''})`,
+            'Aset': r.assets?.map(a => `${a.name} (${a.code})`).join(', ') || '-',
+            'Masa': r.category === 'ROUTINE' ? 'Rutin' : 'Insidentil',
+            'Bidang': r.targetDept === 'PEMBANGUNAN' ? 'Pembangunan' : 'Sarpras',
+            'Status': statusLabels[r.status] || r.status,
+            'Tanggal': r.createdAt ? new Date(r.createdAt).toLocaleDateString('id-ID') : '-'
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        
+        const colWidths = [
+            { wch: 5 },   // No
+            { wch: 15 },  // Kode
+            { wch: 30 },  // Judul
+            { wch: 25 },  // Pelapor
+            { wch: 40 },  // Aset
+            { wch: 15 },  // Masa
+            { wch: 15 },  // Bidang
+            { wch: 15 },  // Status
+            { wch: 15 }   // Tanggal
+        ];
+        ws['!cols'] = colWidths;
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Laporan Pemeliharaan");
+        XLSX.writeFile(wb, `Laporan_Pemeliharaan_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
     const filtered = Array.isArray(reports) ? reports.filter(r => {
         const searchLower = search.toLowerCase();
 
@@ -100,12 +134,20 @@ const MaintenanceList = () => {
                         Daftar seluruh laporan pemeliharaan aset dan umum
                     </p>
                 </div>
-                <button
-                    onClick={() => navigate('/pemeliharaan/input')}
-                    className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all text-sm"
-                >
-                    <Plus size={18} /> Buat Laporan
-                </button>
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        onClick={handleExport}
+                        className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2.5 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all text-sm"
+                    >
+                        <Download size={18} /> Ekspor
+                    </button>
+                    <button
+                        onClick={() => navigate('/pemeliharaan/input')}
+                        className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all text-sm"
+                    >
+                        <Plus size={18} /> Buat Laporan
+                    </button>
+                </div>
             </div>
 
             {/* Filters */}
