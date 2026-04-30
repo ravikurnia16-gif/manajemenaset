@@ -984,11 +984,35 @@ const EOffice = () => {
                                                     </div>
                                                     <div className="pb-4 border-b border-slate-200">
                                                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Uraian Kegiatan</div>
-                                                        <div className="whitespace-pre-wrap leading-relaxed">{data.activities || '-'}</div>
+                                                        <div className="space-y-1.5">
+                                                            {Array.isArray(data.activities) ? data.activities.map((act, i) => (
+                                                                <div key={i} className="flex gap-2">
+                                                                    <span className="font-bold text-blue-500">{i + 1}.</span>
+                                                                    <span className="leading-relaxed">{act}</span>
+                                                                </div>
+                                                            )) : <div className="whitespace-pre-wrap leading-relaxed">{data.activities || '-'}</div>}
+                                                        </div>
                                                     </div>
                                                     <div>
                                                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Hasil & Catatan Kunjungan</div>
-                                                        <div className="whitespace-pre-wrap leading-relaxed">{data.results || '-'}</div>
+                                                        <div className="space-y-4">
+                                                            {Array.isArray(data.results) ? data.results.map((res, i) => (
+                                                                <div key={i} className="bg-white/50 p-3 rounded-xl border border-slate-100">
+                                                                    <div className="font-black text-slate-900 text-[11px] uppercase mb-2 flex items-center gap-2">
+                                                                        <div className="w-1 h-3 bg-emerald-500 rounded-full"></div>
+                                                                        {res.title || '-'}
+                                                                    </div>
+                                                                    <ul className="space-y-1 pl-3">
+                                                                        {res.items && res.items.map((it, j) => (
+                                                                            <li key={j} className="text-slate-600 text-[11px] flex gap-2">
+                                                                                <span className="text-emerald-400">•</span>
+                                                                                <span>{it}</span>
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                            )) : <div className="whitespace-pre-wrap leading-relaxed">{data.results || '-'}</div>}
+                                                        </div>
                                                     </div>
                                                     <LampiranPreview doc={viewingDoc} />
                                                 </div>
@@ -1386,8 +1410,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         purpose: '',
         locationName: '',
         locationAddress: '',
-        activities: '',
-        results: ''
+        activities: [''],
+        results: [{ title: '', items: [''] }]
     });
     const [extractingDocx, setExtractingDocx] = useState(false);
     const [keputusanData, setKeputusanData] = useState({
@@ -2913,28 +2937,141 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         />
                                     </div>
                                 </div>
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Uraian Kegiatan (Bisa menggunakan poin nomor)</label>
-                                        <textarea
-                                            rows={5}
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-medium leading-relaxed"
-                                            placeholder="1. Peninjauan fisik area proyek&#10;2. Pengumpulan data..."
-                                            value={kunjunganData.activities}
-                                            onChange={(e) => setKunjunganData({ ...kunjunganData, activities: e.target.value })}
-                                            required
-                                        />
+                                <div className="space-y-6">
+                                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">II. Uraian Kegiatan (Poin-poin)</label>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setKunjunganData({ ...kunjunganData, activities: [...kunjunganData.activities, ''] })}
+                                                className="text-[10px] font-bold text-blue-600 flex items-center gap-1 hover:underline"
+                                            >
+                                                <Plus size={14} /> Tambah Poin
+                                            </button>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {kunjunganData.activities.map((act, idx) => (
+                                                <div key={idx} className="flex gap-3">
+                                                    <div className="w-8 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-400 shrink-0">{idx + 1}</div>
+                                                    <textarea
+                                                        rows={2}
+                                                        className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-medium leading-relaxed focus:border-blue-400 transition-all"
+                                                        placeholder={`Tuliskan kegiatan ke-${idx + 1}...`}
+                                                        value={act}
+                                                        onChange={(e) => {
+                                                            const newAct = [...kunjunganData.activities];
+                                                            newAct[idx] = e.target.value;
+                                                            setKunjunganData({ ...kunjunganData, activities: newAct });
+                                                        }}
+                                                        required
+                                                    />
+                                                    <button 
+                                                        type="button" 
+                                                        disabled={kunjunganData.activities.length === 1}
+                                                        onClick={() => {
+                                                            const newAct = kunjunganData.activities.filter((_, i) => i !== idx);
+                                                            setKunjunganData({ ...kunjunganData, activities: newAct });
+                                                        }}
+                                                        className="p-2 text-red-400 hover:bg-red-50 rounded-xl h-10 flex items-center justify-center shrink-0 disabled:opacity-0"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Hasil & Catatan Kunjungan (Bisa menggunakan poin strip/bullet)</label>
-                                        <textarea
-                                            rows={5}
-                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-medium leading-relaxed"
-                                            placeholder="- Kondisi lahan siap bangun&#10;- Perlu koordinasi lebih lanjut..."
-                                            value={kunjunganData.results}
-                                            onChange={(e) => setKunjunganData({ ...kunjunganData, results: e.target.value })}
-                                            required
-                                        />
+
+                                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">III. Hasil & Catatan Kunjungan (Kategori & Poin)</label>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setKunjunganData({ ...kunjunganData, results: [...kunjunganData.results, { title: '', items: [''] }] })}
+                                                className="text-[10px] font-bold text-blue-600 flex items-center gap-1 hover:underline"
+                                            >
+                                                <Plus size={14} /> Tambah Judul Item
+                                            </button>
+                                        </div>
+                                        <div className="space-y-6">
+                                            {kunjunganData.results.map((res, resIdx) => (
+                                                <div key={resIdx} className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4">
+                                                    <div className="flex gap-4">
+                                                        <div className="flex-1">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Judul Item / Kategori Hasil</label>
+                                                            <input
+                                                                type="text"
+                                                                className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold bg-slate-50/50"
+                                                                placeholder="Misal: Kondisi Bangunan, Kelengkapan Dokumen..."
+                                                                value={res.title}
+                                                                onChange={(e) => {
+                                                                    const newRes = [...kunjunganData.results];
+                                                                    newRes[resIdx].title = e.target.value;
+                                                                    setKunjunganData({ ...kunjunganData, results: newRes });
+                                                                }}
+                                                                required
+                                                            />
+                                                        </div>
+                                                        <button 
+                                                            type="button" 
+                                                            disabled={kunjunganData.results.length === 1}
+                                                            onClick={() => {
+                                                                const newRes = kunjunganData.results.filter((_, i) => i !== resIdx);
+                                                                setKunjunganData({ ...kunjunganData, results: newRes });
+                                                            }}
+                                                            className="mt-5 p-2 text-red-400 hover:bg-red-50 rounded-xl h-10 disabled:opacity-0"
+                                                        >
+                                                            <Trash2 size={18} />
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    <div className="pl-6 border-l-2 border-slate-100 space-y-3">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Sub Item / Catatan Detil</label>
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => {
+                                                                    const newRes = [...kunjunganData.results];
+                                                                    newRes[resIdx].items.push('');
+                                                                    setKunjunganData({ ...kunjunganData, results: newRes });
+                                                                }}
+                                                                className="text-[9px] font-bold text-emerald-600 flex items-center gap-1 hover:underline"
+                                                            >
+                                                                <Plus size={12} /> Tambah Sub Item
+                                                            </button>
+                                                        </div>
+                                                        {res.items.map((item, itemIdx) => (
+                                                            <div key={itemIdx} className="flex gap-2">
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-4 shrink-0"></div>
+                                                                <textarea
+                                                                    rows={1}
+                                                                    className="w-full px-3 py-2 rounded-lg border border-slate-100 outline-none text-sm font-medium focus:border-emerald-300 transition-all bg-slate-50/30"
+                                                                    placeholder="Tuliskan catatan detail..."
+                                                                    value={item}
+                                                                    onChange={(e) => {
+                                                                        const newRes = [...kunjunganData.results];
+                                                                        newRes[resIdx].items[itemIdx] = e.target.value;
+                                                                        setKunjunganData({ ...kunjunganData, results: newRes });
+                                                                    }}
+                                                                    required
+                                                                />
+                                                                <button 
+                                                                    type="button" 
+                                                                    disabled={res.items.length === 1}
+                                                                    onClick={() => {
+                                                                        const newRes = [...kunjunganData.results];
+                                                                        newRes[resIdx].items = newRes[resIdx].items.filter((_, i) => i !== itemIdx);
+                                                                        setKunjunganData({ ...kunjunganData, results: newRes });
+                                                                    }}
+                                                                    className="p-1.5 text-red-300 hover:text-red-500 disabled:opacity-0"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </div>

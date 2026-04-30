@@ -2115,12 +2115,15 @@ async function generateBeritaAcaraKunjunganPDF(doc, setting) {
     page.drawText("Selama kunjungan berlangsung, rangkaian kegiatan yang telah dilaksanakan adalah:", { x: margin, y: cursor.y, size: 11, font: fontRegular });
     cursor.y -= 20;
 
-    if (content.activities) {
-        const activities = content.activities.split('\n').filter(a => a.trim());
-        activities.forEach(act => {
-            drawJustified(act, margin + 20, contentWidth - 20, fontRegular, 11);
+    if (Array.isArray(content.activities)) {
+        content.activities.forEach((act, i) => {
+            checkPage(20);
+            page.drawText(`${i + 1}.`, { x: margin + 20, y: cursor.y, size: 11, font: fontRegular });
+            drawJustified(act, margin + 35, contentWidth - 35, fontRegular, 11);
             cursor.y -= 5;
         });
+    } else if (content.activities) {
+        drawJustified(content.activities, margin + 20, contentWidth - 20, fontRegular, 11);
     }
     cursor.y -= 10;
 
@@ -2131,12 +2134,24 @@ async function generateBeritaAcaraKunjunganPDF(doc, setting) {
     page.drawText("Berdasarkan hasil kunjungan di lokasi tersebut, terdapat beberapa poin penting sebagai berikut:", { x: margin, y: cursor.y, size: 11, font: fontRegular });
     cursor.y -= 20;
 
-    if (content.results) {
-        const results = content.results.split('\n').filter(r => r.trim());
-        results.forEach(res => {
-            drawJustified(res, margin + 20, contentWidth - 20, fontRegular, 11);
-            cursor.y -= 5;
+    if (Array.isArray(content.results)) {
+        content.results.forEach((res, i) => {
+            checkPage(30);
+            page.drawText(res.title || '-', { x: margin + 20, y: cursor.y, size: 11, font: fontBold });
+            cursor.y -= 15;
+            
+            if (res.items && Array.isArray(res.items)) {
+                res.items.forEach(it => {
+                    checkPage(20);
+                    page.drawText("-", { x: margin + 35, y: cursor.y, size: 11, font: fontRegular });
+                    drawJustified(it, margin + 45, contentWidth - 45, fontRegular, 11);
+                    cursor.y -= 2;
+                });
+            }
+            cursor.y -= 8;
         });
+    } else if (content.results) {
+        drawJustified(content.results, margin + 20, contentWidth - 20, fontRegular, 11);
     }
     cursor.y -= 15;
 
