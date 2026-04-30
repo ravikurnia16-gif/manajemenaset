@@ -17,6 +17,9 @@ router.get('/stats', ctrl.getStats);
 // Category codes
 router.get('/categories', ctrl.getCategories);
 
+// Docx extraction
+router.post('/extract-docx', handleBulkUpload('files', 1, 'e-office/temp'), ctrl.extractDocx);
+
 // Surat Masuk (Incoming Mail)
 router.get('/incoming', ctrl.getIncomingMail);
 router.post('/incoming', handleBulkUpload('files', 5, 'e-office/surat-masuk'), ctrl.createIncomingMail);

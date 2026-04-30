@@ -1,7 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { generateDocumentNumber, getCategoryCodes } = require('../services/documentNumberingService');
-const { generateVerificationQR, generateSuratPDF, generateBASTMouPDF, generateSuratTugasPDF, generateSuratPesananPDF, generateInvoicePDF, generateSuratEdaranPDF, generateKeputusanPDF, generatePemberitahuanPDF, generateSuratUmumPDF } = require('../services/officePdfService');
+const { generateVerificationQR, generateSuratPDF, generateBASTMouPDF, generateSuratTugasPDF, generateSuratPesananPDF, generateInvoicePDF, generateSuratEdaranPDF, generateKeputusanPDF, generatePemberitahuanPDF, generateSuratUmumPDF, generateSuratLainnyaPDF } = require('../services/officePdfService');
+const mammoth = require('mammoth');
 const crypto = require('crypto');
 const whatsappService = require('../services/whatsappService');
 
@@ -554,6 +555,8 @@ exports.generatePDF = async (req, res) => {
             pdfBytes = await generateSuratTugasPDF(doc, setting);
         } else if (doc.category === 'Umum') {
             pdfBytes = await generateSuratUmumPDF(doc, setting);
+        } else if (doc.category === 'Lainnya' || doc.type === 'LAINNYA') {
+            pdfBytes = await generateSuratLainnyaPDF(doc, setting);
         } else {
             pdfBytes = await generateSuratPDF(doc, setting);
         }
@@ -852,6 +855,8 @@ exports.generatePublicPDF = async (req, res) => {
             pdfBytes = await generatePemberitahuanPDF(doc, setting);
         } else if (doc.type === 'SURAT_KELUAR' && doc.category === 'Tugas') {
             pdfBytes = await generateSuratTugasPDF(doc, setting);
+        } else if (doc.category === 'Lainnya' || doc.type === 'LAINNYA') {
+            pdfBytes = await generateSuratLainnyaPDF(doc, setting);
         } else {
             pdfBytes = await generateSuratPDF(doc, setting);
         }
@@ -876,5 +881,37 @@ exports.getCategories = async (req, res) => {
         res.json(getCategoryCodes());
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch categories' });
+    }
+};
+
+// ==================== DOCX EXTRACTION ====================
+
+/**
+ * POST /api/office-documents/extract-docx
+ * Extract text content from uploaded .doc/.docx file
+ */
+exports.extractDocx = async (req, res) => {
+    try {
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ error: 'Tidak ada file yang diunggah' });
+        }
+
+        const file = req.files[0];
+        const ext = file.originalname.toLowerCase().split('.').pop();
+
+        if (!['doc', 'docx'].includes(ext)) {
+            return res.status(400).json({ error: 'Format file harus .doc atau .docx' });
+        }
+
+        const result = await mammoth.extractRawText({ buffer: file.buffer });
+        const text = result.value || '';
+
+        res.json({
+            text: text.trim(),
+            messages: result.messages || [],
+        });
+    } catch (error) {
+        console.error('extractDocx error:', error);
+        res.status(500).json({ error: 'Gagal mengekstrak dokumen: ' + error.message });
     }
 };

@@ -189,11 +189,11 @@ const EOffice = () => {
         let content = {};
         try { content = JSON.parse(doc.content || '{}'); } catch (e) { }
         const hasText = content.lampiranText && content.lampiranText.trim();
-        
+
         const photoUrls = (doc.fileUrl || '').split(',').filter(url => url.trim());
-        const hasPhoto = photoUrls.some(url => 
-            url.toLowerCase().endsWith('.jpg') || 
-            url.toLowerCase().endsWith('.jpeg') || 
+        const hasPhoto = photoUrls.some(url =>
+            url.toLowerCase().endsWith('.jpg') ||
+            url.toLowerCase().endsWith('.jpeg') ||
             url.toLowerCase().endsWith('.png') ||
             url.toLowerCase().endsWith('.webp')
         );
@@ -216,10 +216,10 @@ const EOffice = () => {
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Foto / Gambar Lampiran</div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {photoUrls.map((url, idx) => {
-                                const isImage = url.toLowerCase().endsWith('.jpg') || 
-                                              url.toLowerCase().endsWith('.jpeg') || 
-                                              url.toLowerCase().endsWith('.png') ||
-                                              url.toLowerCase().endsWith('.webp');
+                                const isImage = url.toLowerCase().endsWith('.jpg') ||
+                                    url.toLowerCase().endsWith('.jpeg') ||
+                                    url.toLowerCase().endsWith('.png') ||
+                                    url.toLowerCase().endsWith('.webp');
                                 if (!isImage) return null;
                                 return (
                                     <div key={idx} className="rounded-xl overflow-hidden border border-slate-100 shadow-sm bg-white p-2">
@@ -242,8 +242,8 @@ const EOffice = () => {
     const filteredDocs = (documents || []).filter(doc => {
         if (!doc) return false;
         return (doc.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-               (doc.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-               (doc.senderName || '').toLowerCase().includes(searchQuery.toLowerCase());
+            (doc.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (doc.senderName || '').toLowerCase().includes(searchQuery.toLowerCase());
     });
 
     const ListView = () => (
@@ -317,12 +317,12 @@ const EOffice = () => {
                                         <button onClick={() => setViewingDoc(doc)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Lihat Detail"><Eye size={18} /></button>
                                         {doc.type === 'SURAT_MASUK' ? (
                                             doc.fileUrl ? (
-                                                <button 
+                                                <button
                                                     onClick={() => {
                                                         const firstFile = doc.fileUrl.split(',')[0];
                                                         window.open(firstFile.startsWith('http') || firstFile.startsWith('/') ? firstFile : `/api/media/${firstFile}`, '_blank');
                                                     }}
-                                                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block" 
+                                                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block"
                                                     title="Lihat File"
                                                 >
                                                     <Download size={18} />
@@ -373,12 +373,12 @@ const EOffice = () => {
                             <div className="flex flex-col gap-1 shrink-0">
                                 {doc.type === 'SURAT_MASUK' ? (
                                     doc.fileUrl && (
-                                        <button 
-                                            onClick={(e) => { 
-                                                e.stopPropagation(); 
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
                                                 const firstFile = doc.fileUrl.split(',')[0];
                                                 window.open(firstFile.startsWith('http') || firstFile.startsWith('/') ? firstFile : `/api/media/${firstFile}`, '_blank');
-                                            }} 
+                                            }}
                                             className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg"
                                         >
                                             <Download size={14} />
@@ -435,11 +435,11 @@ const EOffice = () => {
                                     {viewingDoc.fileUrl && (
                                         <div className="col-span-full pt-4 space-y-2">
                                             {viewingDoc.fileUrl.split(',').filter(u => u.trim()).map((url, idx, arr) => (
-                                                <a 
+                                                <a
                                                     key={idx}
-                                                    href={url.startsWith('http') || url.startsWith('/') ? url : `/api/media/${url}`} 
-                                                    target="_blank" 
-                                                    rel="noreferrer" 
+                                                    href={url.startsWith('http') || url.startsWith('/') ? url : `/api/media/${url}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
                                                     className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-colors"
                                                 >
                                                     <Download size={18} /> {arr.length > 1 ? `Unduh / Lihat File ${idx + 1}` : 'Unduh / Lihat File Surat Masuk'}
@@ -960,6 +960,29 @@ const EOffice = () => {
                                         }
                                     })()}
                                 </div>
+                            ) : viewingDoc.category === 'Lainnya' ? (
+                                <div className="space-y-6">
+                                    {(() => {
+                                        try {
+                                            const data = JSON.parse(viewingDoc.content || '{}');
+                                            return (
+                                                <div className="space-y-6">
+                                                    <div className="text-center border-y border-slate-100 py-4">
+                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Judul Surat</div>
+                                                        <div className="text-sm font-black text-slate-900 uppercase leading-relaxed max-w-md mx-auto">{data.title || viewingDoc.subject}</div>
+                                                    </div>
+                                                    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Isi Dokumen (dari file yang diunggah)</div>
+                                                        <div className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed font-medium max-h-[400px] overflow-y-auto">{data.body || '(Kosong)'}</div>
+                                                    </div>
+                                                    <LampiranPreview doc={viewingDoc} />
+                                                </div>
+                                            );
+                                        } catch (e) {
+                                            return <p className="text-red-500 italic">Gagal memuat rincian dokumen</p>;
+                                        }
+                                    })()}
+                                </div>
                             ) : (
                                 <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-slate-700 whitespace-pre-wrap leading-relaxed font-medium">
                                     {viewingDoc.content || '(Tanpa isi)'}
@@ -1033,8 +1056,8 @@ const EOffice = () => {
                                 <button
                                     onClick={() => handleTogglePaymentStatus(viewingDoc.id, getPaymentStatus(viewingDoc))}
                                     className={`px-4 sm:px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg ${getPaymentStatus(viewingDoc) === 'PAID'
-                                            ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 shadow-amber-600/10'
-                                            : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/20'
+                                        ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 shadow-amber-600/10'
+                                        : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/20'
                                         }`}
                                 >
                                     <CheckCircle2 size={18} /> {getPaymentStatus(viewingDoc) === 'PAID' ? 'Unpaid' : 'Lunas'}
@@ -1045,8 +1068,8 @@ const EOffice = () => {
                                 <button
                                     onClick={() => handleSendInvoiceWA(viewingDoc.id)}
                                     className={`px-4 sm:px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg ${getPaymentStatus(viewingDoc) === 'PAID'
-                                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 shadow-emerald-600/5'
-                                            : 'bg-blue-50 text-blue-600 hover:bg-blue-100 shadow-blue-600/5'
+                                        ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 shadow-emerald-600/5'
+                                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100 shadow-blue-600/5'
                                         }`}
                                 >
                                     <Send size={18} /> {getPaymentStatus(viewingDoc) === 'PAID' ? 'Bukti Lunas' : 'Tagihan'}
@@ -1176,8 +1199,8 @@ const EOffice = () => {
                         key={t.id}
                         onClick={() => navigate(`/e-office/${t.id}`)}
                         className={`flex items-center gap-1.5 px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${tab === t.id
-                                ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
-                                : 'text-slate-500 hover:bg-slate-50'
+                            ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                            : 'text-slate-500 hover:bg-slate-50'
                             }`}
                     >
                         {t.icon} {t.label}
@@ -1277,6 +1300,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         points: [{ text: '', subs: [''] }],
     });
     const [umumData, setUmumData] = useState({ subCategory: '', body: '' });
+    const [lainnyaData, setLainnyaData] = useState({ title: '', body: '' });
+    const [extractingDocx, setExtractingDocx] = useState(false);
     const [keputusanData, setKeputusanData] = useState({
         menimbang: [''],
         mengingat: [''],
@@ -1343,7 +1368,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 setLampiranText('');
             }
 
-            if ((doc.type === 'BAST' || ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category)) && doc.content) {
+            if ((doc.type === 'BAST' || ['Serah Terima Barang', 'BAST'].includes(doc.category)) && doc.content) {
                 try {
                     const parsed = JSON.parse(doc.content);
                     setBastItems(Array.isArray(parsed) ? parsed : (parsed.items || []));
@@ -1453,6 +1478,17 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     console.error('Failed to parse Umum content JSON', e);
                 }
             }
+            if (doc.category === 'Lainnya' && doc.content) {
+                try {
+                    const parsed = JSON.parse(doc.content);
+                    setLainnyaData({
+                        title: parsed.title || '',
+                        body: parsed.body || ''
+                    });
+                } catch (e) {
+                    console.error('Failed to parse Lainnya content JSON', e);
+                }
+            }
         } else {
             setFormData({
                 type: defaultType,
@@ -1498,7 +1534,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             let config = {};
 
             let contentObj = {};
-            if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) {
+            if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Serah Terima Barang', 'BAST'].includes(formData.category))) {
                 contentObj = { items: bastItems, location: formData.location };
             } else if (formData.category === 'Pesanan') {
                 contentObj = { items: purchasingItems, priceDetermined };
@@ -1514,6 +1550,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 contentObj = { ...pemberitahuanData };
             } else if (formData.category === 'Umum') {
                 contentObj = { ...umumData };
+            } else if (formData.category === 'Lainnya') {
+                contentObj = { ...lainnyaData };
             } else {
                 // Default for plain letters
                 contentObj = { text: formData.content };
@@ -1590,8 +1628,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             type="button"
                                             onClick={() => setFormData({ ...formData, category: c })}
                                             className={`px-4 py-3 rounded-xl text-xs font-bold border transition-all text-center ${formData.category === c
-                                                    ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                                                    : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
+                                                ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                                                : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
                                                 }`}
                                         >
                                             {c}
@@ -2664,7 +2702,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {formData.type !== 'SURAT_MASUK' && !['Berita Acara', 'Serah Terima Barang', 'BAST', 'Pesanan', 'Tugas', 'Edaran', 'Keputusan', 'Pemberitahuan', 'Umum'].includes(formData.category) && !['BAST', 'MOU'].includes(formData.type) && (
+                        {formData.type !== 'SURAT_MASUK' && !['Berita Acara', 'Serah Terima Barang', 'BAST', 'Pesanan', 'Tugas', 'Edaran', 'Keputusan', 'Pemberitahuan', 'Umum', 'Lainnya'].includes(formData.category) && !['BAST', 'MOU'].includes(formData.type) && (
                             <div className="col-span-full">
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Isi Dokumen / Pesan</label>
                                 <textarea
@@ -2675,6 +2713,94 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                                     placeholder={formData.type === 'INVOICE' ? 'Opsional: catatan tambahan untuk invoice...' : 'Tuliskan isi surat secara lengkap di sini...'}
                                 />
+                            </div>
+                        )}
+
+                        {formData.category === 'Lainnya' && (
+                            <div className="col-span-full animate-in zoom-in duration-300 space-y-6">
+                                <div className="bg-violet-50/50 p-6 rounded-2xl border border-violet-100">
+                                    <label className="text-xs font-black text-violet-600 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-violet-600"></div>
+                                        3. Judul Surat
+                                    </label>
+                                    <input
+                                        required
+                                        type="text"
+                                        className="w-full px-4 py-3 rounded-xl border border-violet-200 bg-white outline-none font-bold text-sm"
+                                        value={lainnyaData.title}
+                                        onChange={(e) => setLainnyaData({ ...lainnyaData, title: e.target.value.toUpperCase() })}
+                                        placeholder="Contoh: SURAT KETERANGAN / SURAT PERNYATAAN"
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-1">* Teks ini akan menjadi judul di tengah surat (di bawah Kop Surat)</p>
+                                </div>
+
+                                <div className="bg-violet-50/50 p-6 rounded-2xl border border-violet-100">
+                                    <label className="text-xs font-black text-violet-600 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-violet-600"></div>
+                                        4. Upload Dokumen (.doc / .docx)
+                                    </label>
+                                    <p className="text-[10px] text-slate-500 mb-3">Unggah file Word untuk mengekstrak isi dokumen secara otomatis.</p>
+                                    <div className="relative group">
+                                        <input
+                                            type="file"
+                                            id="docx-extract-file"
+                                            className="hidden"
+                                            accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                            onChange={async (e) => {
+                                                const file = e.target.files[0];
+                                                if (!file) return;
+                                                setExtractingDocx(true);
+                                                try {
+                                                    const fd = new FormData();
+                                                    fd.append('files', file);
+                                                    const res = await api.post('/office-documents/extract-docx', fd, {
+                                                        headers: { 'Content-Type': 'multipart/form-data' }
+                                                    });
+                                                    setLainnyaData(prev => ({ ...prev, body: res.data.text || '' }));
+                                                    alert('Konten berhasil diekstrak dari dokumen!');
+                                                } catch (err) {
+                                                    alert('Gagal mengekstrak: ' + (err.response?.data?.error || err.message));
+                                                } finally {
+                                                    setExtractingDocx(false);
+                                                }
+                                            }}
+                                        />
+                                        <label
+                                            htmlFor="docx-extract-file"
+                                            className={`flex items-center gap-3 px-5 py-4 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+                                                extractingDocx
+                                                    ? 'border-violet-300 bg-violet-50 opacity-60 pointer-events-none'
+                                                    : 'border-slate-200 hover:border-violet-400 hover:bg-violet-50'
+                                            }`}
+                                        >
+                                            <div className={`p-2.5 rounded-lg ${extractingDocx ? 'bg-violet-200 text-violet-600 animate-pulse' : 'bg-slate-100 group-hover:bg-violet-100 group-hover:text-violet-600'}`}>
+                                                <FileText size={20} />
+                                            </div>
+                                            <div>
+                                                <span className="text-sm font-bold text-slate-700 block">
+                                                    {extractingDocx ? 'Mengekstrak konten...' : 'Pilih file .doc / .docx'}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 font-medium">Isi dokumen akan diekstrak otomatis ke area di bawah</span>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
+                                        5. Isi Dokumen (Hasil Ekstraksi / Edit Manual)
+                                    </label>
+                                    <textarea
+                                        required
+                                        rows={12}
+                                        className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:border-violet-400 focus:ring-0 outline-none font-medium leading-relaxed text-sm shadow-sm"
+                                        value={lainnyaData.body}
+                                        onChange={(e) => setLainnyaData({ ...lainnyaData, body: e.target.value })}
+                                        placeholder="Konten dari file Word akan muncul di sini, atau ketik manual..."
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-1">* Anda dapat mengedit teks hasil ekstraksi sebelum menyimpan.</p>
+                                </div>
                             </div>
                         )}
 

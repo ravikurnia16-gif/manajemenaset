@@ -1850,6 +1850,158 @@ async function drawLampiranSection(pdfDoc, doc, fontBold, fontRegular) {
 }
 
 
+/**
+ * GENERATE SURAT LAINNYA (OTHER / CUSTOM LETTER)
+ * Content extracted from uploaded .doc/.docx file.
+ * Features: Kop Surat, Judul Surat centered, Nomor Surat otomatis, TTE.
+ */
+async function generateSuratLainnyaPDF(doc, setting) {
+    const pdfDoc = await PDFDocument.create();
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    const fontItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+    const kopImages = await embedKopSuratImages(pdfDoc);
+
+    let content = {};
+    try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
+
+    let page = pdfDoc.addPage([595.28, 841.89]);
+    const { width, height } = page.getSize();
+    const margin = 56;
+    const contentWidth = width - margin * 2;
+    const bottomMargin = 60;
+    let y = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
+
+    const checkPage = (needed = 30) => {
+        if (y - needed < bottomMargin) {
+            page = pdfDoc.addPage([595.28, 841.89]);
+            y = height - 50;
+        }
+    };
+
+    const drawJustified = (text, x, maxW, font, size = 11) => {
+        const paragraphs = (text || '').split('\n');
+        paragraphs.forEach(para => {
+            const words = para.split(/\s+/).filter(w => w.length > 0);
+            if (words.length === 0) { y -= 8; return; }
+            let lines = [];
+            let currentLine = [words[0]];
+            for (let i = 1; i < words.length; i++) {
+                const testLine = [...currentLine, words[i]].join(' ');
+                if (font.widthOfTextAtSize(testLine, size) > maxW) {
+                    lines.push(currentLine);
+                    currentLine = [words[i]];
+                } else {
+                    currentLine.push(words[i]);
+                }
+            }
+            lines.push(currentLine);
+
+            lines.forEach((lineWords, li) => {
+                const isLast = li === lines.length - 1;
+                checkPage(size * 1.4 + 2);
+                if (isLast || lineWords.length <= 1) {
+                    page.drawText(lineWords.join(' '), { x, y, size, font });
+                } else {
+                    const totalW = lineWords.reduce((a, w) => a + font.widthOfTextAtSize(w, size), 0);
+                    const space = (maxW - totalW) / (lineWords.length - 1);
+                    let cx = x;
+                    lineWords.forEach(word => {
+                        page.drawText(word, { x: cx, y, size, font });
+                        cx += font.widthOfTextAtSize(word, size) + space;
+                    });
+                }
+                y -= size * 1.4;
+            });
+        });
+    };
+
+    // === JUDUL SURAT (centered, bold, uppercase) ===
+    const title = (content.title || doc.subject || 'SURAT').toUpperCase();
+    const titleLines = wrapText(title, contentWidth, fontBold, 14);
+    titleLines.forEach(line => {
+        const lw = fontBold.widthOfTextAtSize(line, 14);
+        page.drawText(line, { x: (width - lw) / 2, y, size: 14, font: fontBold });
+        y -= 18;
+    });
+
+    // Underline title
+    const lastTitleLine = titleLines[titleLines.length - 1] || '';
+    const lastTitleWidth = fontBold.widthOfTextAtSize(lastTitleLine, 14);
+    page.drawLine({
+        start: { x: (width - lastTitleWidth) / 2, y: y + 4 },
+        end: { x: (width + lastTitleWidth) / 2, y: y + 4 },
+        thickness: 1.5,
+    });
+    y -= 8;
+
+    // === NOMOR SURAT (centered) ===
+    if (doc.number) {
+        const numText = `Nomor: ${doc.number}`;
+        const numWidth = fontRegular.widthOfTextAtSize(numText, 11);
+        page.drawText(numText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
+        y -= 25;
+    } else {
+        y -= 15;
+    }
+
+    // === ISI DOKUMEN (from extracted docx) ===
+    const bodyText = content.body || '';
+
+    if (bodyText) {
+        // Clean text for WinAnsi encoding
+        const cleanText = bodyText
+            .replace(/[\u2018\u2019]/g, "'")
+            .replace(/[\u201C\u201D]/g, '"')
+            .replace(/\u2013/g, '-')
+            .replace(/\u2014/g, '--')
+            .replace(/\u2026/g, '...')
+            .replace(/[^\x00-\xFF]/g, '');
+
+        const paragraphs = cleanText.split('\n');
+        for (const para of paragraphs) {
+            if (para.trim() === '') {
+                y -= 10;
+                continue;
+            }
+            checkPage(20);
+            drawJustified(para.trim(), margin, contentWidth, fontRegular, 11);
+            y -= 4;
+        }
+    } else {
+        checkPage(20);
+        page.drawText('(Konten dokumen kosong)', { x: margin, y, size: 11, font: fontItalic, color: rgb(0.5, 0.5, 0.5) });
+        y -= 20;
+    }
+
+    // === TANDA TANGAN ===
+    y -= 30;
+    const sigX = width - 250;
+    checkPage(130);
+
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const d = new Date(doc.date);
+    page.drawText(`Padang, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`, { x: sigX, y, size: 11, font: fontRegular });
+    y -= 18;
+
+    page.drawText(doc.signedBy?.position || 'Kepala Bidang Sarana dan Prasarana,', { x: sigX, y, size: 10, font: fontBold });
+    y -= 65;
+
+    await drawDigitalSignature(page, doc, sigX, y, 60);
+    y -= 10;
+
+    const signerName = doc.signedBy?.name || doc.party1Name || '____________________';
+    page.drawText(signerName, { x: sigX, y, size: 10, font: fontBold });
+    y -= 14;
+    if (doc.signedBy?.nip) {
+        page.drawText(`NIY. ${doc.signedBy.nip}`, { x: sigX, y, size: 9, font: fontRegular });
+    }
+
+    await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
+    return await pdfDoc.save();
+}
+
+
 module.exports = {
     generateVerificationQR,
     generateSuratPDF,
@@ -1860,7 +2012,8 @@ module.exports = {
     generateSuratEdaranPDF,
     generateKeputusanPDF,
     generatePemberitahuanPDF,
-    generateSuratUmumPDF
+    generateSuratUmumPDF,
+    generateSuratLainnyaPDF
 };
 
 /**
