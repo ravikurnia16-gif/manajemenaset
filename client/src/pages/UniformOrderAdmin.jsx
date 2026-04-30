@@ -318,8 +318,8 @@ const UniformOrderAdmin = () => {
                                                                                 </button>
                                                                             )}
 
-                                                                            {/* Batal Button - Visible when NO_STOCK or INDENT */}
-                                                                            {(currentStatus === 'NO_STOCK' || currentStatus === 'INDENT') && (
+                                                                            {/* Batal Button - Visible when PENDING, NO_STOCK or INDENT */}
+                                                                            {(currentStatus === 'PENDING' || currentStatus === 'NO_STOCK' || currentStatus === 'INDENT') && (
                                                                                 <button
                                                                                     onClick={() => handleEditItem(item.id, 'CANCEL_ITEM')}
                                                                                     className="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-1 rounded hover:bg-slate-500 hover:text-white font-bold transition"
