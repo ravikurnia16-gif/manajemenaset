@@ -2587,6 +2587,15 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                                     required={!doc?.fileUrl}
                                 />
+                                {((file && file.type.startsWith('image/')) || (!file && formData.fileUrl && formData.fileUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i))) && (
+                                    <div className="mt-3 relative inline-block rounded-xl overflow-hidden border border-slate-200">
+                                        <img 
+                                            src={file ? URL.createObjectURL(file) : formData.fileUrl} 
+                                            alt="Preview" 
+                                            className="h-40 object-contain bg-slate-50 rounded-xl"
+                                        />
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -2677,11 +2686,20 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                     <div className="p-2 bg-slate-100 rounded-lg group-hover:bg-blue-100 group-hover:text-blue-600">
                                                         <Paperclip size={18} />
                                                     </div>
-                                                    <span className="text-sm font-bold text-slate-600">
+                                                    <span className="text-sm font-bold text-slate-600 truncate max-w-[200px] sm:max-w-full">
                                                         {file ? file.name : (formData.fileUrl ? 'File sudah ada (klik untuk ganti)' : 'Pilih file lampiran...')}
                                                     </span>
                                                 </label>
                                             </div>
+                                            {((file && file.type.startsWith('image/')) || (!file && formData.fileUrl && formData.fileUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i))) && (
+                                                <div className="mt-3 relative inline-block rounded-xl overflow-hidden border border-slate-200">
+                                                    <img 
+                                                        src={file ? URL.createObjectURL(file) : formData.fileUrl} 
+                                                        alt="Preview Lampiran" 
+                                                        className="h-40 object-contain bg-slate-50 rounded-xl"
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                         { (file || formData.fileUrl) && (
                                             <button 
