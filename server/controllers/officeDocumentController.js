@@ -211,7 +211,14 @@ exports.updateDocument = async (req, res) => {
             party1Name, party1Title, party1Org, party1Address,
             party2Name, party2Title, party2Org, party2Address,
         } = req.body;
-        const fileUrl = req.fileUrl || req.body.fileUrl;
+        let finalFileUrl = undefined;
+        if (req.fileUrl) {
+            finalFileUrl = req.fileUrl;
+        } else if (req.body.fileUrl === '' || req.body.fileUrl === 'null' || req.body.fileUrl === null) {
+            finalFileUrl = null;
+        } else if (req.body.fileUrl !== undefined) {
+            finalFileUrl = req.body.fileUrl;
+        }
 
         const updated = await prisma.officeDocument.update({
             where: { id },
@@ -221,7 +228,7 @@ exports.updateDocument = async (req, res) => {
                 receivedDate: receivedDate ? new Date(receivedDate) : undefined,
                 party1Name, party1Title, party1Org, party1Address,
                 party2Name, party2Title, party2Org, party2Address,
-                fileUrl: req.fileUrl || req.body.fileUrl || undefined,
+                fileUrl: finalFileUrl,
                 status: existing.status === 'REJECTED' ? 'DRAFT' : undefined,
             },
             include: {

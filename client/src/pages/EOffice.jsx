@@ -2686,7 +2686,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         { (file || formData.fileUrl) && (
                                             <button 
                                                 type="button" 
-                                                onClick={() => { setFile(null); setFormData({...formData, fileUrl: null}); }}
+                                                onClick={() => { setFile(null); setFormData({...formData, fileUrl: ''}); }}
                                                 className="mt-5 p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"
                                                 title="Hapus Lampiran"
                                             >
