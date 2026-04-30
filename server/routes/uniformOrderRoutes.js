@@ -196,7 +196,7 @@ const checkOrder = async (req, res) => {
 
 const getAllOrders = async (req, res) => {
     try {
-        const { status, unit, startDate, endDate } = req.query;
+        const { status, unit, startDate, endDate, search } = req.query;
         const where = {};
         if (status) where.status = status;
         if (unit) where.customerUnit = unit;
@@ -204,6 +204,15 @@ const getAllOrders = async (req, res) => {
             where.createdAt = {};
             if (startDate) where.createdAt.gte = new Date(startDate);
             if (endDate) where.createdAt.lte = new Date(endDate);
+        }
+
+        if (search) {
+            where.OR = [
+                { studentName: { contains: search } },
+                { code: { contains: search } },
+                { customerPhone: { contains: search } },
+                { customerName: { contains: search } }
+            ];
         }
 
         const orders = await prisma.uniformOrder.findMany({
