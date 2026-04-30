@@ -2,6 +2,7 @@ const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 
 const BASE_URL = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
 
@@ -1770,10 +1771,25 @@ async function drawLampiranSection(pdfDoc, doc, fontBold, fontRegular) {
 
     if (hasPhotoLampiran) {
         try {
-            const filePath = path.join(__dirname, '..', doc.fileUrl);
-            if (fs.existsSync(filePath)) {
-                const imgBytes = fs.readFileSync(filePath);
-                const fileExt = path.extname(filePath).toLowerCase();
+            let imgBytes;
+            let fileExt = '';
+            
+            if (doc.fileUrl.startsWith('http')) {
+                const response = await axios.get(doc.fileUrl, { responseType: 'arraybuffer' });
+                imgBytes = Buffer.from(response.data);
+                const contentType = response.headers['content-type'] || '';
+                if (contentType.includes('png')) fileExt = '.png';
+                else if (contentType.includes('jpeg') || contentType.includes('jpg')) fileExt = '.jpg';
+                else fileExt = doc.fileUrl.toLowerCase().endsWith('.png') ? '.png' : '.jpg';
+            } else {
+                const filePath = path.join(__dirname, '..', doc.fileUrl);
+                if (fs.existsSync(filePath)) {
+                    imgBytes = fs.readFileSync(filePath);
+                    fileExt = path.extname(filePath).toLowerCase();
+                }
+            }
+
+            if (imgBytes) {
                 const img = (fileExt === '.png') ? await pdfDoc.embedPng(imgBytes) : await pdfDoc.embedJpg(imgBytes);
                 
                 const imgDims = img.scale(1);
