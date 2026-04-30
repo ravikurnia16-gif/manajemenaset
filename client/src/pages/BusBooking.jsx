@@ -313,123 +313,6 @@ const BusBooking = () => {
                 </div>
             </div>
 
-            {/* Outstanding Billing Summary */}
-            {isAdminAset && (() => {
-                const unpaid = bookings.filter(b => b.status === 'COMPLETED' && !b.isPaid);
-                const unbilled = bookings.filter(b => b.status !== 'COMPLETED' && !b.isPaid && new Date(b.endDate) < new Date());
-                const totalUnpaid = unpaid.reduce((s, b) => s + (b.totalBill || 0), 0);
-
-                // Group unpaid by unit
-                const unpaidByUnit = unpaid.reduce((acc, b) => {
-                    const u = b.unit || 'Umum';
-                    if (!acc[u]) acc[u] = { count: 0, total: 0, items: [] };
-                    acc[u].count++;
-                    acc[u].total += (b.totalBill || 0);
-                    acc[u].items.push(b);
-                    return acc;
-                }, {});
-
-                if (unpaid.length === 0 && unbilled.length === 0) return null;
-
-                return (
-                    <div className="bg-gradient-to-r from-amber-50 to-red-50 border border-amber-200 rounded-2xl p-4 md:p-5 space-y-4 shadow-sm">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-sm font-black text-amber-800 flex items-center gap-2">
-                                ⚠️ Tagihan Belum Lunas & Belum Ditagih
-                            </h3>
-                            <div className="text-right">
-                                <div className="text-[9px] font-bold text-amber-600 uppercase tracking-widest">Total Tertunggak</div>
-                                <div className="text-lg md:text-xl font-black text-red-600">Rp {totalUnpaid.toLocaleString('id-ID')}</div>
-                            </div>
-                        </div>
-
-                        {/* Unpaid Invoices (sudah ditagih, belum bayar) */}
-                        {unpaid.length > 0 && (
-                            <div>
-                                <div className="text-[10px] font-black text-red-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                                    🔴 Belum Lunas ({unpaid.length} tagihan)
-                                </div>
-                                {/* Per Unit Summary */}
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-3">
-                                    {Object.entries(unpaidByUnit).sort((a,b) => b[1].total - a[1].total).map(([unitName, data]) => (
-                                        <div key={unitName} className="bg-white/80 border border-red-100 rounded-xl p-2.5 text-center">
-                                            <div className="text-[9px] text-slate-400 font-bold uppercase">{unitName}</div>
-                                            <div className="text-sm font-black text-red-600">Rp {data.total.toLocaleString('id-ID')}</div>
-                                            <div className="text-[9px] text-slate-400">{data.count} tagihan</div>
-                                        </div>
-                                    ))}
-                                </div>
-                                {/* Per User Detail List */}
-                                <div className="space-y-2 max-h-64 overflow-y-auto">
-                                    {(() => {
-                                        const byUser = unpaid.reduce((acc, b) => {
-                                            const name = b.requesterName || b.user?.name || 'Unknown';
-                                            if (!acc[name]) acc[name] = { unit: b.unit || 'Umum', phone: b.requesterPhone, total: 0, items: [] };
-                                            acc[name].total += (b.totalBill || 0);
-                                            acc[name].items.push(b);
-                                            return acc;
-                                        }, {});
-                                        return Object.entries(byUser).sort((a,b) => b[1].total - a[1].total).map(([name, data]) => (
-                                            <div key={name} className="bg-white/90 border border-red-100 rounded-xl overflow-hidden">
-                                                <div className="p-3 flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-[10px] font-black">{data.items.length}</div>
-                                                        <div>
-                                                            <div className="text-xs font-bold text-slate-800">{name}</div>
-                                                            <div className="text-[9px] text-slate-400">{data.unit} {data.phone ? `• ${data.phone}` : ''}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-sm font-black text-red-600">Rp {data.total.toLocaleString('id-ID')}</div>
-                                                </div>
-                                                <div className="border-t border-red-50 divide-y divide-red-50">
-                                                    {data.items.map(b => (
-                                                        <div key={b.id} className="px-3 py-2 flex items-center justify-between text-[10px] hover:bg-red-50/50 cursor-pointer transition" onClick={() => setSelectedBooking(b)}>
-                                                            <div className="flex items-center gap-2 text-slate-600">
-                                                                <Bus size={10} className="text-slate-400" />
-                                                                <span className="font-bold">{b.vehicle?.name}</span>
-                                                                <span className="text-slate-400">→ {b.destination}</span>
-                                                                <span className="text-slate-300">•</span>
-                                                                <span className="text-slate-400">{new Date(b.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>
-                                                            </div>
-                                                            <span className="font-black text-red-600">Rp {(b.totalBill || 0).toLocaleString('id-ID')}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ));
-                                    })()}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Unbilled (trip sudah selesai tapi belum ditagih / input KM) */}
-                        {unbilled.length > 0 && (
-                            <div>
-                                <div className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                                    🟡 Belum Ditagih ({unbilled.length} trip sudah lewat, belum input KM)
-                                </div>
-                                <div className="space-y-2 max-h-36 overflow-y-auto">
-                                    {unbilled.map(b => (
-                                        <div key={b.id} className="bg-white/80 border border-amber-100 rounded-xl p-3 flex items-center justify-between cursor-pointer hover:bg-amber-50 transition" onClick={() => setSelectedBooking(b)}>
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center">
-                                                    <Bus size={14} />
-                                                </div>
-                                                <div>
-                                                    <div className="text-xs font-bold text-slate-800">{b.vehicle?.name} <span className="text-[9px] text-slate-400 font-normal">• {b.unit || 'Umum'}</span></div>
-                                                    <div className="text-[9px] text-slate-400">{b.destination} • {new Date(b.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</div>
-                                                </div>
-                                            </div>
-                                            <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">PERLU INPUT KM</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                );
-            })()}
-
             <div className="w-full space-y-4">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
                     <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
@@ -1141,6 +1024,68 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter, isAdminAse
                     <div className="text-white/60 text-[10px] mt-1 relative z-10">{sisaDana >= 0 ? '📈 Dana Tersisa' : '📉 Defisit'} | Laba: {netProfit >= 0 ? '+' : '-'}Rp {Math.abs(netProfit).toLocaleString('id-ID')}</div>
                 </div>
             </div>
+
+            {/* Outstanding Billing - Compact */}
+            {(() => {
+                const unpaid = bookings.filter(b => b.status === 'COMPLETED' && !b.isPaid);
+                const unbilled = bookings.filter(b => b.status !== 'COMPLETED' && !b.isPaid && new Date(b.endDate) < new Date());
+                const totalUnpaid = unpaid.reduce((s, b) => s + (b.totalBill || 0), 0);
+                if (unpaid.length === 0 && unbilled.length === 0) return null;
+
+                const byUser = unpaid.reduce((acc, b) => {
+                    const name = b.requesterName || b.user?.name || 'Unknown';
+                    if (!acc[name]) acc[name] = { unit: b.unit || 'Umum', phone: b.requesterPhone, total: 0, items: [] };
+                    acc[name].total += (b.totalBill || 0);
+                    acc[name].items.push(b);
+                    return acc;
+                }, {});
+
+                return (
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-xs font-black text-amber-800 flex items-center gap-1.5">⚠️ Tagihan Outstanding</div>
+                            <div className="text-sm font-black text-red-600">Rp {totalUnpaid.toLocaleString('id-ID')}</div>
+                        </div>
+
+                        {unpaid.length > 0 && (
+                            <div className="mb-3">
+                                <div className="text-[9px] font-black text-red-600 uppercase tracking-widest mb-1.5">🔴 Belum Lunas ({unpaid.length})</div>
+                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                    {Object.entries(byUser).sort((a,b) => b[1].total - a[1].total).map(([name, data]) => (
+                                        <div key={name} className="bg-white/80 border border-red-100 rounded-lg px-3 py-1.5 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-5 h-5 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-[8px] font-black">{data.items.length}</div>
+                                                <div>
+                                                    <div className="text-[10px] font-bold text-slate-700">{name}</div>
+                                                    <div className="text-[8px] text-slate-400">{data.unit}{data.phone ? ` • ${data.phone}` : ''}</div>
+                                                </div>
+                                            </div>
+                                            <div className="text-[10px] font-black text-red-600">Rp {data.total.toLocaleString('id-ID')}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {unbilled.length > 0 && (
+                            <div>
+                                <div className="text-[9px] font-black text-amber-700 uppercase tracking-widest mb-1.5">🟡 Belum Ditagih ({unbilled.length})</div>
+                                <div className="space-y-1 max-h-28 overflow-y-auto">
+                                    {unbilled.map(b => (
+                                        <div key={b.id} className="bg-white/80 border border-amber-100 rounded-lg px-3 py-1.5 flex items-center justify-between text-[10px]">
+                                            <div className="text-slate-600">
+                                                <span className="font-bold">{b.vehicle?.name}</span>
+                                                <span className="text-slate-400"> • {b.unit || 'Umum'} • {b.destination}</span>
+                                            </div>
+                                            <span className="text-[8px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">INPUT KM</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
 
             {/* Expense Breakdown */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
