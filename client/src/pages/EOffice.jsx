@@ -1064,17 +1064,21 @@ const EOffice = () => {
         );
     };
 
-    const InfoGroup = ({ label, value, icon, full }) => (
-        <div className={full ? 'col-span-full' : ''}>
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                {icon} {label}
+    const InfoGroup = ({ label, value, icon, full }) => {
+        return (
+            <div className={full ? 'col-span-full' : ''}>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                    {icon} {label}
+                </div>
+                <div className="text-slate-800 font-bold leading-relaxed">{value || '-'}</div>
             </div>
-            <div className="text-slate-800 font-bold leading-relaxed">{value || '-'}</div>
-        </div>
-    );
+        );
+    };
 
     const handleDelete = async (id) => {
-        if (!window.confirm('Apakah Anda yakin ingin menghapus dokumen ini secara permanen?')) return;
+        if (!window.confirm('Apakah Anda yakin ingin menghapus dokumen ini secara permanen?')) {
+            return;
+        }
         try {
             await api.delete(`/office-documents/${id}`);
             alert('Dokumen berhasil dihapus');
@@ -1089,7 +1093,9 @@ const EOffice = () => {
     const handleTogglePaymentStatus = async (id, currentStatus) => {
         const newStatus = currentStatus === 'PAID' ? 'UNPAID' : 'PAID';
         const msg = newStatus === 'PAID' ? 'Tandai invoice ini sebagai LUNAS?' : 'Tandai invoice ini sebagai BELUM LUNAS?';
-        if (!window.confirm(msg)) return;
+        if (!window.confirm(msg)) {
+            return;
+        }
 
         try {
             const res = await api.patch(`/office-documents/${id}/payment-status`, { status: newStatus });
@@ -1102,7 +1108,9 @@ const EOffice = () => {
     };
 
     const handleSendInvoiceWA = async (id) => {
-        if (!window.confirm('Kirim notifikasi tagihan ke nomor WhatsApp penerima?')) return;
+        if (!window.confirm('Kirim notifikasi tagihan ke nomor WhatsApp penerima?')) {
+            return;
+        }
         try {
             const res = await api.post(`/office-documents/${id}/send-wa`);
             alert(res.data.message);
@@ -1112,7 +1120,9 @@ const EOffice = () => {
     };
 
     const handleSubmitForApproval = async (id) => {
-        if (!window.confirm('Ajukan dokumen ini untuk ditandatangani oleh pimpinan?')) return;
+        if (!window.confirm('Ajukan dokumen ini untuk ditandatangani oleh pimpinan?')) {
+            return;
+        }
         try {
             await api.post(`/office-documents/${id}/submit`);
             alert('Berhasil diajukan!');
