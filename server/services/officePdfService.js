@@ -1845,8 +1845,10 @@ async function drawLampiranSection(pdfDoc, doc, fontBold, fontRegular) {
         } catch (e) {
             console.error('Failed to draw photo lampiran:', e);
         }
+        }
     }
 }
+
 
 module.exports = {
     generateVerificationQR,

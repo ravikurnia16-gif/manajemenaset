@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../lib/axios';
-import { 
-    FileText, Inbox, Send, Plus, Search, Filter, 
-    MoreVertical, CheckCircle2, XCircle, Clock, 
+import {
+    FileText, Inbox, Send, Plus, Search, Filter,
+    MoreVertical, CheckCircle2, XCircle, Clock,
     FileSignature, Download, Eye, Trash2, Printer,
     Calendar, User, Tag, ArrowRight, ShieldCheck,
     AlertCircle, Save, X, Edit2, QrCode, LayoutDashboard, Paperclip
@@ -19,8 +19,8 @@ const formatDate = (dateStr, type = 'short') => {
     const mm = d.getMonth();
     const yyyy = d.getFullYear();
     if (type === 'full') return `${dd} ${BULAN_FULL[mm]} ${yyyy}`;
-    if (type === 'datetime') return `${dd} ${BULAN[mm]} ${yyyy} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-    if (type === 'input') return `${yyyy}-${String(mm+1).padStart(2,'0')}-${dd}`;
+    if (type === 'datetime') return `${dd} ${BULAN[mm]} ${yyyy} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    if (type === 'input') return `${yyyy}-${String(mm + 1).padStart(2, '0')}-${dd}`;
     return `${dd} ${BULAN[mm]} ${yyyy}`;
 };
 
@@ -46,7 +46,7 @@ const EOffice = () => {
     useEffect(() => {
         fetchStats();
         fetchDocuments();
-        
+
         if (location.state?.autoCreate) {
             const s = location.state;
             setEditingDoc({
@@ -187,12 +187,12 @@ const EOffice = () => {
 
     const LampiranPreview = ({ doc }) => {
         let content = {};
-        try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
+        try { content = JSON.parse(doc.content || '{}'); } catch (e) { }
         const hasText = content.lampiranText && content.lampiranText.trim();
         const hasPhoto = doc.fileUrl && (doc.fileUrl.toLowerCase().endsWith('.jpg') || doc.fileUrl.toLowerCase().endsWith('.jpeg') || doc.fileUrl.toLowerCase().endsWith('.png'));
-    
+
         if (!hasText && !hasPhoto) return null;
-    
+
         return (
             <div className="mt-8 pt-6 border-t border-slate-100">
                 <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -208,9 +208,9 @@ const EOffice = () => {
                     <div className="space-y-2">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Foto / Gambar Lampiran</div>
                         <div className="rounded-xl overflow-hidden border border-slate-100 shadow-sm bg-white p-2">
-                            <img 
+                            <img
                                 src={`/api/office-documents/file?path=${encodeURIComponent(doc.fileUrl)}`}
-                                alt="Lampiran" 
+                                alt="Lampiran"
                                 className="w-full h-auto max-h-[400px] object-contain rounded-lg"
                             />
                         </div>
@@ -220,7 +220,7 @@ const EOffice = () => {
         );
     };
 
-    const filteredDocs = documents.filter(doc => 
+    const filteredDocs = documents.filter(doc =>
         (doc.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (doc.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (doc.senderName || '').toLowerCase().includes(searchQuery.toLowerCase())
@@ -231,7 +231,7 @@ const EOffice = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="relative flex-1 max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input 
+                    <input
                         type="text"
                         placeholder="Cari subjek, nomor..."
                         className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
@@ -259,57 +259,57 @@ const EOffice = () => {
                         ) : filteredDocs.length === 0 ? (
                             <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">Tidak ada dokumen ditemukan</td></tr>
                         ) : filteredDocs.map(doc => (
-                                <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors group">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-lg ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                                {doc.type === 'SURAT_MASUK' ? <Inbox size={18} /> : <Send size={18} />}
-                                            </div>
-                                            <div>
-                                                <div className="font-bold text-slate-800 line-clamp-1">{doc.subject}</div>
-                                                <div className="text-[11px] text-slate-500 font-medium">
-                                                    {doc.number || 'Draft'} {doc.senderName && `• Dari: ${doc.senderName}`}
-                                                </div>
+                            <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors group">
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded-lg ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                            {doc.type === 'SURAT_MASUK' ? <Inbox size={18} /> : <Send size={18} />}
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-slate-800 line-clamp-1">{doc.subject}</div>
+                                            <div className="text-[11px] text-slate-500 font-medium">
+                                                {doc.number || 'Draft'} {doc.senderName && `• Dari: ${doc.senderName}`}
                                             </div>
                                         </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-1.5 text-slate-600">
-                                            <Tag size={14} className="text-slate-400" />
-                                            {doc.category || '-'}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-slate-600 font-medium">{formatDate(doc.date)}</td>
-                                    <td className="px-6 py-4">
-                                        <StatusBadge status={doc.status} />
-                                        {doc.type === 'INVOICE' && (
-                                            <div className="mt-1">
-                                                {getPaymentStatus(doc) === 'PAID' ? (
-                                                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-black uppercase tracking-widest">LUNAS</span>
-                                                ) : (
-                                                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest">BELUM LUNAS</span>
-                                                )}
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button onClick={() => setViewingDoc(doc)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Lihat Detail"><Eye size={18} /></button>
-                                            {doc.type === 'SURAT_MASUK' ? (
-                                                doc.fileUrl ? <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block" title="Lihat File"><Download size={18} /></a> : null
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-1.5 text-slate-600">
+                                        <Tag size={14} className="text-slate-400" />
+                                        {doc.category || '-'}
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4 text-slate-600 font-medium">{formatDate(doc.date)}</td>
+                                <td className="px-6 py-4">
+                                    <StatusBadge status={doc.status} />
+                                    {doc.type === 'INVOICE' && (
+                                        <div className="mt-1">
+                                            {getPaymentStatus(doc) === 'PAID' ? (
+                                                <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-black uppercase tracking-widest">LUNAS</span>
                                             ) : (
-                                                <button onClick={() => window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cetak PDF"><Printer size={18} /></button>
-                                            )}
-                                            {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
-                                                <button onClick={() => { setEditingDoc(doc); setIsFormOpen(true); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Edit"><Edit2 size={18} /></button>
-                                            )}
-                                            {isSuperAdmin && (
-                                                <button onClick={() => handleDelete(doc.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Hapus"><Trash2 size={18} /></button>
+                                                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest">BELUM LUNAS</span>
                                             )}
                                         </div>
-                                    </td>
-                                </tr>
-                            ))}
+                                    )}
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <button onClick={() => setViewingDoc(doc)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Lihat Detail"><Eye size={18} /></button>
+                                        {doc.type === 'SURAT_MASUK' ? (
+                                            doc.fileUrl ? <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block" title="Lihat File"><Download size={18} /></a> : null
+                                        ) : (
+                                            <button onClick={() => window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cetak PDF"><Printer size={18} /></button>
+                                        )}
+                                        {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
+                                            <button onClick={() => { setEditingDoc(doc); setIsFormOpen(true); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Edit"><Edit2 size={18} /></button>
+                                        )}
+                                        {isSuperAdmin && (
+                                            <button onClick={() => handleDelete(doc.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Hapus"><Trash2 size={18} /></button>
+                                        )}
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
                     </tbody>
                 </table>
             </div>
@@ -333,7 +333,7 @@ const EOffice = () => {
                                     <StatusBadge status={doc.status} />
                                     {doc.category && <span className="text-[10px] text-slate-400 font-medium">{doc.category}</span>}
                                     {doc.type === 'INVOICE' && (
-                                        getPaymentStatus(doc) === 'PAID' 
+                                        getPaymentStatus(doc) === 'PAID'
                                             ? <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[9px] font-black">LUNAS</span>
                                             : <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[9px] font-black">BELUM LUNAS</span>
                                     )}
@@ -373,7 +373,7 @@ const EOffice = () => {
                             <X size={24} />
                         </button>
                     </div>
-                    
+
                     <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 overflow-y-auto flex-1">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
                             <InfoGroup label="Subjek / Perihal" value={viewingDoc.subject} icon={<Tag size={16} />} full />
@@ -381,7 +381,7 @@ const EOffice = () => {
                             <InfoGroup label="Prioritas" value={viewingDoc.priority} />
                             <InfoGroup label="Tanggal Dokumen" value={formatDate(viewingDoc.date, 'full')} />
                             <InfoGroup label="Penulis / Pembuat" value={viewingDoc.author?.name} />
-                            
+
                             {viewingDoc.type === 'SURAT_MASUK' && (
                                 <>
                                     <InfoGroup label="Pengirim" value={viewingDoc.senderName} />
@@ -444,7 +444,7 @@ const EOffice = () => {
                                                     </div>
                                                 );
                                             }
-                                        } catch(e) {}
+                                        } catch (e) { }
                                         return null;
                                     })()}
 
@@ -455,7 +455,7 @@ const EOffice = () => {
                                             <div className="text-sm font-bold text-slate-800">{viewingDoc.party1Name || '-'}</div>
                                             <div className="text-[11px] text-slate-500">{viewingDoc.party1Title || ''}</div>
                                             {viewingDoc.party1Org && <div className="text-[11px] font-medium text-slate-600 mt-1">{viewingDoc.party1Org}</div>}
-                                            
+
                                             {viewingDoc.party1SignedAt && (
                                                 <div className="mt-3 pt-3 border-t border-blue-200/50 flex items-center gap-2 text-[10px] font-bold text-blue-700">
                                                     <ShieldCheck size={14} /> Tanda Tangan Digital OK
@@ -467,7 +467,7 @@ const EOffice = () => {
                                             <div className="text-sm font-bold text-slate-800">{viewingDoc.party2Name || '-'}</div>
                                             <div className="text-[11px] text-slate-500">{viewingDoc.party2Title || ''}</div>
                                             {viewingDoc.party2Org && <div className="text-[11px] font-medium text-slate-600 mt-1">{viewingDoc.party2Org}</div>}
-                                            
+
                                             {viewingDoc.party2SignedAt && (
                                                 <div className="mt-3 pt-3 border-t border-emerald-200/50 flex items-center gap-2 text-[10px] font-bold text-emerald-700">
                                                     <CheckCircle2 size={14} /> Telah Ditandatangani
@@ -491,7 +491,7 @@ const EOffice = () => {
                                                         const content = JSON.parse(viewingDoc.content || '{}');
                                                         const items = Array.isArray(content) ? content : (content.items || []);
                                                         if (items.length === 0) return <tr><td colSpan="3" className="p-4 text-center text-slate-400 italic">Tidak ada rincian barang</td></tr>;
-                                                        
+
                                                         return items.map((item, i) => (
                                                             <tr key={i} className="hover:bg-slate-50 transition-colors">
                                                                 <td className="p-3 border-b border-slate-100 font-medium">{item.name}</td>
@@ -499,7 +499,7 @@ const EOffice = () => {
                                                                 <td className="p-3 border-b border-slate-100">{item.qty} {item.unit || ''}</td>
                                                             </tr>
                                                         ));
-                                                    } catch(e) {
+                                                    } catch (e) {
                                                         return <tr><td colSpan="3" className="p-4 text-center text-slate-400 italic">Format data tidak valid</td></tr>;
                                                     }
                                                 })()}
@@ -527,7 +527,7 @@ const EOffice = () => {
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                 {items.map((item, i) => {
+                                                                {items.map((item, i) => {
                                                                     const price = parseFloat(item.price) || 0;
                                                                     const total = (parseFloat(item.qty) || 0) * price;
                                                                     return (
@@ -612,7 +612,7 @@ const EOffice = () => {
                                                         const items = JSON.parse(viewingDoc.content || '[]');
                                                         const hasUnknownPrice = items.some(it => !(parseFloat(it.price) > 0));
                                                         const grandTotal = items.reduce((acc, curr) => acc + ((parseFloat(curr.qty) || 0) * (parseFloat(curr.price) || 0)), 0);
-                                                        
+
                                                         return (
                                                             <>
                                                                 {items.map((item, i) => {
@@ -700,14 +700,14 @@ const EOffice = () => {
                                                                     return (
                                                                         <div key={i}>
                                                                             <div className="flex gap-3 items-start">
-                                                                                <div className="text-[10px] font-bold text-slate-400 mt-0.5">{i+1}.</div>
+                                                                                <div className="text-[10px] font-bold text-slate-400 mt-0.5">{i + 1}.</div>
                                                                                 <div className="text-xs text-slate-700 leading-relaxed text-justify">{pt.text}</div>
                                                                             </div>
                                                                             {pt.subs && pt.subs.filter(s => s).length > 0 && (
                                                                                 <div className="ml-8 mt-1 space-y-1">
                                                                                     {pt.subs.filter(s => s).map((s, j) => (
                                                                                         <div key={j} className="flex gap-2 items-start">
-                                                                                            <div className="text-[9px] font-bold text-slate-300 mt-0.5">{String.fromCharCode(97+j)}.</div>
+                                                                                            <div className="text-[9px] font-bold text-slate-300 mt-0.5">{String.fromCharCode(97 + j)}.</div>
                                                                                             <div className="text-[11px] text-slate-500 leading-relaxed text-justify">{s}</div>
                                                                                         </div>
                                                                                     ))}
@@ -728,71 +728,71 @@ const EOffice = () => {
                                     })()}
                                 </div>
                             ) : viewingDoc.category === 'Keputusan' ? (
-                                    <div className="space-y-6">
-                                        {(() => {
-                                            try {
-                                                const data = JSON.parse(viewingDoc.content || '{}');
-                                                return (
-                                                    <div className="space-y-6 text-xs">
-                                                        <div className="text-center border-y border-slate-100 py-4 mb-4">
-                                                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Keputusan Tentang</div>
-                                                            <div className="text-sm font-black text-slate-900 uppercase leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
-                                                        </div>
-
-                                                        <div>
-                                                            <div className="font-black text-amber-700 uppercase text-[10px] tracking-widest mb-2">Menimbang:</div>
-                                                            <ul className="space-y-1.5 pl-4">
-                                                                {(data.menimbang || []).map((item, idx) => (
-                                                                    <li key={idx} className="text-slate-700 flex gap-2">
-                                                                        <span className="font-bold text-amber-500">{String.fromCharCode(97 + idx)}.</span>
-                                                                        <span className="leading-relaxed text-justify">{item}</span>
-                                                                    </li>
-                                                                ))}
-                                                            </ul>
-                                                        </div>
-
-                                                        <div>
-                                                            <div className="font-black text-amber-700 uppercase text-[10px] tracking-widest mb-2">Mengingat:</div>
-                                                            <ul className="space-y-1.5 pl-4">
-                                                                {(data.mengingat || []).map((item, idx) => (
-                                                                    <li key={idx} className="text-slate-700 flex gap-2">
-                                                                        <span className="font-bold text-amber-500">{idx + 1}.</span>
-                                                                        <span className="leading-relaxed text-justify">{item}</span>
-                                                                    </li>
-                                                                ))}
-                                                            </ul>
-                                                        </div>
-
-                                                        <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100">
-                                                            <div className="text-center font-black text-slate-900 mb-4 tracking-widest">MEMUTUSKAN</div>
-                                                            <div className="space-y-4">
-                                                                {(data.menetapkan || []).map((item, idx) => (
-                                                                    <div key={idx}>
-                                                                        <div className="font-black text-amber-700 uppercase text-[9px] mb-1">{item.label}:</div>
-                                                                        <div className="text-slate-800 leading-relaxed font-medium text-justify">{item.text}</div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-
-                                                        {data.tembusan && data.tembusan.filter(t => t).length > 0 && (
-                                                            <div className="pt-4 border-t border-slate-100">
-                                                                <div className="font-black text-slate-400 uppercase text-[9px] mb-2">Tembusan:</div>
-                                                                <ul className="space-y-1 pl-4">
-                                                                    {data.tembusan.filter(t => t).map((item, idx) => (
-                                                                        <li key={idx} className="text-slate-500 italic flex gap-2">
-                                                                            <span>-</span> {item}
-                                                                        </li>
-                                                                    ))}
-                                                                </ul>
-                                                            </div>
-                                                        )}
-                                                        <LampiranPreview doc={viewingDoc} />
+                                <div className="space-y-6">
+                                    {(() => {
+                                        try {
+                                            const data = JSON.parse(viewingDoc.content || '{}');
+                                            return (
+                                                <div className="space-y-6 text-xs">
+                                                    <div className="text-center border-y border-slate-100 py-4 mb-4">
+                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Keputusan Tentang</div>
+                                                        <div className="text-sm font-black text-slate-900 uppercase leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
                                                     </div>
-                                                );
-                                            } catch (e) { return <p className="text-red-500">Error parsing content</p>; }
-                                        })()}
-                                    </div>
+
+                                                    <div>
+                                                        <div className="font-black text-amber-700 uppercase text-[10px] tracking-widest mb-2">Menimbang:</div>
+                                                        <ul className="space-y-1.5 pl-4">
+                                                            {(data.menimbang || []).map((item, idx) => (
+                                                                <li key={idx} className="text-slate-700 flex gap-2">
+                                                                    <span className="font-bold text-amber-500">{String.fromCharCode(97 + idx)}.</span>
+                                                                    <span className="leading-relaxed text-justify">{item}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+
+                                                    <div>
+                                                        <div className="font-black text-amber-700 uppercase text-[10px] tracking-widest mb-2">Mengingat:</div>
+                                                        <ul className="space-y-1.5 pl-4">
+                                                            {(data.mengingat || []).map((item, idx) => (
+                                                                <li key={idx} className="text-slate-700 flex gap-2">
+                                                                    <span className="font-bold text-amber-500">{idx + 1}.</span>
+                                                                    <span className="leading-relaxed text-justify">{item}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+
+                                                    <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100">
+                                                        <div className="text-center font-black text-slate-900 mb-4 tracking-widest">MEMUTUSKAN</div>
+                                                        <div className="space-y-4">
+                                                            {(data.menetapkan || []).map((item, idx) => (
+                                                                <div key={idx}>
+                                                                    <div className="font-black text-amber-700 uppercase text-[9px] mb-1">{item.label}:</div>
+                                                                    <div className="text-slate-800 leading-relaxed font-medium text-justify">{item.text}</div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    {data.tembusan && data.tembusan.filter(t => t).length > 0 && (
+                                                        <div className="pt-4 border-t border-slate-100">
+                                                            <div className="font-black text-slate-400 uppercase text-[9px] mb-2">Tembusan:</div>
+                                                            <ul className="space-y-1 pl-4">
+                                                                {data.tembusan.filter(t => t).map((item, idx) => (
+                                                                    <li key={idx} className="text-slate-500 italic flex gap-2">
+                                                                        <span>-</span> {item}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                    <LampiranPreview doc={viewingDoc} />
+                                                </div>
+                                            );
+                                        } catch (e) { return <p className="text-red-500">Error parsing content</p>; }
+                                    })()}
+                                </div>
                             ) : viewingDoc.category === 'Pemberitahuan' ? (
                                 <div className="space-y-5">
                                     {(() => {
@@ -896,7 +896,7 @@ const EOffice = () => {
                                                         <div className="pt-4 border-t border-blue-100">
                                                             <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tembusan</span>
                                                             <div className="text-[11px] text-slate-500 space-y-1">
-                                                                {task.carbonCopy.map((c, i) => <div key={i}>{i+1}. {c}</div>)}
+                                                                {task.carbonCopy.map((c, i) => <div key={i}>{i + 1}. {c}</div>)}
                                                             </div>
                                                         </div>
                                                     )}
@@ -918,14 +918,14 @@ const EOffice = () => {
 
                     <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
-                            <button 
+                            <button
                                 onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
                                 className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20"
                             >
                                 <Printer size={18} /> Cetak PDF
                             </button>
                             {(viewingDoc.type === 'INVOICE' || viewingDoc.category === 'Invoice') && (
-                                <button 
+                                <button
                                     onClick={() => handleSendWA(viewingDoc.id)}
                                     disabled={sendingWA === viewingDoc.id}
                                     className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50"
@@ -936,7 +936,7 @@ const EOffice = () => {
                         </div>
                         <div className="flex items-center gap-2">
                             {(viewingDoc.status === 'DRAFT' || viewingDoc.status === 'REJECTED' || viewingDoc.status === 'PENDING_APPROVAL') && (
-                                <button 
+                                <button
                                     onClick={() => {
                                         setEditingDoc(viewingDoc);
                                         setViewingDoc(null);
@@ -948,19 +948,19 @@ const EOffice = () => {
                                 </button>
                             )}
                             {viewingDoc.status === 'DRAFT' && (
-                                <button 
+                                <button
                                     onClick={() => handleSubmitForApproval(viewingDoc.id)}
                                     className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20"
                                 >
                                     <Send size={18} /> Ajukan Persetujuan
                                 </button>
                             )}
-                            
+
                             {/* Multi-party signing: Pihak 2 (Pad) button */}
                             {(['BAST', 'MOU'].includes(viewingDoc.type) || (viewingDoc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(viewingDoc.category))) && (
                                 <>
                                     {!viewingDoc.party2Signature && (
-                                        <button 
+                                        <button
                                             onClick={() => setSignatureRequest({ doc: viewingDoc, party: 'party2' })}
                                             className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
                                         >
@@ -972,29 +972,28 @@ const EOffice = () => {
 
                             {/* Pihak 1 = Approval Kepala Bidang (TTE) */}
                             {viewingDoc.status === 'PENDING_APPROVAL' && isKabidSarpras && (
-                                <button 
+                                <button
                                     onClick={() => { setSignatureRequest({ doc: viewingDoc }); }}
                                     className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
                                 >
                                     <FileSignature size={18} /> Tandatangani Kepala Bidang
                                 </button>
                             )}
-                            
+
                             {viewingDoc.type === 'INVOICE' && (
-                                <button 
+                                <button
                                     onClick={() => handleTogglePaymentStatus(viewingDoc.id, getPaymentStatus(viewingDoc))}
-                                    className={`px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg ${
-                                        getPaymentStatus(viewingDoc) === 'PAID' 
-                                        ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 shadow-amber-600/10' 
-                                        : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/20'
-                                    }`}
+                                    className={`px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg ${getPaymentStatus(viewingDoc) === 'PAID'
+                                            ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 shadow-amber-600/10'
+                                            : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/20'
+                                        }`}
                                 >
                                     <CheckCircle2 size={18} /> {getPaymentStatus(viewingDoc) === 'PAID' ? 'Set Belum Lunas' : 'Tandai Lunas'}
                                 </button>
                             )}
 
                             {viewingDoc.type === 'INVOICE' && (
-                                <button 
+                                <button
                                     onClick={() => handleSendInvoiceWA(viewingDoc.id)}
                                     className="px-5 py-2.5 bg-blue-50 text-blue-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-100 transition-all shadow-lg shadow-blue-600/5"
                                 >
@@ -1003,7 +1002,7 @@ const EOffice = () => {
                             )}
 
                             {isSuperAdmin && (
-                                <button 
+                                <button
                                     onClick={() => handleDelete(viewingDoc.id)}
                                     className="px-5 py-2.5 bg-rose-50 text-rose-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-rose-100 transition-all"
                                 >
@@ -1094,7 +1093,7 @@ const EOffice = () => {
                     </h1>
                     <p className="text-slate-500 font-medium text-xs sm:text-base hidden sm:block">Manajemen Dokumen & Tanda Tangan Elektronik</p>
                 </div>
-                <button 
+                <button
                     onClick={() => setIsTypeModalOpen(true)}
                     className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all flex items-center gap-1.5 sm:gap-2 shrink-0"
                 >
@@ -1103,7 +1102,7 @@ const EOffice = () => {
             </div>
 
             {/* Tab Navigation */}
-            <div className="flex items-center gap-1 bg-white p-1 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm overflow-x-auto max-w-full" style={{WebkitOverflowScrolling:'touch',scrollbarWidth:'none'}}>
+            <div className="flex items-center gap-1 bg-white p-1 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm overflow-x-auto max-w-full" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
                 {[
                     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
                     { id: 'surat-masuk', label: 'Masuk', icon: <Inbox size={14} /> },
@@ -1114,11 +1113,10 @@ const EOffice = () => {
                     <button
                         key={t.id}
                         onClick={() => navigate(`/e-office/${t.id}`)}
-                        className={`flex items-center gap-1.5 px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                            tab === t.id 
-                                ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
+                        className={`flex items-center gap-1.5 px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${tab === t.id
+                                ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
                                 : 'text-slate-500 hover:bg-slate-50'
-                        }`}
+                            }`}
                     >
                         {t.icon} {t.label}
                     </button>
@@ -1130,23 +1128,23 @@ const EOffice = () => {
 
             {/* Modals */}
             <ViewModal />
-            <FormModal 
-                isOpen={isFormOpen} 
-                onClose={() => { setIsFormOpen(false); setEditingDoc(null); }} 
+            <FormModal
+                isOpen={isFormOpen}
+                onClose={() => { setIsFormOpen(false); setEditingDoc(null); }}
                 doc={editingDoc}
                 onSuccess={() => { fetchDocuments(); fetchStats(); }}
                 defaultType={tab === 'surat-masuk' ? 'SURAT_MASUK' : 'SURAT_KELUAR'}
             />
-            <SignatureModal 
-                signatureRequest={signatureRequest} 
-                onClose={() => setSignatureRequest(null)} 
-                onSuccess={(updatedDoc) => { 
-                    fetchDocuments(); 
-                    fetchStats(); 
+            <SignatureModal
+                signatureRequest={signatureRequest}
+                onClose={() => setSignatureRequest(null)}
+                onSuccess={(updatedDoc) => {
+                    fetchDocuments();
+                    fetchStats();
                     if (updatedDoc) setViewingDoc(updatedDoc);
                 }}
             />
-            <TypeSelectionModal 
+            <TypeSelectionModal
                 isOpen={isTypeModalOpen}
                 onClose={() => setIsTypeModalOpen(false)}
                 onSelect={(type) => {
@@ -1278,7 +1276,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                         setRecipientsData(parsed.recipientsData);
                     }
                     setLampiranText(parsed.lampiranText || '');
-                } catch (e) {}
+                } catch (e) { }
             } else {
                 setLampiranText('');
             }
@@ -1412,7 +1410,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 party2Title: '',
                 party2Org: '',
                 party2Address: '',
-                location: 'Komplek Islamic Center, Surau Gadang, Kec. Nanggalo, Kota Padang',
+                location: '',
             });
             setBastItems([{ name: '', qty: '', condition: 'Baik' }]);
             setPurchasingItems([{ name: '', spec: '', qty: '', unit: 'Pcs', price: '', total: 0 }]);
@@ -1437,7 +1435,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             const isMultipart = formData.type === 'SURAT_MASUK';
             let payload = formData;
             let config = {};
-            
+
             let contentObj = {};
             if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) {
                 contentObj = { items: bastItems, location: formData.location };
@@ -1459,7 +1457,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 // Default for plain letters
                 contentObj = { text: formData.content };
             }
-            
+
             contentObj.recipientsData = recipientsData;
             contentObj.lampiranText = lampiranText;
             const contentJson = JSON.stringify(contentObj);
@@ -1487,7 +1485,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             }
             onSuccess();
             onClose();
-            
+
             if (!doc || !doc.id) {
                 if (formData.type === 'SURAT_MASUK') {
                     navigate('/e-office/surat-masuk');
@@ -1499,7 +1497,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     navigate('/e-office/surat-keluar');
                 }
             }
-            
+
             alert('Dokumen berhasil disimpan!');
         } catch (err) {
             alert('Gagal menyimpan: ' + (err.response?.data?.error || err.message));
@@ -1532,11 +1530,10 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             key={c}
                                             type="button"
                                             onClick={() => setFormData({ ...formData, category: c })}
-                                            className={`px-4 py-3 rounded-xl text-xs font-bold border transition-all text-center ${
-                                                formData.category === c 
-                                                ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
-                                                : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
-                                            }`}
+                                            className={`px-4 py-3 rounded-xl text-xs font-bold border transition-all text-center ${formData.category === c
+                                                    ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                                                    : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
+                                                }`}
                                         >
                                             {c}
                                         </button>
@@ -1547,7 +1544,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
 
                         <div className="col-span-full">
                             <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">{formData.type === 'SURAT_KELUAR' ? '2. ' : ''}Perihal / Subjek Surat</label>
-                            <input 
+                            <input
                                 required
                                 type="text"
                                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
@@ -1560,7 +1557,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                         {formData.category === 'Umum' && (
                             <div className="col-span-full animate-in slide-in-from-left duration-300">
                                 <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 block">Jenis Surat (Header)</label>
-                                <input 
+                                <input
                                     required
                                     type="text"
                                     className="w-full px-4 py-3 rounded-xl border border-blue-200 bg-blue-50/30 outline-none font-bold"
@@ -1576,7 +1573,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             <>
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nama Pengirim</label>
-                                    <input 
+                                    <input
                                         required
                                         type="text"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
@@ -1586,7 +1583,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 </div>
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Instansi Pengirim</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
                                         value={formData.senderOrg}
@@ -1595,7 +1592,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 </div>
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">No. Surat Referensi</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
                                         value={formData.referenceNumber}
@@ -1604,7 +1601,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 </div>
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Tanggal Diterima</label>
-                                    <input 
+                                    <input
                                         required
                                         type="date"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
@@ -1618,7 +1615,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 {formData.category !== 'Tugas' && (
                                     <div>
                                         <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Prioritas</label>
-                                        <select 
+                                        <select
                                             className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
                                             value={formData.priority}
                                             onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
@@ -1637,7 +1634,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <label className="col-span-full text-xs font-black text-emerald-600 uppercase tracking-widest block mb-2">3. Informasi Vendor / Penerima Pesanan</label>
                                 <div className="col-span-full">
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Kepada Yth (Jabatan / Nama)</label>
-                                    <input 
+                                    <input
                                         required
                                         type="text"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
@@ -1648,7 +1645,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 </div>
                                 <div className="col-span-full">
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Alamat Vendor</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
                                         value={formData.party2Address}
@@ -1664,14 +1661,14 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div className="col-span-full flex items-center justify-between">
                                     <label className="text-xs font-black text-amber-600 uppercase tracking-widest block">3. Informasi Penagihan (Bill To)</label>
                                     <div className="flex bg-white rounded-lg p-1 border border-amber-200">
-                                        <button 
+                                        <button
                                             type="button"
                                             onClick={() => setRecipientType('internal')}
                                             className={`px-3 py-1 rounded-md text-[10px] font-black uppercase transition-all ${recipientType === 'internal' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                         >
                                             Internal
                                         </button>
-                                        <button 
+                                        <button
                                             type="button"
                                             onClick={() => setRecipientType('external')}
                                             className={`px-3 py-1 rounded-md text-[10px] font-black uppercase transition-all ${recipientType === 'external' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
@@ -1684,13 +1681,13 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 {recipientType === 'internal' ? (
                                     <div className="col-span-full">
                                         <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Pilih Admin Unit / Staff</label>
-                                        <select 
+                                        <select
                                             className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
                                             value={formData.party2Name}
                                             onChange={(e) => {
                                                 const selected = staffList.find(s => s.name === e.target.value);
-                                                setFormData({ 
-                                                    ...formData, 
+                                                setFormData({
+                                                    ...formData,
                                                     party2Name: e.target.value,
                                                     party2Org: selected?.unit?.name || '',
                                                     party2Address: selected?.unit?.address || '',
@@ -1708,7 +1705,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     <>
                                         <div className="col-span-full">
                                             <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nama / Instansi Eksternal</label>
-                                            <input 
+                                            <input
                                                 required
                                                 type="text"
                                                 className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
@@ -1719,7 +1716,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         </div>
                                         <div className="col-span-full">
                                             <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nomor HP / WhatsApp</label>
-                                            <input 
+                                            <input
                                                 type="text"
                                                 className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
                                                 value={formData.party2Title}
@@ -1735,11 +1732,11 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                         {formData.type === 'SURAT_KELUAR' && !['Pesanan', 'BAST', 'Berita Acara', 'Serah Terima Barang'].includes(formData.category) && (
                             <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
                                 <label className="col-span-full text-xs font-black text-slate-600 uppercase tracking-widest block mb-2">3. Tujuan / Penerima Surat</label>
-                                
+
                                 <div className="col-span-full mb-2">
                                     <label className="flex items-center gap-3 cursor-pointer p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-300 transition-all">
-                                        <input 
-                                            type="checkbox" 
+                                        <input
+                                            type="checkbox"
                                             className="w-5 h-5 rounded-lg text-blue-600 focus:ring-blue-500"
                                             checked={recipientsData.isMultiple}
                                             onChange={(e) => setRecipientsData({ ...recipientsData, isMultiple: e.target.checked })}
@@ -1759,14 +1756,14 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                 <div className="text-[10px] text-blue-600/70 font-medium">Massal akan membuat 1 halaman per orang</div>
                                             </div>
                                             <div className="flex bg-white rounded-lg p-1 border border-blue-200">
-                                                <button 
+                                                <button
                                                     type="button"
                                                     onClick={() => setRecipientsData({ ...recipientsData, mode: 'LIST' })}
                                                     className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase transition-all ${recipientsData.mode === 'LIST' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                                 >
                                                     Daftar (List)
                                                 </button>
-                                                <button 
+                                                <button
                                                     type="button"
                                                     onClick={() => setRecipientsData({ ...recipientsData, mode: 'MASSAL' })}
                                                     className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase transition-all ${recipientsData.mode === 'MASSAL' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
@@ -1805,8 +1802,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                     ))}
                                                 </tbody>
                                             </table>
-                                            <button 
-                                                type="button" 
+                                            <button
+                                                type="button"
                                                 onClick={() => setRecipientsData({ ...recipientsData, list: [...recipientsData.list, { name: '', title: '', address: '' }] })}
                                                 className="w-full py-3 bg-slate-50 text-blue-600 font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all flex items-center justify-center gap-2"
                                             >
@@ -1818,7 +1815,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     <>
                                         <div>
                                             <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Kepada Yth (Jabatan / Nama)</label>
-                                            <input 
+                                            <input
                                                 required
                                                 type="text"
                                                 className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
@@ -1829,7 +1826,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         </div>
                                         <div>
                                             <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Jabatan / Instansi</label>
-                                            <input 
+                                            <input
                                                 type="text"
                                                 className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
                                                 value={formData.party2Title}
@@ -1839,7 +1836,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         </div>
                                         <div className="col-span-full">
                                             <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Alamat / Di Tempat</label>
-                                            <input 
+                                            <input
                                                 type="text"
                                                 className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
                                                 value={formData.party2Address}
@@ -1909,9 +1906,9 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         {formData.category === 'Pesanan' && (
                                             <label className="flex items-center gap-2 cursor-pointer">
                                                 <div className="relative inline-flex items-center cursor-pointer">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        className="sr-only peer" 
+                                                    <input
+                                                        type="checkbox"
+                                                        className="sr-only peer"
                                                         checked={priceDetermined}
                                                         onChange={(e) => setPriceDetermined(e.target.checked)}
                                                     />
@@ -1949,11 +1946,11 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                         <textarea value={item.spec} onChange={(e) => { const newI = [...purchasingItems]; newI[index].spec = e.target.value; setPurchasingItems(newI); }} className="w-full mt-1 px-2 py-1 rounded border border-slate-200 outline-none text-[11px]" placeholder="Spesifikasi..." rows="2" />
                                                     </td>
                                                     <td className="p-2 border-b border-slate-100">
-                                                        <input required type="number" value={item.qty} onChange={(e) => { 
-                                                            const newI = [...purchasingItems]; 
-                                                            newI[index].qty = e.target.value; 
+                                                        <input required type="number" value={item.qty} onChange={(e) => {
+                                                            const newI = [...purchasingItems];
+                                                            newI[index].qty = e.target.value;
                                                             newI[index].total = (parseFloat(e.target.value) || 0) * (parseFloat(newI[index].price) || 0);
-                                                            setPurchasingItems(newI); 
+                                                            setPurchasingItems(newI);
                                                         }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none" />
                                                     </td>
                                                     <td className="p-2 border-b border-slate-100">
@@ -1962,11 +1959,11 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                     {(priceDetermined || formData.type === 'INVOICE') && (
                                                         <>
                                                             <td className="p-2 border-b border-slate-100">
-                                                                <input type="number" value={item.price} onChange={(e) => { 
-                                                                    const newI = [...purchasingItems]; 
-                                                                    newI[index].price = e.target.value; 
+                                                                <input type="number" value={item.price} onChange={(e) => {
+                                                                    const newI = [...purchasingItems];
+                                                                    newI[index].price = e.target.value;
                                                                     newI[index].total = (parseFloat(newI[index].qty) || 0) * (parseFloat(e.target.value) || 0);
-                                                                    setPurchasingItems(newI); 
+                                                                    setPurchasingItems(newI);
                                                                 }} className="w-full px-2 py-1.5 rounded border border-slate-200 outline-none font-bold" placeholder="0" />
                                                             </td>
                                                             <td className="p-2 border-b border-slate-100 font-black text-blue-700">
@@ -1999,7 +1996,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <label className="col-span-full text-xs font-black text-blue-600 uppercase tracking-widest block mb-2">4. Informasi Pembayaran (Bank)</label>
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nama Bank</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
                                         value={invoiceData.bankName}
@@ -2009,7 +2006,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 </div>
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nomor Rekening</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
                                         value={invoiceData.bankAccountNumber}
@@ -2019,7 +2016,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 </div>
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nama Pemilik Rekening</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold"
                                         value={invoiceData.bankAccountName}
@@ -2029,7 +2026,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 </div>
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Jatuh Tempo</label>
-                                    <input 
+                                    <input
                                         required
                                         type="date"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold text-red-600"
@@ -2039,7 +2036,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 </div>
                                 <div>
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Status Pembayaran</label>
-                                    <select 
+                                    <select
                                         className={`w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold ${invoiceData.paymentStatus === 'PAID' ? 'text-green-600' : 'text-amber-600'}`}
                                         value={invoiceData.paymentStatus}
                                         onChange={(e) => setInvoiceData({ ...invoiceData, paymentStatus: e.target.value })}
@@ -2050,7 +2047,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Catatan Tambahan</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-medium"
                                         value={invoiceData.notes}
@@ -2068,36 +2065,36 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     <div className="space-y-4">
                                         <div>
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Yth. (Kepada)</label>
-                                            <input 
+                                            <input
                                                 className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold"
                                                 placeholder="Contoh: Seluruh Staff Sarpras / Unit Kerja"
                                                 value={formData.party2Name}
-                                                onChange={(e) => setFormData({...formData, party2Name: e.target.value})}
+                                                onChange={(e) => setFormData({ ...formData, party2Name: e.target.value })}
                                             />
                                         </div>
                                         <div>
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Tempat</label>
-                                            <input 
+                                            <input
                                                 className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold"
                                                 placeholder="Contoh: Di Padang / Tempat"
                                                 value={formData.party2Address}
-                                                onChange={(e) => setFormData({...formData, party2Address: e.target.value})}
+                                                onChange={(e) => setFormData({ ...formData, party2Address: e.target.value })}
                                             />
                                         </div>
                                         <div className="pt-4 border-t border-slate-100">
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">1. Latar Belakang</label>
-                                            <textarea 
+                                            <textarea
                                                 rows={4}
                                                 className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm leading-relaxed"
                                                 placeholder="Tuliskan alasan/latar belakang surat edaran ini..."
                                                 value={edaranData.background}
-                                                onChange={(e) => setEdaranData({...edaranData, background: e.target.value})}
+                                                onChange={(e) => setEdaranData({ ...edaranData, background: e.target.value })}
                                             />
                                         </div>
                                         <div className="pt-4 border-t border-slate-100">
                                             <div className="flex items-center justify-between mb-2">
                                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">2. Ketentuan / Isi Edaran</label>
-                                                <button type="button" onClick={() => setEdaranData({...edaranData, points: [...edaranData.points, { text: '', subs: [''] }]})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                                <button type="button" onClick={() => setEdaranData({ ...edaranData, points: [...edaranData.points, { text: '', subs: [''] }] })} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
                                                     <Plus size={12} /> Tambah Poin
                                                 </button>
                                             </div>
@@ -2106,7 +2103,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                     <div key={idx} className="bg-white rounded-xl border border-slate-100 p-3 space-y-2">
                                                         <div className="flex gap-2">
                                                             <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-[10px] font-bold text-blue-600 shrink-0">{idx + 1}</div>
-                                                            <textarea 
+                                                            <textarea
                                                                 className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
                                                                 placeholder={`Ketentuan poin ${idx + 1}...`}
                                                                 rows={2}
@@ -2114,11 +2111,11 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                                 onChange={(e) => {
                                                                     const newPoints = [...edaranData.points];
                                                                     newPoints[idx] = { ...newPoints[idx], text: e.target.value };
-                                                                    setEdaranData({...edaranData, points: newPoints});
+                                                                    setEdaranData({ ...edaranData, points: newPoints });
                                                                 }}
                                                             />
                                                             {edaranData.points.length > 1 && (
-                                                                <button type="button" onClick={() => setEdaranData({...edaranData, points: edaranData.points.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
+                                                                <button type="button" onClick={() => setEdaranData({ ...edaranData, points: edaranData.points.filter((_, i) => i !== idx) })} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
                                                                     <Trash2 size={16} />
                                                                 </button>
                                                             )}
@@ -2130,7 +2127,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                                 <button type="button" onClick={() => {
                                                                     const newPoints = [...edaranData.points];
                                                                     newPoints[idx] = { ...newPoints[idx], subs: [...(newPoints[idx].subs || []), ''] };
-                                                                    setEdaranData({...edaranData, points: newPoints});
+                                                                    setEdaranData({ ...edaranData, points: newPoints });
                                                                 }} className="text-[9px] font-bold text-blue-500 flex items-center gap-0.5">
                                                                     <Plus size={10} /> Sub
                                                                 </button>
@@ -2147,14 +2144,14 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                                             const newSubs = [...(newPoints[idx].subs || [])];
                                                                             newSubs[sIdx] = e.target.value;
                                                                             newPoints[idx] = { ...newPoints[idx], subs: newSubs };
-                                                                            setEdaranData({...edaranData, points: newPoints});
+                                                                            setEdaranData({ ...edaranData, points: newPoints });
                                                                         }}
                                                                     />
                                                                     {(point.subs || []).length > 1 && (
                                                                         <button type="button" onClick={() => {
                                                                             const newPoints = [...edaranData.points];
                                                                             newPoints[idx] = { ...newPoints[idx], subs: newPoints[idx].subs.filter((_, i) => i !== sIdx) };
-                                                                            setEdaranData({...edaranData, points: newPoints});
+                                                                            setEdaranData({ ...edaranData, points: newPoints });
                                                                         }} className="p-1 text-red-400 hover:bg-red-50 rounded shrink-0">
                                                                             <Trash2 size={12} />
                                                                         </button>
@@ -2174,19 +2171,19 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                         {formData.category === 'Keputusan' && (
                             <div className="col-span-full space-y-6 bg-amber-50/30 p-6 rounded-2xl border border-amber-100">
                                 <label className="text-xs font-black text-amber-700 uppercase tracking-widest block mb-2">3. Struktur Surat Keputusan</label>
-                                
+
                                 {/* Menimbang */}
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Menimbang (Alasan)</label>
-                                        <button type="button" onClick={() => setKeputusanData({...keputusanData, menimbang: [...keputusanData.menimbang, '']})} className="text-[10px] font-black text-blue-600 flex items-center gap-1 uppercase">
+                                        <button type="button" onClick={() => setKeputusanData({ ...keputusanData, menimbang: [...keputusanData.menimbang, ''] })} className="text-[10px] font-black text-blue-600 flex items-center gap-1 uppercase">
                                             <Plus size={12} /> Tambah
                                         </button>
                                     </div>
                                     {(keputusanData.menimbang || []).map((item, idx) => (
                                         <div key={idx} className="flex gap-2">
                                             <div className="w-8 h-8 rounded bg-white border border-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600 shrink-0">{String.fromCharCode(97 + idx)}</div>
-                                            <textarea 
+                                            <textarea
                                                 className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
                                                 placeholder="Bahwa dalam rangka..."
                                                 rows={2}
@@ -2194,11 +2191,11 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                 onChange={(e) => {
                                                     const newList = [...keputusanData.menimbang];
                                                     newList[idx] = e.target.value;
-                                                    setKeputusanData({...keputusanData, menimbang: newList});
+                                                    setKeputusanData({ ...keputusanData, menimbang: newList });
                                                 }}
                                             />
                                             {keputusanData.menimbang.length > 1 && (
-                                                <button type="button" onClick={() => setKeputusanData({...keputusanData, menimbang: keputusanData.menimbang.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
+                                                <button type="button" onClick={() => setKeputusanData({ ...keputusanData, menimbang: keputusanData.menimbang.filter((_, i) => i !== idx) })} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
                                                     <Trash2 size={16} />
                                                 </button>
                                             )}
@@ -2210,14 +2207,14 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div className="space-y-3 pt-4 border-t border-amber-100/50">
                                     <div className="flex items-center justify-between">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Mengingat (Dasar Hukum)</label>
-                                        <button type="button" onClick={() => setKeputusanData({...keputusanData, mengingat: [...keputusanData.mengingat, '']})} className="text-[10px] font-black text-blue-600 flex items-center gap-1 uppercase">
+                                        <button type="button" onClick={() => setKeputusanData({ ...keputusanData, mengingat: [...keputusanData.mengingat, ''] })} className="text-[10px] font-black text-blue-600 flex items-center gap-1 uppercase">
                                             <Plus size={12} /> Tambah
                                         </button>
                                     </div>
                                     {(keputusanData.mengingat || []).map((item, idx) => (
                                         <div key={idx} className="flex gap-2">
                                             <div className="w-8 h-8 rounded bg-white border border-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-600 shrink-0">{idx + 1}</div>
-                                            <textarea 
+                                            <textarea
                                                 className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
                                                 placeholder="Anggaran Dasar Yayasan..."
                                                 rows={2}
@@ -2225,11 +2222,11 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                 onChange={(e) => {
                                                     const newList = [...keputusanData.mengingat];
                                                     newList[idx] = e.target.value;
-                                                    setKeputusanData({...keputusanData, mengingat: newList});
+                                                    setKeputusanData({ ...keputusanData, mengingat: newList });
                                                 }}
                                             />
                                             {keputusanData.mengingat.length > 1 && (
-                                                <button type="button" onClick={() => setKeputusanData({...keputusanData, mengingat: keputusanData.mengingat.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
+                                                <button type="button" onClick={() => setKeputusanData({ ...keputusanData, mengingat: keputusanData.mengingat.filter((_, i) => i !== idx) })} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
                                                     <Trash2 size={16} />
                                                 </button>
                                             )}
@@ -2244,7 +2241,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         <button type="button" onClick={() => {
                                             const dictums = ["PERTAMA", "KEDUA", "KETIGA", "KEEMPAT", "KELIMA", "KEENAM", "KETUJUH", "KEDELAPAN", "KESEMBILAN", "KESEPULUH"];
                                             const nextLabel = dictums[keputusanData.menetapkan.length] || `POIN ${keputusanData.menetapkan.length + 1}`;
-                                            setKeputusanData({...keputusanData, menetapkan: [...keputusanData.menetapkan, { label: nextLabel, text: '' }]});
+                                            setKeputusanData({ ...keputusanData, menetapkan: [...keputusanData.menetapkan, { label: nextLabel, text: '' }] });
                                         }} className="text-[10px] font-black text-blue-600 flex items-center gap-1 uppercase">
                                             <Plus size={12} /> Tambah Diktum
                                         </button>
@@ -2252,22 +2249,22 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     {(keputusanData.menetapkan || []).map((item, idx) => (
                                         <div key={idx} className="bg-white/50 rounded-xl p-3 border border-amber-50 space-y-2">
                                             <div className="flex items-center justify-between">
-                                                <input 
+                                                <input
                                                     className="bg-transparent border-none outline-none text-[10px] font-black text-amber-600 uppercase tracking-widest w-24"
                                                     value={item.label}
                                                     onChange={(e) => {
                                                         const newList = [...keputusanData.menetapkan];
                                                         newList[idx].label = e.target.value;
-                                                        setKeputusanData({...keputusanData, menetapkan: newList});
+                                                        setKeputusanData({ ...keputusanData, menetapkan: newList });
                                                     }}
                                                 />
                                                 {keputusanData.menetapkan.length > 1 && (
-                                                    <button type="button" onClick={() => setKeputusanData({...keputusanData, menetapkan: keputusanData.menetapkan.filter((_, i) => i !== idx)})} className="text-red-400 hover:text-red-600">
+                                                    <button type="button" onClick={() => setKeputusanData({ ...keputusanData, menetapkan: keputusanData.menetapkan.filter((_, i) => i !== idx) })} className="text-red-400 hover:text-red-600">
                                                         <Trash2 size={14} />
                                                     </button>
                                                 )}
                                             </div>
-                                            <textarea 
+                                            <textarea
                                                 className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
                                                 placeholder="Isi penetapan..."
                                                 rows={3}
@@ -2275,7 +2272,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                 onChange={(e) => {
                                                     const newList = [...keputusanData.menetapkan];
                                                     newList[idx].text = e.target.value;
-                                                    setKeputusanData({...keputusanData, menetapkan: newList});
+                                                    setKeputusanData({ ...keputusanData, menetapkan: newList });
                                                 }}
                                             />
                                         </div>
@@ -2286,24 +2283,24 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div className="space-y-3 pt-4 border-t border-amber-100/50">
                                     <div className="flex items-center justify-between">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tembusan</label>
-                                        <button type="button" onClick={() => setKeputusanData({...keputusanData, tembusan: [...keputusanData.tembusan, '']})} className="text-[10px] font-black text-blue-600 flex items-center gap-1 uppercase">
+                                        <button type="button" onClick={() => setKeputusanData({ ...keputusanData, tembusan: [...keputusanData.tembusan, ''] })} className="text-[10px] font-black text-blue-600 flex items-center gap-1 uppercase">
                                             <Plus size={12} /> Tambah
                                         </button>
                                     </div>
                                     {(keputusanData.tembusan || []).map((item, idx) => (
                                         <div key={idx} className="flex gap-2">
-                                            <input 
+                                            <input
                                                 className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
                                                 placeholder="Contoh: Ketua Yayasan..."
                                                 value={item}
                                                 onChange={(e) => {
                                                     const newList = [...keputusanData.tembusan];
                                                     newList[idx] = e.target.value;
-                                                    setKeputusanData({...keputusanData, tembusan: newList});
+                                                    setKeputusanData({ ...keputusanData, tembusan: newList });
                                                 }}
                                             />
                                             {keputusanData.tembusan.length > 1 && (
-                                                <button type="button" onClick={() => setKeputusanData({...keputusanData, tembusan: keputusanData.tembusan.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
+                                                <button type="button" onClick={() => setKeputusanData({ ...keputusanData, tembusan: keputusanData.tembusan.filter((_, i) => i !== idx) })} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
                                                     <Trash2 size={16} />
                                                 </button>
                                             )}
@@ -2325,7 +2322,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold"
                                             placeholder="Contoh: Seluruh Staff Yayasan"
                                             value={formData.party2Name}
-                                            onChange={(e) => setFormData({...formData, party2Name: e.target.value})}
+                                            onChange={(e) => setFormData({ ...formData, party2Name: e.target.value })}
                                         />
                                     </div>
                                     <div>
@@ -2334,7 +2331,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold"
                                             placeholder="di Tempat"
                                             value={formData.party2Address}
-                                            onChange={(e) => setFormData({...formData, party2Address: e.target.value})}
+                                            onChange={(e) => setFormData({ ...formData, party2Address: e.target.value })}
                                         />
                                     </div>
                                 </div>
@@ -2347,7 +2344,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm leading-relaxed"
                                         placeholder="Melalui surat ini, kami Bidang Sarana dan Prasarana ingin memberitahukan kepada seluruh pihak terkait mengenai..."
                                         value={pemberitahuanData.pembukaan}
-                                        onChange={(e) => setPemberitahuanData({...pemberitahuanData, pembukaan: e.target.value})}
+                                        onChange={(e) => setPemberitahuanData({ ...pemberitahuanData, pembukaan: e.target.value })}
                                     />
                                 </div>
 
@@ -2355,7 +2352,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div className="pt-4 border-t border-green-100/50">
                                     <div className="flex items-center justify-between mb-2">
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Poin-poin Penting</label>
-                                        <button type="button" onClick={() => setPemberitahuanData({...pemberitahuanData, points: [...(pemberitahuanData.points || []), '']})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                        <button type="button" onClick={() => setPemberitahuanData({ ...pemberitahuanData, points: [...(pemberitahuanData.points || []), ''] })} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
                                             <Plus size={12} /> Tambah Poin
                                         </button>
                                     </div>
@@ -2371,11 +2368,11 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                     onChange={(e) => {
                                                         const newPoints = [...pemberitahuanData.points];
                                                         newPoints[idx] = e.target.value;
-                                                        setPemberitahuanData({...pemberitahuanData, points: newPoints});
+                                                        setPemberitahuanData({ ...pemberitahuanData, points: newPoints });
                                                     }}
                                                 />
                                                 {pemberitahuanData.points.length > 1 && (
-                                                    <button type="button" onClick={() => setPemberitahuanData({...pemberitahuanData, points: pemberitahuanData.points.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
+                                                    <button type="button" onClick={() => setPemberitahuanData({ ...pemberitahuanData, points: pemberitahuanData.points.filter((_, i) => i !== idx) })} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
                                                         <Trash2 size={16} />
                                                     </button>
                                                 )}
@@ -2392,7 +2389,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm leading-relaxed"
                                         placeholder="Demikian pemberitahuan ini kami sampaikan. Atas perhatian dan kerja samanya, kami ucapkan Jazaakumullahu Khayran."
                                         value={pemberitahuanData.penutup}
-                                        onChange={(e) => setPemberitahuanData({...pemberitahuanData, penutup: e.target.value})}
+                                        onChange={(e) => setPemberitahuanData({ ...pemberitahuanData, penutup: e.target.value })}
                                     />
                                 </div>
                             </div>
@@ -2404,25 +2401,25 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
                                         <label className="text-xs font-black text-blue-600 uppercase tracking-widest block">Dasar Penugasan</label>
-                                        <button type="button" onClick={() => setTaskData({...taskData, basisList: [...taskData.basisList, '']})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                        <button type="button" onClick={() => setTaskData({ ...taskData, basisList: [...taskData.basisList, ''] })} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
                                             <Plus size={12} /> Tambah Dasar
                                         </button>
                                     </div>
                                     <div className="space-y-2">
                                         {(taskData.basisList || []).map((item, idx) => (
                                             <div key={idx} className="flex gap-2">
-                                                <input 
+                                                <input
                                                     className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
                                                     placeholder={`Dasar hukum/surat ${idx + 1}...`}
                                                     value={item}
                                                     onChange={(e) => {
                                                         const newList = [...taskData.basisList];
                                                         newList[idx] = e.target.value;
-                                                        setTaskData({...taskData, basisList: newList});
+                                                        setTaskData({ ...taskData, basisList: newList });
                                                     }}
                                                 />
                                                 {taskData.basisList.length > 1 && (
-                                                    <button type="button" onClick={() => setTaskData({...taskData, basisList: taskData.basisList.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                                                    <button type="button" onClick={() => setTaskData({ ...taskData, basisList: taskData.basisList.filter((_, i) => i !== idx) })} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
                                                         <Trash2 size={16} />
                                                     </button>
                                                 )}
@@ -2435,7 +2432,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
                                         <label className="text-xs font-black text-blue-600 uppercase tracking-widest block">Menugaskan Kepada</label>
-                                        <button type="button" onClick={() => setTaskData({...taskData, personnelList: [...taskData.personnelList, { name: '', position: '', nip: '' }]})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                        <button type="button" onClick={() => setTaskData({ ...taskData, personnelList: [...taskData.personnelList, { name: '', position: '', nip: '' }] })} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
                                             <Plus size={12} /> Tambah Pegawai
                                         </button>
                                     </div>
@@ -2454,23 +2451,23 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                     <tr key={idx}>
                                                         <td className="px-2 py-1 border-b">
                                                             <div className="relative group">
-                                                                <input 
-                                                                    required 
-                                                                    className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded" 
-                                                                    placeholder="Nama atau pilih staff..." 
+                                                                <input
+                                                                    required
+                                                                    className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded"
+                                                                    placeholder="Nama atau pilih staff..."
                                                                     list={`staff-list-${idx}`}
-                                                                    value={p.name} 
-                                                                    onChange={(e) => { 
+                                                                    value={p.name}
+                                                                    onChange={(e) => {
                                                                         const val = e.target.value;
                                                                         const found = staffList.find(s => s.name === val);
-                                                                        const nl = [...taskData.personnelList]; 
+                                                                        const nl = [...taskData.personnelList];
                                                                         nl[idx].name = val;
                                                                         if (found) {
                                                                             nl[idx].position = found.position;
                                                                             nl[idx].nip = found.username; // NIY
                                                                         }
-                                                                        setTaskData({...taskData, personnelList: nl}); 
-                                                                    }} 
+                                                                        setTaskData({ ...taskData, personnelList: nl });
+                                                                    }}
                                                                 />
                                                                 <datalist id={`staff-list-${idx}`}>
                                                                     {staffList.map(s => (
@@ -2480,14 +2477,14 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                             </div>
                                                         </td>
                                                         <td className="px-2 py-1 border-b">
-                                                            <input className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded text-slate-500" placeholder="Jabatan..." value={p.position} onChange={(e) => { const nl = [...taskData.personnelList]; nl[idx].position = e.target.value; setTaskData({...taskData, personnelList: nl}); }} />
+                                                            <input className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded text-slate-500" placeholder="Jabatan..." value={p.position} onChange={(e) => { const nl = [...taskData.personnelList]; nl[idx].position = e.target.value; setTaskData({ ...taskData, personnelList: nl }); }} />
                                                         </td>
                                                         <td className="px-2 py-1 border-b">
-                                                            <input className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded text-slate-500" placeholder="NIY..." value={p.nip} onChange={(e) => { const nl = [...taskData.personnelList]; nl[idx].nip = e.target.value; setTaskData({...taskData, personnelList: nl}); }} />
+                                                            <input className="w-full px-2 py-1.5 border-none outline-none focus:bg-blue-50 rounded text-slate-500" placeholder="NIY..." value={p.nip} onChange={(e) => { const nl = [...taskData.personnelList]; nl[idx].nip = e.target.value; setTaskData({ ...taskData, personnelList: nl }); }} />
                                                         </td>
                                                         <td className="px-2 py-1 border-b text-center">
                                                             {taskData.personnelList.length > 1 && (
-                                                                <button type="button" onClick={() => setTaskData({...taskData, personnelList: taskData.personnelList.filter((_, i) => i !== idx)})} className="text-red-400 hover:text-red-600"><X size={14} /></button>
+                                                                <button type="button" onClick={() => setTaskData({ ...taskData, personnelList: taskData.personnelList.filter((_, i) => i !== idx) })} className="text-red-400 hover:text-red-600"><X size={14} /></button>
                                                             )}
                                                         </td>
                                                     </tr>
@@ -2501,14 +2498,14 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
                                         <label className="text-xs font-black text-blue-600 uppercase tracking-widest block">Untuk (Maksud & Tujuan)</label>
-                                        <button type="button" onClick={() => setTaskData({...taskData, purposeList: [...taskData.purposeList, '']})} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                        <button type="button" onClick={() => setTaskData({ ...taskData, purposeList: [...taskData.purposeList, ''] })} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
                                             <Plus size={12} /> Tambah Poin
                                         </button>
                                     </div>
                                     <div className="space-y-2">
                                         {taskData.purposeList.map((item, idx) => (
                                             <div key={idx} className="flex gap-2">
-                                                <textarea 
+                                                <textarea
                                                     className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
                                                     placeholder={`Tujuan ke-${idx + 1}...`}
                                                     rows={1}
@@ -2516,11 +2513,11 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                     onChange={(e) => {
                                                         const newList = [...taskData.purposeList];
                                                         newList[idx] = e.target.value;
-                                                        setTaskData({...taskData, purposeList: newList});
+                                                        setTaskData({ ...taskData, purposeList: newList });
                                                     }}
                                                 />
                                                 {taskData.purposeList.length > 1 && (
-                                                    <button type="button" onClick={() => setTaskData({...taskData, purposeList: taskData.purposeList.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                                                    <button type="button" onClick={() => setTaskData({ ...taskData, purposeList: taskData.purposeList.filter((_, i) => i !== idx) })} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
                                                         <Trash2 size={16} />
                                                     </button>
                                                 )}
@@ -2533,19 +2530,19 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Tgl. Mulai</label>
-                                        <input type="date" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm" value={taskData.dateStart} onChange={(e) => setTaskData({...taskData, dateStart: e.target.value})} />
+                                        <input type="date" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm" value={taskData.dateStart} onChange={(e) => setTaskData({ ...taskData, dateStart: e.target.value })} />
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Tgl. Selesai</label>
-                                        <input type="date" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm" value={taskData.dateEnd} onChange={(e) => setTaskData({...taskData, dateEnd: e.target.value})} />
+                                        <input type="date" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm" value={taskData.dateEnd} onChange={(e) => setTaskData({ ...taskData, dateEnd: e.target.value })} />
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Keterangan Waktu</label>
-                                        <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm" placeholder="Contoh: 08.00 s.d Selesai" value={taskData.timeRange} onChange={(e) => setTaskData({...taskData, timeRange: e.target.value})} />
+                                        <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm" placeholder="Contoh: 08.00 s.d Selesai" value={taskData.timeRange} onChange={(e) => setTaskData({ ...taskData, timeRange: e.target.value })} />
                                     </div>
                                     <div className="md:col-span-3">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Tempat / Lokasi</label>
-                                        <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm" placeholder="Lokasi penugasan..." value={taskData.location} onChange={(e) => setTaskData({...taskData, location: e.target.value})} />
+                                        <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm" placeholder="Lokasi penugasan..." value={taskData.location} onChange={(e) => setTaskData({ ...taskData, location: e.target.value })} />
                                     </div>
                                 </div>
 
@@ -2553,25 +2550,25 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
                                         <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Tembusan (Opsional)</label>
-                                        <button type="button" onClick={() => setTaskData({...taskData, carbonCopy: [...taskData.carbonCopy, '']})} className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1">
+                                        <button type="button" onClick={() => setTaskData({ ...taskData, carbonCopy: [...taskData.carbonCopy, ''] })} className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1">
                                             <Plus size={12} /> Tambah Tembusan
                                         </button>
                                     </div>
                                     <div className="space-y-2">
                                         {taskData.carbonCopy.map((item, idx) => (
                                             <div key={idx} className="flex gap-2">
-                                                <input 
+                                                <input
                                                     className="flex-1 px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm"
                                                     placeholder="Contoh: Arsip..."
                                                     value={item}
                                                     onChange={(e) => {
                                                         const newList = [...taskData.carbonCopy];
                                                         newList[idx] = e.target.value;
-                                                        setTaskData({...taskData, carbonCopy: newList});
+                                                        setTaskData({ ...taskData, carbonCopy: newList });
                                                     }}
                                                 />
                                                 {taskData.carbonCopy.length > 1 && (
-                                                    <button type="button" onClick={() => setTaskData({...taskData, carbonCopy: taskData.carbonCopy.filter((_, i) => i !== idx)})} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                                                    <button type="button" onClick={() => setTaskData({ ...taskData, carbonCopy: taskData.carbonCopy.filter((_, i) => i !== idx) })} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
                                                         <Trash2 size={16} />
                                                     </button>
                                                 )}
@@ -2585,7 +2582,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                         {formData.type === 'SURAT_MASUK' && (
                             <div className="col-span-full">
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Upload File Surat Masuk (PDF/Gambar)</label>
-                                <input 
+                                <input
                                     type="file"
                                     multiple
                                     accept=".pdf,.jpg,.jpeg,.png"
@@ -2611,7 +2608,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                         {formData.type !== 'SURAT_MASUK' && !['Berita Acara', 'Serah Terima Barang', 'BAST', 'Pesanan', 'Tugas', 'Edaran', 'Keputusan', 'Pemberitahuan', 'Umum'].includes(formData.category) && !['BAST', 'MOU'].includes(formData.type) && (
                             <div className="col-span-full">
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Isi Dokumen / Pesan</label>
-                                <textarea 
+                                <textarea
                                     required={formData.type !== 'INVOICE'}
                                     rows={6}
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-medium leading-relaxed"
@@ -2634,7 +2631,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         "Segala puji bagi Allah Subhaanahu wa ta'aala yang senantiasa melimpahkan nikmat dan hidayah-Nya kepada kita semua. Shalawat dan salam atas Nabi Muhammad Shalallaahu 'alaihi wa sallam. Kami mendo'akan semoga Bapak/Ibu selalu berada dalam lindungan Allah Subhaanahu wa ta'aala, Amin."
                                     </p>
                                 </div>
-                                <textarea 
+                                <textarea
                                     required
                                     rows={10}
                                     className="w-full px-5 py-4 rounded-2xl border-2 border-blue-100 focus:border-blue-500 focus:ring-0 outline-none font-medium leading-relaxed text-sm shadow-sm"
@@ -2657,7 +2654,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div className="space-y-4">
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Teks Lampiran (Jika ada rincian tambahan)</label>
-                                        <textarea 
+                                        <textarea
                                             rows={3}
                                             className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-medium"
                                             placeholder="Misal: Rincian jadwal kegiatan, Daftar peserta tambahan, dll..."
@@ -2669,15 +2666,15 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         <div className="flex-1">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Foto / Dokumen Pendukung (Format: JPG, PNG, PDF)</label>
                                             <div className="relative group">
-                                                <input 
-                                                    type="file" 
+                                                <input
+                                                    type="file"
                                                     multiple
                                                     id="lampiran-file"
-                                                    className="hidden" 
+                                                    className="hidden"
                                                     accept="image/*,.pdf"
                                                     onChange={(e) => setFiles(Array.from(e.target.files))}
                                                 />
-                                                <label 
+                                                <label
                                                     htmlFor="lampiran-file"
                                                     className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-slate-200 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all"
                                                 >
@@ -2702,10 +2699,10 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                 ))}
                                             </div>
                                         </div>
-                                        { (files.length > 0 || formData.fileUrl) && (
-                                            <button 
-                                                type="button" 
-                                                onClick={() => { setFiles([]); setFormData({...formData, fileUrl: ''}); }}
+                                        {(files.length > 0 || formData.fileUrl) && (
+                                            <button
+                                                type="button"
+                                                onClick={() => { setFiles([]); setFormData({ ...formData, fileUrl: '' }); }}
                                                 className="mt-5 p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"
                                                 title="Hapus Lampiran"
                                             >
@@ -2713,7 +2710,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             </button>
                                         )}
                                     </div>
-                                    { (file || formData.fileUrl) && (
+                                    {(file || formData.fileUrl) && (
                                         <p className="text-[10px] font-medium text-slate-400 italic">
                                             * Lampiran foto/dokumen akan ditampilkan pada halaman terpisah di akhir surat.
                                         </p>
@@ -2727,7 +2724,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="md:col-span-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Lokasi / Tempat Serah Terima (Bertempat di)</label>
-                                        <input 
+                                        <input
                                             placeholder="Contoh: Komplek Islamic Center, Surau Gadang..."
                                             className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-blue-400 transition-all text-sm font-medium"
                                             value={formData.location || ''}
@@ -2736,64 +2733,64 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-4">
-                                    <div className="text-xs font-black text-blue-600 uppercase tracking-widest">Pihak Pertama (Internal)</div>
-                                    <input 
-                                        placeholder="Nama Pihak 1"
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                                        value={formData.party1Name}
-                                        onChange={(e) => setFormData({ ...formData, party1Name: e.target.value })}
-                                    />
-                                    <input 
-                                        placeholder="Jabatan Pihak 1"
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                                        value={formData.party1Title}
-                                        onChange={(e) => setFormData({ ...formData, party1Title: e.target.value })}
-                                    />
-                                    <input 
-                                        placeholder="Nama Perusahaan/Institusi Pihak 1"
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                                        value={formData.party1Org || ''}
-                                        onChange={(e) => setFormData({ ...formData, party1Org: e.target.value })}
-                                    />
-                                    <textarea 
-                                        placeholder="Alamat Pihak 1"
-                                        rows={2}
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                                        value={formData.party1Address || ''}
-                                        onChange={(e) => setFormData({ ...formData, party1Address: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-4">
-                                    <div className="text-xs font-black text-emerald-600 uppercase tracking-widest">Pihak Kedua (Eksternal)</div>
-                                    <input 
-                                        placeholder="Nama Pihak 2"
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                                        value={formData.party2Name}
-                                        onChange={(e) => setFormData({ ...formData, party2Name: e.target.value })}
-                                    />
-                                    <input 
-                                        placeholder="Jabatan Pihak 2"
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                                        value={formData.party2Title}
-                                        onChange={(e) => setFormData({ ...formData, party2Title: e.target.value })}
-                                    />
-                                    <input 
-                                        placeholder="Nama Perusahaan/Institusi Pihak 2"
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                                        value={formData.party2Org || ''}
-                                        onChange={(e) => setFormData({ ...formData, party2Org: e.target.value })}
-                                    />
-                                    <textarea 
-                                        placeholder="Alamat Pihak 2"
-                                        rows={2}
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                                        value={formData.party2Address || ''}
-                                        onChange={(e) => setFormData({ ...formData, party2Address: e.target.value })}
-                                    />
+                                    <div className="space-y-4">
+                                        <div className="text-xs font-black text-blue-600 uppercase tracking-widest">Pihak Pertama (Internal)</div>
+                                        <input
+                                            placeholder="Nama Pihak 1"
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                            value={formData.party1Name}
+                                            onChange={(e) => setFormData({ ...formData, party1Name: e.target.value })}
+                                        />
+                                        <input
+                                            placeholder="Jabatan Pihak 1"
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                            value={formData.party1Title}
+                                            onChange={(e) => setFormData({ ...formData, party1Title: e.target.value })}
+                                        />
+                                        <input
+                                            placeholder="Nama Perusahaan/Institusi Pihak 1"
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                            value={formData.party1Org || ''}
+                                            onChange={(e) => setFormData({ ...formData, party1Org: e.target.value })}
+                                        />
+                                        <textarea
+                                            placeholder="Alamat Pihak 1"
+                                            rows={2}
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                            value={formData.party1Address || ''}
+                                            onChange={(e) => setFormData({ ...formData, party1Address: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="text-xs font-black text-emerald-600 uppercase tracking-widest">Pihak Kedua (Eksternal)</div>
+                                        <input
+                                            placeholder="Nama Pihak 2"
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                            value={formData.party2Name}
+                                            onChange={(e) => setFormData({ ...formData, party2Name: e.target.value })}
+                                        />
+                                        <input
+                                            placeholder="Jabatan Pihak 2"
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                            value={formData.party2Title}
+                                            onChange={(e) => setFormData({ ...formData, party2Title: e.target.value })}
+                                        />
+                                        <input
+                                            placeholder="Nama Perusahaan/Institusi Pihak 2"
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                            value={formData.party2Org || ''}
+                                            onChange={(e) => setFormData({ ...formData, party2Org: e.target.value })}
+                                        />
+                                        <textarea
+                                            placeholder="Alamat Pihak 2"
+                                            rows={2}
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                            value={formData.party2Address || ''}
+                                            onChange={(e) => setFormData({ ...formData, party2Address: e.target.value })}
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
                         )}
                     </div>
 
@@ -2858,7 +2855,7 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
     const handleSign = async (dataUrl = null) => {
         try {
             const signatureData = dataUrl;
-            
+
             let res;
             if (party) {
                 // Multi-party sign
@@ -2877,7 +2874,7 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
                     approvalNote
                 });
             }
-            
+
             alert('Dokumen berhasil ditandatangani!');
             onSuccess(res.data);
             onClose();
@@ -2900,7 +2897,7 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
                 <div className="px-8 pb-8 space-y-6">
                     {party === 'party2' ? (
                         <div className="animate-in fade-in zoom-in duration-300">
-                            <SignaturePad 
+                            <SignaturePad
                                 title={`Tanda Tangan Pihak Kedua (Penerima)`}
                                 onCancel={onClose}
                                 onSave={(dataUrl) => handleSign(dataUrl)}
@@ -2916,8 +2913,8 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
                                 <div>
                                     <div className="text-emerald-800 font-black uppercase tracking-widest text-[10px] mb-1">Otentikasi Digital (TTE)</div>
                                     <p className="text-emerald-700 text-sm font-medium">
-                                        {party === 'party1' 
-                                            ? 'Pihak Pertama (Internal) akan menandatangani secara elektronik (TTE/QR Code).' 
+                                        {party === 'party1'
+                                            ? 'Pihak Pertama (Internal) akan menandatangani secara elektronik (TTE/QR Code).'
                                             : 'Sistem akan menyematkan Tanda Tangan Elektronik (QR Code) resmi atas nama Anda.'
                                         }
                                     </p>
@@ -2926,7 +2923,7 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
 
                             <div>
                                 <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Catatan Persetujuan (Opsional)</label>
-                                <textarea 
+                                <textarea
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-medium text-sm"
                                     placeholder="Tambahkan instruksi atau catatan jika ada..."
                                     value={approvalNote}
@@ -2953,9 +2950,8 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
 const TabButton = ({ active, label, icon, onClick }) => (
     <button
         onClick={onClick}
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-            active ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-        }`}
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${active ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
     >
         {icon} {label}
     </button>
@@ -2965,21 +2961,21 @@ const TypeSelectionModal = ({ isOpen, onClose, onSelect }) => {
     if (!isOpen) return null;
 
     const types = [
-        { 
-            id: 'SURAT_MASUK', label: 'Surat Masuk', icon: <Inbox size={24} />, 
-            desc: 'Dokumen yang diterima dari luar instansi', color: 'blue' 
+        {
+            id: 'SURAT_MASUK', label: 'Surat Masuk', icon: <Inbox size={24} />,
+            desc: 'Dokumen yang diterima dari luar instansi', color: 'blue'
         },
-        { 
-            id: 'SURAT_KELUAR', label: 'Surat Keluar', icon: <Send size={24} />, 
+        {
+            id: 'SURAT_KELUAR', label: 'Surat Keluar', icon: <Send size={24} />,
             desc: 'Surat Tugas, Edaran, Keputusan, BAST, dll', color: 'emerald'
         },
-        { 
-            id: 'INVOICE', label: 'Invoice / Tagihan', icon: <FileText size={24} />, 
-            desc: 'Dokumen penagihan atau bukti pembayaran', color: 'amber' 
+        {
+            id: 'INVOICE', label: 'Invoice / Tagihan', icon: <FileText size={24} />,
+            desc: 'Dokumen penagihan atau bukti pembayaran', color: 'amber'
         },
-        { 
-            id: 'LAINNYA', label: 'Dokumen Lainnya', icon: <Tag size={24} />, 
-            desc: 'Dokumen pendukung lainnya', color: 'slate' 
+        {
+            id: 'LAINNYA', label: 'Dokumen Lainnya', icon: <Tag size={24} />,
+            desc: 'Dokumen pendukung lainnya', color: 'slate'
         },
     ];
 
@@ -2992,7 +2988,7 @@ const TypeSelectionModal = ({ isOpen, onClose, onSelect }) => {
                 </div>
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
                     {types.map(t => (
-                        <button 
+                        <button
                             key={t.id}
                             onClick={() => onSelect(t.id)}
                             className="group text-left p-6 rounded-2xl border-2 border-slate-100 bg-slate-50/50 hover:border-blue-500 hover:bg-blue-50 transition-all flex flex-col items-start"
@@ -3000,7 +2996,7 @@ const TypeSelectionModal = ({ isOpen, onClose, onSelect }) => {
                             <div className={`p-3 rounded-xl bg-${t.color}-50 text-${t.color}-600 mb-4 group-hover:scale-110 transition-transform`}>{t.icon}</div>
                             <div className="font-black text-slate-900 text-lg leading-tight">{t.label}</div>
                             <div className="text-xs text-slate-500 font-medium mt-2 leading-relaxed">{t.desc}</div>
-                            
+
                             <div className="mt-6 flex items-center gap-2 text-blue-600 text-xs font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all">
                                 Pilih Tipe Ini <ArrowRight size={14} />
                             </div>
