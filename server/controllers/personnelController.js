@@ -96,7 +96,7 @@ const autoLogActivity = async (userId, source, sourceId, sourceTitle, descriptio
             where: {
                 userId: parseInt(userId),
                 type: 'DAILY',
-                category: 'AUTO_LOG',
+                category: 'UMUM',
                 date: {
                     gte: todayStart,
                     lte: todayEnd
@@ -128,7 +128,7 @@ const autoLogActivity = async (userId, source, sourceId, sourceTitle, descriptio
                 data: {
                     userId: parseInt(userId),
                     type: 'DAILY',
-                    category: 'AUTO_LOG',
+                    category: 'UMUM',
                     content: description,
                     date: new Date(),
                     metadata: {

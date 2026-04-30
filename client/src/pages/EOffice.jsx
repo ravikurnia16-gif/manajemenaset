@@ -2759,7 +2759,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             </button>
                                         )}
                                     </div>
-                                    {(file || formData.fileUrl) && (
+                                    {(files.length > 0 || formData.fileUrl) && (
                                         <p className="text-[10px] font-medium text-slate-400 italic">
                                             * Lampiran foto/dokumen akan ditampilkan pada halaman terpisah di akhir surat.
                                         </p>
