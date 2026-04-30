@@ -966,6 +966,7 @@ const EOffice = () => {
                                 </div>
                             )}
                         </div>
+                    </div>
                     <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
                         <div className="flex flex-wrap items-center gap-2">
                             <button
