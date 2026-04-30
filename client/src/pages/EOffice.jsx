@@ -113,11 +113,11 @@ const EOffice = () => {
     // --- Helper Components ---
 
     const StatCard = ({ title, value, icon, color }) => (
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className={`p-3 rounded-xl bg-${color}-50`}>{icon}</div>
+        <div className="bg-white p-3 sm:p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 sm:gap-4">
+            <div className={`p-2 sm:p-3 rounded-xl bg-${color}-50`}>{icon}</div>
             <div>
-                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">{title}</div>
-                <div className="text-2xl font-black text-slate-800">{value}</div>
+                <div className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">{title}</div>
+                <div className="text-lg sm:text-2xl font-black text-slate-800">{value}</div>
             </div>
         </div>
     );
@@ -138,7 +138,7 @@ const EOffice = () => {
 
     const DashboardView = () => (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">
                 <StatCard title="Surat Masuk" value={stats?.totalIncoming || 0} icon={<Inbox className="text-blue-500" size={22} />} color="blue" />
                 <StatCard title="Surat Keluar" value={stats?.totalOutgoing || 0} icon={<Send className="text-emerald-500" size={22} />} color="emerald" />
                 <StatCard title="Invoice" value={stats?.totalInvoices || 0} icon={<FileText className="text-amber-500" size={22} />} color="amber" />
@@ -220,27 +220,29 @@ const EOffice = () => {
         );
     };
 
+    const filteredDocs = documents.filter(doc => 
+        (doc.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (doc.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (doc.senderName || '').toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
     const ListView = () => (
         <div className="space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="relative flex-1 max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input 
                         type="text"
-                        placeholder="Cari subjek, nomor, atau pengirim..."
-                        className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                        placeholder="Cari subjek, nomor..."
+                        className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
-                <div className="flex items-center gap-2">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50">
-                        <Filter size={18} /> Filter
-                    </button>
-                </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            {/* Desktop Table */}
+            <div className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>
@@ -254,14 +256,9 @@ const EOffice = () => {
                     <tbody className="divide-y divide-slate-100">
                         {loading ? (
                             <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">Memuat data...</td></tr>
-                        ) : documents.length === 0 ? (
+                        ) : filteredDocs.length === 0 ? (
                             <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">Tidak ada dokumen ditemukan</td></tr>
-                        ) : (
-                            documents.filter(doc => 
-                                (doc.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                (doc.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                (doc.senderName || '').toLowerCase().includes(searchQuery.toLowerCase())
-                            ).map(doc => (
+                        ) : filteredDocs.map(doc => (
                                 <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
@@ -282,9 +279,7 @@ const EOffice = () => {
                                             {doc.category || '-'}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-slate-600 font-medium">
-                                        {formatDate(doc.date)}
-                                    </td>
+                                    <td className="px-6 py-4 text-slate-600 font-medium">{formatDate(doc.date)}</td>
                                     <td className="px-6 py-4">
                                         <StatusBadge status={doc.status} />
                                         {doc.type === 'INVOICE' && (
@@ -299,57 +294,62 @@ const EOffice = () => {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
-                                            <button 
-                                                onClick={() => setViewingDoc(doc)}
-                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                                title="Lihat Detail"
-                                            >
-                                                <Eye size={18} />
-                                            </button>
+                                            <button onClick={() => setViewingDoc(doc)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Lihat Detail"><Eye size={18} /></button>
                                             {doc.type === 'SURAT_MASUK' ? (
-                                                doc.fileUrl ? (
-                                                    <a 
-                                                        href={doc.fileUrl} target="_blank" rel="noreferrer"
-                                                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block"
-                                                        title="Lihat File Surat"
-                                                    >
-                                                        <Download size={18} />
-                                                    </a>
-                                                ) : null
+                                                doc.fileUrl ? <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block" title="Lihat File"><Download size={18} /></a> : null
                                             ) : (
-                                                <button 
-                                                    onClick={() => window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
-                                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                                    title="Cetak PDF"
-                                                >
-                                                    <Printer size={18} />
-                                                </button>
+                                                <button onClick={() => window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cetak PDF"><Printer size={18} /></button>
                                             )}
                                             {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
-                                                <button 
-                                                    onClick={() => { setEditingDoc(doc); setIsFormOpen(true); }}
-                                                    className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 size={18} />
-                                                </button>
+                                                <button onClick={() => { setEditingDoc(doc); setIsFormOpen(true); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Edit"><Edit2 size={18} /></button>
                                             )}
                                             {isSuperAdmin && (
-                                                <button 
-                                                    onClick={() => handleDelete(doc.id)}
-                                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                                    title="Hapus Dokumen"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
+                                                <button onClick={() => handleDelete(doc.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Hapus"><Trash2 size={18} /></button>
                                             )}
                                         </div>
                                     </td>
                                 </tr>
-                            ))
-                        )}
+                            ))}
                     </tbody>
                 </table>
+            </div>
+
+            {/* Mobile Card List */}
+            <div className="md:hidden space-y-3">
+                {loading ? (
+                    <div className="p-8 text-center text-slate-400 italic bg-white rounded-xl border">Memuat data...</div>
+                ) : filteredDocs.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 italic bg-white rounded-xl border">Tidak ada dokumen</div>
+                ) : filteredDocs.map(doc => (
+                    <div key={doc.id} className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm" onClick={() => setViewingDoc(doc)}>
+                        <div className="flex items-start gap-3">
+                            <div className={`p-2 rounded-lg shrink-0 ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                {doc.type === 'SURAT_MASUK' ? <Inbox size={16} /> : <Send size={16} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="font-bold text-slate-800 text-sm line-clamp-2">{doc.subject}</div>
+                                <div className="text-[10px] text-slate-500 mt-0.5">{doc.number || 'Draft'} • {formatDate(doc.date)}</div>
+                                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                    <StatusBadge status={doc.status} />
+                                    {doc.category && <span className="text-[10px] text-slate-400 font-medium">{doc.category}</span>}
+                                    {doc.type === 'INVOICE' && (
+                                        getPaymentStatus(doc) === 'PAID' 
+                                            ? <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[9px] font-black">LUNAS</span>
+                                            : <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[9px] font-black">BELUM LUNAS</span>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-1 shrink-0">
+                                {doc.type !== 'SURAT_MASUK' && (
+                                    <button onClick={(e) => { e.stopPropagation(); window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank'); }} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg"><Printer size={14} /></button>
+                                )}
+                                {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
+                                    <button onClick={(e) => { e.stopPropagation(); setEditingDoc(doc); setIsFormOpen(true); }} className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg"><Edit2 size={14} /></button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -357,8 +357,8 @@ const EOffice = () => {
     const ViewModal = () => {
         if (!viewingDoc) return null;
         return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 sm:zoom-in duration-200 max-h-[95vh] sm:max-h-[90vh] flex flex-col">
                     <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-blue-600 text-white rounded-lg">
@@ -374,8 +374,8 @@ const EOffice = () => {
                         </button>
                     </div>
                     
-                    <div className="p-8 space-y-8 overflow-y-auto max-h-[70vh]">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 overflow-y-auto flex-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
                             <InfoGroup label="Subjek / Perihal" value={viewingDoc.subject} icon={<Tag size={16} />} full />
                             <InfoGroup label="Kategori" value={viewingDoc.category} />
                             <InfoGroup label="Prioritas" value={viewingDoc.priority} />
@@ -1037,38 +1037,36 @@ const EOffice = () => {
     };
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-8 bg-slate-50 min-h-screen">
+        <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-4 sm:space-y-8 bg-slate-50 min-h-screen">
             {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                        <FileSignature className="text-blue-600" size={32} /> E-Office
+                    <h1 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2 sm:gap-3">
+                        <FileSignature className="text-blue-600" size={24} /> E-Office
                     </h1>
-                    <p className="text-slate-500 font-medium">Manajemen Dokumen & Tanda Tangan Elektronik</p>
+                    <p className="text-slate-500 font-medium text-xs sm:text-base hidden sm:block">Manajemen Dokumen & Tanda Tangan Elektronik</p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button 
-                        onClick={() => setIsTypeModalOpen(true)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all flex items-center gap-2"
-                    >
-                        <Plus size={18} /> Buat Dokumen Baru
-                    </button>
-                </div>
+                <button 
+                    onClick={() => setIsTypeModalOpen(true)}
+                    className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all flex items-center gap-1.5 sm:gap-2 shrink-0"
+                >
+                    <Plus size={16} /> <span className="hidden sm:inline">Buat Dokumen</span><span className="sm:hidden">Buat</span>
+                </button>
             </div>
 
             {/* Tab Navigation */}
-            <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-slate-200 shadow-sm w-fit overflow-x-auto max-w-full no-scrollbar">
+            <div className="flex items-center gap-1 bg-white p-1 rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm overflow-x-auto max-w-full" style={{WebkitOverflowScrolling:'touch',scrollbarWidth:'none'}}>
                 {[
-                    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
-                    { id: 'surat-masuk', label: 'Surat Masuk', icon: <Inbox size={16} /> },
-                    { id: 'surat-keluar', label: 'Surat Keluar', icon: <Send size={16} /> },
-                    { id: 'invoice', label: 'Invoice', icon: <FileText size={16} /> },
-                    { id: 'lainnya', label: 'Lainnya', icon: <Tag size={16} /> },
+                    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
+                    { id: 'surat-masuk', label: 'Masuk', icon: <Inbox size={14} /> },
+                    { id: 'surat-keluar', label: 'Keluar', icon: <Send size={14} /> },
+                    { id: 'invoice', label: 'Invoice', icon: <FileText size={14} /> },
+                    { id: 'lainnya', label: 'Lainnya', icon: <Tag size={14} /> },
                 ].map((t) => (
                     <button
                         key={t.id}
                         onClick={() => navigate(`/e-office/${t.id}`)}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
+                        className={`flex items-center gap-1.5 px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
                             tab === t.id 
                                 ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
                                 : 'text-slate-500 hover:bg-slate-50'
@@ -1447,8 +1445,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-4xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 sm:zoom-in duration-200 max-h-[95vh] sm:max-h-[90vh] flex flex-col">
                 <form onSubmit={handleSubmit}>
                     <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                         <div className="flex items-center gap-3">
@@ -1462,7 +1460,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                         </button>
                     </div>
 
-                    <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto max-h-[75vh]">
+                    <div className="p-4 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 overflow-y-auto flex-1">
                         {formData.type === 'SURAT_KELUAR' && (
                             <div className="col-span-full bg-blue-50/50 p-6 rounded-2xl border border-blue-100 mb-2">
                                 <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 block">1. Pilih Kategori Surat Keluar</label>
