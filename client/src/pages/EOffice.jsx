@@ -426,39 +426,57 @@ const EOffice = () => {
                         <div className="space-y-4">
                             <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Isi Dokumen / Rincian</label>
                             {['BAST', 'SURAT_KELUAR'].includes(viewingDoc.type) && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(viewingDoc.category) ? (
-                                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                                    <table className="w-full text-left border-collapse text-sm">
-                                        <thead className="bg-slate-50 text-slate-600 font-bold">
-                                            <tr>
-                                                <th className="p-3 border-b border-slate-200">Jenis Barang</th>
-                                                <th className="p-3 border-b border-slate-200 w-24">Qty</th>
-                                                <th className="p-3 border-b border-slate-200 w-32">Kondisi</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {(() => {
-                                                try {
-                                                    const items = JSON.parse(viewingDoc.content || '[]');
-                                                    return items.map((item, i) => (
-                                                        <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                                            <td className="p-3 border-b border-slate-100 font-medium">{item.name}</td>
-                                                            <td className="p-3 border-b border-slate-100">{item.qty}</td>
-                                                            <td className="p-3 border-b border-slate-100">
-                                                                <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${
-                                                                    item.condition === 'Baik' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                                                                }`}>
-                                                                    {item.condition}
-                                                                </span>
-                                                            </td>
-                                                        </tr>
-                                                    ));
-                                                } catch(e) {
-                                                    return <tr><td colSpan="3" className="p-4 text-center text-slate-400 italic">Format data tidak valid</td></tr>;
-                                                }
-                                            })()}
-                                        </tbody>
-                                    </table>
-                                    <LampiranPreview doc={viewingDoc} />
+                                <div className="space-y-4">
+                                    {/* Pihak 1 & Pihak 2 */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                                            <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-1">Pihak Pertama</div>
+                                            <div className="text-sm font-bold text-slate-800">{viewingDoc.party1Name || '-'}</div>
+                                            <div className="text-[11px] text-slate-500">{viewingDoc.party1Title || ''}</div>
+                                            {viewingDoc.party1Address && <div className="text-[10px] text-slate-400 mt-0.5">{viewingDoc.party1Address}</div>}
+                                        </div>
+                                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                                            <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Pihak Kedua</div>
+                                            <div className="text-sm font-bold text-slate-800">{viewingDoc.party2Name || '-'}</div>
+                                            <div className="text-[11px] text-slate-500">{viewingDoc.party2Title || ''}</div>
+                                            {viewingDoc.party2Address && <div className="text-[10px] text-slate-400 mt-0.5">{viewingDoc.party2Address}</div>}
+                                        </div>
+                                    </div>
+                                    {/* Items Table */}
+                                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                        <table className="w-full text-left border-collapse text-sm">
+                                            <thead className="bg-slate-50 text-slate-600 font-bold">
+                                                <tr>
+                                                    <th className="p-3 border-b border-slate-200">Jenis Barang</th>
+                                                    <th className="p-3 border-b border-slate-200 w-24">Qty</th>
+                                                    <th className="p-3 border-b border-slate-200 w-32">Kondisi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {(() => {
+                                                    try {
+                                                        const items = JSON.parse(viewingDoc.content || '[]');
+                                                        return items.map((item, i) => (
+                                                            <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                                <td className="p-3 border-b border-slate-100 font-medium">{item.name}</td>
+                                                                <td className="p-3 border-b border-slate-100">{item.qty}</td>
+                                                                <td className="p-3 border-b border-slate-100">
+                                                                    <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${
+                                                                        item.condition === 'Baik' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                                                                    }`}>
+                                                                        {item.condition}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        ));
+                                                    } catch(e) {
+                                                        return <tr><td colSpan="3" className="p-4 text-center text-slate-400 italic">Format data tidak valid</td></tr>;
+                                                    }
+                                                })()}
+                                            </tbody>
+                                        </table>
+                                        <LampiranPreview doc={viewingDoc} />
+                                    </div>
                                 </div>
                             ) : (viewingDoc.type === 'INVOICE' || viewingDoc.category === 'Invoice') ? (
                                 <div className="space-y-6">
