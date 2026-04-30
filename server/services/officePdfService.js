@@ -452,9 +452,11 @@ async function generateBASTMouPDF(doc, setting) {
     const docDate = new Date(doc.date);
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    
+    const formattedDateNum = `${String(docDate.getDate()).padStart(2, '0')}/${String(docDate.getMonth() + 1).padStart(2, '0')}/${docDate.getFullYear()}`;
 
     const bastLocation = doc.party1Address || 'Padang';
-    const openingText = `Pada hari ini, ${days[docDate.getDay()]} tanggal ${docDate.getDate()} bulan ${months[docDate.getMonth()]} tahun ${docDate.getFullYear()}, bertempat di ${bastLocation}, kami yang bertanda tangan di bawah ini:`;
+    const openingText = `Pada hari ini, ${days[docDate.getDay()]}, tanggal ${docDate.getDate()} bulan ${months[docDate.getMonth()]} tahun ${docDate.getFullYear()} (${formattedDateNum}), bertempat di ${bastLocation}, kami yang bertanda tangan di bawah ini:`;
     const openingLines = wrapText(openingText, width - margin * 2, fontRegular, 11);
     openingLines.forEach(line => {
         page.drawText(line, { x: margin, y, size: 11, font: fontRegular });
@@ -467,30 +469,36 @@ async function generateBASTMouPDF(doc, setting) {
     y -= 15;
 
     // Pihak 1
-    page.drawText('Nama', { x: margin, y, size: 11, font: fontRegular });
-    page.drawText(`: ${doc.party1Name || '-'}`, { x: margin + 50, y, size: 11, font: fontRegular });
+    page.drawText('1.', { x: margin + 10, y, size: 11, font: fontRegular });
+    page.drawText('Nama', { x: margin + 25, y, size: 11, font: fontBold });
+    page.drawText(`: ${doc.party1Name || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
     y -= 15;
-    page.drawText('Jabatan', { x: margin, y, size: 11, font: fontRegular });
-    page.drawText(`: ${doc.party1Title || '-'}`, { x: margin + 50, y, size: 11, font: fontRegular });
+    page.drawText('Jabatan', { x: margin + 25, y, size: 11, font: fontBold });
+    page.drawText(`: ${doc.party1Title || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
     y -= 15;
-    page.drawText('Alamat', { x: margin, y, size: 11, font: fontRegular });
-    page.drawText(`: ${doc.party1Address || '-'}`, { x: margin + 50, y, size: 11, font: fontRegular, maxWidth: width - margin - 100 });
+    page.drawText('Alamat', { x: margin + 25, y, size: 11, font: fontBold });
+    page.drawText(`: ${doc.party1Address || '-'}`, { x: margin + 75, y, size: 11, font: fontBold, maxWidth: width - margin - 125 });
     y -= 30; // space for multiline address if any
-    page.drawText(`Dalam hal ini bertindak untuk dan atas nama ${doc.party1Org || '-'}, selanjutnya disebut sebagai PIHAK PERTAMA (YANG MENYERAHKAN).`, { x: margin, y, size: 11, font: fontRegular, maxWidth: width - margin * 2, lineHeight: 15 });
-    y -= 30;
+    page.drawText(`Dalam hal ini bertindak untuk dan atas nama ${doc.party1Org || '-'}, selanjutnya disebut sebagai PIHAK PERTAMA (YANG MENYERAHKAN).`, { x: margin + 25, y, size: 11, font: fontRegular, maxWidth: width - margin * 2 - 25, lineHeight: 15 });
+    y -= 35;
 
     // Pihak 2
-    page.drawText('Nama', { x: margin, y, size: 11, font: fontRegular });
-    page.drawText(`: ${doc.party2Name || '-'}`, { x: margin + 50, y, size: 11, font: fontRegular });
+    page.drawText('2.', { x: margin + 10, y, size: 11, font: fontRegular });
+    page.drawText('Nama', { x: margin + 25, y, size: 11, font: fontBold });
+    page.drawText(`: ${doc.party2Name || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
     y -= 15;
-    page.drawText('Jabatan', { x: margin, y, size: 11, font: fontRegular });
-    page.drawText(`: ${doc.party2Title || '-'}`, { x: margin + 50, y, size: 11, font: fontRegular });
+    page.drawText('Jabatan', { x: margin + 25, y, size: 11, font: fontBold });
+    page.drawText(`: ${doc.party2Title || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
     y -= 15;
-    page.drawText('Alamat', { x: margin, y, size: 11, font: fontRegular });
-    page.drawText(`: ${doc.party2Address || '-'}`, { x: margin + 50, y, size: 11, font: fontRegular, maxWidth: width - margin - 100 });
+    page.drawText('Alamat', { x: margin + 25, y, size: 11, font: fontBold });
+    page.drawText(`: ${doc.party2Address || '-'}`, { x: margin + 75, y, size: 11, font: fontBold, maxWidth: width - margin - 125 });
     y -= 30;
-    page.drawText(`Dalam hal ini bertindak untuk dan atas nama ${doc.party2Org || '-'}, selanjutnya disebut sebagai PIHAK KEDUA (YANG MENERIMA).`, { x: margin, y, size: 11, font: fontRegular, maxWidth: width - margin * 2, lineHeight: 15 });
-    y -= 35;
+    page.drawText(`Dalam hal ini bertindak untuk dan atas nama ${doc.party2Org || '-'}, selanjutnya disebut sebagai PIHAK KEDUA (YANG MENERIMA).`, { x: margin + 25, y, size: 11, font: fontRegular, maxWidth: width - margin * 2 - 25, lineHeight: 15 });
+    y -= 45;
+
+    // Garis Pemisah (Opsional, di screenshot ada garis horizontal kecil)
+    page.drawLine({ start: { x: margin, y: y + 15 }, end: { x: width - margin, y: y + 15 }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
+    y -= 10;
 
     // Bagian II: OBJEK SERAH TERIMA
     page.drawText('II. OBJEK SERAH TERIMA', { x: margin, y, size: 11, font: fontBold });
@@ -514,21 +522,19 @@ async function generateBASTMouPDF(doc, setting) {
     }
 
     if (items.length > 0) {
-        // Header Tabel (menyesuaikan kolom spesifikasi)
+        // Header Tabel (4 kolom sesuai screenshot)
         const colNoX = margin;
-        const colNamaX = margin + 25;
-        const colSpecX = margin + 175;
-        const colQtyX = width - margin - 110;
-        const colKondisiX = width - margin - 60;
+        const colNamaX = margin + 30;
+        const colSpecX = margin + 200;
+        const colQtyX = width - margin - 100;
 
         const drawTableHeader = (currentY) => {
-            page.drawLine({ start: { x: margin, y: currentY + 12 }, end: { x: width - margin, y: currentY + 12 }, thickness: 1 });
+            page.drawLine({ start: { x: margin, y: currentY + 12 }, end: { x: width - margin, y: currentY + 12 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
             page.drawText('No', { x: colNoX + 5, y: currentY, size: 10, font: fontBold });
             page.drawText('Nama Barang/Pekerjaan', { x: colNamaX + 5, y: currentY, size: 10, font: fontBold });
-            page.drawText('Spesifikasi/SN', { x: colSpecX + 5, y: currentY, size: 10, font: fontBold });
+            page.drawText('Spesifikasi/Serial Number', { x: colSpecX + 5, y: currentY, size: 10, font: fontBold });
             page.drawText('Jumlah', { x: colQtyX + 5, y: currentY, size: 10, font: fontBold });
-            page.drawText('Kondisi', { x: colKondisiX + 5, y: currentY, size: 10, font: fontBold });
-            page.drawLine({ start: { x: margin, y: currentY - 5 }, end: { x: width - margin, y: currentY - 5 }, thickness: 1 });
+            page.drawLine({ start: { x: margin, y: currentY - 5 }, end: { x: width - margin, y: currentY - 5 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
             return currentY - 20;
         };
 
@@ -544,14 +550,14 @@ async function generateBASTMouPDF(doc, setting) {
             }
 
             page.drawText(`${i + 1}`, { x: colNoX + 5, y, size: 10, font: fontRegular });
-            page.drawText(item.name || '-', { x: colNamaX + 5, y, size: 10, font: fontRegular, maxWidth: 140 });
-            page.drawText(item.spec || '-', { x: colSpecX + 5, y, size: 10, font: fontRegular, maxWidth: colQtyX - colSpecX - 10 });
+            page.drawText(item.name || '-', { x: colNamaX + 5, y, size: 10, font: fontRegular, maxWidth: 160 });
+            page.drawText(item.spec || '-', { x: colSpecX + 5, y, size: 10, font: fontRegular, maxWidth: 160 });
             page.drawText(String(item.qty || '-'), { x: colQtyX + 5, y, size: 10, font: fontRegular });
-            page.drawText(item.condition || '-', { x: colKondisiX + 5, y, size: 10, font: fontRegular });
 
-            y -= 18;
+            y -= 25;
+            page.drawLine({ start: { x: margin, y: y + 15 }, end: { x: width - margin, y: y + 15 }, thickness: 0.5, color: rgb(0.9, 0.9, 0.9) });
         }
-        page.drawLine({ start: { x: margin, y: y + 15 }, end: { x: width - margin, y: y + 15 }, thickness: 1 });
+        y -= 10;
         y -= 25;
     } else {
         page.drawText('(Tidak ada rincian barang)', { x: margin, y, size: 11, font: fontItalic });
