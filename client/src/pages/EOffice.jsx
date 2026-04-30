@@ -433,12 +433,14 @@ const EOffice = () => {
                                             <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-1">Pihak Pertama</div>
                                             <div className="text-sm font-bold text-slate-800">{viewingDoc.party1Name || '-'}</div>
                                             <div className="text-[11px] text-slate-500">{viewingDoc.party1Title || ''}</div>
+                                            {viewingDoc.party1Org && <div className="text-[11px] font-medium text-slate-600 mt-1">{viewingDoc.party1Org}</div>}
                                             {viewingDoc.party1Address && <div className="text-[10px] text-slate-400 mt-0.5">{viewingDoc.party1Address}</div>}
                                         </div>
                                         <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
                                             <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Pihak Kedua</div>
                                             <div className="text-sm font-bold text-slate-800">{viewingDoc.party2Name || '-'}</div>
                                             <div className="text-[11px] text-slate-500">{viewingDoc.party2Title || ''}</div>
+                                            {viewingDoc.party2Org && <div className="text-[11px] font-medium text-slate-600 mt-1">{viewingDoc.party2Org}</div>}
                                             {viewingDoc.party2Address && <div className="text-[10px] text-slate-400 mt-0.5">{viewingDoc.party2Address}</div>}
                                         </div>
                                     </div>
@@ -448,6 +450,7 @@ const EOffice = () => {
                                             <thead className="bg-slate-50 text-slate-600 font-bold">
                                                 <tr>
                                                     <th className="p-3 border-b border-slate-200">Jenis Barang</th>
+                                                    <th className="p-3 border-b border-slate-200">Spesifikasi/SN</th>
                                                     <th className="p-3 border-b border-slate-200 w-24">Qty</th>
                                                     <th className="p-3 border-b border-slate-200 w-32">Kondisi</th>
                                                 </tr>
@@ -459,6 +462,7 @@ const EOffice = () => {
                                                         return items.map((item, i) => (
                                                             <tr key={i} className="hover:bg-slate-50 transition-colors">
                                                                 <td className="p-3 border-b border-slate-100 font-medium">{item.name}</td>
+                                                                <td className="p-3 border-b border-slate-100 text-xs text-slate-500">{item.spec || '-'}</td>
                                                                 <td className="p-3 border-b border-slate-100">{item.qty}</td>
                                                                 <td className="p-3 border-b border-slate-100">
                                                                     <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${
@@ -1812,7 +1816,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             <div className="col-span-full">
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Daftar Barang Serah Terima</label>
-                                    <button type="button" onClick={() => setBastItems([...bastItems, { name: '', qty: '', condition: 'Baik' }])} className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:text-blue-700">
+                                    <button type="button" onClick={() => setBastItems([...bastItems, { name: '', spec: '', qty: '', condition: 'Baik' }])} className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:text-blue-700">
                                         <Plus size={14} /> Tambah Barang
                                     </button>
                                 </div>
@@ -1821,6 +1825,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         <thead className="bg-slate-50 text-xs font-bold text-slate-600 uppercase">
                                             <tr>
                                                 <th className="p-3 border-b border-slate-200">Jenis Barang</th>
+                                                <th className="p-3 border-b border-slate-200">Spesifikasi/SN</th>
                                                 <th className="p-3 border-b border-slate-200 w-24">Kuantitas</th>
                                                 <th className="p-3 border-b border-slate-200 w-40">Kondisi</th>
                                                 <th className="p-3 border-b border-slate-200 w-16 text-center">Aksi</th>
@@ -1831,6 +1836,9 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                 <tr key={index}>
                                                     <td className="p-2 border-b border-slate-100">
                                                         <input required value={item.name} onChange={(e) => { const newI = [...bastItems]; newI[index].name = e.target.value; setBastItems(newI); }} className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none" placeholder="Nama barang..." />
+                                                    </td>
+                                                    <td className="p-2 border-b border-slate-100">
+                                                        <input value={item.spec || ''} onChange={(e) => { const newI = [...bastItems]; newI[index].spec = e.target.value; setBastItems(newI); }} className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none" placeholder="Spesifikasi/SN..." />
                                                     </td>
                                                     <td className="p-2 border-b border-slate-100">
                                                         <input required type="number" value={item.qty} onChange={(e) => { const newI = [...bastItems]; newI[index].qty = e.target.value; setBastItems(newI); }} className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none" />
@@ -2676,6 +2684,12 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         value={formData.party1Title}
                                         onChange={(e) => setFormData({ ...formData, party1Title: e.target.value })}
                                     />
+                                    <input 
+                                        placeholder="Nama Perusahaan/Institusi Pihak 1"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                        value={formData.party1Org || ''}
+                                        onChange={(e) => setFormData({ ...formData, party1Org: e.target.value })}
+                                    />
                                     <textarea 
                                         placeholder="Alamat Pihak 1"
                                         rows={2}
@@ -2697,6 +2711,12 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
                                         value={formData.party2Title}
                                         onChange={(e) => setFormData({ ...formData, party2Title: e.target.value })}
+                                    />
+                                    <input 
+                                        placeholder="Nama Perusahaan/Institusi Pihak 2"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                                        value={formData.party2Org || ''}
+                                        onChange={(e) => setFormData({ ...formData, party2Org: e.target.value })}
                                     />
                                     <textarea 
                                         placeholder="Alamat Pihak 2"
