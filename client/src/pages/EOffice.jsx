@@ -2668,7 +2668,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {(['BAST', 'MOU'].includes(formData.type) || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(formData.category))) && (
+                        {(['BAST', 'MOU'].includes(formData.type) || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) && (
                             <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
                                 <div className="space-y-4">
                                     <div className="text-xs font-black text-blue-600 uppercase tracking-widest">Pihak Pertama (Internal)</div>
