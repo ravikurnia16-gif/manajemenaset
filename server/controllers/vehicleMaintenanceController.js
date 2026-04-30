@@ -173,7 +173,7 @@ exports.updateMaintenanceLog = async (req, res) => {
     try {
         const { id: userId, role } = req.user;
         const {
-            date, category, type, description, cost, odometer, nextServiceOdometer, workshop, proofFile
+            date, category, type, description, cost, odometer, nextServiceOdometer, nextServiceDate, workshop, proofFile
         } = req.body;
 
         // Access Check
@@ -199,6 +199,7 @@ exports.updateMaintenanceLog = async (req, res) => {
                 cost: cost ? parseFloat(cost) : undefined,
                 odometer: odometer ? parseInt(odometer) : undefined,
                 nextServiceOdometer: nextServiceOdometer ? parseInt(nextServiceOdometer) : undefined,
+                nextServiceDate: nextServiceDate ? new Date(nextServiceDate) : undefined,
                 workshop,
                 proofFile
             }

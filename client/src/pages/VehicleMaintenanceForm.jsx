@@ -160,6 +160,24 @@ const VehicleMaintenanceForm = () => {
         const hasRoutine = selectedRoutine.length > 0;
         const typeStr = allItems.map(i => i.name).filter(Boolean).join(', ') || 'Servis';
 
+        // Calculate Hybrid Targets for the log summary
+        let nextServiceOdometer = null;
+        let nextServiceDate = null;
+
+        if (hasRoutine && form.odometer) {
+            const kmIntervals = selectedRoutine.map(r => parseInt(r.intervalKm)).filter(v => v > 0);
+            if (kmIntervals.length > 0) {
+                nextServiceOdometer = parseInt(form.odometer) + Math.min(...kmIntervals);
+            }
+
+            const monthIntervals = selectedRoutine.map(r => parseInt(r.intervalMonths)).filter(v => v > 0);
+            if (monthIntervals.length > 0) {
+                const d = new Date(form.date);
+                d.setMonth(d.getMonth() + Math.min(...monthIntervals));
+                nextServiceDate = d.toISOString().split('T')[0];
+            }
+        }
+
         setLoading(true);
         try {
             const payload = {
@@ -170,6 +188,8 @@ const VehicleMaintenanceForm = () => {
                 description: form.description || allItems.map(i => i.name).join(', '),
                 cost: totalCost(),
                 odometer: form.odometer || null,
+                nextServiceOdometer,
+                nextServiceDate,
                 workshop: form.workshop,
                 proofFile: form.proofFile,
                 items: allItems
