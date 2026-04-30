@@ -102,7 +102,7 @@ exports.getOutgoingDocuments = async (req, res) => {
         const where = { type: { not: 'SURAT_MASUK' } };
         
         if (typeGroup === 'OUTGOING_STANDARD') {
-            where.type = { in: ['SURAT_KELUAR', 'BAST'] };
+            where.type = { in: ['SURAT_KELUAR', 'SURAT_TUGAS', 'SURAT_EDARAN', 'SURAT_KEPUTUSAN', 'SURAT_PESANAN', 'BAST', 'MOU'] };
         }
 
         if (type) where.type = type;

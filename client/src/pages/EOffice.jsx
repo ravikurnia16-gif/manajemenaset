@@ -189,7 +189,14 @@ const EOffice = () => {
         let content = {};
         try { content = JSON.parse(doc.content || '{}'); } catch (e) { }
         const hasText = content.lampiranText && content.lampiranText.trim();
-        const hasPhoto = doc.fileUrl && (doc.fileUrl.toLowerCase().endsWith('.jpg') || doc.fileUrl.toLowerCase().endsWith('.jpeg') || doc.fileUrl.toLowerCase().endsWith('.png'));
+        
+        const photoUrls = (doc.fileUrl || '').split(',').filter(url => url.trim());
+        const hasPhoto = photoUrls.some(url => 
+            url.toLowerCase().endsWith('.jpg') || 
+            url.toLowerCase().endsWith('.jpeg') || 
+            url.toLowerCase().endsWith('.png') ||
+            url.toLowerCase().endsWith('.webp')
+        );
 
         if (!hasText && !hasPhoto) return null;
 
@@ -205,14 +212,26 @@ const EOffice = () => {
                     </div>
                 )}
                 {hasPhoto && (
-                    <div className="space-y-2">
+                    <div className="space-y-4">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Foto / Gambar Lampiran</div>
-                        <div className="rounded-xl overflow-hidden border border-slate-100 shadow-sm bg-white p-2">
-                            <img
-                                src={`/api/office-documents/file?path=${encodeURIComponent(doc.fileUrl)}`}
-                                alt="Lampiran"
-                                className="w-full h-auto max-h-[400px] object-contain rounded-lg"
-                            />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {photoUrls.map((url, idx) => {
+                                const isImage = url.toLowerCase().endsWith('.jpg') || 
+                                              url.toLowerCase().endsWith('.jpeg') || 
+                                              url.toLowerCase().endsWith('.png') ||
+                                              url.toLowerCase().endsWith('.webp');
+                                if (!isImage) return null;
+                                return (
+                                    <div key={idx} className="rounded-xl overflow-hidden border border-slate-100 shadow-sm bg-white p-2">
+                                        <img
+                                            src={url.startsWith('http') ? url : `/api/media/${url}`}
+                                            alt={`Lampiran ${idx + 1}`}
+                                            className="w-full h-auto max-h-[400px] object-contain rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                            onClick={() => window.open(url.startsWith('http') ? url : `/api/media/${url}`, '_blank')}
+                                        />
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -220,11 +239,12 @@ const EOffice = () => {
         );
     };
 
-    const filteredDocs = documents.filter(doc =>
-        (doc.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (doc.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (doc.senderName || '').toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredDocs = (documents || []).filter(doc => {
+        if (!doc) return false;
+        return (doc.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+               (doc.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+               (doc.senderName || '').toLowerCase().includes(searchQuery.toLowerCase());
+    });
 
     const ListView = () => (
         <div className="space-y-4">
@@ -296,7 +316,18 @@ const EOffice = () => {
                                     <div className="flex items-center justify-end gap-2">
                                         <button onClick={() => setViewingDoc(doc)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Lihat Detail"><Eye size={18} /></button>
                                         {doc.type === 'SURAT_MASUK' ? (
-                                            doc.fileUrl ? <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block" title="Lihat File"><Download size={18} /></a> : null
+                                            doc.fileUrl ? (
+                                                <button 
+                                                    onClick={() => {
+                                                        const firstFile = doc.fileUrl.split(',')[0];
+                                                        window.open(firstFile.startsWith('http') ? firstFile : `/api/media/${firstFile}`, '_blank');
+                                                    }}
+                                                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block" 
+                                                    title="Lihat File"
+                                                >
+                                                    <Download size={18} />
+                                                </button>
+                                            ) : null
                                         ) : (
                                             <button onClick={() => window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cetak PDF"><Printer size={18} /></button>
                                         )}
@@ -340,7 +371,20 @@ const EOffice = () => {
                                 </div>
                             </div>
                             <div className="flex flex-col gap-1 shrink-0">
-                                {doc.type !== 'SURAT_MASUK' && (
+                                {doc.type === 'SURAT_MASUK' ? (
+                                    doc.fileUrl && (
+                                        <button 
+                                            onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                const firstFile = doc.fileUrl.split(',')[0];
+                                                window.open(firstFile.startsWith('http') ? firstFile : `/api/media/${firstFile}`, '_blank');
+                                            }} 
+                                            className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg"
+                                        >
+                                            <Download size={14} />
+                                        </button>
+                                    )
+                                ) : (
                                     <button onClick={(e) => { e.stopPropagation(); window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank'); }} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg"><Printer size={14} /></button>
                                 )}
                                 {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
@@ -389,10 +433,18 @@ const EOffice = () => {
                                     <InfoGroup label="No. Surat Referensi" value={viewingDoc.referenceNumber} />
                                     <InfoGroup label="Tanggal Diterima" value={viewingDoc.receivedDate ? formatDate(viewingDoc.receivedDate, 'full') : '-'} />
                                     {viewingDoc.fileUrl && (
-                                        <div className="col-span-full pt-4">
-                                            <a href={viewingDoc.fileUrl} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-colors">
-                                                <Download size={18} /> Unduh / Lihat File Surat Masuk
-                                            </a>
+                                        <div className="col-span-full pt-4 space-y-2">
+                                            {viewingDoc.fileUrl.split(',').filter(u => u.trim()).map((url, idx, arr) => (
+                                                <a 
+                                                    key={idx}
+                                                    href={url.startsWith('http') ? url : `/api/media/${url}`} 
+                                                    target="_blank" 
+                                                    rel="noreferrer" 
+                                                    className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-colors"
+                                                >
+                                                    <Download size={18} /> {arr.length > 1 ? `Unduh / Lihat File ${idx + 1}` : 'Unduh / Lihat File Surat Masuk'}
+                                                </a>
+                                            ))}
                                         </div>
                                     )}
                                 </>
