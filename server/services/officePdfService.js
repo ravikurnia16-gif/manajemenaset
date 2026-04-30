@@ -448,6 +448,14 @@ async function generateBASTMouPDF(doc, setting) {
         y -= 15;
     }
 
+    // Parse content JSON early to get location and items
+    let contentData = {};
+    if (doc.content) {
+        try {
+            contentData = JSON.parse(doc.content);
+        } catch (e) {}
+    }
+
     // Tanggal Teks Pembuka
     const docDate = new Date(doc.date);
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -455,7 +463,7 @@ async function generateBASTMouPDF(doc, setting) {
     
     const formattedDateNum = `${String(docDate.getDate()).padStart(2, '0')}/${String(docDate.getMonth() + 1).padStart(2, '0')}/${docDate.getFullYear()}`;
 
-    const bastLocation = doc.party1Address || 'Padang';
+    const bastLocation = contentData.location || doc.party1Address || 'Padang';
     const openingText = `Pada hari ini, ${days[docDate.getDay()]}, tanggal ${docDate.getDate()} bulan ${months[docDate.getMonth()]} tahun ${docDate.getFullYear()} (${formattedDateNum}), bertempat di ${bastLocation}, kami yang bertanda tangan di bawah ini:`;
     const openingLines = wrapText(openingText, width - margin * 2, fontRegular, 11);
     openingLines.forEach(line => {
@@ -508,17 +516,12 @@ async function generateBASTMouPDF(doc, setting) {
     });
     y -= 30;
 
-    // Tabel Barang (Parse JSON dari content)
+    // Tabel Barang (Gunakan contentData yang sudah di-parse)
     let items = [];
-    if (doc.content) {
-        try {
-            const parsed = JSON.parse(doc.content);
-            if (Array.isArray(parsed)) {
-                items = parsed;
-            } else if (parsed && typeof parsed === 'object') {
-                items = parsed.items || [];
-            }
-        } catch (e) { }
+    if (Array.isArray(contentData)) {
+        items = contentData;
+    } else if (contentData && typeof contentData === 'object') {
+        items = contentData.items || [];
     }
 
     if (items.length > 0) {

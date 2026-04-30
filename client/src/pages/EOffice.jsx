@@ -1149,6 +1149,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         party2Title: '',
         party2Org: '',
         party2Address: '',
+        location: 'Padang',
     });
     const [file, setFile] = useState(null);
     const [isMultipart, setIsMultipart] = useState(false);
@@ -1248,10 +1249,13 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 } catch (e) {}
             }
 
-            if (doc.type === 'BAST' && doc.content) {
+            if ((doc.type === 'BAST' || ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category)) && doc.content) {
                 try {
                     const parsed = JSON.parse(doc.content);
                     setBastItems(Array.isArray(parsed) ? parsed : (parsed.items || []));
+                    if (parsed.location) {
+                        setFormData(prev => ({ ...prev, location: parsed.location }));
+                    }
                 } catch (e) {
                     console.error('Failed to parse BAST content JSON', e);
                 }
@@ -1401,7 +1405,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             
             let contentObj = {};
             if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) {
-                contentObj = { items: bastItems };
+                contentObj = { items: bastItems, location: formData.location };
             } else if (formData.category === 'Pesanan') {
                 contentObj = { items: purchasingItems, priceDetermined };
             } else if (formData.type === 'INVOICE' || formData.category === 'Invoice') {
@@ -2669,7 +2673,19 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                         )}
 
                         {(['BAST', 'MOU'].includes(formData.type) || (formData.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(formData.category))) && (
-                            <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                            <div className="col-span-full space-y-6 pt-4 border-t border-slate-100">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="md:col-span-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Lokasi / Tempat Serah Terima (Bertempat di)</label>
+                                        <input 
+                                            placeholder="Contoh: Komplek Islamic Center, Surau Gadang..."
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-blue-400 transition-all text-sm font-medium"
+                                            value={formData.location || ''}
+                                            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-4">
                                     <div className="text-xs font-black text-blue-600 uppercase tracking-widest">Pihak Pertama (Internal)</div>
                                     <input 
