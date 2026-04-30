@@ -499,7 +499,7 @@ exports.generatePDF = async (req, res) => {
         const setting = await prisma.setting.findUnique({ where: { id: 1 } });
 
         let pdfBytes;
-        if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(doc.category))) {
+        if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category))) {
             pdfBytes = await generateBASTMouPDF(doc, setting);
         } else if (doc.type === 'SURAT_PESANAN' || doc.category === 'Pesanan') {
             pdfBytes = await generateSuratPesananPDF(doc, setting);
@@ -783,7 +783,7 @@ exports.generatePublicPDF = async (req, res) => {
         const setting = await prisma.setting.findUnique({ where: { id: 1 } });
 
         let pdfBytes;
-        if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(doc.category))) {
+        if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category))) {
             pdfBytes = await generateBASTMouPDF(doc, setting);
         } else if (doc.type === 'SURAT_PESANAN' || doc.category === 'Pesanan') {
             pdfBytes = await generateSuratPesananPDF(doc, setting);
