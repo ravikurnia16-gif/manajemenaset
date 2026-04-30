@@ -313,6 +313,87 @@ const BusBooking = () => {
                 </div>
             </div>
 
+            {/* Outstanding Billing Summary */}
+            {isAdminAset && (() => {
+                const unpaid = bookings.filter(b => b.status === 'COMPLETED' && !b.isPaid);
+                const unbilled = bookings.filter(b => b.status !== 'COMPLETED' && !b.isPaid && new Date(b.endDate) < new Date());
+                const totalUnpaid = unpaid.reduce((s, b) => s + (b.totalBill || 0), 0);
+
+                // Group unpaid by unit
+                const unpaidByUnit = unpaid.reduce((acc, b) => {
+                    const u = b.unit || 'Umum';
+                    if (!acc[u]) acc[u] = { count: 0, total: 0, items: [] };
+                    acc[u].count++;
+                    acc[u].total += (b.totalBill || 0);
+                    acc[u].items.push(b);
+                    return acc;
+                }, {});
+
+                if (unpaid.length === 0 && unbilled.length === 0) return null;
+
+                return (
+                    <div className="bg-gradient-to-r from-amber-50 to-red-50 border border-amber-200 rounded-2xl p-4 md:p-5 space-y-4 shadow-sm">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-black text-amber-800 flex items-center gap-2">
+                                ⚠️ Tagihan Belum Lunas & Belum Ditagih
+                            </h3>
+                            <div className="text-right">
+                                <div className="text-[9px] font-bold text-amber-600 uppercase tracking-widest">Total Tertunggak</div>
+                                <div className="text-lg md:text-xl font-black text-red-600">Rp {totalUnpaid.toLocaleString('id-ID')}</div>
+                            </div>
+                        </div>
+
+                        {/* Unpaid Invoices (sudah ditagih, belum bayar) */}
+                        {unpaid.length > 0 && (
+                            <div>
+                                <div className="text-[10px] font-black text-red-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                    🔴 Belum Lunas ({unpaid.length} tagihan)
+                                </div>
+                                <div className="space-y-2 max-h-48 overflow-y-auto">
+                                    {Object.entries(unpaidByUnit).sort((a,b) => b[1].total - a[1].total).map(([unitName, data]) => (
+                                        <div key={unitName} className="bg-white/80 border border-red-100 rounded-xl p-3 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 bg-red-100 text-red-600 rounded-lg flex items-center justify-center text-[10px] font-black">{data.count}</div>
+                                                <div>
+                                                    <div className="text-xs font-bold text-slate-800">{unitName}</div>
+                                                    <div className="text-[9px] text-slate-400">{data.items.map(b => b.vehicle?.name).filter((v,i,a) => a.indexOf(v) === i).join(', ')}</div>
+                                                </div>
+                                            </div>
+                                            <div className="text-sm font-black text-red-600">Rp {data.total.toLocaleString('id-ID')}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Unbilled (trip sudah selesai tapi belum ditagih / input KM) */}
+                        {unbilled.length > 0 && (
+                            <div>
+                                <div className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                    🟡 Belum Ditagih ({unbilled.length} trip sudah lewat, belum input KM)
+                                </div>
+                                <div className="space-y-2 max-h-36 overflow-y-auto">
+                                    {unbilled.map(b => (
+                                        <div key={b.id} className="bg-white/80 border border-amber-100 rounded-xl p-3 flex items-center justify-between cursor-pointer hover:bg-amber-50 transition" onClick={() => setSelectedBooking(b)}>
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center">
+                                                    <Bus size={14} />
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs font-bold text-slate-800">{b.vehicle?.name} <span className="text-[9px] text-slate-400 font-normal">• {b.unit || 'Umum'}</span></div>
+                                                    <div className="text-[9px] text-slate-400">{b.destination} • {new Date(b.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</div>
+                                                </div>
+                                            </div>
+                                            <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">PERLU INPUT KM</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
+
             <div className="w-full space-y-4">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
                     <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
