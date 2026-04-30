@@ -50,7 +50,18 @@ exports.getIncomingMail = async (req, res) => {
 exports.createIncomingMail = async (req, res) => {
     try {
         const { subject, senderName, senderOrg, referenceNumber, receivedDate, category, priority, content } = req.body;
-        const fileUrl = req.fileUrl || req.body.fileUrl; // From multer or body
+        
+        let newFileUrls = [];
+        if (req.uploadedMedia && req.uploadedMedia.length > 0) newFileUrls = req.uploadedMedia.map(m => m.url);
+        else if (req.fileUrl) newFileUrls = [req.fileUrl];
+        
+        let existingUrls = [];
+        if (req.body.fileUrl && req.body.fileUrl !== 'null' && req.body.fileUrl !== '') {
+            existingUrls = req.body.fileUrl.split(',').filter(u => u.trim() !== '');
+        }
+        
+        const combined = [...existingUrls, ...newFileUrls];
+        const fileUrl = combined.length > 0 ? combined.join(',') : null;
 
         const doc = await prisma.officeDocument.create({
             data: {
@@ -137,6 +148,17 @@ exports.createOutgoingDocument = async (req, res) => {
             party2Name, party2Title, party2Org, party2Address,
         } = req.body;
 
+        let newFileUrls = [];
+        if (req.uploadedMedia && req.uploadedMedia.length > 0) newFileUrls = req.uploadedMedia.map(m => m.url);
+        else if (req.fileUrl) newFileUrls = [req.fileUrl];
+        
+        let existingUrls = [];
+        if (req.body.fileUrl && req.body.fileUrl !== 'null' && req.body.fileUrl !== '') {
+            existingUrls = req.body.fileUrl.split(',').filter(u => u.trim() !== '');
+        }
+        
+        const combined = [...existingUrls, ...newFileUrls];
+
         const doc = await prisma.officeDocument.create({
             data: {
                 type,
@@ -146,7 +168,7 @@ exports.createOutgoingDocument = async (req, res) => {
                 priority: priority || 'BIASA',
                 authorId: req.user.id,
                 status: 'DRAFT',
-                fileUrl: req.fileUrl || req.body.fileUrl || null,
+                fileUrl: combined.length > 0 ? combined.join(',') : null,
                 party1Name,
                 party1Title,
                 party1Org,
@@ -212,12 +234,22 @@ exports.updateDocument = async (req, res) => {
             party2Name, party2Title, party2Org, party2Address,
         } = req.body;
         let finalFileUrl = undefined;
-        if (req.fileUrl) {
-            finalFileUrl = req.fileUrl;
-        } else if (req.body.fileUrl === '' || req.body.fileUrl === 'null' || req.body.fileUrl === null) {
-            finalFileUrl = null;
-        } else if (req.body.fileUrl !== undefined) {
-            finalFileUrl = req.body.fileUrl;
+        if (req.uploadedMedia || req.fileUrl || req.body.fileUrl !== undefined) {
+            let newFileUrls = [];
+            if (req.uploadedMedia && req.uploadedMedia.length > 0) newFileUrls = req.uploadedMedia.map(m => m.url);
+            else if (req.fileUrl) newFileUrls = [req.fileUrl];
+            
+            let existingUrls = [];
+            if (req.body.fileUrl && req.body.fileUrl !== 'null' && req.body.fileUrl !== '') {
+                existingUrls = req.body.fileUrl.split(',').filter(u => u.trim() !== '');
+            }
+            
+            const combined = [...existingUrls, ...newFileUrls];
+            if (combined.length > 0) {
+                finalFileUrl = combined.join(',');
+            } else if (req.body.fileUrl === '' || req.body.fileUrl === 'null' || req.body.fileUrl === null) {
+                finalFileUrl = null;
+            }
         }
 
         const updated = await prisma.officeDocument.update({

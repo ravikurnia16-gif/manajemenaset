@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/officeDocumentController');
 const { verifyToken, authorizeRole, authorizeEOfficeAccess } = require('../middleware/authMiddleware');
-const { handleUpload } = require('../middleware/uploadMiddleware');
+const { handleUpload, handleBulkUpload } = require('../middleware/uploadMiddleware');
 
 // Public verification endpoint (no auth needed)
 router.get('/verify/:uuid', ctrl.verifyDocument);
@@ -19,15 +19,15 @@ router.get('/categories', ctrl.getCategories);
 
 // Surat Masuk (Incoming Mail)
 router.get('/incoming', ctrl.getIncomingMail);
-router.post('/incoming', handleUpload('file', 'e-office/surat-masuk'), ctrl.createIncomingMail);
+router.post('/incoming', handleBulkUpload('files', 5, 'e-office/surat-masuk'), ctrl.createIncomingMail);
 
 // Surat Keluar / BAST / MOU (Outgoing Documents)
 router.get('/outgoing', ctrl.getOutgoingDocuments);
-router.post('/outgoing', handleUpload('file', 'e-office/surat-keluar'), ctrl.createOutgoingDocument);
+router.post('/outgoing', handleBulkUpload('files', 5, 'e-office/surat-keluar'), ctrl.createOutgoingDocument);
 
 // Single document operations
 router.get('/:id', ctrl.getDocumentById);
-router.put('/:id', handleUpload('file', 'e-office'), ctrl.updateDocument);
+router.put('/:id', handleBulkUpload('files', 5, 'e-office'), ctrl.updateDocument);
 router.delete('/:id', authorizeRole(['SUPER_ADMIN']), ctrl.deleteDocument);
 
 // Workflow

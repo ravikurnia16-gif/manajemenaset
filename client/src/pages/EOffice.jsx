@@ -1181,7 +1181,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         party2Address: '',
         location: 'Padang',
     });
-    const [file, setFile] = useState(null);
+    const [files, setFiles] = useState([]);
     const [isMultipart, setIsMultipart] = useState(false);
     const [recipientType, setRecipientType] = useState('external');
     const [recipientsData, setRecipientsData] = useState({
@@ -1193,6 +1193,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     const [purchasingItems, setPurchasingItems] = useState([]);
     const [priceDetermined, setPriceDetermined] = useState(true);
     const [staffList, setStaffList] = useState([]);
+    const [lampiranText, setLampiranText] = useState('');
     const [taskData, setTaskData] = useState({
         basisList: [''],
         personnelList: [{ name: '', position: '', nip: '' }],
@@ -1276,7 +1277,10 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     if (parsed.recipientsData) {
                         setRecipientsData(parsed.recipientsData);
                     }
+                    setLampiranText(parsed.lampiranText || '');
                 } catch (e) {}
+            } else {
+                setLampiranText('');
             }
 
             if ((doc.type === 'BAST' || ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category)) && doc.content) {
@@ -1457,9 +1461,10 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             }
             
             contentObj.recipientsData = recipientsData;
+            contentObj.lampiranText = lampiranText;
             const contentJson = JSON.stringify(contentObj);
 
-            if (isMultipart || file) {
+            if (isMultipart || files.length > 0) {
                 payload = new FormData();
                 for (const key in formData) {
                     if (formData[key] !== null && formData[key] !== undefined) {
@@ -1467,8 +1472,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     }
                 }
                 payload.set('content', contentJson);
-                if (file) {
-                    payload.append('file', file);
+                if (files.length > 0) {
+                    files.forEach(f => payload.append('files', f));
                 }
                 config = { headers: { 'Content-Type': 'multipart/form-data' } };
             } else {
@@ -2582,20 +2587,24 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Upload File Surat Masuk (PDF/Gambar)</label>
                                 <input 
                                     type="file"
+                                    multiple
                                     accept=".pdf,.jpg,.jpeg,.png"
-                                    onChange={(e) => setFile(e.target.files[0])}
+                                    onChange={(e) => setFiles(Array.from(e.target.files))}
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                                     required={!doc?.fileUrl}
                                 />
-                                {((file && file.type.startsWith('image/')) || (!file && formData.fileUrl && formData.fileUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i))) && (
-                                    <div className="mt-3 relative inline-block rounded-xl overflow-hidden border border-slate-200">
-                                        <img 
-                                            src={file ? URL.createObjectURL(file) : formData.fileUrl} 
-                                            alt="Preview" 
-                                            className="h-40 object-contain bg-slate-50 rounded-xl"
-                                        />
-                                    </div>
-                                )}
+                                <div className="mt-3 flex flex-wrap gap-4">
+                                    {files.filter(f => f.type.startsWith('image/')).map((f, idx) => (
+                                        <div key={idx} className="relative inline-block rounded-xl overflow-hidden border border-slate-200">
+                                            <img src={URL.createObjectURL(f)} alt="Preview" className="h-40 object-contain bg-slate-50 rounded-xl" />
+                                        </div>
+                                    ))}
+                                    {files.length === 0 && formData.fileUrl && formData.fileUrl.split(',').filter(u => u.trim() !== '' && u.match(/\.(jpeg|jpg|gif|png|webp)$/i)).map((u, idx) => (
+                                        <div key={`existing-${idx}`} className="relative inline-block rounded-xl overflow-hidden border border-slate-200">
+                                            <img src={u} alt="Preview" className="h-40 object-contain bg-slate-50 rounded-xl" />
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
 
@@ -2642,7 +2651,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {formData.type !== 'SURAT_MASUK' && ['Edaran', 'Keputusan', 'Pemberitahuan', 'Tugas', 'BAST', 'Pesanan'].includes(formData.category) && (
+                        {formData.type !== 'SURAT_MASUK' && (
                             <div className="col-span-full p-6 bg-slate-50/50 rounded-2xl border border-dashed border-slate-300">
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-4">4. Lampiran Dokumen (Opsional)</label>
                                 <div className="space-y-4">
@@ -2652,20 +2661,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             rows={3}
                                             className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-medium"
                                             placeholder="Misal: Rincian jadwal kegiatan, Daftar peserta tambahan, dll..."
-                                            value={(() => {
-                                                if (formData.category === 'Edaran') return edaranData.lampiranText || '';
-                                                if (formData.category === 'Keputusan') return keputusanData.lampiranText || '';
-                                                if (formData.category === 'Pemberitahuan') return pemberitahuanData.lampiranText || '';
-                                                if (formData.category === 'Tugas') return taskData.lampiranText || '';
-                                                return '';
-                                            })()}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                if (formData.category === 'Edaran') setEdaranData({...edaranData, lampiranText: val});
-                                                if (formData.category === 'Keputusan') setKeputusanData({...keputusanData, lampiranText: val});
-                                                if (formData.category === 'Pemberitahuan') setPemberitahuanData({...pemberitahuanData, lampiranText: val});
-                                                if (formData.category === 'Tugas') setTaskData({...taskData, lampiranText: val});
-                                            }}
+                                            value={lampiranText}
+                                            onChange={(e) => setLampiranText(e.target.value)}
                                         />
                                     </div>
                                     <div className="flex items-center gap-4">
@@ -2674,10 +2671,11 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             <div className="relative group">
                                                 <input 
                                                     type="file" 
+                                                    multiple
                                                     id="lampiran-file"
                                                     className="hidden" 
                                                     accept="image/*,.pdf"
-                                                    onChange={(e) => setFile(e.target.files[0])}
+                                                    onChange={(e) => setFiles(Array.from(e.target.files))}
                                                 />
                                                 <label 
                                                     htmlFor="lampiran-file"
@@ -2687,24 +2685,27 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                         <Paperclip size={18} />
                                                     </div>
                                                     <span className="text-sm font-bold text-slate-600 truncate max-w-[200px] sm:max-w-full">
-                                                        {file ? file.name : (formData.fileUrl ? 'File sudah ada (klik untuk ganti)' : 'Pilih file lampiran...')}
+                                                        {files.length > 0 ? `${files.length} file dipilih` : (formData.fileUrl ? 'File sudah ada (klik untuk ganti)' : 'Pilih file lampiran...')}
                                                     </span>
                                                 </label>
                                             </div>
-                                            {((file && file.type.startsWith('image/')) || (!file && formData.fileUrl && formData.fileUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i))) && (
-                                                <div className="mt-3 relative inline-block rounded-xl overflow-hidden border border-slate-200">
-                                                    <img 
-                                                        src={file ? URL.createObjectURL(file) : formData.fileUrl} 
-                                                        alt="Preview Lampiran" 
-                                                        className="h-40 object-contain bg-slate-50 rounded-xl"
-                                                    />
-                                                </div>
-                                            )}
+                                            <div className="mt-3 flex flex-wrap gap-4">
+                                                {files.filter(f => f.type.startsWith('image/')).map((f, idx) => (
+                                                    <div key={idx} className="relative inline-block rounded-xl overflow-hidden border border-slate-200">
+                                                        <img src={URL.createObjectURL(f)} alt="Preview Lampiran" className="h-40 object-contain bg-slate-50 rounded-xl" />
+                                                    </div>
+                                                ))}
+                                                {files.length === 0 && formData.fileUrl && formData.fileUrl.split(',').filter(u => u.trim() !== '' && u.match(/\.(jpeg|jpg|gif|png|webp)$/i)).map((u, idx) => (
+                                                    <div key={`existing-${idx}`} className="relative inline-block rounded-xl overflow-hidden border border-slate-200">
+                                                        <img src={u} alt="Preview Lampiran" className="h-40 object-contain bg-slate-50 rounded-xl" />
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                        { (file || formData.fileUrl) && (
+                                        { (files.length > 0 || formData.fileUrl) && (
                                             <button 
                                                 type="button" 
-                                                onClick={() => { setFile(null); setFormData({...formData, fileUrl: ''}); }}
+                                                onClick={() => { setFiles([]); setFormData({...formData, fileUrl: ''}); }}
                                                 className="mt-5 p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"
                                                 title="Hapus Lampiran"
                                             >

@@ -1737,7 +1737,9 @@ async function drawLampiranSection(pdfDoc, doc, fontBold, fontRegular) {
     try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
 
     const hasTextLampiran = content.lampiranText && content.lampiranText.trim();
-    const hasPhotoLampiran = doc.fileUrl && (doc.fileUrl.toLowerCase().match(/\.(jpg|jpeg|png|webp)$/i) != null);
+    const fileUrls = doc.fileUrl ? doc.fileUrl.split(',').map(u => u.trim()).filter(u => u !== '') : [];
+    const photoUrls = fileUrls.filter(u => u.toLowerCase().match(/\.(jpg|jpeg|png|webp)$/i) != null);
+    const hasPhotoLampiran = photoUrls.length > 0;
 
     if (!hasTextLampiran && !hasPhotoLampiran) return;
 
@@ -1770,38 +1772,39 @@ async function drawLampiranSection(pdfDoc, doc, fontBold, fontRegular) {
     }
 
     if (hasPhotoLampiran) {
-        try {
-            let imgBytes;
-            let fileExt = '';
-            
-            if (doc.fileUrl.startsWith('http')) {
-                const response = await axios.get(doc.fileUrl, { responseType: 'arraybuffer' });
-                imgBytes = Buffer.from(response.data);
-                const contentType = response.headers['content-type'] || '';
-                if (contentType.includes('png')) fileExt = '.png';
-                else if (contentType.includes('jpeg') || contentType.includes('jpg')) fileExt = '.jpg';
-                else fileExt = doc.fileUrl.toLowerCase().endsWith('.png') ? '.png' : '.jpg';
-            } else if (doc.fileUrl.startsWith('/api/media/')) {
-                const { minioClient, bucketName } = require('./minioService');
-                const objectName = doc.fileUrl.replace('/api/media/', '');
-                try {
-                    const dataStream = await minioClient.getObject(bucketName, objectName);
-                    const chunks = [];
-                    for await (const chunk of dataStream) {
-                        chunks.push(chunk);
+        for (const url of photoUrls) {
+            try {
+                let imgBytes;
+                let fileExt = '';
+                
+                if (url.startsWith('http')) {
+                    const response = await axios.get(url, { responseType: 'arraybuffer' });
+                    imgBytes = Buffer.from(response.data);
+                    const contentType = response.headers['content-type'] || '';
+                    if (contentType.includes('png')) fileExt = '.png';
+                    else if (contentType.includes('jpeg') || contentType.includes('jpg')) fileExt = '.jpg';
+                    else fileExt = url.toLowerCase().endsWith('.png') ? '.png' : '.jpg';
+                } else if (url.startsWith('/api/media/')) {
+                    const { minioClient, bucketName } = require('./minioService');
+                    const objectName = url.replace('/api/media/', '');
+                    try {
+                        const dataStream = await minioClient.getObject(bucketName, objectName);
+                        const chunks = [];
+                        for await (const chunk of dataStream) {
+                            chunks.push(chunk);
+                        }
+                        imgBytes = Buffer.concat(chunks);
+                        fileExt = objectName.toLowerCase().endsWith('.png') ? '.png' : '.jpg';
+                    } catch (minioErr) {
+                        console.error('Failed to get from MinIO:', minioErr);
                     }
-                    imgBytes = Buffer.concat(chunks);
-                    fileExt = objectName.toLowerCase().endsWith('.png') ? '.png' : '.jpg';
-                } catch (minioErr) {
-                    console.error('Failed to get from MinIO:', minioErr);
+                } else {
+                    const filePath = path.join(__dirname, '..', url);
+                    if (fs.existsSync(filePath)) {
+                        imgBytes = fs.readFileSync(filePath);
+                        fileExt = path.extname(filePath).toLowerCase();
+                    }
                 }
-            } else {
-                const filePath = path.join(__dirname, '..', doc.fileUrl);
-                if (fs.existsSync(filePath)) {
-                    imgBytes = fs.readFileSync(filePath);
-                    fileExt = path.extname(filePath).toLowerCase();
-                }
-            }
 
             if (imgBytes) {
                 const img = (fileExt === '.png') ? await pdfDoc.embedPng(imgBytes) : await pdfDoc.embedJpg(imgBytes);
@@ -1836,6 +1839,8 @@ async function drawLampiranSection(pdfDoc, doc, fontBold, fontRegular) {
                     width: finalWidth,
                     height: finalHeight
                 });
+                
+                y -= finalHeight + 20; // Add spacing below each image
             }
         } catch (e) {
             console.error('Failed to draw photo lampiran:', e);
