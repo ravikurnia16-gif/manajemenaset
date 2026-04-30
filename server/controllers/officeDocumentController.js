@@ -160,6 +160,12 @@ exports.createOutgoingDocument = async (req, res) => {
         
         const combined = [...existingUrls, ...newFileUrls];
 
+        // For Lainnya category, reserve document number immediately
+        let reservedNumber = null;
+        if (category === 'Lainnya') {
+            reservedNumber = await generateDocumentNumber(category, type);
+        }
+
         const doc = await prisma.officeDocument.create({
             data: {
                 type,
@@ -169,6 +175,7 @@ exports.createOutgoingDocument = async (req, res) => {
                 priority: priority || 'BIASA',
                 authorId: req.user.id,
                 status: 'DRAFT',
+                number: reservedNumber,
                 fileUrl: combined.length > 0 ? combined.join(',') : null,
                 party1Name,
                 party1Title,
@@ -556,6 +563,26 @@ exports.generatePDF = async (req, res) => {
         } else if (doc.category === 'Umum') {
             pdfBytes = await generateSuratUmumPDF(doc, setting);
         } else if (doc.category === 'Lainnya' || doc.type === 'LAINNYA') {
+            // Lainnya: serve the uploaded file directly instead of generating
+            if (doc.fileUrl) {
+                const fileUrls = doc.fileUrl.split(',').filter(u => u.trim());
+                const pdfFile = fileUrls.find(u => u.toLowerCase().endsWith('.pdf'));
+                const docFile = fileUrls[0]; // fallback to first file
+                const targetUrl = pdfFile || docFile;
+                if (targetUrl) {
+                    try {
+                        const fileRes = await axios.get(targetUrl, { responseType: 'arraybuffer' });
+                        const contentType = pdfFile ? 'application/pdf' : 'application/octet-stream';
+                        const ext = targetUrl.split('.').pop().toLowerCase();
+                        res.setHeader('Content-Type', contentType);
+                        res.setHeader('Content-Disposition', `inline; filename="${doc.number || 'dokumen'}.${ext}"`);
+                        return res.send(Buffer.from(fileRes.data));
+                    } catch (dlErr) {
+                        console.error('Failed to download uploaded file:', dlErr.message);
+                    }
+                }
+            }
+            // Fallback: generate basic PDF if no file uploaded
             pdfBytes = await generateSuratLainnyaPDF(doc, setting);
         } else {
             pdfBytes = await generateSuratPDF(doc, setting);
@@ -913,5 +940,40 @@ exports.extractDocx = async (req, res) => {
     } catch (error) {
         console.error('extractDocx error:', error);
         res.status(500).json({ error: 'Gagal mengekstrak dokumen: ' + error.message });
+    }
+};
+
+// ==================== TTE ASSET DOWNLOAD ====================
+
+/**
+ * GET /api/office-documents/:id/tte-asset
+ * Download TTE QR Code as PNG image for pasting into external documents
+ */
+exports.downloadTTEAsset = async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const doc = await prisma.officeDocument.findUnique({
+            where: { id },
+            include: {
+                signedBy: { select: { id: true, name: true, nip: true, position: true } },
+            },
+        });
+
+        if (!doc) return res.status(404).json({ error: 'Document not found' });
+        if (doc.status !== 'SIGNED') {
+            return res.status(400).json({ error: 'Dokumen belum ditandatangani. TTE hanya tersedia setelah disetujui Kabid.' });
+        }
+
+        // Generate or use existing QR code
+        const qrDataUrl = doc.qrCodeData || await generateVerificationQR(doc.uuid);
+        const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
+        const qrBuffer = Buffer.from(qrBase64, 'base64');
+
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Content-Disposition', `attachment; filename="TTE_${doc.number || doc.id}.png"`);
+        res.send(qrBuffer);
+    } catch (error) {
+        console.error('downloadTTEAsset error:', error);
+        res.status(500).json({ error: 'Failed to download TTE asset' });
     }
 };

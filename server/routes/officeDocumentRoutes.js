@@ -54,4 +54,8 @@ router.post('/:id/send-wa', ctrl.sendInvoiceWA);
 // PDF generation
 router.get('/:id/pdf', ctrl.generatePDF);
 
+// TTE Asset Download
+router.get('/:id/tte-asset', ctrl.downloadTTEAsset);
+
 module.exports = router;
+

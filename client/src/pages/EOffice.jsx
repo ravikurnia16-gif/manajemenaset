@@ -961,27 +961,29 @@ const EOffice = () => {
                                     })()}
                                 </div>
                             ) : viewingDoc.category === 'Lainnya' ? (
-                                <div className="space-y-6">
-                                    {(() => {
-                                        try {
-                                            const data = JSON.parse(viewingDoc.content || '{}');
-                                            return (
-                                                <div className="space-y-6">
-                                                    <div className="text-center border-y border-slate-100 py-4">
-                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Judul Surat</div>
-                                                        <div className="text-sm font-black text-slate-900 uppercase leading-relaxed max-w-md mx-auto">{data.title || viewingDoc.subject}</div>
-                                                    </div>
-                                                    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Isi Dokumen (dari file yang diunggah)</div>
-                                                        <div className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed font-medium max-h-[400px] overflow-y-auto">{data.body || '(Kosong)'}</div>
-                                                    </div>
-                                                    <LampiranPreview doc={viewingDoc} />
-                                                </div>
-                                            );
-                                        } catch (e) {
-                                            return <p className="text-red-500 italic">Gagal memuat rincian dokumen</p>;
-                                        }
-                                    })()}
+                                <div className="p-6 bg-violet-50 rounded-2xl border border-violet-100">
+                                    <div className="text-center mb-6">
+                                        <div className="w-12 h-12 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <FileText size={24} />
+                                        </div>
+                                        <h3 className="text-lg font-black text-violet-900 mb-1">Dokumen Kategori Khusus</h3>
+                                        <p className="text-sm font-medium text-violet-700">Dokumen ini disusun di luar sistem (Ms. Word).</p>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-xl border border-violet-100 shadow-sm space-y-3 text-sm font-medium text-slate-700">
+                                        <div className="flex justify-between border-b border-slate-100 pb-3">
+                                            <span className="text-slate-500">Nomor Surat:</span>
+                                            <span className="font-bold font-mono">{viewingDoc.number || '-'}</span>
+                                        </div>
+                                        <div className="flex justify-between border-b border-slate-100 pb-3">
+                                            <span className="text-slate-500">Status File Final:</span>
+                                            <span className="font-bold">{viewingDoc.fileUrl ? '✅ File Tersedia' : '❌ File Belum Diunggah'}</span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 text-center pt-2">
+                                            {viewingDoc.fileUrl 
+                                                ? 'Klik "Lihat Dokumen Final" di bawah untuk melihat file.'
+                                                : 'Silakan Edit dokumen ini untuk mengunggah file final PDF Anda.'}
+                                        </p>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-slate-700 whitespace-pre-wrap leading-relaxed font-medium">
@@ -996,8 +998,16 @@ const EOffice = () => {
                                 onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
                                 className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20"
                             >
-                                <Printer size={18} /> Cetak PDF
+                                <Printer size={18} /> {viewingDoc.category === 'Lainnya' ? 'Lihat Dokumen Final' : 'Cetak PDF'}
                             </button>
+                            {viewingDoc.category === 'Lainnya' && viewingDoc.status === 'SIGNED' && (
+                                <button
+                                    onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/tte-asset?token=${localStorage.getItem('token')}`, '_blank')}
+                                    className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-violet-700 transition-all shadow-lg shadow-violet-600/20"
+                                >
+                                    <Download size={18} /> Unduh QR TTE
+                                </button>
+                            )}
                             {(viewingDoc.type === 'INVOICE' || viewingDoc.category === 'Invoice') && (
                                 <button
                                     onClick={() => handleSendWA(viewingDoc.id)}
@@ -2721,85 +2731,30 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div className="bg-violet-50/50 p-6 rounded-2xl border border-violet-100">
                                     <label className="text-xs font-black text-violet-600 uppercase tracking-widest mb-3 flex items-center gap-2">
                                         <div className="w-1.5 h-1.5 rounded-full bg-violet-600"></div>
-                                        3. Judul Surat
+                                        3. Nomor Surat & Instruksi
                                     </label>
-                                    <input
-                                        required
-                                        type="text"
-                                        className="w-full px-4 py-3 rounded-xl border border-violet-200 bg-white outline-none font-bold text-sm"
-                                        value={lainnyaData.title}
-                                        onChange={(e) => setLainnyaData({ ...lainnyaData, title: e.target.value.toUpperCase() })}
-                                        placeholder="Contoh: SURAT KETERANGAN / SURAT PERNYATAAN"
-                                    />
-                                    <p className="text-[10px] text-slate-400 mt-1">* Teks ini akan menjadi judul di tengah surat (di bawah Kop Surat)</p>
-                                </div>
-
-                                <div className="bg-violet-50/50 p-6 rounded-2xl border border-violet-100">
-                                    <label className="text-xs font-black text-violet-600 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-violet-600"></div>
-                                        4. Upload Dokumen (.doc / .docx)
-                                    </label>
-                                    <p className="text-[10px] text-slate-500 mb-3">Unggah file Word untuk mengekstrak isi dokumen secara otomatis.</p>
-                                    <div className="relative group">
-                                        <input
-                                            type="file"
-                                            id="docx-extract-file"
-                                            className="hidden"
-                                            accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                            onChange={async (e) => {
-                                                const file = e.target.files[0];
-                                                if (!file) return;
-                                                setExtractingDocx(true);
-                                                try {
-                                                    const fd = new FormData();
-                                                    fd.append('files', file);
-                                                    const res = await api.post('/office-documents/extract-docx', fd, {
-                                                        headers: { 'Content-Type': 'multipart/form-data' }
-                                                    });
-                                                    setLainnyaData(prev => ({ ...prev, body: res.data.text || '' }));
-                                                    alert('Konten berhasil diekstrak dari dokumen!');
-                                                } catch (err) {
-                                                    alert('Gagal mengekstrak: ' + (err.response?.data?.error || err.message));
-                                                } finally {
-                                                    setExtractingDocx(false);
-                                                }
-                                            }}
-                                        />
-                                        <label
-                                            htmlFor="docx-extract-file"
-                                            className={`flex items-center gap-3 px-5 py-4 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
-                                                extractingDocx
-                                                    ? 'border-violet-300 bg-violet-50 opacity-60 pointer-events-none'
-                                                    : 'border-slate-200 hover:border-violet-400 hover:bg-violet-50'
-                                            }`}
-                                        >
-                                            <div className={`p-2.5 rounded-lg ${extractingDocx ? 'bg-violet-200 text-violet-600 animate-pulse' : 'bg-slate-100 group-hover:bg-violet-100 group-hover:text-violet-600'}`}>
-                                                <FileText size={20} />
+                                    <div className="bg-white p-4 rounded-xl border border-violet-200 mb-4">
+                                        <p className="text-sm font-bold text-slate-700 mb-1">Nomor Surat Anda:</p>
+                                        {formData.number ? (
+                                            <div className="text-lg font-black text-violet-700 tracking-wider font-mono bg-violet-50 p-3 rounded-lg inline-block border border-violet-100">
+                                                {formData.number}
                                             </div>
-                                            <div>
-                                                <span className="text-sm font-bold text-slate-700 block">
-                                                    {extractingDocx ? 'Mengekstrak konten...' : 'Pilih file .doc / .docx'}
-                                                </span>
-                                                <span className="text-[10px] text-slate-400 font-medium">Isi dokumen akan diekstrak otomatis ke area di bawah</span>
+                                        ) : (
+                                            <div className="text-sm font-medium text-amber-600 bg-amber-50 p-3 rounded-lg inline-block border border-amber-100">
+                                                (Nomor akan muncul setelah Anda menekan tombol "Simpan Draft" di bawah)
                                             </div>
-                                        </label>
+                                        )}
                                     </div>
-                                </div>
-
-                                <div>
-                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
-                                        5. Isi Dokumen (Hasil Ekstraksi / Edit Manual)
-                                    </label>
-                                    <textarea
-                                        required
-                                        rows={12}
-                                        className="w-full px-5 py-4 rounded-2xl border-2 border-slate-200 focus:border-violet-400 focus:ring-0 outline-none font-medium leading-relaxed text-sm shadow-sm"
-                                        value={lainnyaData.body}
-                                        onChange={(e) => setLainnyaData({ ...lainnyaData, body: e.target.value })}
-                                        placeholder="Konten dari file Word akan muncul di sini, atau ketik manual..."
-                                    />
-                                    <p className="text-[10px] text-slate-400 mt-1">* Anda dapat mengedit teks hasil ekstraksi sebelum menyimpan.</p>
+                                    <div className="space-y-2 text-sm font-medium text-slate-600">
+                                        <p className="font-bold text-violet-700">Langkah-langkah:</p>
+                                        <ol className="list-decimal pl-5 space-y-1">
+                                            <li>Simpan dokumen ini sebagai <span className="font-bold">Draft</span> untuk mendapatkan Nomor Surat.</li>
+                                            <li>Ketik dokumen final Anda di Microsoft Word, dan masukkan Nomor Surat di atas ke dalam dokumen Anda.</li>
+                                            <li>Ajukan dokumen ini ke Kabid. Setelah disetujui, Anda dapat <span className="font-bold">Mengunduh QR Code TTE</span>.</li>
+                                            <li>Tempelkan gambar QR Code TTE tersebut ke dalam file Word Anda.</li>
+                                            <li>Simpan file Word Anda sebagai PDF, lalu <span className="font-bold">Unggah PDF Final</span> tersebut ke sistem ini melalui form upload di bawah ini.</li>
+                                        </ol>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -2835,7 +2790,9 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
 
                         {formData.type !== 'SURAT_MASUK' && (
                             <div className="col-span-full p-6 bg-slate-50/50 rounded-2xl border border-dashed border-slate-300">
-                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-4">4. Lampiran Dokumen (Opsional)</label>
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest block mb-4">
+                                    {formData.category === 'Lainnya' ? '4. Upload File Final (Wajib untuk Lainnya, PDF)' : '4. Lampiran Dokumen (Opsional)'}
+                                </label>
                                 <div className="space-y-4">
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Teks Lampiran (Jika ada rincian tambahan)</label>
