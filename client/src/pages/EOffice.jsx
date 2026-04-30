@@ -1609,8 +1609,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                         purpose: parsed.purpose || '',
                         locationName: parsed.locationName || '',
                         locationAddress: parsed.locationAddress || '',
-                        activities: parsed.activities || '',
-                        results: parsed.results || ''
+                        activities: Array.isArray(parsed.activities) ? parsed.activities : (parsed.activities ? [parsed.activities] : ['']),
+                        results: Array.isArray(parsed.results) ? parsed.results : (parsed.results ? [{ title: 'Hasil', items: [parsed.results] }] : [{ title: '', items: [''] }])
                     });
                 } catch (e) {
                     console.error('Failed to parse Berita Acara Kunjungan content JSON', e);
@@ -1654,8 +1654,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 purpose: '',
                 locationName: '',
                 locationAddress: '',
-                activities: '',
-                results: ''
+                activities: [''],
+                results: [{ title: '', items: [''] }]
             });
         }
     }, [doc, defaultType, isOpen]);
