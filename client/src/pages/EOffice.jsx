@@ -2860,7 +2860,6 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     </div>
                                 </div>
                             </div>
-                            </div>
                         )}
 
                         {formData.category === 'Berita Acara Kunjungan' && (
