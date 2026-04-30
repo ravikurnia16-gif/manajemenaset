@@ -345,7 +345,7 @@ exports.approveAndSign = async (req, res) => {
         };
 
         // For BAST/Serah Terima: Kabid approval = Pihak Pertama signature (TTE)
-        const isBAST = ['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang'].includes(doc.category));
+        const isBAST = ['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST', 'MOU'].includes(doc.category));
         if (isBAST) {
             updateData.party1SignedAt = new Date();
         }
@@ -413,7 +413,7 @@ exports.signAsParty = async (req, res) => {
 
         const doc = await prisma.officeDocument.findUnique({ where: { id } });
         if (!doc) return res.status(404).json({ error: 'Document not found' });
-        if (!['BAST', 'MOU'].includes(doc.type) && !(doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'MOU'].includes(doc.category))) {
+        if (!['BAST', 'MOU'].includes(doc.type) && !(doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST', 'MOU'].includes(doc.category))) {
             return res.status(400).json({ error: 'Multi-party signature only for BAST/MOU or related Surat Keluar categories' });
         }
 

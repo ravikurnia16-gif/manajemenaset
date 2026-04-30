@@ -427,21 +427,52 @@ const EOffice = () => {
                             <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Isi Dokumen / Rincian</label>
                             {['BAST', 'SURAT_KELUAR'].includes(viewingDoc.type) && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(viewingDoc.category) ? (
                                 <div className="space-y-4">
+                                    {/* Lokasi */}
+                                    {(() => {
+                                        try {
+                                            const content = JSON.parse(viewingDoc.content || '{}');
+                                            if (content.location) {
+                                                return (
+                                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+                                                            <Tag size={16} />
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Lokasi Penyerahan (Bertempat di)</div>
+                                                            <div className="text-sm font-bold text-slate-800">{content.location}</div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                        } catch(e) {}
+                                        return null;
+                                    })()}
+
                                     {/* Pihak 1 & Pihak 2 */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 relative">
                                             <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-1">Pihak Pertama</div>
                                             <div className="text-sm font-bold text-slate-800">{viewingDoc.party1Name || '-'}</div>
                                             <div className="text-[11px] text-slate-500">{viewingDoc.party1Title || ''}</div>
                                             {viewingDoc.party1Org && <div className="text-[11px] font-medium text-slate-600 mt-1">{viewingDoc.party1Org}</div>}
-                                            {viewingDoc.party1Address && <div className="text-[10px] text-slate-400 mt-0.5">{viewingDoc.party1Address}</div>}
+                                            
+                                            {viewingDoc.party1SignedAt && (
+                                                <div className="mt-3 pt-3 border-t border-blue-200/50 flex items-center gap-2 text-[10px] font-bold text-blue-700">
+                                                    <ShieldCheck size={14} /> Tanda Tangan Digital OK
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 relative">
                                             <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Pihak Kedua</div>
                                             <div className="text-sm font-bold text-slate-800">{viewingDoc.party2Name || '-'}</div>
                                             <div className="text-[11px] text-slate-500">{viewingDoc.party2Title || ''}</div>
                                             {viewingDoc.party2Org && <div className="text-[11px] font-medium text-slate-600 mt-1">{viewingDoc.party2Org}</div>}
-                                            {viewingDoc.party2Address && <div className="text-[10px] text-slate-400 mt-0.5">{viewingDoc.party2Address}</div>}
+                                            
+                                            {viewingDoc.party2SignedAt && (
+                                                <div className="mt-3 pt-3 border-t border-emerald-200/50 flex items-center gap-2 text-[10px] font-bold text-emerald-700">
+                                                    <CheckCircle2 size={14} /> Telah Ditandatangani
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     {/* Items Table */}
@@ -452,25 +483,20 @@ const EOffice = () => {
                                                     <th className="p-3 border-b border-slate-200">Jenis Barang</th>
                                                     <th className="p-3 border-b border-slate-200">Spesifikasi/SN</th>
                                                     <th className="p-3 border-b border-slate-200 w-24">Qty</th>
-                                                    <th className="p-3 border-b border-slate-200 w-32">Kondisi</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {(() => {
                                                     try {
-                                                        const items = JSON.parse(viewingDoc.content || '[]');
+                                                        const content = JSON.parse(viewingDoc.content || '{}');
+                                                        const items = Array.isArray(content) ? content : (content.items || []);
+                                                        if (items.length === 0) return <tr><td colSpan="3" className="p-4 text-center text-slate-400 italic">Tidak ada rincian barang</td></tr>;
+                                                        
                                                         return items.map((item, i) => (
                                                             <tr key={i} className="hover:bg-slate-50 transition-colors">
                                                                 <td className="p-3 border-b border-slate-100 font-medium">{item.name}</td>
                                                                 <td className="p-3 border-b border-slate-100 text-xs text-slate-500">{item.spec || '-'}</td>
-                                                                <td className="p-3 border-b border-slate-100">{item.qty}</td>
-                                                                <td className="p-3 border-b border-slate-100">
-                                                                    <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${
-                                                                        item.condition === 'Baik' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                                                                    }`}>
-                                                                        {item.condition}
-                                                                    </span>
-                                                                </td>
+                                                                <td className="p-3 border-b border-slate-100">{item.qty} {item.unit || ''}</td>
                                                             </tr>
                                                         ));
                                                     } catch(e) {
@@ -947,7 +973,7 @@ const EOffice = () => {
                             {/* Pihak 1 = Approval Kepala Bidang (TTE) */}
                             {viewingDoc.status === 'PENDING_APPROVAL' && isKabidSarpras && (
                                 <button 
-                                    onClick={() => { setViewingDoc(null); setSignatureRequest({ doc: viewingDoc }); }}
+                                    onClick={() => { setSignatureRequest({ doc: viewingDoc }); }}
                                     className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
                                 >
                                     <FileSignature size={18} /> Tandatangani Kepala Bidang
@@ -1114,7 +1140,11 @@ const EOffice = () => {
             <SignatureModal 
                 signatureRequest={signatureRequest} 
                 onClose={() => setSignatureRequest(null)} 
-                onSuccess={() => { fetchDocuments(); fetchStats(); }}
+                onSuccess={(updatedDoc) => { 
+                    fetchDocuments(); 
+                    fetchStats(); 
+                    if (updatedDoc) setViewingDoc(updatedDoc);
+                }}
             />
             <TypeSelectionModal 
                 isOpen={isTypeModalOpen}
@@ -2808,9 +2838,10 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
         try {
             const signatureData = dataUrl;
             
+            let res;
             if (party) {
                 // Multi-party sign
-                await api.post(`/office-documents/${doc.id}/sign-party`, {
+                res = await api.post(`/office-documents/${doc.id}/sign-party`, {
                     party,
                     signatureData,
                     name: party === 'party1' ? doc.party1Name : doc.party2Name,
@@ -2820,14 +2851,14 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
                 });
             } else {
                 // Kabid Approval sign
-                await api.post(`/office-documents/${doc.id}/approve`, {
+                res = await api.post(`/office-documents/${doc.id}/approve`, {
                     signatureData,
                     approvalNote
                 });
             }
             
             alert('Dokumen berhasil ditandatangani!');
-            onSuccess();
+            onSuccess(res.data);
             onClose();
         } catch (err) {
             alert('Gagal tanda tangan: ' + (err.response?.data?.error || err.message));
@@ -2835,7 +2866,7 @@ const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
                 <div className="p-8 text-center space-y-2">
                     <div className="mx-auto w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-4">
