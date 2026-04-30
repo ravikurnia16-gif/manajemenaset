@@ -349,19 +349,55 @@ const BusBooking = () => {
                                 <div className="text-[10px] font-black text-red-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                                     🔴 Belum Lunas ({unpaid.length} tagihan)
                                 </div>
-                                <div className="space-y-2 max-h-48 overflow-y-auto">
+                                {/* Per Unit Summary */}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-3">
                                     {Object.entries(unpaidByUnit).sort((a,b) => b[1].total - a[1].total).map(([unitName, data]) => (
-                                        <div key={unitName} className="bg-white/80 border border-red-100 rounded-xl p-3 flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 bg-red-100 text-red-600 rounded-lg flex items-center justify-center text-[10px] font-black">{data.count}</div>
-                                                <div>
-                                                    <div className="text-xs font-bold text-slate-800">{unitName}</div>
-                                                    <div className="text-[9px] text-slate-400">{data.items.map(b => b.vehicle?.name).filter((v,i,a) => a.indexOf(v) === i).join(', ')}</div>
-                                                </div>
-                                            </div>
+                                        <div key={unitName} className="bg-white/80 border border-red-100 rounded-xl p-2.5 text-center">
+                                            <div className="text-[9px] text-slate-400 font-bold uppercase">{unitName}</div>
                                             <div className="text-sm font-black text-red-600">Rp {data.total.toLocaleString('id-ID')}</div>
+                                            <div className="text-[9px] text-slate-400">{data.count} tagihan</div>
                                         </div>
                                     ))}
+                                </div>
+                                {/* Per User Detail List */}
+                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                    {(() => {
+                                        const byUser = unpaid.reduce((acc, b) => {
+                                            const name = b.requesterName || b.user?.name || 'Unknown';
+                                            if (!acc[name]) acc[name] = { unit: b.unit || 'Umum', phone: b.requesterPhone, total: 0, items: [] };
+                                            acc[name].total += (b.totalBill || 0);
+                                            acc[name].items.push(b);
+                                            return acc;
+                                        }, {});
+                                        return Object.entries(byUser).sort((a,b) => b[1].total - a[1].total).map(([name, data]) => (
+                                            <div key={name} className="bg-white/90 border border-red-100 rounded-xl overflow-hidden">
+                                                <div className="p-3 flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-[10px] font-black">{data.items.length}</div>
+                                                        <div>
+                                                            <div className="text-xs font-bold text-slate-800">{name}</div>
+                                                            <div className="text-[9px] text-slate-400">{data.unit} {data.phone ? `• ${data.phone}` : ''}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-sm font-black text-red-600">Rp {data.total.toLocaleString('id-ID')}</div>
+                                                </div>
+                                                <div className="border-t border-red-50 divide-y divide-red-50">
+                                                    {data.items.map(b => (
+                                                        <div key={b.id} className="px-3 py-2 flex items-center justify-between text-[10px] hover:bg-red-50/50 cursor-pointer transition" onClick={() => setSelectedBooking(b)}>
+                                                            <div className="flex items-center gap-2 text-slate-600">
+                                                                <Bus size={10} className="text-slate-400" />
+                                                                <span className="font-bold">{b.vehicle?.name}</span>
+                                                                <span className="text-slate-400">→ {b.destination}</span>
+                                                                <span className="text-slate-300">•</span>
+                                                                <span className="text-slate-400">{new Date(b.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>
+                                                            </div>
+                                                            <span className="font-black text-red-600">Rp {(b.totalBill || 0).toLocaleString('id-ID')}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ));
+                                    })()}
                                 </div>
                             </div>
                         )}
