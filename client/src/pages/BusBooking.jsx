@@ -1050,6 +1050,23 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter, isAdminAse
                         {unpaid.length > 0 && (
                             <div className="mb-3">
                                 <div className="text-[9px] font-black text-red-600 uppercase tracking-widest mb-1.5">🔴 Belum Lunas ({unpaid.length})</div>
+                                {/* Per Unit Totals */}
+                                <div className="flex flex-wrap gap-1.5 mb-2">
+                                    {(() => {
+                                        const byUnit = unpaid.reduce((acc, b) => {
+                                            const u = b.unit || 'Umum';
+                                            acc[u] = (acc[u] || 0) + (b.totalBill || 0);
+                                            return acc;
+                                        }, {});
+                                        return Object.entries(byUnit).sort((a,b) => b[1] - a[1]).map(([unit, total]) => (
+                                            <div key={unit} className="bg-white border border-red-100 rounded-lg px-2 py-1 text-center">
+                                                <div className="text-[8px] text-slate-400 font-bold">{unit}</div>
+                                                <div className="text-[10px] font-black text-red-600">Rp {total.toLocaleString('id-ID')}</div>
+                                            </div>
+                                        ));
+                                    })()}
+                                </div>
+                                {/* Per User List */}
                                 <div className="space-y-1 max-h-40 overflow-y-auto">
                                     {Object.entries(byUser).sort((a,b) => b[1].total - a[1].total).map(([name, data]) => (
                                         <div key={name} className="bg-white/80 border border-red-100 rounded-lg px-3 py-1.5 flex items-center justify-between">
