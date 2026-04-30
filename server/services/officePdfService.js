@@ -1737,7 +1737,7 @@ async function drawLampiranSection(pdfDoc, doc, fontBold, fontRegular) {
     try { content = JSON.parse(doc.content || '{}'); } catch (e) {}
 
     const hasTextLampiran = content.lampiranText && content.lampiranText.trim();
-    const hasPhotoLampiran = doc.fileUrl && (doc.fileUrl.toLowerCase().endsWith('.jpg') || doc.fileUrl.toLowerCase().endsWith('.jpeg') || doc.fileUrl.toLowerCase().endsWith('.png'));
+    const hasPhotoLampiran = doc.fileUrl && (doc.fileUrl.toLowerCase().match(/\.(jpg|jpeg|png|webp)$/i) != null);
 
     if (!hasTextLampiran && !hasPhotoLampiran) return;
 
@@ -1781,6 +1781,20 @@ async function drawLampiranSection(pdfDoc, doc, fontBold, fontRegular) {
                 if (contentType.includes('png')) fileExt = '.png';
                 else if (contentType.includes('jpeg') || contentType.includes('jpg')) fileExt = '.jpg';
                 else fileExt = doc.fileUrl.toLowerCase().endsWith('.png') ? '.png' : '.jpg';
+            } else if (doc.fileUrl.startsWith('/api/media/')) {
+                const { minioClient, bucketName } = require('./minioService');
+                const objectName = doc.fileUrl.replace('/api/media/', '');
+                try {
+                    const dataStream = await minioClient.getObject(bucketName, objectName);
+                    const chunks = [];
+                    for await (const chunk of dataStream) {
+                        chunks.push(chunk);
+                    }
+                    imgBytes = Buffer.concat(chunks);
+                    fileExt = objectName.toLowerCase().endsWith('.png') ? '.png' : '.jpg';
+                } catch (minioErr) {
+                    console.error('Failed to get from MinIO:', minioErr);
+                }
             } else {
                 const filePath = path.join(__dirname, '..', doc.fileUrl);
                 if (fs.existsSync(filePath)) {
