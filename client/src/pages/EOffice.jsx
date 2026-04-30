@@ -966,13 +966,11 @@ const EOffice = () => {
                                 </div>
                             )}
                         </div>
-                    </div>
-
-                    <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-2">
+                                      <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                        <div className="flex flex-wrap items-center gap-2">
                             <button
                                 onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
-                                className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20"
+                                className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20"
                             >
                                 <Printer size={18} /> Cetak PDF
                             </button>
@@ -980,13 +978,13 @@ const EOffice = () => {
                                 <button
                                     onClick={() => handleSendWA(viewingDoc.id)}
                                     disabled={sendingWA === viewingDoc.id}
-                                    className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                                    className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50"
                                 >
                                     <Send size={18} /> {sendingWA === viewingDoc.id ? 'Mengirim...' : 'Kirim WA'}
                                 </button>
                             )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
                             {(viewingDoc.status === 'DRAFT' || viewingDoc.status === 'REJECTED' || viewingDoc.status === 'PENDING_APPROVAL') && (
                                 <button
                                     onClick={() => {
@@ -994,7 +992,7 @@ const EOffice = () => {
                                         setViewingDoc(null);
                                         setIsFormOpen(true);
                                     }}
-                                    className="px-5 py-2.5 bg-amber-50 text-amber-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-amber-100 transition-all shadow-lg shadow-amber-600/5"
+                                    className="px-4 sm:px-5 py-2.5 bg-amber-50 text-amber-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-amber-100 transition-all shadow-lg shadow-amber-600/5"
                                 >
                                     <Edit2 size={18} /> Edit Dokumen
                                 </button>
@@ -1002,9 +1000,9 @@ const EOffice = () => {
                             {viewingDoc.status === 'DRAFT' && (
                                 <button
                                     onClick={() => handleSubmitForApproval(viewingDoc.id)}
-                                    className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20"
+                                    className="px-4 sm:px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20"
                                 >
-                                    <Send size={18} /> Ajukan Persetujuan
+                                    <Send size={18} /> Ajukan
                                 </button>
                             )}
 
@@ -1014,7 +1012,7 @@ const EOffice = () => {
                                     {!viewingDoc.party2Signature && (
                                         <button
                                             onClick={() => setSignatureRequest({ doc: viewingDoc, party: 'party2' })}
-                                            className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                                            className="px-4 sm:px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
                                         >
                                             <FileSignature size={18} /> TTD Pihak 2 (Pad)
                                         </button>
@@ -1026,30 +1024,30 @@ const EOffice = () => {
                             {viewingDoc.status === 'PENDING_APPROVAL' && isKabidSarpras && (
                                 <button
                                     onClick={() => { setSignatureRequest({ doc: viewingDoc }); }}
-                                    className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
+                                    className="px-4 sm:px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
                                 >
-                                    <FileSignature size={18} /> Tandatangani Kepala Bidang
+                                    <FileSignature size={18} /> TTE Kabid
                                 </button>
                             )}
 
                             {viewingDoc.type === 'INVOICE' && (
                                 <button
                                     onClick={() => handleTogglePaymentStatus(viewingDoc.id, getPaymentStatus(viewingDoc))}
-                                    className={`px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg ${getPaymentStatus(viewingDoc) === 'PAID'
+                                    className={`px-4 sm:px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg ${getPaymentStatus(viewingDoc) === 'PAID'
                                             ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 shadow-amber-600/10'
                                             : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/20'
                                         }`}
                                 >
-                                    <CheckCircle2 size={18} /> {getPaymentStatus(viewingDoc) === 'PAID' ? 'Set Belum Lunas' : 'Tandai Lunas'}
+                                    <CheckCircle2 size={18} /> {getPaymentStatus(viewingDoc) === 'PAID' ? 'Unpaid' : 'Lunas'}
                                 </button>
                             )}
 
                             {viewingDoc.type === 'INVOICE' && (
                                 <button
                                     onClick={() => handleSendInvoiceWA(viewingDoc.id)}
-                                    className="px-5 py-2.5 bg-blue-50 text-blue-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-100 transition-all shadow-lg shadow-blue-600/5"
+                                    className="px-4 sm:px-5 py-2.5 bg-blue-50 text-blue-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-100 transition-all shadow-lg shadow-blue-600/5"
                                 >
-                                    <Send size={18} /> Kirim Notif WA
+                                    <Send size={18} /> Tagihan
                                 </button>
                             )}
 
