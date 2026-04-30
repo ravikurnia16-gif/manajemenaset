@@ -1432,8 +1432,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const isMultipart = formData.type === 'SURAT_MASUK';
-            let payload = formData;
+            let payload;
             let config = {};
 
             let contentObj = {};
@@ -1462,26 +1461,24 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             contentObj.lampiranText = lampiranText;
             const contentJson = JSON.stringify(contentObj);
 
-            if (isMultipart || files.length > 0) {
-                payload = new FormData();
-                for (const key in formData) {
-                    if (formData[key] !== null && formData[key] !== undefined) {
-                        payload.append(key, formData[key]);
-                    }
+            // Always use FormData since all backend routes use handleBulkUpload (multer) middleware
+            payload = new FormData();
+            for (const key in formData) {
+                if (formData[key] !== null && formData[key] !== undefined) {
+                    payload.append(key, formData[key]);
                 }
-                payload.set('content', contentJson);
-                if (files.length > 0) {
-                    files.forEach(f => payload.append('files', f));
-                }
-                config = { headers: { 'Content-Type': 'multipart/form-data' } };
-            } else {
-                payload = { ...formData, content: contentJson };
             }
+            payload.set('content', contentJson);
+            if (files.length > 0) {
+                files.forEach(f => payload.append('files', f));
+            }
+            config = { headers: { 'Content-Type': 'multipart/form-data' } };
 
             if (doc && doc.id) {
                 await api.put(`/office-documents/${doc.id}`, payload, config);
             } else {
-                await api.post(isMultipart ? '/office-documents/incoming' : '/office-documents/outgoing', payload, config);
+                const endpoint = formData.type === 'SURAT_MASUK' ? '/office-documents/incoming' : '/office-documents/outgoing';
+                await api.post(endpoint, payload, config);
             }
             onSuccess();
             onClose();
