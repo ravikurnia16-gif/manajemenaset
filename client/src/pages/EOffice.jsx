@@ -1408,6 +1408,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 party2Title: '',
                 party2Org: '',
                 party2Address: '',
+                location: 'Komplek Islamic Center, Surau Gadang, Kec. Nanggalo, Kota Padang',
             });
             setBastItems([{ name: '', qty: '', condition: 'Baik' }]);
             setPurchasingItems([{ name: '', spec: '', qty: '', unit: 'Pcs', price: '', total: 0 }]);

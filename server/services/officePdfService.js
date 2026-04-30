@@ -605,7 +605,7 @@ async function generateBASTMouPDF(doc, setting) {
             const qrBytes = Buffer.from(qrData.replace(/^data:image\/png;base64,/, ''), 'base64');
             const qrImage = await pdfDoc.embedPng(qrBytes);
             const qrSize = 65;
-            const qrX = col1X + 15;
+            const qrX = col1X;
             const qrY = y + 10;
             page.drawImage(qrImage, { x: qrX, y: qrY, width: qrSize, height: qrSize });
 
