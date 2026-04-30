@@ -1,10 +1,13 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { generateDocumentNumber, getCategoryCodes } = require('../services/documentNumberingService');
-const { generateVerificationQR, generateSuratPDF, generateBASTMouPDF, generateSuratTugasPDF, generateSuratPesananPDF, generateInvoicePDF, generateSuratEdaranPDF, generateKeputusanPDF, generatePemberitahuanPDF, generateSuratUmumPDF, generateSuratLainnyaPDF } = require('../services/officePdfService');
+const { generateVerificationQR, generateSuratPDF, generateBASTMouPDF, generateSuratTugasPDF, generateSuratPesananPDF, generateInvoicePDF, generateSuratEdaranPDF, generateKeputusanPDF, generatePemberitahuanPDF, generateSuratUmumPDF, generateBeritaAcaraKunjunganPDF, generateSuratLainnyaPDF } = require('../services/officePdfService');
 const mammoth = require('mammoth');
 const crypto = require('crypto');
 const whatsappService = require('../services/whatsappService');
+const sharp = require('sharp');
+const path = require('path');
+const fs = require('fs');
 
 // ==================== SURAT MASUK ====================
 
@@ -562,6 +565,8 @@ exports.generatePDF = async (req, res) => {
             pdfBytes = await generateSuratTugasPDF(doc, setting);
         } else if (doc.category === 'Umum') {
             pdfBytes = await generateSuratUmumPDF(doc, setting);
+        } else if (doc.category === 'Berita Acara Kunjungan') {
+            pdfBytes = await generateBeritaAcaraKunjunganPDF(doc, setting);
         } else if (doc.category === 'Lainnya' || doc.type === 'LAINNYA') {
             // Lainnya: serve the uploaded file directly instead of generating
             if (doc.fileUrl) {
@@ -969,11 +974,73 @@ exports.downloadTTEAsset = async (req, res) => {
         const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
         const qrBuffer = Buffer.from(qrBase64, 'base64');
 
+        // Composite logo onto the center of the QR code
+        const logoPath = path.join(__dirname, '../assets/logo_yayasan.jpg');
+        let finalBuffer = qrBuffer;
+        
+        if (fs.existsSync(logoPath)) {
+            // Resize logo to fit in the center (e.g., 20% of the QR code size)
+            // The QR code width is 300px based on generateVerificationQR. Let's make logo 60x60
+            const resizedLogo = await sharp(logoPath)
+                .resize(60, 60, { fit: 'inside' })
+                .toBuffer();
+
+            // Composite the logo over the QR code
+            finalBuffer = await sharp(qrBuffer)
+                .composite([
+                    {
+                        input: resizedLogo,
+                        gravity: 'center'
+                    }
+                ])
+                .png()
+                .toBuffer();
+        }
+
         res.setHeader('Content-Type', 'image/png');
         res.setHeader('Content-Disposition', `attachment; filename="TTE_${doc.number || doc.id}.png"`);
-        res.send(qrBuffer);
+        res.send(finalBuffer);
     } catch (error) {
         console.error('downloadTTEAsset error:', error);
         res.status(500).json({ error: 'Failed to download TTE asset' });
+    }
+};
+
+/**
+ * PUT /api/office-documents/:id/final-file
+ * Upload final PDF file for a document that is already SIGNED (specifically used for Lainnya offline workflow)
+ */
+exports.uploadFinalFile = async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const doc = await prisma.officeDocument.findUnique({ where: { id } });
+        if (!doc) return res.status(404).json({ error: 'Document not found' });
+        
+        if (doc.status !== 'SIGNED') {
+            return res.status(400).json({ error: 'Endpoint ini khusus untuk mengunggah file final dokumen yang sudah ditandatangani.' });
+        }
+
+        let newFileUrls = [];
+        if (req.uploadedMedia && req.uploadedMedia.length > 0) {
+            newFileUrls = req.uploadedMedia.map(m => m.url);
+        }
+
+        if (newFileUrls.length === 0) {
+            return res.status(400).json({ error: 'Tidak ada file yang diunggah.' });
+        }
+
+        const updated = await prisma.officeDocument.update({
+            where: { id },
+            data: { fileUrl: newFileUrls.join(',') },
+            include: {
+                author: { select: { id: true, name: true } },
+                signedBy: { select: { id: true, name: true, nip: true } },
+            },
+        });
+
+        res.json(updated);
+    } catch (error) {
+        console.error('uploadFinalFile error:', error);
+        res.status(500).json({ error: 'Gagal mengunggah file final' });
     }
 };

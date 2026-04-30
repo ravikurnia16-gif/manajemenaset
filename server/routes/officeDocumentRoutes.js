@@ -31,6 +31,7 @@ router.post('/outgoing', handleBulkUpload('files', 5, 'e-office/surat-keluar'), 
 // Single document operations
 router.get('/:id', ctrl.getDocumentById);
 router.put('/:id', handleBulkUpload('files', 5, 'e-office'), ctrl.updateDocument);
+router.put('/:id/final-file', handleBulkUpload('files', 1, 'e-office/final'), ctrl.uploadFinalFile);
 router.delete('/:id', authorizeRole(['SUPER_ADMIN']), ctrl.deleteDocument);
 
 // Workflow

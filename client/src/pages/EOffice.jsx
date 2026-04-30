@@ -960,6 +960,44 @@ const EOffice = () => {
                                         }
                                     })()}
                                 </div>
+                            ) : viewingDoc.category === 'Berita Acara Kunjungan' ? (
+                                <div className="space-y-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
+                                    {(() => {
+                                        try {
+                                            const data = JSON.parse(viewingDoc.content || '{}');
+                                            return (
+                                                <div className="grid grid-cols-1 gap-4 text-sm text-slate-700">
+                                                    <div className="grid grid-cols-2 gap-4 pb-4 border-b border-slate-200">
+                                                        <div>
+                                                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tanggal Kunjungan</div>
+                                                            <div className="font-bold text-slate-900">{data.date ? formatDate(data.date) : '-'}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tujuan</div>
+                                                            <div className="font-bold text-slate-900">{data.purpose || '-'}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="pb-4 border-b border-slate-200">
+                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lokasi Kunjungan</div>
+                                                        <div className="font-bold text-slate-900">{data.locationName || '-'}</div>
+                                                        <div className="text-slate-500">{data.locationAddress || '-'}</div>
+                                                    </div>
+                                                    <div className="pb-4 border-b border-slate-200">
+                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Uraian Kegiatan</div>
+                                                        <div className="whitespace-pre-wrap leading-relaxed">{data.activities || '-'}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Hasil & Catatan Kunjungan</div>
+                                                        <div className="whitespace-pre-wrap leading-relaxed">{data.results || '-'}</div>
+                                                    </div>
+                                                    <LampiranPreview doc={viewingDoc} />
+                                                </div>
+                                            );
+                                        } catch (e) {
+                                            return <p className="text-red-500 italic">Gagal memuat rincian kunjungan</p>;
+                                        }
+                                    })()}
+                                </div>
                             ) : viewingDoc.category === 'Lainnya' ? (
                                 <div className="p-6 bg-violet-50 rounded-2xl border border-violet-100">
                                     <div className="text-center mb-6">
@@ -981,8 +1019,40 @@ const EOffice = () => {
                                         <p className="text-xs text-slate-500 text-center pt-2">
                                             {viewingDoc.fileUrl 
                                                 ? 'Klik "Lihat Dokumen Final" di bawah untuk melihat file.'
-                                                : 'Silakan Edit dokumen ini untuk mengunggah file final PDF Anda.'}
+                                                : 'Silakan unggah file final PDF Anda di bawah ini.'}
                                         </p>
+                                        {viewingDoc.status === 'SIGNED' && (
+                                            <div className="pt-4 border-t border-slate-100">
+                                                <input
+                                                    type="file"
+                                                    id="upload-final-file"
+                                                    className="hidden"
+                                                    accept=".pdf,application/pdf"
+                                                    onChange={async (e) => {
+                                                        const file = e.target.files[0];
+                                                        if (!file) return;
+                                                        try {
+                                                            const fd = new FormData();
+                                                            fd.append('files', file);
+                                                            await api.put(`/office-documents/${viewingDoc.id}/final-file`, fd, {
+                                                                headers: { 'Content-Type': 'multipart/form-data' }
+                                                            });
+                                                            alert('File final berhasil diunggah!');
+                                                            // Close modal and refresh (we don't have direct access to fetchDocuments here so we reload)
+                                                            window.location.reload();
+                                                        } catch (err) {
+                                                            alert('Gagal mengunggah file: ' + (err.response?.data?.error || err.message));
+                                                        }
+                                                    }}
+                                                />
+                                                <label
+                                                    htmlFor="upload-final-file"
+                                                    className="w-full px-4 py-2 bg-violet-100 text-violet-700 hover:bg-violet-200 rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                                                >
+                                                    <FileText size={16} /> {viewingDoc.fileUrl ? 'Perbarui File Final' : 'Unggah File Final PDF'}
+                                                </label>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -1311,6 +1381,14 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     });
     const [umumData, setUmumData] = useState({ subCategory: '', body: '' });
     const [lainnyaData, setLainnyaData] = useState({ title: '', body: '' });
+    const [kunjunganData, setKunjunganData] = useState({
+        date: formatDate(new Date(), 'input'),
+        purpose: '',
+        locationName: '',
+        locationAddress: '',
+        activities: '',
+        results: ''
+    });
     const [extractingDocx, setExtractingDocx] = useState(false);
     const [keputusanData, setKeputusanData] = useState({
         menimbang: [''],
@@ -1499,6 +1577,21 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     console.error('Failed to parse Lainnya content JSON', e);
                 }
             }
+            if (doc.category === 'Berita Acara Kunjungan' && doc.content) {
+                try {
+                    const parsed = JSON.parse(doc.content);
+                    setKunjunganData({
+                        date: parsed.date || formatDate(new Date(), 'input'),
+                        purpose: parsed.purpose || '',
+                        locationName: parsed.locationName || '',
+                        locationAddress: parsed.locationAddress || '',
+                        activities: parsed.activities || '',
+                        results: parsed.results || ''
+                    });
+                } catch (e) {
+                    console.error('Failed to parse Berita Acara Kunjungan content JSON', e);
+                }
+            }
         } else {
             setFormData({
                 type: defaultType,
@@ -1532,6 +1625,14 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 location: '',
                 carbonCopy: ['']
             });
+            setKunjunganData({
+                date: formatDate(new Date(), 'input'),
+                purpose: '',
+                locationName: '',
+                locationAddress: '',
+                activities: '',
+                results: ''
+            });
         }
     }, [doc, defaultType, isOpen]);
 
@@ -1562,6 +1663,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 contentObj = { ...umumData };
             } else if (formData.category === 'Lainnya') {
                 contentObj = { ...lainnyaData };
+            } else if (formData.category === 'Berita Acara Kunjungan') {
+                contentObj = { ...kunjunganData };
             } else {
                 // Default for plain letters
                 contentObj = { text: formData.content };
@@ -1632,7 +1735,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             <div className="col-span-full bg-blue-50/50 p-6 rounded-2xl border border-blue-100 mb-2">
                                 <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 block">1. Pilih Kategori Surat Keluar</label>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                    {['Tugas', 'Keputusan', 'Pemberitahuan', 'BAST', 'Pesanan', 'Edaran', 'Umum', 'Lainnya'].map(c => (
+                                    {['Tugas', 'Keputusan', 'Pemberitahuan', 'BAST', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
                                         <button
                                             key={c}
                                             type="button"
@@ -2712,7 +2815,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {formData.type !== 'SURAT_MASUK' && !['Berita Acara', 'Serah Terima Barang', 'BAST', 'Pesanan', 'Tugas', 'Edaran', 'Keputusan', 'Pemberitahuan', 'Umum', 'Lainnya'].includes(formData.category) && !['BAST', 'MOU'].includes(formData.type) && (
+                        {formData.type !== 'SURAT_MASUK' && !['Berita Acara', 'Serah Terima Barang', 'BAST', 'Pesanan', 'Tugas', 'Edaran', 'Keputusan', 'Pemberitahuan', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].includes(formData.category) && !['BAST', 'MOU'].includes(formData.type) && (
                             <div className="col-span-full">
                                 <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Isi Dokumen / Pesan</label>
                                 <textarea
@@ -2754,6 +2857,85 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             <li>Tempelkan gambar QR Code TTE tersebut ke dalam file Word Anda.</li>
                                             <li>Simpan file Word Anda sebagai PDF, lalu <span className="font-bold">Unggah PDF Final</span> tersebut ke sistem ini melalui form upload di bawah ini.</li>
                                         </ol>
+                                    </div>
+                                </div>
+                            </div>
+                            </div>
+                        )}
+
+                        {formData.category === 'Berita Acara Kunjungan' && (
+                            <div className="col-span-full animate-in zoom-in duration-300 space-y-6">
+                                <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
+                                    3. Rincian Kunjungan
+                                </label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Tanggal Kunjungan</label>
+                                        <input
+                                            type="date"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold"
+                                            value={kunjunganData.date}
+                                            onChange={(e) => setKunjunganData({ ...kunjunganData, date: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Tujuan Kunjungan</label>
+                                        <input
+                                            type="text"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold"
+                                            placeholder="Contoh: Survei Lokasi Pembangunan"
+                                            value={kunjunganData.purpose}
+                                            onChange={(e) => setKunjunganData({ ...kunjunganData, purpose: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Nama Tempat/Instansi</label>
+                                        <input
+                                            type="text"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold"
+                                            placeholder="Contoh: Proyek Gedung A"
+                                            value={kunjunganData.locationName}
+                                            onChange={(e) => setKunjunganData({ ...kunjunganData, locationName: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Alamat Lengkap Lokasi</label>
+                                        <input
+                                            type="text"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-bold"
+                                            placeholder="Contoh: Jl. Sudirman No. 12"
+                                            value={kunjunganData.locationAddress}
+                                            onChange={(e) => setKunjunganData({ ...kunjunganData, locationAddress: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Uraian Kegiatan (Bisa menggunakan poin nomor)</label>
+                                        <textarea
+                                            rows={5}
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-medium leading-relaxed"
+                                            placeholder="1. Peninjauan fisik area proyek&#10;2. Pengumpulan data..."
+                                            value={kunjunganData.activities}
+                                            onChange={(e) => setKunjunganData({ ...kunjunganData, activities: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Hasil & Catatan Kunjungan (Bisa menggunakan poin strip/bullet)</label>
+                                        <textarea
+                                            rows={5}
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none text-sm font-medium leading-relaxed"
+                                            placeholder="- Kondisi lahan siap bangun&#10;- Perlu koordinasi lebih lanjut..."
+                                            value={kunjunganData.results}
+                                            onChange={(e) => setKunjunganData({ ...kunjunganData, results: e.target.value })}
+                                            required
+                                        />
                                     </div>
                                 </div>
                             </div>

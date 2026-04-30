@@ -2013,8 +2013,160 @@ module.exports = {
     generateKeputusanPDF,
     generatePemberitahuanPDF,
     generateSuratUmumPDF,
-    generateSuratLainnyaPDF
+    generateSuratLainnyaPDF,
+    generateBeritaAcaraKunjunganPDF
 };
+
+/**
+ * GENERATE BERITA ACARA KUNJUNGAN
+ */
+async function generateBeritaAcaraKunjunganPDF(doc, setting) {
+    const { pdfDoc, fontBold, fontRegular, width, height, margin } = await createBasePDF(setting);
+    let page = pdfDoc.getPages()[0];
+    const contentWidth = width - (2 * margin);
+    const cursor = { y: height - 145 };
+
+    // Draw Kop Surat
+    await drawKopSurat(page, fontBold, fontRegular);
+
+    const content = typeof doc.content === 'string' ? JSON.parse(doc.content) : (doc.content || {});
+
+    // Title
+    const title = "BERITA ACARA KUNJUNGAN";
+    const titleWidth = fontBold.widthOfTextAtSize(title, 14);
+    page.drawText(title, { x: (width - titleWidth) / 2, y: cursor.y, size: 14, font: fontBold });
+    cursor.y -= 2;
+    page.drawLine({ start: { x: (width - titleWidth) / 2, y: cursor.y }, end: { x: (width + titleWidth) / 2, y: cursor.y }, thickness: 1.5 });
+    cursor.y -= 15;
+
+    if (doc.number) {
+        const numberText = `Nomor: ${doc.number}`;
+        const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
+        page.drawText(numberText, { x: (width - numWidth) / 2, y: cursor.y, size: 11, font: fontRegular });
+        cursor.y -= 30;
+    } else {
+        cursor.y -= 20;
+    }
+
+    const checkPage = (needed) => {
+        if (cursor.y < 60 + needed) {
+            page = pdfDoc.addPage([595.28, 841.89]);
+            cursor.y = height - 60;
+        }
+    };
+
+    const drawTextWrapped = (text, xOffset, size, font, lineHeight = 15) => {
+        const lines = wrapText(text, contentWidth - xOffset, font, size);
+        lines.forEach(line => {
+            checkPage(lineHeight);
+            page.drawText(line, { x: margin + xOffset, y: cursor.y, size, font });
+            cursor.y -= lineHeight;
+        });
+    };
+
+    const drawJustified = (text, x, w, font, size) => {
+        const lines = wrapText(text, w, font, size);
+        lines.forEach((line, i) => {
+            const isLast = i === lines.length - 1;
+            checkPage(20);
+            if (isLast || line.split(' ').length <= 1) {
+                page.drawText(line, { x, y: cursor.y, size, font });
+            } else {
+                const words = line.split(' ');
+                const totalW = words.reduce((acc, word) => acc + font.widthOfTextAtSize(word, size), 0);
+                const spaceW = (w - totalW) / (words.length - 1);
+                let curX = x;
+                words.forEach((word) => {
+                    page.drawText(word, { x: curX, y: cursor.y, size, font });
+                    curX += font.widthOfTextAtSize(word, size) + spaceW;
+                });
+            }
+            cursor.y -= 15;
+        });
+    };
+
+    // Pembukaan
+    const d = new Date(content.date || doc.date || new Date());
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    
+    const openingText = `Pada hari ini, ${days[d.getDay()]} tanggal ${d.getDate()} bulan ${months[d.getMonth()]} tahun ${d.getFullYear()}, telah dilaksanakan kegiatan kunjungan dalam rangka ${content.purpose || '................................'}.`;
+    
+    drawJustified(openingText, margin, contentWidth, fontRegular, 11);
+    cursor.y -= 15;
+
+    // Bagian I: LOKASI
+    checkPage(40);
+    page.drawText("I. LOKASI KUNJUNGAN", { x: margin, y: cursor.y, size: 11, font: fontBold });
+    cursor.y -= 15;
+    page.drawText("Kegiatan kunjungan tersebut dilaksanakan di:", { x: margin, y: cursor.y, size: 11, font: fontRegular });
+    cursor.y -= 20;
+
+    checkPage(40);
+    drawTextWrapped(content.locationName || '-', 20, 11, fontBold);
+    cursor.y -= 5;
+    drawTextWrapped(content.locationAddress || '-', 20, 11, fontRegular);
+    cursor.y -= 15;
+
+    // Bagian II: URAIAN
+    checkPage(40);
+    page.drawText("II. URAIAN KEGIATAN", { x: margin, y: cursor.y, size: 11, font: fontBold });
+    cursor.y -= 15;
+    page.drawText("Selama kunjungan berlangsung, rangkaian kegiatan yang telah dilaksanakan adalah:", { x: margin, y: cursor.y, size: 11, font: fontRegular });
+    cursor.y -= 20;
+
+    if (content.activities) {
+        const activities = content.activities.split('\n').filter(a => a.trim());
+        activities.forEach(act => {
+            drawTextWrapped(act, 20, 11, fontRegular);
+            cursor.y -= 5;
+        });
+    }
+    cursor.y -= 10;
+
+    // Bagian III: HASIL
+    checkPage(40);
+    page.drawText("III. HASIL & CATATAN KUNJUNGAN", { x: margin, y: cursor.y, size: 11, font: fontBold });
+    cursor.y -= 15;
+    page.drawText("Berdasarkan hasil kunjungan di lokasi tersebut, terdapat beberapa poin penting sebagai berikut:", { x: margin, y: cursor.y, size: 11, font: fontRegular });
+    cursor.y -= 20;
+
+    if (content.results) {
+        const results = content.results.split('\n').filter(r => r.trim());
+        results.forEach(res => {
+            drawTextWrapped(res, 20, 11, fontRegular);
+            cursor.y -= 5;
+        });
+    }
+    cursor.y -= 15;
+
+    // Penutup
+    const closingText = "Demikian Berita Acara ini dibuat dengan sebenarnya sesuai dengan kondisi di lapangan untuk dapat dipergunakan sebagaimana mestinya.";
+    drawJustified(closingText, margin, contentWidth, fontRegular, 11);
+    cursor.y -= 30;
+
+    // Signature
+    const sigX = width - 250;
+    checkPage(120);
+    
+    page.drawText(`Dibuat di: ${doc.location || 'Padang'}`, { x: margin, y: cursor.y, size: 11, font: fontRegular });
+    cursor.y -= 20;
+    
+    page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana dan Prasarana,', { x: sigX, y: cursor.y, size: 10, font: fontBold });
+    cursor.y -= 65;
+
+    await drawDigitalSignature(page, doc, sigX, cursor.y, 60);
+    cursor.y -= 10;
+
+    page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: sigX, y: cursor.y, size: 10, font: fontBold });
+    cursor.y -= 14;
+    if (doc.signedBy?.nip || doc.party1Nip) {
+        page.drawText(`NIY. ${doc.signedBy?.nip || doc.party1Nip}`, { x: sigX, y: cursor.y, size: 10, font: fontRegular });
+    }
+
+    await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
+    return await pdfDoc.save();
+}
 
 /**
  * GENERATE SURAT UMUM (GENERAL LETTER)
