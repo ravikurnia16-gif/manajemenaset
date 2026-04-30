@@ -2118,7 +2118,7 @@ async function generateBeritaAcaraKunjunganPDF(doc, setting) {
     if (content.activities) {
         const activities = content.activities.split('\n').filter(a => a.trim());
         activities.forEach(act => {
-            drawTextWrapped(act, 20, 11, fontRegular);
+            drawJustified(act, margin + 20, contentWidth - 20, fontRegular, 11);
             cursor.y -= 5;
         });
     }
@@ -2134,7 +2134,7 @@ async function generateBeritaAcaraKunjunganPDF(doc, setting) {
     if (content.results) {
         const results = content.results.split('\n').filter(r => r.trim());
         results.forEach(res => {
-            drawTextWrapped(res, 20, 11, fontRegular);
+            drawJustified(res, margin + 20, contentWidth - 20, fontRegular, 11);
             cursor.y -= 5;
         });
     }
