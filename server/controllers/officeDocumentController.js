@@ -146,7 +146,7 @@ exports.createOutgoingDocument = async (req, res) => {
                 priority: priority || 'BIASA',
                 authorId: req.user.id,
                 status: 'DRAFT',
-                fileUrl: req.file ? req.file.path.replace(/\\/g, '/') : null,
+                fileUrl: req.fileUrl || req.body.fileUrl || null,
                 party1Name,
                 party1Title,
                 party1Org,
@@ -221,7 +221,7 @@ exports.updateDocument = async (req, res) => {
                 receivedDate: receivedDate ? new Date(receivedDate) : undefined,
                 party1Name, party1Title, party1Org, party1Address,
                 party2Name, party2Title, party2Org, party2Address,
-                fileUrl: req.file ? req.file.path.replace(/\\/g, '/') : (req.body.fileUrl || undefined),
+                fileUrl: req.fileUrl || req.body.fileUrl || undefined,
                 status: existing.status === 'REJECTED' ? 'DRAFT' : undefined,
             },
             include: {
