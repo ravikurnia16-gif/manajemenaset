@@ -98,6 +98,10 @@ const UniformOrderPage = () => {
     const [checkCode, setCheckCode] = useState('');
     const [checkResult, setCheckResult] = useState(null);
     const [showCheck, setShowCheck] = useState(false);
+    const [searchQuery, setSearchQuery] = useState({ name: '', phone: '' });
+    const [searchResults, setSearchResults] = useState([]);
+    const [searching, setSearching] = useState(false);
+    const [searchMode, setSearchMode] = useState('code'); // 'code' | 'name'
 
     const API_BASE = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'http://localhost:5000' : '';
 
@@ -288,26 +292,87 @@ const UniformOrderPage = () => {
             {/* Check Modal */}
             {showCheck && (
                 <div className="p-4 bg-indigo-50 border-b border-indigo-200 animate-in slide-in-from-top-2">
-                    <div className="flex gap-2 mb-2">
-                        <input value={checkCode} onChange={e => setCheckCode(e.target.value.toUpperCase())} placeholder="Kode Pesanan" className="border p-2 rounded w-full text-sm" />
-                        <button onClick={async () => {
-                            if (!checkCode) return alert('Isi kode');
-                            try {
-                                const res = await fetch(`${API_BASE}/api/uniform-order/check/${checkCode}`);
-                                const d = await res.json();
-                                if (!res.ok) throw new Error(d.error);
-                                setCheckResult(d);
-                            } catch (e) { alert(e.message); }
-                        }} className="bg-indigo-600 text-white px-4 rounded text-sm font-bold">Cari</button>
+                    <div className="flex gap-2 mb-4 bg-white/50 p-1 rounded-lg w-fit mx-auto">
+                        <button 
+                            onClick={() => { setSearchMode('code'); setCheckResult(null); setSearchResults([]); }}
+                            className={`px-3 py-1 rounded text-[10px] font-bold uppercase transition ${searchMode === 'code' ? 'bg-indigo-600 text-white shadow' : 'text-indigo-600'}`}
+                        >Cek Kode</button>
+                        <button 
+                            onClick={() => { setSearchMode('name'); setCheckResult(null); setSearchResults([]); }}
+                            className={`px-3 py-1 rounded text-[10px] font-bold uppercase transition ${searchMode === 'name' ? 'bg-indigo-600 text-white shadow' : 'text-indigo-600'}`}
+                        >Lupa Kode? Cari Nama</button>
                     </div>
-                    {checkResult && (
-                        <div className="bg-white p-3 rounded border text-sm">
-                            <div className="font-bold">{checkResult.studentName}</div>
-                            <div className="text-slate-500">Status: {checkResult.status}</div>
-                            {/* Display Note for decoupled orders */}
-                            <div className="mt-2 text-xs bg-slate-100 p-2 rounded whitespace-pre-wrap font-mono">
-                                {checkResult.note || 'Tidak ada detail item (Decoupled Mode)'}
+
+                    {searchMode === 'code' ? (
+                        <div className="flex gap-2 mb-2">
+                            <input value={checkCode} onChange={e => setCheckCode(e.target.value.toUpperCase())} placeholder="Kode Pesanan" className="border p-2 rounded w-full text-sm" />
+                            <button onClick={async () => {
+                                if (!checkCode) return alert('Isi kode');
+                                setSearching(true);
+                                try {
+                                    const res = await fetch(`${API_BASE}/api/uniform-order/check/${checkCode}`);
+                                    const d = await res.json();
+                                    if (!res.ok) throw new Error(d.error);
+                                    setCheckResult(d);
+                                } catch (e) { alert(e.message); } finally { setSearching(false); }
+                            }} className="bg-indigo-600 text-white px-4 rounded text-sm font-bold disabled:opacity-50">
+                                {searching ? '...' : 'Cari'}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-2 mb-2">
+                            <input 
+                                value={searchQuery.name} 
+                                onChange={e => setSearchQuery({...searchQuery, name: e.target.value})} 
+                                placeholder="Nama Siswa" 
+                                className="border p-2 rounded w-full text-sm" 
+                            />
+                            <div className="flex gap-2">
+                                <input 
+                                    value={searchQuery.phone} 
+                                    onChange={e => setSearchQuery({...searchQuery, phone: e.target.value})} 
+                                    placeholder="No HP (WA)" 
+                                    className="border p-2 rounded w-full text-sm" 
+                                />
+                                <button onClick={async () => {
+                                    if (!searchQuery.name || !searchQuery.phone) return alert('Isi Nama & No HP');
+                                    setSearching(true);
+                                    try {
+                                        const res = await fetch(`${API_BASE}/api/uniform-order/search-public?name=${searchQuery.name}&phone=${searchQuery.phone}`);
+                                        const d = await res.json();
+                                        if (!res.ok) throw new Error(d.error);
+                                        setSearchResults(d);
+                                        if(d.length === 0) alert('Pesanan tidak ditemukan');
+                                    } catch (e) { alert(e.message); } finally { setSearching(false); }
+                                }} className="bg-indigo-600 text-white px-4 rounded text-sm font-bold whitespace-nowrap disabled:opacity-50">
+                                    {searching ? '...' : 'Cari Pesanan'}
+                                </button>
                             </div>
+                        </div>
+                    )}
+
+                    {(checkResult || searchResults.length > 0) && (
+                        <div className="space-y-3 max-h-[300px] overflow-auto">
+                            {(checkResult ? [checkResult] : searchResults).map(res => (
+                                <div key={res.id} className="bg-white p-3 rounded border text-sm shadow-sm">
+                                    <div className="flex justify-between items-start mb-1">
+                                        <div className="font-bold text-indigo-600 font-mono">{res.code}</div>
+                                        <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                            res.status === 'READY' ? 'bg-green-100 text-green-700 border-green-200' :
+                                            res.status === 'PICKED_UP' || res.status === 'DONE' ? 'bg-slate-100 text-slate-500 border-slate-200' :
+                                            'bg-yellow-100 text-yellow-700 border-yellow-200'
+                                        }`}>
+                                            {res.status}
+                                        </div>
+                                    </div>
+                                    <div className="font-bold text-slate-800">{res.studentName}</div>
+                                    <div className="text-xs text-slate-500 mb-2">{new Date(res.createdAt).toLocaleDateString('id-ID', { dateStyle: 'medium' })}</div>
+                                    
+                                    <div className="text-[10px] bg-slate-50 p-2 rounded whitespace-pre-wrap font-mono text-slate-600 border border-slate-100">
+                                        {res.note?.includes('ITEM PESANAN:') ? res.note.split('ITEM PESANAN:')[1].trim() : (res.note || 'Detail item tidak tersedia')}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>

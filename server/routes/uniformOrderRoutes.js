@@ -194,6 +194,25 @@ const checkOrder = async (req, res) => {
     } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
 };
 
+const publicSearchOrder = async (req, res) => {
+    try {
+        const { name, phone } = req.query;
+        if (!name || !phone) return res.status(400).json({ error: 'Nama dan No HP wajib diisi' });
+
+        const orders = await prisma.uniformOrder.findMany({
+            where: {
+                studentName: { contains: name },
+                customerPhone: { contains: phone }
+            },
+            include: { items: { include: { item: { select: { name: true, size: true, gender: true, type: true } } } } },
+            orderBy: { createdAt: 'desc' },
+            take: 5
+        });
+
+        res.json(orders);
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+};
+
 const getAllOrders = async (req, res) => {
     try {
         const { status, unit, startDate, endDate, search } = req.query;
@@ -542,6 +561,7 @@ const bulkUpdateItems = async (req, res) => {
 router.get('/items', getAvailableUniforms);
 router.post('/', createOrder);
 router.get('/check/:code', checkOrder);
+router.get('/search-public', publicSearchOrder);
 
 // Admin routes
 router.get('/admin/orders', authMiddleware, getAllOrders);
