@@ -14,7 +14,8 @@ const getMediaUrl = (path) => {
     if (window.location.port === '5173') {
         base = `${window.location.protocol}//${window.location.hostname}:3000`;
     }
-    return `${base}/api/media/${path}`;
+    const cleanPath = path.startsWith('/') ? path : `/api/media/${path}`;
+    return `${base}${cleanPath}`;
 };
 
 const PublicAssetView = () => {

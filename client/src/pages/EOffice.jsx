@@ -224,10 +224,10 @@ const EOffice = () => {
                                 return (
                                     <div key={idx} className="rounded-xl overflow-hidden border border-slate-100 shadow-sm bg-white p-2">
                                         <img
-                                            src={url.startsWith('http') ? url : `/api/media/${url}`}
+                                            src={url.startsWith('http') || url.startsWith('/') ? url : `/api/media/${url}`}
                                             alt={`Lampiran ${idx + 1}`}
                                             className="w-full h-auto max-h-[400px] object-contain rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                                            onClick={() => window.open(url.startsWith('http') ? url : `/api/media/${url}`, '_blank')}
+                                            onClick={() => window.open(url.startsWith('http') || url.startsWith('/') ? url : `/api/media/${url}`, '_blank')}
                                         />
                                     </div>
                                 );
@@ -320,7 +320,7 @@ const EOffice = () => {
                                                 <button 
                                                     onClick={() => {
                                                         const firstFile = doc.fileUrl.split(',')[0];
-                                                        window.open(firstFile.startsWith('http') ? firstFile : `/api/media/${firstFile}`, '_blank');
+                                                        window.open(firstFile.startsWith('http') || firstFile.startsWith('/') ? firstFile : `/api/media/${firstFile}`, '_blank');
                                                     }}
                                                     className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block" 
                                                     title="Lihat File"
@@ -377,7 +377,7 @@ const EOffice = () => {
                                             onClick={(e) => { 
                                                 e.stopPropagation(); 
                                                 const firstFile = doc.fileUrl.split(',')[0];
-                                                window.open(firstFile.startsWith('http') ? firstFile : `/api/media/${firstFile}`, '_blank');
+                                                window.open(firstFile.startsWith('http') || firstFile.startsWith('/') ? firstFile : `/api/media/${firstFile}`, '_blank');
                                             }} 
                                             className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg"
                                         >
@@ -437,7 +437,7 @@ const EOffice = () => {
                                             {viewingDoc.fileUrl.split(',').filter(u => u.trim()).map((url, idx, arr) => (
                                                 <a 
                                                     key={idx}
-                                                    href={url.startsWith('http') ? url : `/api/media/${url}`} 
+                                                    href={url.startsWith('http') || url.startsWith('/') ? url : `/api/media/${url}`} 
                                                     target="_blank" 
                                                     rel="noreferrer" 
                                                     className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-colors"
@@ -966,7 +966,7 @@ const EOffice = () => {
                                 </div>
                             )}
                         </div>
-                                      <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                    <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
                         <div className="flex flex-wrap items-center gap-2">
                             <button
                                 onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
@@ -1006,7 +1006,6 @@ const EOffice = () => {
                                 </button>
                             )}
 
-                            {/* Multi-party signing: Pihak 2 (Pad) button */}
                             {(['BAST', 'MOU'].includes(viewingDoc.type) || (viewingDoc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(viewingDoc.category))) && (
                                 <>
                                     {!viewingDoc.party2Signature && (
@@ -1020,7 +1019,6 @@ const EOffice = () => {
                                 </>
                             )}
 
-                            {/* Pihak 1 = Approval Kepala Bidang (TTE) */}
                             {viewingDoc.status === 'PENDING_APPROVAL' && isKabidSarpras && (
                                 <button
                                     onClick={() => { setSignatureRequest({ doc: viewingDoc }); }}
