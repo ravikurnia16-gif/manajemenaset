@@ -3,6 +3,7 @@ import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin
 import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { LabelPrint, BatchLabelPrint } from '../components/LabelPrint';
+import KIRPrint from '../components/KIRPrint';
 import { useReactToPrint } from 'react-to-print';
 import api from '../lib/axios';
 
@@ -28,6 +29,8 @@ const AssetList = ({ validationMode = false }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCondition, setSelectedCondition] = useState('');
     const [selectedIds, setSelectedIds] = useState([]);
+    const kirRef = useRef();
+    const [assetsForKIR, setAssetsForKIR] = useState([]);
 
     // Validation Feature State
     const [validationFilter, setValidationFilter] = useState(validationMode ? 'UNVERIFIED' : 'ALL'); // ALL, UNVERIFIED, VALIDATED, NEEDS_UPDATE
@@ -59,6 +62,39 @@ const AssetList = ({ validationMode = false }) => {
     const [itemsPerPage, setItemsPerPage] = useState(10);
 
     const [totalItems, setTotalItems] = useState(0);
+
+    const handlePrintKIR = useReactToPrint({
+        content: () => kirRef.current,
+        documentTitle: `KIR_${rooms.find(r => r.id.toString() === selectedRoom.toString())?.name || 'Ruangan'}_${new Date().toISOString().split('T')[0]}`,
+        onAfterPrint: () => {
+            setIsPreparingPrint(false);
+            setAssetsForKIR([]);
+        }
+    });
+
+    const prepareKIR = async () => {
+        if (!selectedRoom) return alert("Pilih ruangan terlebih dahulu");
+        try {
+            setIsPreparingPrint(true);
+            const resp = await api.get('/assets', {
+                params: {
+                    roomId: selectedRoom,
+                    limit: 1000 // Get all assets for this room
+                }
+            });
+            const allAssets = resp.data.data || resp.data;
+            setAssetsForKIR(Array.isArray(allAssets) ? allAssets : []);
+
+            // Small delay to ensure state update and render
+            setTimeout(() => {
+                handlePrintKIR();
+            }, 500);
+        } catch (error) {
+            console.error("Failed to prepare KIR:", error);
+            alert("Gagal menyiapkan data KIR");
+            setIsPreparingPrint(false);
+        }
+    };
 
     // Fetch Data from Backend
     const fetchData = async () => {
@@ -548,6 +584,15 @@ const AssetList = ({ validationMode = false }) => {
                             </div>
                         )}
                         <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto lg:border-l lg:border-slate-200 lg:pl-3">
+                            {selectedRoom && (
+                                <button
+                                    onClick={prepareKIR}
+                                    className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-lg shadow-amber-200 transition-all hover:scale-105 active:scale-95"
+                                    title="Cetak Kartu Inventaris Ruangan"
+                                >
+                                    <Printer size={18} /> Cetak KIR
+                                </button>
+                            )}
                             <button onClick={() => setActionModal({ isOpen: true, type: 'export' })} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-lg shadow-green-200 transition-all hover:scale-105 active:scale-95" title="Export Excel"><Upload size={18} /> Export</button>
                             <button onClick={() => setActionModal({ isOpen: true, type: 'print' })} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl flex items-center justify-center gap-2 text-xs sm:text-sm font-bold shadow-lg shadow-indigo-200 transition-all hover:scale-105 active:scale-95" title="Cetak Label QR"><QrCode size={18} /> Cetak QR</button>
                         </div>
@@ -1308,6 +1353,13 @@ const AssetList = ({ validationMode = false }) => {
                         layout={printLayout}
                         customConfig={customConfig}
                         paperSize={paperSize}
+                    />
+                    <KIRPrint
+                        ref={kirRef}
+                        room={rooms.find(r => r.id.toString() === selectedRoom.toString())}
+                        unit={units.find(u => u.id.toString() === selectedUnit.toString())}
+                        assets={assetsForKIR}
+                        settings={settings}
                     />
                 </div>
             )}
