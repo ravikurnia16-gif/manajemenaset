@@ -827,3 +827,57 @@ exports.deleteReport = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.getMaintenanceSchedule = async (req, res) => {
+    try {
+        const { search, unitId, category } = req.query;
+
+        const whereClause = {
+            nextMaintenanceEst: { not: null },
+            condition: { not: 'DISPOSED' }
+        };
+
+        if (unitId) whereClause.unitId = parseInt(unitId);
+        if (category) whereClause.category = category;
+        if (search) {
+            whereClause.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { code: { contains: search, mode: 'insensitive' } }
+            ];
+        }
+
+        const assets = await prisma.asset.findMany({
+            where: whereClause,
+            include: {
+                unit: { select: { name: true } },
+                maintenances: {
+                    where: { status: { notIn: ['COMPLETED', 'REJECTED'] } },
+                    take: 1,
+                    orderBy: { createdAt: 'desc' }
+                }
+            },
+            orderBy: { nextMaintenanceEst: 'asc' }
+        });
+
+        const schedule = assets.map(asset => {
+            const today = new Date();
+            const estDate = new Date(asset.nextMaintenanceEst);
+            const diffDays = Math.ceil((estDate - today) / (1000 * 60 * 60 * 24));
+            
+            let status = 'OK';
+            if (diffDays < 0) status = 'OVERDUE';
+            else if (diffDays <= 30) status = 'SOON';
+
+            return {
+                ...asset,
+                serviceStatus: status,
+                daysToService: diffDays,
+                hasActiveReport: asset.maintenances.length > 0
+            };
+        });
+
+        res.json(schedule);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
