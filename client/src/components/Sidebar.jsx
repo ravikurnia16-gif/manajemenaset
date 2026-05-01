@@ -249,7 +249,7 @@ const Sidebar = ({ isOpen = true }) => {
 
 
                 {/* 5. E-Office (Document Management) */}
-                {isStaffSarpras && (
+                {isWarehouseAdmin && (
                     <Link to="/e-office" className={navItemClass('/e-office')}>
                         <FileSignature size={18} /> E-Office
                     </Link>

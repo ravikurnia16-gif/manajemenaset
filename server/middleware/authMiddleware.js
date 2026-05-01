@@ -51,13 +51,12 @@ exports.authorizeSarprasAdmin = () => {
 exports.authorizeEOfficeAccess = () => {
     return (req, res, next) => {
         const role = req.user.role;
-        const pos = (req.user.position || '').toLowerCase();
         
-        const isSuperAdmin = role === 'SUPER_ADMIN';
-        const isSarprasDivision = role === 'KABID_SARPRAS' || pos.includes('sarpras');
+        // Only Super Admin, IT, and Admin Aset can access E-Office
+        const isAllowed = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(role);
 
-        if (!isSuperAdmin && !isSarprasDivision) {
-            return res.status(403).json({ error: 'Akses E-Office hanya untuk Staff Sarpras dan Super Admin' });
+        if (!isAllowed) {
+            return res.status(403).json({ error: 'Akses E-Office terbatas hanya untuk Super Admin dan Admin Aset' });
         }
         next();
     };
