@@ -462,41 +462,44 @@ const VendorManagement = () => {
                                         <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={24} /></div>
                                     )}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase truncate max-w-[100px]" title={prod.vendor?.name}>
-                                            {prod.vendor?.name}
-                                        </span>
-                                        {prod.vendor?.isVerified && <CheckCircle size={10} className="text-blue-600 shrink-0" />}
+                                <div className="flex-1 min-w-0 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase truncate max-w-[100px]" title={prod.vendor?.name}>
+                                                {prod.vendor?.name}
+                                            </span>
+                                            {prod.vendor?.isVerified && <CheckCircle size={10} className="text-blue-600 shrink-0" />}
+                                        </div>
+                                        <h5 className="font-black text-slate-800 leading-tight mb-1 truncate">{prod.name}</h5>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <div className="text-lg font-black text-blue-600">Rp {prod.price?.toLocaleString() || '0'}</div>
+                                            <button 
+                                                onClick={() => fetchPriceHistory(prod.id)}
+                                                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
+                                                title="Lihat Riwayat Harga"
+                                            >
+                                                <Clock size={14} />
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{prod.specification || '-'}</p>
                                     </div>
-                                    <h5 className="font-black text-slate-800 leading-tight mb-1 truncate">{prod.name}</h5>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <div className="text-lg font-black text-blue-600">Rp {prod.price?.toLocaleString() || '0'}</div>
-                                        <button 
-                                            onClick={() => fetchPriceHistory(prod.id)}
-                                            className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
-                                            title="Lihat Riwayat Harga"
-                                        >
-                                            <Clock size={14} />
-                                        </button>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{prod.specification || '-'}</p>
-                                </div>
-                                <div className="absolute bottom-4 right-4 flex items-center gap-3">
-                                    {canManageVendor && (
+                                    
+                                    <div className="flex items-center justify-end gap-3 pt-3 mt-3 border-t border-slate-50">
+                                        {canManageVendor && (
+                                            <button
+                                                onClick={() => handleEditProduct(prod)}
+                                                className="text-[10px] font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors"
+                                            >
+                                                <Edit2 size={12} /> Edit
+                                            </button>
+                                        )}
                                         <button
-                                            onClick={() => handleEditProduct(prod)}
-                                            className="text-xs font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors"
+                                            onClick={() => openProductModal(prod.vendor)}
+                                            className={`text-[10px] font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors ${canManageVendor ? 'border-l border-slate-100 pl-3' : ''}`}
                                         >
-                                            <Edit2 size={12} /> Edit
+                                            Vendor <Info size={12} />
                                         </button>
-                                    )}
-                                    <button
-                                        onClick={() => openProductModal(prod.vendor)}
-                                        className={`text-xs font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors ${canManageVendor ? 'border-l border-slate-200 pl-3' : ''}`}
-                                    >
-                                        Vendor <Info size={12} />
-                                    </button>
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -838,39 +841,42 @@ const VendorManagement = () => {
                                                         <div className="w-full h-full flex items-center justify-center text-slate-200"><Package size={24} /></div>
                                                     )}
                                                 </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <h5 className="font-black text-slate-800 leading-tight mb-1 truncate">{prod.name}</h5>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <div className="text-xl font-black text-blue-600">Rp {prod.price?.toLocaleString() || '0'}</div>
-                                                        <button 
-                                                            onClick={() => fetchPriceHistory(prod.id)}
-                                                            className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
-                                                            title="Riwayat Harga"
-                                                        >
-                                                            <Clock size={14} />
-                                                        </button>
+                                                <div className="flex-1 min-w-0 flex flex-col justify-between">
+                                                    <div>
+                                                        <h5 className="font-black text-slate-800 leading-tight mb-1 truncate">{prod.name}</h5>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <div className="text-xl font-black text-blue-600">Rp {prod.price?.toLocaleString() || '0'}</div>
+                                                            <button 
+                                                                onClick={() => fetchPriceHistory(prod.id)}
+                                                                className="p-1 hover:bg-white rounded-full text-slate-400 hover:text-blue-600 transition-colors shadow-sm"
+                                                                title="Riwayat Harga"
+                                                            >
+                                                                <Clock size={14} />
+                                                            </button>
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{prod.specification || '-'}</p>
                                                     </div>
-                                                    <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{prod.specification || '-'}</p>
+
+                                                    {canManageVendor && (
+                                                        <div className="flex items-center justify-end gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-all">
+                                                            <button
+                                                                onClick={() => handleEditProduct(prod)}
+                                                                className="w-8 h-8 bg-white text-blue-600 border border-blue-100 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-50 transition-all active:scale-90"
+                                                                title="Edit Produk"
+                                                            >
+                                                                <Edit2 size={12} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteProduct(prod.id)}
+                                                                className="w-8 h-8 bg-white text-red-400 border border-red-100 rounded-full shadow-lg flex items-center justify-center hover:bg-red-50 hover:text-red-600 active:scale-90"
+                                                                title="Hapus Produk"
+                                                            >
+                                                                <Trash2 size={12} />
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
-                                            {canManageVendor && (
-                                                <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                                                    <button
-                                                        onClick={() => handleEditProduct(prod)}
-                                                        className="w-8 h-8 bg-white text-blue-600 border border-blue-100 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-50 transition-all active:scale-90"
-                                                        title="Edit Produk"
-                                                    >
-                                                        <Edit2 size={12} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteProduct(prod.id)}
-                                                        className="w-8 h-8 bg-white text-red-400 border border-red-100 rounded-full shadow-lg flex items-center justify-center hover:bg-red-50 hover:text-red-600 active:scale-90"
-                                                        title="Hapus Produk"
-                                                    >
-                                                        <Trash2 size={12} />
-                                                    </button>
-                                                </div>
-                                            )}
                                         </div>
                                     ))}
                                 </div>
