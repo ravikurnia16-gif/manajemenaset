@@ -15,6 +15,11 @@ const VendorManagement = () => {
     const [viewMode, setViewMode] = useState('VENDORS'); // 'VENDORS' or 'PRODUCTS'
     const [allProducts, setAllProducts] = useState([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+    const canManageVendor = user.role === 'SUPER_ADMIN' || 
+                           user.role === 'ADMIN_ASET' || 
+                           (['Koperasi', 'Workshop'].includes(user.unit?.name) && user.role === 'ADMIN_UNIT');
 
     // Vendor Modal States
     const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
@@ -260,20 +265,22 @@ const VendorManagement = () => {
                     </h1>
                     <p className="text-slate-500 text-sm mt-1">Kelola data vendor, katalog produk, dan info spesifikasi secara mendalam.</p>
                 </div>
-                <button
-                    onClick={() => {
-                        setCurrentVendor(null);
-                        setVendorForm({
-                            name: '', address: '', phone: '', email: '',
-                            website: '', description: '', category: '',
-                            photo: null, isVerified: false
-                        });
-                        setIsVendorModalOpen(true);
-                    }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all transform hover:scale-105 active:scale-95"
-                >
-                    <Plus size={18} /> Tambah Vendor Baru
-                </button>
+                {canManageVendor && (
+                    <button
+                        onClick={() => {
+                            setCurrentVendor(null);
+                            setVendorForm({
+                                name: '', address: '', phone: '', email: '',
+                                website: '', description: '', category: '',
+                                photo: null, isVerified: false
+                            });
+                            setIsVendorModalOpen(true);
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all transform hover:scale-105 active:scale-95"
+                    >
+                        <Plus size={18} /> Tambah Vendor Baru
+                    </button>
+                )}
             </div>
 
             {/* Filters */}
@@ -356,39 +363,41 @@ const VendorManagement = () => {
                                                 <CheckCircle size={14} />
                                             </span>
                                         )}
-                                        <div className="relative group/menu">
-                                            <button className="bg-white/80 backdrop-blur-sm p-1.5 rounded-full hover:bg-white shadow-sm flex items-center justify-center transition-all">
-                                                <MoreVertical size={14} className="text-slate-600" />
-                                            </button>
-                                            <div className="absolute right-0 top-8 bg-white border border-slate-100 rounded-xl shadow-2xl p-1.5 hidden group-hover/menu:block z-10 w-32 border-b-2 border-b-blue-500">
-                                                <button
-                                                    onClick={() => {
-                                                        setCurrentVendor(vendor);
-                                                        setVendorForm({
-                                                            name: vendor.name || '',
-                                                            address: vendor.address || '',
-                                                            phone: vendor.phone || '',
-                                                            email: vendor.email || '',
-                                                            website: vendor.website || '',
-                                                            description: vendor.description || '',
-                                                            category: vendor.category || '',
-                                                            photo: vendor.photo || null,
-                                                            isVerified: vendor.isVerified || false
-                                                        });
-                                                        setIsVendorModalOpen(true);
-                                                    }}
-                                                    className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-slate-50 rounded-lg text-slate-700"
-                                                >
-                                                    <Edit2 size={12} /> Edit Profil
+                                        {canManageVendor && (
+                                            <div className="relative group/menu">
+                                                <button className="bg-white/80 backdrop-blur-sm p-1.5 rounded-full hover:bg-white shadow-sm flex items-center justify-center transition-all">
+                                                    <MoreVertical size={14} className="text-slate-600" />
                                                 </button>
-                                                <button
-                                                    onClick={() => handleDeleteVendor(vendor.id)}
-                                                    className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-red-50 rounded-lg text-red-600"
-                                                >
-                                                    <Trash2 size={12} /> Hapus
-                                                </button>
+                                                <div className="absolute right-0 top-8 bg-white border border-slate-100 rounded-xl shadow-2xl p-1.5 hidden group-hover/menu:block z-10 w-32 border-b-2 border-b-blue-500">
+                                                    <button
+                                                        onClick={() => {
+                                                            setCurrentVendor(vendor);
+                                                            setVendorForm({
+                                                                name: vendor.name || '',
+                                                                address: vendor.address || '',
+                                                                phone: vendor.phone || '',
+                                                                email: vendor.email || '',
+                                                                website: vendor.website || '',
+                                                                description: vendor.description || '',
+                                                                category: vendor.category || '',
+                                                                photo: vendor.photo || null,
+                                                                isVerified: vendor.isVerified || false
+                                                            });
+                                                            setIsVendorModalOpen(true);
+                                                        }}
+                                                        className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-slate-50 rounded-lg text-slate-700"
+                                                    >
+                                                        <Edit2 size={12} /> Edit Profil
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteVendor(vendor.id)}
+                                                        className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-red-50 rounded-lg text-red-600"
+                                                    >
+                                                        <Trash2 size={12} /> Hapus
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                     <div className="absolute bottom-3 left-3">
                                         <span className="bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] font-bold text-blue-600 shadow-sm uppercase tracking-wider">
@@ -474,15 +483,17 @@ const VendorManagement = () => {
                                     <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{prod.specification || '-'}</p>
                                 </div>
                                 <div className="absolute bottom-4 right-4 flex items-center gap-3">
-                                    <button
-                                        onClick={() => handleEditProduct(prod)}
-                                        className="text-xs font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors"
-                                    >
-                                        <Edit2 size={12} /> Edit
-                                    </button>
+                                    {canManageVendor && (
+                                        <button
+                                            onClick={() => handleEditProduct(prod)}
+                                            className="text-xs font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors"
+                                        >
+                                            <Edit2 size={12} /> Edit
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => openProductModal(prod.vendor)}
-                                        className="text-xs font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors border-l border-slate-200 pl-3"
+                                        className={`text-xs font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors ${canManageVendor ? 'border-l border-slate-200 pl-3' : ''}`}
                                     >
                                         Vendor <Info size={12} />
                                     </button>
@@ -694,12 +705,14 @@ const VendorManagement = () => {
                                 </div>
                             </div>
 
-                            <button
-                                onClick={() => setIsAddingProduct(true)}
-                                className="w-full mt-10 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-xl shadow-blue-600/20 active:scale-95 transition-all"
-                            >
-                                <Plus size={18} /> Tambah Produk
-                            </button>
+                            {canManageVendor && (
+                                <button
+                                    onClick={() => setIsAddingProduct(true)}
+                                    className="w-full mt-10 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-xl shadow-blue-600/20 active:scale-95 transition-all"
+                                >
+                                    <Plus size={18} /> Tambah Produk
+                                </button>
+                            )}
                         </div>
 
                         {/* Product List Area */}
@@ -809,22 +822,24 @@ const VendorManagement = () => {
                                                     <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{prod.specification || '-'}</p>
                                                 </div>
                                             </div>
-                                            <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                                                <button
-                                                    onClick={() => handleEditProduct(prod)}
-                                                    className="w-8 h-8 bg-white text-blue-600 border border-blue-100 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-50 transition-all active:scale-90"
-                                                    title="Edit Produk"
-                                                >
-                                                    <Edit2 size={12} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteProduct(prod.id)}
-                                                    className="w-8 h-8 bg-white text-red-400 border border-red-100 rounded-full shadow-lg flex items-center justify-center hover:bg-red-50 hover:text-red-600 active:scale-90"
-                                                    title="Hapus Produk"
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            </div>
+                                            {canManageVendor && (
+                                                <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                                    <button
+                                                        onClick={() => handleEditProduct(prod)}
+                                                        className="w-8 h-8 bg-white text-blue-600 border border-blue-100 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-50 transition-all active:scale-90"
+                                                        title="Edit Produk"
+                                                    >
+                                                        <Edit2 size={12} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteProduct(prod.id)}
+                                                        className="w-8 h-8 bg-white text-red-400 border border-red-100 rounded-full shadow-lg flex items-center justify-center hover:bg-red-50 hover:text-red-600 active:scale-90"
+                                                        title="Hapus Produk"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
