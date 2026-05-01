@@ -703,6 +703,37 @@ const VendorManagement = () => {
                                     <Phone size={16} className="text-slate-400 shrink-0" />
                                     <div className="text-xs font-bold">{selectedVendorForProducts?.phone || '-'}</div>
                                 </div>
+                                {selectedVendorForProducts?.email && (
+                                    <div className="p-4 bg-slate-50 rounded-2xl flex items-center gap-4">
+                                        <Mail size={16} className="text-slate-400 shrink-0" />
+                                        <div className="text-xs truncate">{selectedVendorForProducts.email}</div>
+                                    </div>
+                                )}
+                                {selectedVendorForProducts?.website && (
+                                    <div className="p-4 bg-slate-50 rounded-2xl flex items-center gap-4">
+                                        <Globe size={16} className="text-slate-400 shrink-0" />
+                                        <a href={selectedVendorForProducts.website} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1 truncate">
+                                            {selectedVendorForProducts.website.replace(/^https?:\/\//, '')} <ExternalLink size={10} />
+                                        </a>
+                                    </div>
+                                )}
+                                {selectedVendorForProducts?.description && (
+                                    <div className="p-4 bg-blue-50/50 rounded-2xl">
+                                        <div className="text-[10px] font-bold text-blue-600 uppercase mb-1 tracking-wider">Tentang Vendor</div>
+                                        <div className="text-[10px] leading-relaxed text-slate-600 italic">"{selectedVendorForProducts.description}"</div>
+                                    </div>
+                                )}
+
+                                {selectedVendorForProducts?.phone && (
+                                    <a
+                                        href={`https://wa.me/${selectedVendorForProducts.phone.replace(/\D/g, '')}?text=Bismillah, Admin Sarpras ingin menanyakan stok/layanan untuk ${selectedVendorForProducts.name}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-full flex items-center justify-center gap-2 py-3 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-bold text-xs shadow-lg shadow-green-500/20 transition-all active:scale-95 mt-2"
+                                    >
+                                        <Phone size={14} /> Chat WhatsApp
+                                    </a>
+                                )}
                             </div>
 
                             {canManageVendor && (
