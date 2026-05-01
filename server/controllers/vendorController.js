@@ -165,16 +165,27 @@ exports.getAllProducts = async (req, res) => {
 exports.addProduct = async (req, res) => {
     try {
         const { vendorId } = req.params;
-        const { name, price, specification } = req.body;
+        const newPrice = price !== "" && price !== null && price !== undefined ? parseFloat(price) : null;
         const product = await prisma.vendorProduct.create({
             data: {
                 vendorId: parseInt(vendorId),
                 name,
-                price: price !== "" && price !== null && price !== undefined ? parseFloat(price) : null,
+                price: newPrice,
                 specification,
                 image: req.fileUrl || null
             }
         });
+
+        // Record initial price if exists
+        if (newPrice !== null) {
+            await prisma.vendorPriceHistory.create({
+                data: {
+                    productId: product.id,
+                    price: newPrice
+                }
+            });
+        }
+
         res.json(product);
     } catch (error) {
         console.error('Error adding product:', error);
@@ -189,15 +200,27 @@ exports.updateProduct = async (req, res) => {
 
         const oldProduct = await prisma.vendorProduct.findUnique({ where: { id: parseInt(productId) } });
 
+        const newPrice = price !== "" && price !== null && price !== undefined ? parseFloat(price) : null;
+
         const product = await prisma.vendorProduct.update({
             where: { id: parseInt(productId) },
             data: {
                 name,
-                price: price !== "" && price !== null && price !== undefined ? parseFloat(price) : null,
+                price: newPrice,
                 specification,
                 image: req.fileUrl || undefined
             }
         });
+
+        // Record price history if price has changed
+        if (newPrice !== null && oldProduct.price !== newPrice) {
+            await prisma.vendorPriceHistory.create({
+                data: {
+                    productId: parseInt(productId),
+                    price: newPrice
+                }
+            });
+        }
 
         // Cleanup old image if updated
         if (req.fileUrl && oldProduct?.image) {
@@ -222,6 +245,21 @@ exports.deleteProduct = async (req, res) => {
 
         await prisma.vendorProduct.delete({ where: { id: parseInt(productId) } });
         res.json({ message: 'Product deleted' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// --- PRICE HISTORY ---
+
+exports.getProductPriceHistory = async (req, res) => {
+    try {
+        const { productId } = req.params;
+        const history = await prisma.vendorPriceHistory.findMany({
+            where: { productId: parseInt(productId) },
+            orderBy: { date: 'desc' }
+        });
+        res.json(history);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

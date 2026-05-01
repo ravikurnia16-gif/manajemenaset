@@ -16,6 +16,7 @@ router.delete('/:id', vendorController.deleteVendor);
 
 // Vendor Product CRUD
 router.get('/all/products', vendorController.getAllProducts);
+router.get('/products/:productId/history', vendorController.getProductPriceHistory);
 router.get('/:vendorId/products', vendorController.getVendorProducts);
 router.post('/:vendorId/products', handleUpload('image', 'vendors/products'), vendorController.addProduct);
 router.put('/:vendorId/products/:productId', handleUpload('image', 'vendors/products'), vendorController.updateProduct);

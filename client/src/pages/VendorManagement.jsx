@@ -33,6 +33,10 @@ const VendorManagement = () => {
         name: '', price: '', specification: '', image: null
     });
     const [isAddingProduct, setIsAddingProduct] = useState(false);
+    const [currentProduct, setCurrentProduct] = useState(null);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [priceHistory, setPriceHistory] = useState([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
 
     // File/Preview States
     const [vendorPhotoFile, setVendorPhotoFile] = useState(null);
@@ -151,7 +155,7 @@ const VendorManagement = () => {
         }
     };
 
-    const handleAddProduct = async (e) => {
+    const handleSaveProduct = async (e) => {
         e.preventDefault();
         try {
             const formData = new FormData();
@@ -163,17 +167,51 @@ const VendorManagement = () => {
                 formData.append('image', productPhotoFile);
             }
 
-            await axios.post(`/vendors/${selectedVendorForProducts.id}/products`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            if (currentProduct) {
+                await axios.put(`/vendors/${selectedVendorForProducts.id}/products/${currentProduct.id}`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+            } else {
+                await axios.post(`/vendors/${selectedVendorForProducts.id}/products`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+            }
             
             setProductForm({ name: '', price: '', specification: '', image: null });
             setProductPhotoFile(null);
             setProductPhotoPreview(null);
             setIsAddingProduct(false);
+            setCurrentProduct(null);
             fetchProducts(selectedVendorForProducts.id);
+            if (viewMode === 'PRODUCTS') fetchAllProducts();
         } catch (error) {
-            alert('Gagal menambah produk');
+            alert('Gagal menyimpan produk');
+        }
+    };
+
+    const handleEditProduct = (product) => {
+        setCurrentProduct(product);
+        setProductForm({
+            name: product.name,
+            price: product.price || '',
+            specification: product.specification || '',
+            image: product.image
+        });
+        setProductPhotoFile(null);
+        setProductPhotoPreview(product.image ? getMediaUrl(product.image) : null);
+        setIsAddingProduct(true);
+    };
+
+    const fetchPriceHistory = async (productId) => {
+        try {
+            setLoadingHistory(true);
+            setIsHistoryModalOpen(true);
+            const res = await axios.get(`/vendors/products/${productId}/history`);
+            setPriceHistory(res.data);
+        } catch (error) {
+            console.error('Fetch price history error:', error);
+        } finally {
+            setLoadingHistory(false);
         }
     };
 
@@ -419,15 +457,32 @@ const VendorManagement = () => {
                                         {prod.vendor?.isVerified && <CheckCircle size={10} className="text-blue-600 shrink-0" />}
                                     </div>
                                     <h5 className="font-black text-slate-800 leading-tight mb-1 truncate">{prod.name}</h5>
-                                    <div className="text-lg font-black text-blue-600 mb-1">Rp {prod.price?.toLocaleString() || '0'}</div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className="text-lg font-black text-blue-600">Rp {prod.price?.toLocaleString() || '0'}</div>
+                                        <button 
+                                            onClick={() => fetchPriceHistory(prod.id)}
+                                            className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
+                                            title="Lihat Riwayat Harga"
+                                        >
+                                            <Clock size={14} />
+                                        </button>
+                                    </div>
                                     <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{prod.specification || '-'}</p>
                                 </div>
-                                <button
-                                    onClick={() => openProductModal(prod.vendor)}
-                                    className="absolute bottom-4 right-4 text-xs font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors"
-                                >
-                                    Vendor <Info size={12} />
-                                </button>
+                                <div className="absolute bottom-4 right-4 flex items-center gap-3">
+                                    <button
+                                        onClick={() => handleEditProduct(prod)}
+                                        className="text-xs font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors"
+                                    >
+                                        <Edit2 size={12} /> Edit
+                                    </button>
+                                    <button
+                                        onClick={() => openProductModal(prod.vendor)}
+                                        className="text-xs font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors border-l border-slate-200 pl-3"
+                                    >
+                                        Vendor <Info size={12} />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -658,8 +713,14 @@ const VendorManagement = () => {
                             {isAddingProduct && (
                                 <form onSubmit={handleAddProduct} className="bg-white p-6 rounded-3xl shadow-2xl shadow-blue-900/5 border-2 border-blue-500/20 mb-8 animate-fadeIn">
                                     <div className="flex items-center justify-between mb-6">
-                                        <h4 className="font-black text-slate-800 uppercase tracking-widest text-xs">Form Produk Baru</h4>
-                                        <button onClick={() => setIsAddingProduct(false)} className="text-slate-400 hover:text-slate-600">
+                                        <h4 className="font-black text-slate-800 uppercase tracking-widest text-xs">
+                                            {currentProduct ? 'Edit Data Produk' : 'Form Produk Baru'}
+                                        </h4>
+                                        <button onClick={() => {
+                                            setIsAddingProduct(false);
+                                            setCurrentProduct(null);
+                                            setProductForm({ name: '', price: '', specification: '', image: null });
+                                        }} className="text-slate-400 hover:text-slate-600">
                                             <X size={16} />
                                         </button>
                                     </div>
@@ -731,20 +792,101 @@ const VendorManagement = () => {
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <h5 className="font-black text-slate-800 leading-tight mb-1 truncate">{prod.name}</h5>
-                                                    <div className="text-xl font-black text-blue-600 mb-1">Rp {prod.price?.toLocaleString() || '0'}</div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <div className="text-xl font-black text-blue-600">Rp {prod.price?.toLocaleString() || '0'}</div>
+                                                        <button 
+                                                            onClick={() => fetchPriceHistory(prod.id)}
+                                                            className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
+                                                            title="Riwayat Harga"
+                                                        >
+                                                            <Clock size={14} />
+                                                        </button>
+                                                    </div>
                                                     <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">{prod.specification || '-'}</p>
                                                 </div>
                                             </div>
-                                            <button
-                                                onClick={() => handleDeleteProduct(prod.id)}
-                                                className="absolute -top-2 -right-2 w-8 h-8 bg-white text-red-400 border border-red-100 rounded-full shadow-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 hover:text-red-600 active:scale-90"
-                                            >
-                                                <Trash2 size={12} />
-                                            </button>
+                                            <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                                <button
+                                                    onClick={() => handleEditProduct(prod)}
+                                                    className="w-8 h-8 bg-white text-blue-600 border border-blue-100 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-50 transition-all active:scale-90"
+                                                    title="Edit Produk"
+                                                >
+                                                    <Edit2 size={12} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteProduct(prod.id)}
+                                                    className="w-8 h-8 bg-white text-red-400 border border-red-100 rounded-full shadow-lg flex items-center justify-center hover:bg-red-50 hover:text-red-600 active:scale-90"
+                                                    title="Hapus Produk"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Price History Modal */}
+            {isHistoryModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsHistoryModalOpen(false)}></div>
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl relative overflow-hidden animate-slideUp">
+                        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                            <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                <Clock size={20} className="text-blue-600" /> Riwayat Update Harga
+                            </h2>
+                            <button onClick={() => setIsHistoryModalOpen(false)} className="bg-white p-2 rounded-full border border-slate-200 text-slate-400 hover:text-slate-600 transition-colors">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 max-h-[60vh] overflow-y-auto">
+                            {loadingHistory ? (
+                                <div className="space-y-4">
+                                    {[1, 2, 3].map(i => (
+                                        <div key={i} className="h-12 bg-slate-50 rounded-xl animate-pulse" />
+                                    ))}
+                                </div>
+                            ) : priceHistory.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <Clock className="text-slate-200 mx-auto mb-2" size={32} />
+                                    <p className="text-slate-400 text-sm">Belum ada riwayat perubahan harga.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {priceHistory.map((h, idx) => (
+                                        <div key={h.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white transition-all hover:shadow-md group">
+                                            <div className="flex flex-col">
+                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                                    {new Date(h.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400">
+                                                    {new Date(h.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-lg font-black text-blue-600">Rp {h.price.toLocaleString()}</span>
+                                                {idx < priceHistory.length - 1 && (
+                                                    <span className={`text-[10px] font-bold ${h.price > priceHistory[idx+1].price ? 'text-red-500' : 'text-green-500'}`}>
+                                                        {h.price > priceHistory[idx+1].price ? '↑ Naik' : '↓ Turun'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-6 border-t border-slate-100 bg-slate-50/30">
+                            <button
+                                onClick={() => setIsHistoryModalOpen(false)}
+                                className="w-full py-3 bg-white border border-slate-200 rounded-2xl font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                            >
+                                Tutup
+                            </button>
                         </div>
                     </div>
                 </div>
