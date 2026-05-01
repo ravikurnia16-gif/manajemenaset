@@ -416,9 +416,11 @@ const MaintenanceList = () => {
                                             </tbody>
                                         </table>
                                     </div>
-                                </div>
-                            ))
-                        ) : (
+                                )}
+                            </div>
+                        );
+                    })
+                ) : (
                             <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center shadow-inner">
                                 <CheckCircle size={48} className="mx-auto text-green-400 mb-4 opacity-50" />
                                 <h3 className="text-lg font-bold text-slate-800">Semua Aset Terpelihara</h3>
