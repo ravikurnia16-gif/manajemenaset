@@ -1963,7 +1963,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {formData.type === 'SURAT_KELUAR' && !['Pesanan', 'BAST', 'Berita Acara', 'Serah Terima Barang', 'Berita Acara Kunjungan'].includes(formData.category) && (
+                        {formData.type === 'SURAT_KELUAR' && !['Pesanan', 'BAST', 'Berita Acara', 'Serah Terima Barang', 'Berita Acara Kunjungan', 'Tugas'].includes(formData.category) && (
                             <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
                                 <label className="col-span-full text-xs font-black text-slate-600 uppercase tracking-widest block mb-2">3. Tujuan / Penerima Surat</label>
 
