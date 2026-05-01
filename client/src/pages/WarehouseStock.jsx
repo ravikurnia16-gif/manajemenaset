@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, Search, Download, Upload, Trash2, Edit, RefreshCw } from 'lucide-react';
+import { Package, Plus, Search, Download, Upload, Trash2, Edit } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
@@ -53,15 +53,6 @@ const WarehouseStock = () => {
     const handleDelete = async (id) => {
         if (!confirm('Hapus item ini?')) return;
         try { await api.delete(`/warehouse/items/${id}`); fetchData(); } catch (e) { alert('Gagal menghapus'); }
-    };
-
-    const handleFixUnits = async () => {
-        if (!confirm('Ubah semua unit "SD Ikhwan" menjadi "SD"?')) return;
-        try {
-            const res = await api.get('/warehouse/maintenance/fix-units');
-            alert(res.data.message);
-            fetchData();
-        } catch (e) { alert(e.response?.data?.error || 'Gagal membersihkan unit'); }
     };
 
     const handleTemplate = () => {
@@ -140,7 +131,6 @@ const WarehouseStock = () => {
                     <p className="text-sm text-slate-500 mt-1">Kelola stok barang gudang</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                    <button onClick={handleFixUnits} className="flex items-center gap-1 px-3 py-2 border border-amber-200 bg-amber-50 text-amber-700 rounded-lg text-sm font-semibold hover:bg-amber-100 transition-colors"><RefreshCw size={14} /> Bersihkan Unit</button>
                     <button onClick={handleTemplate} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50"><Download size={14} /> Template</button>
                     <label className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer">
                         <Download size={14} /> Import
