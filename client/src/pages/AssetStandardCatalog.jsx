@@ -13,7 +13,7 @@ const AssetStandardCatalog = () => {
     const navigate = useNavigate();
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
-    const canEdit = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user.role);
+    const canEdit = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT'].includes(user.role);
 
     const fetchData = async () => {
         try {
