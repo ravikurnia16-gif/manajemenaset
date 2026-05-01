@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Wrench, CheckCircle, AlertTriangle, TrendingUp, Loader2 } from 'lucide-react';
+import { Wrench, CheckCircle, AlertTriangle, TrendingUp, Loader2, Clock, Zap } from 'lucide-react';
 import api from '../lib/axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -141,6 +141,45 @@ const MaintenanceDashboard = () => {
                     subtitle="Laporan selesai (6 Bulan)"
                 />
             </div>
+
+            {/* SLA Performance Section */}
+            {stats.slaStats && (
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                    <div className="mb-4 flex items-center gap-2">
+                        <Zap className="text-amber-500" size={20} />
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800">SLA Perbaikan (Khusus Sarpras)</h3>
+                            <p className="text-xs text-slate-500">Rata-rata waktu penyelesaian dari laporan dibuat hingga diselesaikan</p>
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-white rounded-xl border border-indigo-100 p-5 shadow-sm border-l-4 border-l-indigo-500">
+                            <p className="text-slate-500 text-sm font-semibold mb-1">Rata-rata Keseluruhan</p>
+                            <h3 className="text-2xl font-black text-indigo-700">{stats.slaStats.overallAvgDays.toFixed(1)} <span className="text-sm font-medium text-slate-500">Hari</span></h3>
+                            <p className="text-xs text-slate-400 mt-1">Kecepatan rata-rata Sarpras</p>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl border border-red-100 p-5 shadow-sm border-l-4 border-l-red-500">
+                            <p className="text-slate-500 text-sm font-semibold mb-1">Darurat (Emergency)</p>
+                            <h3 className="text-2xl font-black text-red-600">{stats.slaStats.byUrgency.EMERGENCY.avgDays.toFixed(1)} <span className="text-sm font-medium text-slate-500">Hari</span></h3>
+                            <p className="text-xs text-slate-400 mt-1">{stats.slaStats.byUrgency.EMERGENCY.count} laporan selesai</p>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl border border-amber-100 p-5 shadow-sm border-l-4 border-l-amber-500">
+                            <p className="text-slate-500 text-sm font-semibold mb-1">Penting (Urgent)</p>
+                            <h3 className="text-2xl font-black text-amber-600">{stats.slaStats.byUrgency.URGENT.avgDays.toFixed(1)} <span className="text-sm font-medium text-slate-500">Hari</span></h3>
+                            <p className="text-xs text-slate-400 mt-1">{stats.slaStats.byUrgency.URGENT.count} laporan selesai</p>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm border-l-4 border-l-slate-400">
+                            <p className="text-slate-500 text-sm font-semibold mb-1">Biasa (Normal)</p>
+                            <h3 className="text-2xl font-black text-slate-700">{stats.slaStats.byUrgency.NORMAL.avgDays.toFixed(1)} <span className="text-sm font-medium text-slate-500">Hari</span></h3>
+                            <p className="text-xs text-slate-400 mt-1">{stats.slaStats.byUrgency.NORMAL.count} laporan selesai</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Cost Trend Chart */}

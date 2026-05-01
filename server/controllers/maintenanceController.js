@@ -100,12 +100,65 @@ exports.getDashboardStats = async (req, res) => {
             include: { unit: { select: { name: true } } }
         });
 
+        // 6. SLA Performance (Sarpras Only)
+        // Fetch completed Sarpras tasks in the current period
+        const completedSarprasTasks = await prisma.maintenance.findMany({
+            where: {
+                targetDept: 'SARPRAS',
+                status: 'COMPLETED',
+                completionDate: { gte: startOfPeriod, lt: endOfPeriod },
+                createdAt: { not: null }
+            },
+            select: {
+                createdAt: true,
+                completionDate: true,
+                urgency: true
+            }
+        });
+
+        const slaStats = {
+            overallAvgDays: 0,
+            byUrgency: {
+                NORMAL: { avgDays: 0, count: 0 },
+                URGENT: { avgDays: 0, count: 0 },
+                EMERGENCY: { avgDays: 0, count: 0 }
+            }
+        };
+
+        let totalDaysAll = 0;
+        let validTasksCount = 0;
+
+        completedSarprasTasks.forEach(task => {
+            if (task.createdAt && task.completionDate) {
+                const created = new Date(task.createdAt);
+                const completed = new Date(task.completionDate);
+                // Difference in days
+                const diffTime = Math.abs(completed - created);
+                const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+                totalDaysAll += diffDays;
+                validTasksCount++;
+
+                const urgency = task.urgency || 'NORMAL';
+                if (slaStats.byUrgency[urgency]) {
+                    const currentUrgencyStats = slaStats.byUrgency[urgency];
+                    currentUrgencyStats.avgDays = ((currentUrgencyStats.avgDays * currentUrgencyStats.count) + diffDays) / (currentUrgencyStats.count + 1);
+                    currentUrgencyStats.count++;
+                }
+            }
+        });
+
+        if (validTasksCount > 0) {
+            slaStats.overallAvgDays = totalDaysAll / validTasksCount;
+        }
+
         res.json({
             totalCostThisMonth,
             activeReportsCount,
             overdueAssetsCount,
             monthlyTrend,
-            recentReports
+            recentReports,
+            slaStats
         });
 
     } catch (error) {
