@@ -35,6 +35,7 @@ const AssetForm = () => {
     const [settings, setSettings] = useState({ assetCodePrefix: 'DEI' });
     const [isAutoCode, setIsAutoCode] = useState(true);
     const [loading, setLoading] = useState(false);
+    const [locationUnitId, setLocationUnitId] = useState('');
 
     const [currentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
     const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(currentUser.role);
@@ -82,6 +83,11 @@ const AssetForm = () => {
                     if (asset.image) {
                         setImagePreview(getMediaUrl(asset.image));
                     }
+                    if (asset.room) {
+                        setLocationUnitId(asset.room.unitId.toString());
+                    } else if (asset.unitId) {
+                        setLocationUnitId(asset.unitId.toString());
+                    }
                 }
             } catch (err) {
                 console.error("Fetch error:", err);
@@ -101,9 +107,19 @@ const AssetForm = () => {
     const newCategoryCode = watchedFields[4];
     const selectedPicId = watchedFields[5];
 
-    const filteredRooms = selectedUnitId
-        ? masterData.rooms.filter(r => r.unitId === parseInt(selectedUnitId))
+    const filteredRooms = locationUnitId
+        ? masterData.rooms.filter(r => r.unitId === parseInt(locationUnitId))
         : masterData.rooms;
+
+    const selectedUnit = masterData.units.find(u => u.id === parseInt(selectedUnitId));
+    const isYayasan = selectedUnit?.name?.toLowerCase().includes('yayasan');
+
+    // If unit changes and it's not Yayasan, force locationUnitId to match unitId
+    useEffect(() => {
+        if (selectedUnitId && !isYayasan) {
+            setLocationUnitId(selectedUnitId.toString());
+        }
+    }, [selectedUnitId, isYayasan]);
 
     // Code Preview Logic
     const generatePreview = () => {
@@ -358,15 +374,34 @@ const AssetForm = () => {
                             {!isGlobalAdmin && <p className="text-[10px] text-blue-600 mt-1 italic font-semibold">Unit Anda terkunci sesuai pengaturan hak akses.</p>}
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Ruangan</label>
-                            <select {...register('roomId')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                                <option value="">Pilih Ruangan</option>
-                                {filteredRooms.map(r => (
-                                    <option key={r.id} value={r.id}>{r.name}</option>
-                                ))}
-                                <option value="other" className="text-blue-600 font-bold">+ Lainnya (Input Manual)</option>
-                            </select>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    Unit Lokasi <span className="text-[10px] text-blue-500 font-bold">(Area Penempatan)</span>
+                                </label>
+                                <select
+                                    value={locationUnitId}
+                                    onChange={(e) => setLocationUnitId(e.target.value)}
+                                    disabled={!isYayasan}
+                                    className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white disabled:bg-slate-50 disabled:text-slate-500"
+                                >
+                                    <option value="">Pilih Unit Lokasi</option>
+                                    {masterData.units.map(u => (
+                                        <option key={u.id} value={u.id}>{u.name}</option>
+                                    ))}
+                                </select>
+                                {isYayasan && <p className="text-[9px] text-blue-600 mt-1 font-bold italic">* Aset Yayasan boleh ditaruh di Unit manapun.</p>}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Ruangan</label>
+                                <select {...register('roomId')} className="w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                    <option value="">Pilih Ruangan</option>
+                                    {filteredRooms.map(r => (
+                                        <option key={r.id} value={r.id}>{r.name} ({r.building || '-'})</option>
+                                    ))}
+                                    {locationUnitId && <option value="other" className="text-blue-600 font-bold">+ Lainnya (Input Manual)</option>}
+                                </select>
+                            </div>
                         </div>
 
                         {selectedRoomId === 'other' && (

@@ -87,9 +87,11 @@ const AssetDetail = () => {
                                     <MapPin size={20} />
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Ruangan</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Ruangan / Lokasi</p>
                                     <p className="text-sm font-bold text-slate-700">{asset.room?.name || '-'}</p>
-                                    <p className="text-[10px] text-slate-400 font-medium italic">{asset.room?.building || '-'}</p>
+                                    <p className="text-[10px] text-slate-400 font-medium italic">
+                                        {asset.room?.unit?.name || '-'} | {asset.room?.building || '-'}
+                                    </p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">

@@ -797,6 +797,13 @@ const AssetList = ({ validationMode = false }) => {
 
                             <div className="space-y-4">
                                 <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Ruangan / Lokasi</p>
+                                    <p className="text-sm font-bold text-slate-700">{asset.room?.name || '-'}</p>
+                                    <p className="text-[10px] text-slate-400 font-medium italic">
+                                        {asset.room?.unit?.name || '-'} | {asset.room?.building || '-'}
+                                    </p>
+                                </div>
+                                <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-2">Status Validasi</label>
                                     <div className="grid grid-cols-3 gap-2">
                                         <button
@@ -995,7 +1002,9 @@ const AssetList = ({ validationMode = false }) => {
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col gap-0.5 max-w-[150px]">
                                                 <span className="text-[11px] font-bold text-slate-700 truncate" title={asset.unit?.name}>{asset.unit?.name || '-'}</span>
-                                                <span className="text-[10px] text-slate-400 italic truncate" title={asset.room?.name}>{asset.room?.name || '-'}</span>
+                                                <span className="text-[10px] text-slate-400 italic truncate" title={asset.room?.name}>
+                                                    {asset.room?.name || '-'} {asset.room?.unitId !== asset.unitId ? `(${asset.room?.unit?.name || 'Unit Lain'})` : ''}
+                                                </span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
@@ -1093,7 +1102,9 @@ const AssetList = ({ validationMode = false }) => {
                                     <div>
                                         <span className="text-[9px] font-bold text-slate-400 uppercase block mb-0.5 tracking-tight">Unit & Lokasi</span>
                                         <p className="text-[11px] font-bold text-slate-700 line-clamp-1">{asset.unit?.name || '-'}</p>
-                                        <p className="text-[10px] text-slate-500 italic line-clamp-1">{asset.room?.name || '-'}</p>
+                                        <p className="text-[10px] text-slate-500 italic line-clamp-1">
+                                            {asset.room?.name || '-'} {asset.room?.unitId !== asset.unitId ? `(${asset.room?.unit?.name || 'Unit Lain'})` : ''}
+                                        </p>
                                     </div>
                                     <div className="text-right">
                                         <span className="text-[9px] font-bold text-slate-400 uppercase block mb-0.5 tracking-tight">Kategori & PIC</span>

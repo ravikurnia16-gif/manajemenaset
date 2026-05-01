@@ -295,7 +295,12 @@ exports.getAllAssets = async (req, res) => {
                 where,
                 skip,
                 take,
-                include: { category: true, room: true, unit: true, validatedBy: { select: { username: true } } },
+                include: { 
+                    category: true, 
+                    room: { include: { unit: true } }, 
+                    unit: true, 
+                    validatedBy: { select: { username: true } } 
+                },
                 orderBy: { createdAt: 'desc' }
             })
         ]);
@@ -322,7 +327,7 @@ exports.getAssetById = async (req, res) => {
             where: { id: parseInt(id) },
             include: {
                 category: true,
-                room: true,
+                room: { include: { unit: true } },
                 unit: true,
 
                 movements: {
