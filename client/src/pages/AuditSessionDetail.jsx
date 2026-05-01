@@ -164,17 +164,6 @@ const AuditSessionDetail = () => {
         window.URL.revokeObjectURL(url);
     };
 
-    const generateNarrative = () => {
-        if (!session) return '';
-        const found = stats.found;
-        const missing = stats.missing;
-        const total = stats.total;
-        const damaged = session.items.filter(i => i.foundCondition && i.foundCondition !== 'BAIK').length;
-        const dateStr = new Date(session.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-        
-        return `Berdasarkan hasil audit fisik (Stock Opname) "${session.title}" yang dilaksanakan pada tanggal ${dateStr}, telah dilakukan pemeriksaan terhadap total ${total} unit aset. Dari hasil pemeriksaan tersebut, sebanyak ${found} unit aset berhasil ditemukan, di mana ${damaged} unit di antaranya tercatat dalam kondisi membutuhkan perhatian (rusak ringan/berat). Terdapat ${missing} unit aset yang dinyatakan hilang atau tidak ditemukan di lokasi. Seluruh hasil temuan lapangan ini telah divalidasi dan disinkronkan ke dalam database utama Manajemen Aset untuk menjaga akurasi data inventaris.`;
-    };
-
     if (loading) return <div className="flex justify-center items-center min-h-screen"><div className="w-12 h-12 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin"></div></div>;
     if (!session) return <div className="p-20 text-center">Data tidak ditemukan</div>;
 
@@ -186,6 +175,17 @@ const AuditSessionDetail = () => {
     };
 
     const progress = Math.round(((stats.found + stats.missing) / stats.total) * 100);
+
+    const generateNarrative = () => {
+        if (!session) return '';
+        const found = stats.found;
+        const missing = stats.missing;
+        const total = stats.total;
+        const damaged = session.items.filter(i => i.foundCondition && i.foundCondition !== 'BAIK').length;
+        const dateStr = new Date(session.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        
+        return `Berdasarkan hasil audit fisik (Stock Opname) "${session.title}" yang dilaksanakan pada tanggal ${dateStr}, telah dilakukan pemeriksaan terhadap total ${total} unit aset. Dari hasil pemeriksaan tersebut, sebanyak ${found} unit aset berhasil ditemukan, di mana ${damaged} unit di antaranya tercatat dalam kondisi membutuhkan perhatian (rusak ringan/berat). Terdapat ${missing} unit aset yang dinyatakan hilang atau tidak ditemukan di lokasi. Seluruh hasil temuan lapangan ini telah divalidasi dan disinkronkan ke dalam database utama Manajemen Aset untuk menjaga akurasi data inventaris.`;
+    };
 
     const filteredItems = session.items.filter(i => {
         const matchesTab = i.status === activeTab;
