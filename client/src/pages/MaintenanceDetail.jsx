@@ -43,6 +43,7 @@ const MaintenanceDetail = () => {
     const [progressNote, setProgressNote] = useState('');
     const [costItems, setCostItems] = useState([]); // [{ id: string, label: string, price: number, assetId: number|null }]
     const [bulkPrice, setBulkPrice] = useState('');
+    const [receiptFile, setReceiptFile] = useState(null);
     const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
     const showToast = (message, type = 'success') => {
@@ -110,6 +111,15 @@ const MaintenanceDetail = () => {
                 }
             }
 
+            // Upload receipt first if available and completing
+            if (actionModal.type === 'completion' && receiptFile) {
+                const formData = new FormData();
+                formData.append('media', receiptFile);
+                await api.post(`/maintenance/${id}/media`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+            }
+
             if (actionModal.nextStatus === 'COMPLETED') {
                 payload.completionNote = actionNote;
             }
@@ -122,6 +132,7 @@ const MaintenanceDetail = () => {
             setProgressNote('');
             setCostItems([]);
             setBulkPrice('');
+            setReceiptFile(null);
             fetchReport();
             showToast('Pembaruan status berhasil disimpan!');
         } catch (err) {
@@ -674,6 +685,20 @@ const MaintenanceDetail = () => {
                                                 </button>
                                             </div>
                                         )}
+
+                                        {/* Nota Upload */}
+                                        <div className="mt-4">
+                                            <label className="block text-sm font-semibold text-slate-700 mb-1">Upload Bukti Nota / Kwitansi (Opsional)</label>
+                                            <div className="flex items-center gap-3">
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*"
+                                                    onChange={e => setReceiptFile(e.target.files[0])}
+                                                    className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                                />
+                                                {receiptFile && <CheckCircle size={20} className="text-green-500 flex-shrink-0" />}
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </>
