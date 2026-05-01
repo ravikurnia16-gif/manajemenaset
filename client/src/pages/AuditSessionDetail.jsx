@@ -6,6 +6,7 @@ import {
     CheckCircle2, AlertCircle, Info, RefreshCcw
 } from 'lucide-react';
 import { Html5QrcodeScanner } from "html5-qrcode";
+import ExcelJS from 'exceljs';
 import api from '../lib/axios';
 
 const AuditSessionDetail = () => {
@@ -95,6 +96,66 @@ const AuditSessionDetail = () => {
         } catch (e) { alert(e.response?.data?.error || 'Gagal finalisasi'); }
     };
 
+    const exportToExcel = async () => {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Laporan Audit');
+
+        // Styles
+        const titleStyle = { font: { bold: true, size: 14 } };
+        const headerStyle = { font: { bold: true, color: { argb: 'FFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: '10B981' } }, alignment: { horizontal: 'center' } };
+
+        // Title
+        worksheet.addRow(['BERITA ACARA HASIL AUDIT ASET (STOCK OPNAME)']).style = titleStyle;
+        worksheet.addRow(['Nama Sesi:', session.title]);
+        worksheet.addRow(['Tanggal Audit:', new Date(session.createdAt).toLocaleDateString('id-ID')]);
+        worksheet.addRow(['Dibuat Oleh:', session.creator?.name]);
+        worksheet.addRow(['Status Sesi:', session.status]);
+        worksheet.addRow([]); // Gap
+
+        // Headers
+        const headers = ['No', 'Kode Aset', 'Nama Barang', 'Kategori', 'Lokasi Asli', 'Lokasi Temuan', 'Kondisi Akhir', 'Status Audit', 'Catatan', 'Auditor', 'Waktu Verifikasi'];
+        const headerRow = worksheet.addRow(headers);
+        headerRow.eachCell((cell) => { cell.style = headerStyle; });
+
+        // Data
+        session.items.forEach((item, idx) => {
+            const rowData = [
+                idx + 1,
+                item.asset.code,
+                item.asset.name,
+                item.asset.category?.name,
+                item.originalLocation,
+                item.asset.room?.name || '-',
+                item.foundCondition || item.asset.condition,
+                item.status === 'FOUND' ? 'DITEMUKAN' : item.status === 'MISSING' ? 'HILANG' : 'BELUM DIAUDIT',
+                item.notes || '-',
+                item.auditor?.name || '-',
+                item.verifiedAt ? new Date(item.verifiedAt).toLocaleString('id-ID') : '-'
+            ];
+            const row = worksheet.addRow(rowData);
+            
+            // Conditional Styling for Status
+            if (item.status === 'FOUND') row.getCell(8).font = { color: { argb: '059669' }, bold: true };
+            if (item.status === 'MISSING') row.getCell(8).font = { color: { argb: 'DC2626' }, bold: true };
+        });
+
+        // Column widths
+        worksheet.columns.forEach(column => { column.width = 20; });
+        worksheet.getColumn(1).width = 5;
+        worksheet.getColumn(3).width = 30;
+        worksheet.getColumn(9).width = 30;
+
+        // Download
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `Laporan_Audit_${session.title.replace(/\s+/g, '_')}.xlsx`;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+    };
+
     if (loading) return <div className="flex justify-center items-center min-h-screen"><div className="w-12 h-12 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin"></div></div>;
     if (!session) return <div className="p-20 text-center">Data tidak ditemukan</div>;
 
@@ -130,6 +191,12 @@ const AuditSessionDetail = () => {
                 </div>
                 {session.status === 'OPEN' && (
                     <div className="flex gap-3 w-full md:w-auto">
+                        <button 
+                            onClick={exportToExcel}
+                            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 px-6 py-3 rounded-2xl font-bold shadow-sm hover:bg-slate-50 transition-all"
+                        >
+                            <RefreshCcw size={18} /> Ekspor Excel
+                        </button>
                         <button 
                             onClick={() => setShowScanner(true)}
                             className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-8 py-3 rounded-2xl font-black shadow-xl shadow-emerald-100 hover:scale-105 transition-all"
