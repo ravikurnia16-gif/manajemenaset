@@ -711,7 +711,7 @@ const VendorManagement = () => {
                             </div>
 
                             {isAddingProduct && (
-                                <form onSubmit={handleAddProduct} className="bg-white p-6 rounded-3xl shadow-2xl shadow-blue-900/5 border-2 border-blue-500/20 mb-8 animate-fadeIn">
+                                <form onSubmit={handleSaveProduct} className="bg-white p-6 rounded-3xl shadow-2xl shadow-blue-900/5 border-2 border-blue-500/20 mb-8 animate-fadeIn">
                                     <div className="flex items-center justify-between mb-6">
                                         <h4 className="font-black text-slate-800 uppercase tracking-widest text-xs">
                                             {currentProduct ? 'Edit Data Produk' : 'Form Produk Baru'}
