@@ -365,6 +365,7 @@ const ProcurementDetail = () => {
     const [rooms, setRooms] = useState([]);
     const [categories, setCategories] = useState([]);
     const [assetDetails, setAssetDetails] = useState({}); // { itemId: { categoryId, roomId, picId, condition, isLendable } }
+    const [settings, setSettings] = useState(null);
     const [notifying, setNotifying] = useState(false);
     const [selectedUnits, setSelectedUnits] = useState({});
     const [activeTab, setActiveTab] = useState(1);
@@ -375,7 +376,12 @@ const ProcurementDetail = () => {
     const isAssignedToAny = req?.items?.some(i => i.assignedToId === user?.id) || false;
     const isAssignedToItem = (item) => item.assignedToId === user?.id;
 
-    useEffect(() => { fetchDetail(); fetchUsers(); fetchUnits(); fetchCategories(); }, [id]);
+    useEffect(() => { fetchDetail(); fetchUsers(); fetchUnits(); fetchCategories(); fetchSettings(); }, [id]);
+
+    const fetchSettings = async () => {
+        try { const res = await api.get('/settings'); setSettings(res.data); }
+        catch (e) { console.error(e); }
+    };
 
     const fetchUsers = async () => {
         try {
@@ -544,6 +550,16 @@ const ProcurementDetail = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const getPreviewCode = (categoryId) => {
+        if (!req || !categoryId) return '';
+        const prefix = settings?.assetCodePrefix || 'AST';
+        const unitCode = req.unit?.code || 'UNIT';
+        const category = categories.find(c => c.id === parseInt(categoryId));
+        const catCode = category?.code || '???';
+        const year = new Date(bastDate).getFullYear();
+        return `${prefix}.${unitCode}.${catCode}.${year}.xxxx`;
     };
 
     /* ── Loading / Error ── */
@@ -1253,6 +1269,11 @@ const ProcurementDetail = () => {
                                                                 <option value="">— Pilih Kategori —</option>
                                                                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                                             </Select>
+                                                            {det.categoryId && (
+                                                                <div style={{ marginTop: 4, fontSize: 10, color: T.gold, fontWeight: 700, fontFamily: "'DM Mono', monospace" }}>
+                                                                    PREVIEW KODE: {getPreviewCode(det.categoryId)}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         <div>
                                                             <Label>Kondisi Awal</Label>
