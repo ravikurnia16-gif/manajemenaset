@@ -9,6 +9,11 @@ import { Html5QrcodeScanner } from "html5-qrcode";
 import ExcelJS from 'exceljs';
 import api from '../lib/axios';
 
+// Helper Components (Defined at top to avoid hoisting issues)
+const ChevronRight = ({className, size}) => (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+);
+
 const AuditSessionDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -405,10 +410,5 @@ const AuditSessionDetail = () => {
         </div>
     );
 };
-
-// Simple Icon
-const ChevronRight = ({className, size}) => (
-    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-);
 
 export default AuditSessionDetail;

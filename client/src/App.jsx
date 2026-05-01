@@ -74,7 +74,15 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
-  const user = JSON.parse(localStorage.getItem('user')) || {};
+  let user = {};
+  try {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser && storedUser !== 'undefined') {
+      user = JSON.parse(storedUser);
+    }
+  } catch (e) {
+    console.error('Error parsing user data', e);
+  }
   const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role);
   const sarprasKeywords = [
       'sarana dan prasarana',
@@ -163,7 +171,7 @@ function App() {
 
           {/* Module: Manajemen Personalia */}
           <Route path="personalia/dashboard" element={
-            ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(JSON.parse(localStorage.getItem('user'))?.role)
+            ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role)
               ? <PersonnelDashboard />
               : <Navigate to="/dashboard" />
           } />
