@@ -48,6 +48,7 @@ const Sidebar = ({ isOpen = true }) => {
     const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role);
     const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user?.role);
     const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
+    const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user?.role);
 
     const isKabidSarpras = user?.position?.toLowerCase() === 'kepala bidang sarana dan prasarana';
 
@@ -200,7 +201,7 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/gudang/dashboard" className={subNavItemClass('/gudang/dashboard')}>
                             <LayoutDashboard size={16} /> Dashboard
                         </Link>
-                        {isAdmin && (
+                        {isWarehouseAdmin && (
                             <>
                                 <Link to="/gudang/stok" className={subNavItemClass('/gudang/stok')}>
                                     <Box size={16} /> Stok Barang
