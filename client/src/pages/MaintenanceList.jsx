@@ -47,7 +47,7 @@ const MaintenanceList = () => {
     const [endDate, setEndDate] = useState('');
     const [limit, setLimit] = useState(10);
     const [page, setPage] = useState(1);
-    const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'schedule', 'list'
+    const [activeTab, setActiveTab] = useState('list'); // 'dashboard', 'schedule', 'list'
     const navigate = useNavigate();
     const location = useLocation();
 
