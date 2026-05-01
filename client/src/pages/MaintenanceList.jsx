@@ -117,6 +117,20 @@ const MaintenanceList = () => {
         }
     }, [activeTab, statusFilter, typeFilter, targetDeptFilter, categoryFromUrl, debouncedSearch, page, limit, startDate, endDate]);
 
+    // Group schedule by Unit
+    const groupedSchedule = schedule.reduce((acc, item) => {
+        const unitName = item.unit?.name || 'Tanpa Unit';
+        if (!acc[unitName]) acc[unitName] = [];
+        acc[unitName].push(item);
+        return acc;
+    }, {});
+
+    const scheduleStats = {
+        overdue: schedule.filter(i => i.serviceStatus === 'OVERDUE').length,
+        soon: schedule.filter(i => i.serviceStatus === 'SOON').length,
+        ok: schedule.filter(i => i.serviceStatus === 'OK').length
+    };
+
     const handleDelete = async (id) => {
         if (!confirm('Hapus laporan ini?')) return;
         try {
@@ -236,71 +250,104 @@ const MaintenanceList = () => {
             {isDashboardAuthorized && activeTab === 'dashboard' && <MaintenanceDashboard />}
             
             {activeTab === 'schedule' && (
-                <div className="space-y-4 animate-in fade-in duration-500">
-                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50/50 border-b border-slate-200">
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Aset</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Unit</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Estimasi Servis</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {schedule.length > 0 ? (
-                                        schedule.map(item => (
-                                            <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                                                <td className="px-6 py-4">
-                                                    <div className="font-bold text-slate-800">{item.name}</div>
-                                                    <div className="text-[10px] font-bold text-blue-600 uppercase">{item.code}</div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="text-sm text-slate-600">{item.unit?.name || '-'}</div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="text-sm font-semibold text-slate-700">
-                                                        {new Date(item.nextMaintenanceEst).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                                    </div>
-                                                    <div className={`text-[10px] font-bold ${item.daysToService < 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                                                        {item.daysToService < 0 ? `${Math.abs(item.daysToService)} Hari Terlewat` : `${item.daysToService} Hari Lagi`}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                                                        item.serviceStatus === 'OVERDUE' ? 'bg-red-100 text-red-700' :
-                                                        item.serviceStatus === 'SOON' ? 'bg-amber-100 text-amber-700' :
-                                                        'bg-green-100 text-green-700'
-                                                    }`}>
-                                                        {item.serviceStatus}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-right">
-                                                    {item.hasActiveReport ? (
-                                                        <span className="text-[10px] font-bold text-orange-500 italic bg-orange-50 px-2 py-1 rounded">Sedang Diproses</span>
-                                                    ) : (
-                                                        <button 
-                                                            onClick={() => navigate(`/pemeliharaan/input?assetId=${item.id}&category=ROUTINE`)}
-                                                            className="text-blue-600 hover:text-blue-800 font-bold text-xs"
-                                                        >
-                                                            Proses Servis
-                                                        </button>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan="5" className="px-6 py-12 text-center text-slate-400 font-medium">
-                                                Tidak ada jadwal servis yang tersedia
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {/* Schedule Stats Summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                            <div className="bg-red-100 p-3 rounded-xl text-red-600">
+                                <AlertCircle size={24} />
+                            </div>
+                            <div>
+                                <div className="text-2xl font-black text-slate-800">{scheduleStats.overdue}</div>
+                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Terlewat (Overdue)</div>
+                            </div>
                         </div>
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                            <div className="bg-amber-100 p-3 rounded-xl text-amber-600">
+                                <Clock size={24} />
+                            </div>
+                            <div>
+                                <div className="text-2xl font-black text-slate-800">{scheduleStats.soon}</div>
+                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Segera (30 Hari)</div>
+                            </div>
+                        </div>
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                            <div className="bg-green-100 p-3 rounded-xl text-green-600">
+                                <CheckCircle size={24} />
+                            </div>
+                            <div>
+                                <div className="text-2xl font-black text-slate-800">{scheduleStats.ok}</div>
+                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Terjadwal Aman</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Grouped Content */}
+                    <div className="space-y-4">
+                        {Object.keys(groupedSchedule).length > 0 ? (
+                            Object.entries(groupedSchedule).map(([unitName, assets]) => (
+                                <div key={unitName} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <div className="bg-slate-50/80 px-6 py-3 border-b border-slate-200 flex justify-between items-center">
+                                        <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                                            <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
+                                            {unitName}
+                                            <span className="text-xs bg-white px-2 py-0.5 rounded-lg border border-slate-200 text-slate-500 ml-2">
+                                                {assets.length} Aset
+                                            </span>
+                                        </h3>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <tbody className="divide-y divide-slate-100">
+                                                {assets.map(item => (
+                                                    <tr key={item.id} className="hover:bg-slate-50/30 transition-colors">
+                                                        <td className="px-6 py-4 w-1/3">
+                                                            <div className="font-bold text-slate-800 text-sm">{item.name}</div>
+                                                            <div className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{item.code}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="text-xs font-bold text-slate-700">
+                                                                {new Date(item.nextMaintenanceEst).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                            </div>
+                                                            <div className={`text-[10px] font-bold ${item.daysToService < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                                                                {item.daysToService < 0 ? `${Math.abs(item.daysToService)} Hari Terlewat` : `${item.daysToService} Hari Lagi`}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider ${
+                                                                item.serviceStatus === 'OVERDUE' ? 'bg-red-50 text-red-600 border border-red-100' :
+                                                                item.serviceStatus === 'SOON' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                                                'bg-green-50 text-green-600 border border-green-100'
+                                                            }`}>
+                                                                {item.serviceStatus}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            {item.hasActiveReport ? (
+                                                                <span className="text-[9px] font-bold text-orange-500 italic bg-orange-50 px-2 py-1 rounded border border-orange-100">Diproses</span>
+                                                            ) : (
+                                                                <button 
+                                                                    onClick={() => navigate(`/pemeliharaan/input?assetId=${item.id}&category=ROUTINE`)}
+                                                                    className="bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded-lg font-bold text-[10px] transition-all shadow-sm"
+                                                                >
+                                                                    Servis
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center shadow-inner">
+                                <CheckCircle size={48} className="mx-auto text-green-400 mb-4 opacity-50" />
+                                <h3 className="text-lg font-bold text-slate-800">Semua Aset Terpelihara</h3>
+                                <p className="text-slate-500 text-sm mt-2">Tidak ada aset yang membutuhkan servis dalam waktu dekat.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

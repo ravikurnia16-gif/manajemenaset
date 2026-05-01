@@ -27,11 +27,11 @@ exports.predictNextMaintenance = async (assetId) => {
             take: 10 // Analyze last 10 records
         });
 
-        let maintenanceInterval = asset.maintenanceInterval || 180;
+        let maintenanceInterval = asset.maintenanceInterval;
         let lastCompletion = history.length > 0 ? new Date(history[0].completionDate) : new Date();
 
         if (asset.needsRoutineMaintenance) {
-            // Priority 1: Use Manual Interval if policy is set
+            // Priority 1: Use Manual Interval (default to 180 if marked routine but no interval set)
             maintenanceInterval = asset.maintenanceInterval || 180;
         } else if (history.length >= 2) {
             // Priority 2: Use AI Calculation (Average from history)
@@ -50,11 +50,17 @@ exports.predictNextMaintenance = async (assetId) => {
                 }
             }
             if (count > 0) maintenanceInterval = Math.round(totalDays / count);
+        } else {
+            // Priority 3: No routine flag and no history -> No estimation
+            maintenanceInterval = null;
         }
 
         // 3. Estimate next date
-        const nextDate = new Date(lastCompletion);
-        nextDate.setDate(lastCompletion.getDate() + maintenanceInterval);
+        let nextDate = null;
+        if (maintenanceInterval) {
+            nextDate = new Date(lastCompletion);
+            nextDate.setDate(lastCompletion.getDate() + maintenanceInterval);
+        }
 
         // 4. Update the Asset record
         await prisma.asset.update({
