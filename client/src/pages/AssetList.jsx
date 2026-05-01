@@ -21,6 +21,7 @@ const AssetList = ({ validationMode = false }) => {
     const [assets, setAssets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+    const [isPreparingKIR, setIsPreparingKIR] = useState(false);
     const [printLayout, setPrintLayout] = useState('2x4'); // Default 8 labels per page
     const [customConfig, setCustomConfig] = useState({ columns: 3, width: 60, height: 40 });
     const [paperSize, setPaperSize] = useState('A4');
@@ -67,7 +68,7 @@ const AssetList = ({ validationMode = false }) => {
         content: () => kirRef.current,
         documentTitle: `KIR_${rooms.find(r => r.id.toString() === selectedRoom.toString())?.name || 'Ruangan'}_${new Date().toISOString().split('T')[0]}`,
         onAfterPrint: () => {
-            setIsPreparingPrint(false);
+            setIsPreparingKIR(false);
             setAssetsForKIR([]);
         }
     });
@@ -75,7 +76,7 @@ const AssetList = ({ validationMode = false }) => {
     const prepareKIR = async () => {
         if (!selectedRoom) return alert("Pilih ruangan terlebih dahulu");
         try {
-            setIsPreparingPrint(true);
+            setIsPreparingKIR(true);
             const resp = await api.get('/assets', {
                 params: {
                     roomId: selectedRoom,
@@ -92,7 +93,7 @@ const AssetList = ({ validationMode = false }) => {
         } catch (error) {
             console.error("Failed to prepare KIR:", error);
             alert("Gagal menyiapkan data KIR");
-            setIsPreparingPrint(false);
+            setIsPreparingKIR(false);
         }
     };
 
@@ -501,6 +502,20 @@ const AssetList = ({ validationMode = false }) => {
                         <h3 className="text-xl font-bold text-slate-800 mb-2">Menyiapkan Dokumen</h3>
                         <p className="text-slate-500 text-sm leading-relaxed">
                             Sedang merender label QR...<br />
+                            Mohon tunggu sebentar sampai dialog cetak muncul.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* KIR Print Preparation Overlay */}
+            {isPreparingKIR && (
+                <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/80 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center text-center max-w-xs ring-1 ring-amber-100">
+                        <div className="w-16 h-16 border-4 border-amber-100 border-t-amber-500 rounded-full animate-spin mb-6"></div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">Menyiapkan KIR</h3>
+                        <p className="text-slate-500 text-sm leading-relaxed">
+                            Sedang merender Kartu Inventaris Ruangan...<br />
                             Mohon tunggu sebentar sampai dialog cetak muncul.
                         </p>
                     </div>
@@ -1354,6 +1369,10 @@ const AssetList = ({ validationMode = false }) => {
                         customConfig={customConfig}
                         paperSize={paperSize}
                     />
+                </div>
+            )}
+            {isPreparingKIR && (
+                <div className="hidden">
                     <KIRPrint
                         ref={kirRef}
                         room={rooms.find(r => r.id.toString() === selectedRoom.toString())}
