@@ -36,8 +36,11 @@ const urgencyColors = {
 
 const MaintenanceList = () => {
     const [reports, setReports] = useState([]);
+    const [schedule, setSchedule] = useState([]);
     const [meta, setMeta] = useState({ total: 0, page: 1, totalPages: 1, limit: 10 });
     const [loading, setLoading] = useState(true);
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const isDashboardAuthorized = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
@@ -79,7 +82,6 @@ const MaintenanceList = () => {
                 endDate
             };
             const res = await api.get('/maintenance', { params });
-            // The backend now returns { data: [], meta: {} }
             setReports(res.data.data || []);
             setMeta(res.data.meta || { total: 0, page: 1, totalPages: 1, limit: 10 });
         } catch (err) {
@@ -90,13 +92,30 @@ const MaintenanceList = () => {
         }
     };
 
+    const fetchSchedule = async () => {
+        try {
+            setLoading(true);
+            const res = await api.get('/maintenance/schedule');
+            setSchedule(res.data || []);
+        } catch (err) {
+            console.error(err);
+            setSchedule([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (targetDeptFromUrl) setTargetDeptFilter(targetDeptFromUrl);
     }, [targetDeptFromUrl]);
 
     useEffect(() => {
-        fetchReports();
-    }, [statusFilter, typeFilter, targetDeptFilter, categoryFromUrl, debouncedSearch, page, limit, startDate, endDate]);
+        if (activeTab === 'list') {
+            fetchReports();
+        } else if (activeTab === 'schedule') {
+            fetchSchedule();
+        }
+    }, [activeTab, statusFilter, typeFilter, targetDeptFilter, categoryFromUrl, debouncedSearch, page, limit, startDate, endDate]);
 
     const handleDelete = async (id) => {
         if (!confirm('Hapus laporan ini?')) return;
@@ -191,12 +210,14 @@ const MaintenanceList = () => {
 
             {/* Navigation Tabs */}
             <div className="flex flex-nowrap overflow-x-auto gap-2 bg-white p-1.5 rounded-xl border border-slate-200">
-                <button
-                    onClick={() => setActiveTab('dashboard')}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
-                >
-                    <BarChart2 size={18} /> Dashboard
-                </button>
+                {isDashboardAuthorized && (
+                    <button
+                        onClick={() => setActiveTab('dashboard')}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                    >
+                        <BarChart2 size={18} /> Dashboard
+                    </button>
+                )}
                 <button
                     onClick={() => setActiveTab('schedule')}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'schedule' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
@@ -212,13 +233,75 @@ const MaintenanceList = () => {
             </div>
 
             {/* Tab Contents */}
-            {activeTab === 'dashboard' && <MaintenanceDashboard />}
+            {isDashboardAuthorized && activeTab === 'dashboard' && <MaintenanceDashboard />}
             
             {activeTab === 'schedule' && (
-                <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center">
-                    <Calendar size={48} className="mx-auto text-slate-300 mb-4" />
-                    <h3 className="text-lg font-bold text-slate-700">Modul Jadwal Servis Sedang Dibangun</h3>
-                    <p className="text-slate-500 text-sm mt-2">Nantinya Anda bisa melihat aset yang akan jatuh tempo dan melakukan bulk action di sini.</p>
+                <div className="space-y-4 animate-in fade-in duration-500">
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50/50 border-b border-slate-200">
+                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Aset</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Unit</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Estimasi Servis</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {schedule.length > 0 ? (
+                                        schedule.map(item => (
+                                            <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                                                <td className="px-6 py-4">
+                                                    <div className="font-bold text-slate-800">{item.name}</div>
+                                                    <div className="text-[10px] font-bold text-blue-600 uppercase">{item.code}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-sm text-slate-600">{item.unit?.name || '-'}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-sm font-semibold text-slate-700">
+                                                        {new Date(item.nextMaintenanceEst).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                    </div>
+                                                    <div className={`text-[10px] font-bold ${item.daysToService < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                                                        {item.daysToService < 0 ? `${Math.abs(item.daysToService)} Hari Terlewat` : `${item.daysToService} Hari Lagi`}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                                        item.serviceStatus === 'OVERDUE' ? 'bg-red-100 text-red-700' :
+                                                        item.serviceStatus === 'SOON' ? 'bg-amber-100 text-amber-700' :
+                                                        'bg-green-100 text-green-700'
+                                                    }`}>
+                                                        {item.serviceStatus}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    {item.hasActiveReport ? (
+                                                        <span className="text-[10px] font-bold text-orange-500 italic bg-orange-50 px-2 py-1 rounded">Sedang Diproses</span>
+                                                    ) : (
+                                                        <button 
+                                                            onClick={() => navigate(`/pemeliharaan/input?assetId=${item.id}&category=ROUTINE`)}
+                                                            className="text-blue-600 hover:text-blue-800 font-bold text-xs"
+                                                        >
+                                                            Proses Servis
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="5" className="px-6 py-12 text-center text-slate-400 font-medium">
+                                                Tidak ada jadwal servis yang tersedia
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             )}
 
