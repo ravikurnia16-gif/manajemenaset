@@ -104,6 +104,26 @@ exports.verifyItem = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
+// Bulk Verify Items
+exports.bulkVerify = async (req, res) => {
+    const { sessionId, itemIds, status, condition } = req.body;
+    try {
+        await prisma.auditItem.updateMany({
+            where: { 
+                id: { in: itemIds.map(id => parseInt(id)) },
+                sessionId: parseInt(sessionId)
+            },
+            data: {
+                status: status || 'FOUND',
+                foundCondition: condition || 'BAIK',
+                auditorId: req.user.id,
+                verifiedAt: new Date()
+            }
+        });
+        res.json({ message: 'Item berhasil diperbarui secara masal' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
 // Finalize/Reconcile Session
 exports.finalizeSession = async (req, res) => {
     const sessionId = parseInt(req.params.id);

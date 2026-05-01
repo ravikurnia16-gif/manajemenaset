@@ -21,6 +21,7 @@ const AuditSessionDetail = () => {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('PENDING'); // PENDING, FOUND, MISSING
     const [search, setSearch] = useState('');
+    const [selectedIds, setSelectedIds] = useState([]);
     
     // Scanner State
     const [showScanner, setShowScanner] = useState(false);
@@ -99,6 +100,28 @@ const AuditSessionDetail = () => {
             fetchSession();
             alert('Audit berhasil difinalisasi!');
         } catch (e) { alert(e.response?.data?.error || 'Gagal finalisasi'); }
+    };
+
+    const handleBulkAction = async (status) => {
+        if (!selectedIds.length) return;
+        if (!confirm(`Tandai ${selectedIds.length} aset sebagai ${status === 'FOUND' ? 'ADA' : 'HILANG'}?`)) return;
+        try {
+            await api.post('/audit/bulk-verify', {
+                sessionId: id,
+                itemIds: selectedIds,
+                status
+            });
+            setSelectedIds([]);
+            fetchSession();
+        } catch (e) { alert('Gagal memproses masal'); }
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.length === filteredItems.length && selectedIds.length > 0) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(filteredItems.map(i => i.id));
+        }
     };
 
     const exportToExcel = async () => {
@@ -283,17 +306,28 @@ const AuditSessionDetail = () => {
 
             {/* Tabs & Search */}
             <div className="space-y-4">
-                <div className="flex bg-slate-200/50 p-1 rounded-2xl w-full max-w-md">
-                    {['PENDING', 'FOUND', 'MISSING'].map(t => (
-                        <button
-                            key={t}
-                            onClick={() => setActiveTab(t)}
-                            className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-all ${activeTab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex bg-slate-200/50 p-1 rounded-2xl w-full max-w-md">
+                        {['PENDING', 'FOUND', 'MISSING'].map(t => (
+                            <button
+                                key={t}
+                                onClick={() => { setActiveTab(t); setSelectedIds([]); }}
+                                className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-all ${activeTab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                {t === 'PENDING' ? 'BELUM' : t === 'FOUND' ? 'ADA' : 'HILANG'} 
+                                <span className="ml-1.5 px-1.5 py-0.5 bg-slate-100 rounded text-[10px]">{stats[t.toLowerCase()]}</span>
+                            </button>
+                        ))}
+                    </div>
+                    {session.status === 'OPEN' && filteredItems.length > 0 && (
+                        <button 
+                            onClick={toggleSelectAll}
+                            className="text-xs font-black text-emerald-600 px-6 py-3 bg-emerald-50 hover:bg-emerald-100 rounded-2xl transition-all flex items-center justify-center gap-2"
                         >
-                            {t === 'PENDING' ? 'BELUM' : t === 'FOUND' ? 'ADA' : 'HILANG'} 
-                            <span className="ml-1.5 px-1.5 py-0.5 bg-slate-100 rounded text-[10px]">{stats[t.toLowerCase()]}</span>
+                            <ClipboardCheck size={16} />
+                            {selectedIds.length === filteredItems.length ? 'Batal Pilih Semua' : 'Pilih Semua di Tab Ini'}
                         </button>
-                    ))}
+                    )}
                 </div>
 
                 <div className="relative group max-w-xl">
@@ -312,20 +346,70 @@ const AuditSessionDetail = () => {
                 {filteredItems.map(item => (
                     <div 
                         key={item.id} 
-                        onClick={() => session.status === 'OPEN' && setSelectedItem(item)}
-                        className={`bg-white p-5 rounded-3xl border border-slate-200 flex items-center gap-4 group transition-all ${session.status === 'OPEN' ? 'cursor-pointer hover:border-emerald-500 hover:shadow-lg' : ''}`}
+                        className={`bg-white p-5 rounded-3xl border flex items-center gap-4 group transition-all relative ${selectedIds.includes(item.id) ? 'border-emerald-500 ring-2 ring-emerald-100 shadow-lg' : 'border-slate-200'}`}
                     >
-                        <div className={`p-3 rounded-2xl ${item.status === 'FOUND' ? 'bg-emerald-50 text-emerald-600' : item.status === 'MISSING' ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-400'}`}>
-                            {item.status === 'FOUND' ? <CheckCircle2 size={24} /> : item.status === 'MISSING' ? <AlertCircle size={24} /> : <Info size={24} />}
+                        {session.status === 'OPEN' && (
+                            <input 
+                                type="checkbox"
+                                checked={selectedIds.includes(item.id)}
+                                onChange={(e) => {
+                                    if (e.target.checked) setSelectedIds([...selectedIds, item.id]);
+                                    else setSelectedIds(selectedIds.filter(id => id !== item.id));
+                                }}
+                                className="w-5 h-5 rounded-lg border-2 border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            />
+                        )}
+                        <div 
+                            onClick={() => session.status === 'OPEN' && setSelectedItem(item)}
+                            className="flex-1 flex items-center gap-4 cursor-pointer"
+                        >
+                            <div className={`p-3 rounded-2xl ${item.status === 'FOUND' ? 'bg-emerald-50 text-emerald-600' : item.status === 'MISSING' ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-400'}`}>
+                                {item.status === 'FOUND' ? <CheckCircle2 size={24} /> : item.status === 'MISSING' ? <AlertCircle size={24} /> : <Info size={24} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h4 className="text-sm font-black text-slate-800 line-clamp-1">{item.asset.name}</h4>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{item.asset.code}</p>
+                            </div>
+                            <ChevronRight className="text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" size={20} />
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-black text-slate-800 line-clamp-1">{item.asset.name}</h4>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{item.asset.code}</p>
-                        </div>
-                        <ChevronRight className="text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" size={20} />
                     </div>
                 ))}
             </div>
+
+            {/* Bulk Action Bar */}
+            {selectedIds.length > 0 && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[55] w-[90%] max-w-2xl bg-slate-900 text-white p-4 rounded-[32px] shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4 animate-in slide-in-from-bottom-20">
+                    <div className="flex items-center gap-4 pl-4">
+                        <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center font-black text-lg">
+                            {selectedIds.length}
+                        </div>
+                        <div>
+                            <p className="text-sm font-black">Aset Terpilih</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Update status masal</p>
+                        </div>
+                    </div>
+                    <div className="flex gap-2 w-full md:w-auto">
+                        <button 
+                            onClick={() => handleBulkAction('FOUND')}
+                            className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-700 px-6 py-3 rounded-2xl text-xs font-black shadow-lg shadow-emerald-900/20 transition-all"
+                        >
+                            TANDAI ADA
+                        </button>
+                        <button 
+                            onClick={() => handleBulkAction('MISSING')}
+                            className="flex-1 md:flex-none bg-red-600 hover:bg-red-700 px-6 py-3 rounded-2xl text-xs font-black shadow-lg shadow-red-900/20 transition-all"
+                        >
+                            TANDAI HILANG
+                        </button>
+                        <button 
+                            onClick={() => setSelectedIds([])}
+                            className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl transition-all"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Verification Drawer / Modal */}
             {selectedItem && (
