@@ -44,14 +44,8 @@ const Sidebar = ({ isOpen = true }) => {
     } catch (e) {
         console.error("Failed to parse user from localStorage", e);
     }
-    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_UNIT'].includes(user?.role);
+
     const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role);
-    const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user?.role);
-    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
-    const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user?.role);
-
-    const isKabidSarpras = user?.position?.toLowerCase() === 'kepala bidang sarana dan prasarana';
-
     const sarprasKeywords = [
         'sarana dan prasarana',
         'manajemen aset',
@@ -60,7 +54,13 @@ const Sidebar = ({ isOpen = true }) => {
         'keuangan dan administrasi',
         'kendaraan'
     ];
-    const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position?.toLowerCase().includes(kw));
+    const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position && user.position.toLowerCase().includes(kw));
+
+    const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user?.role);
+    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
+    const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user?.role);
+
+    const isKabidSarpras = user?.position?.toLowerCase() === 'kepala bidang sarana dan prasarana';
 
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">

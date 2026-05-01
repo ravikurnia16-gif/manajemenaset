@@ -92,7 +92,7 @@ function App() {
       'keuangan dan administrasi',
       'kendaraan'
   ];
-  const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position?.toLowerCase().includes(kw));
+  const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position && user.position.toLowerCase().includes(kw));
 
   return (
     <BrowserRouter>
