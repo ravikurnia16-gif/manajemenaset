@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, Search, Download, Upload, Trash2, Eye, Edit } from 'lucide-react';
+import { Package, Plus, Search, Download, Upload, Trash2, Edit, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
@@ -42,14 +42,8 @@ const WarehouseStock = () => {
         if (!search) return true;
         const displayGender = i.gender === 'L' ? 'Ikhwan' : i.gender === 'P' ? 'Akhwat' : i.gender;
         const searchableText = [
-            i.code,
-            i.name,
-            i.type,
-            displayGender,
-            i.itemUnit,
-            i.size ? `Ukuran ${i.size}` : null,
-            i.purchaseYear,
-            i.category?.name
+            i.code, i.name, i.type, displayGender, i.itemUnit,
+            i.size ? `Ukuran ${i.size}` : null, i.purchaseYear, i.category?.name
         ].filter(Boolean).join(' ').toLowerCase();
 
         const searchTerms = search.toLowerCase().split(/\s+/).filter(Boolean);
@@ -61,22 +55,24 @@ const WarehouseStock = () => {
         try { await api.delete(`/warehouse/items/${id}`); fetchData(); } catch (e) { alert('Gagal menghapus'); }
     };
 
+    const handleFixUnits = async () => {
+        if (!confirm('Ubah semua unit "SD Ikhwan" menjadi "SD"?')) return;
+        try {
+            const res = await api.get('/warehouse/maintenance/fix-units');
+            alert(res.data.message);
+            fetchData();
+        } catch (e) { alert(e.response?.data?.error || 'Gagal membersihkan unit'); }
+    };
 
-
-    // Template download (XLSX)
     const handleTemplate = () => {
         const headers = ['Nama', 'KategoriID', 'Tipe', 'Gender', 'Ukuran', 'TahunPembelian', 'Unit', 'Stok', 'StokMin', 'HargaBeli', 'Supplier', 'Lokasi'];
-        const note = ['# Tipe: BAJU/CELANA/JILBAB | Unit: TK/TAUD/SD/SMP/SMA/Pondok Putra/Pondok Putri/MIT/Yayasan'];
-        const example = ['Baju Putih', 1, 'BAJU', 'P', 'M', 2025, 'SD', 50, 5, 75000, 'CV Maju', 'Rak A1'];
-        const ws = XLSX.utils.aoa_to_sheet([headers, note, example]);
-        // Set column widths
+        const ws = XLSX.utils.aoa_to_sheet([headers]);
         ws['!cols'] = headers.map(() => ({ wch: 18 }));
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Template');
         XLSX.writeFile(wb, 'template_gudang.xlsx');
     };
 
-    // Export (XLSX)
     const handleExport = async () => {
         try {
             const res = await api.get('/warehouse/items/export');
@@ -91,18 +87,12 @@ const WarehouseStock = () => {
         } catch (e) { alert('Gagal export'); }
     };
 
-    // Import (supports CSV and XLSX/XLS)
     const handleImport = (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const ext = file.name.split('.').pop().toLowerCase();
-
         const processRows = async (rows) => {
-            // rows = array of arrays, first row is header
-            const dataRows = rows.slice(1).filter(r => {
-                const first = String(r[0] || '').trim();
-                return first && !first.startsWith('#');
-            });
+            const dataRows = rows.slice(1).filter(r => r[0] && !String(r[0]).startsWith('#'));
             const items = dataRows.map(cols => ({
                 name: String(cols[0] || '').trim(),
                 categoryId: String(cols[1] || '').trim(),
@@ -110,8 +100,8 @@ const WarehouseStock = () => {
                 gender: (() => {
                     const g = String(cols[3] || '').trim().toLowerCase();
                     if (!g) return null;
-                    if (['l', 'ikhwan', 'laki-laki', 'laki', 'male', 'm', 'pria'].includes(g)) return 'L';
-                    if (['p', 'akhwat', 'perempuan', 'female', 'f', 'wanita'].includes(g)) return 'P';
+                    if (['l', 'ikhwan', 'laki-laki'].includes(g)) return 'L';
+                    if (['p', 'akhwat', 'perempuan'].includes(g)) return 'P';
                     return String(cols[3]).trim();
                 })(),
                 size: String(cols[4] || '').trim() || null,
@@ -123,7 +113,6 @@ const WarehouseStock = () => {
                 supplier: String(cols[10] || '').trim() || null,
                 location: String(cols[11] || '').trim() || null,
             })).filter(item => item.name);
-            if (items.length === 0) { alert('Tidak ada data valid untuk diimport'); return; }
             try {
                 const res = await api.post('/warehouse/items/import', { items });
                 alert(res.data.message);
@@ -131,32 +120,16 @@ const WarehouseStock = () => {
             } catch (err) { alert(err.response?.data?.error || 'Gagal import'); }
             e.target.value = '';
         };
-
-        if (ext === 'csv') {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                const text = ev.target.result;
-                // Auto-detect delimiter: semicolon or comma
-                const firstLine = text.split('\n')[0] || '';
-                const delimiter = firstLine.includes(';') ? ';' : ',';
-                const rows = text.split('\n').map(l => l.split(delimiter));
-                processRows(rows);
-            };
-            reader.readAsText(file);
-        } else {
-            // XLSX / XLS
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                const wb = XLSX.read(ev.target.result, { type: 'array' });
-                const ws = wb.Sheets[wb.SheetNames[0]];
-                const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-                processRows(rows);
-            };
-            reader.readAsArrayBuffer(file);
-        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const wb = XLSX.read(ev.target.result, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+            processRows(rows);
+        };
+        reader.readAsArrayBuffer(file);
     };
 
-    // Unique years for filter
     const years = [...new Set(items.map(i => i.purchaseYear).filter(Boolean))].sort((a, b) => b - a);
 
     return (
@@ -167,6 +140,7 @@ const WarehouseStock = () => {
                     <p className="text-sm text-slate-500 mt-1">Kelola stok barang gudang</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
+                    <button onClick={handleFixUnits} className="flex items-center gap-1 px-3 py-2 border border-amber-200 bg-amber-50 text-amber-700 rounded-lg text-sm font-semibold hover:bg-amber-100 transition-colors"><RefreshCw size={14} /> Bersihkan Unit</button>
                     <button onClick={handleTemplate} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50"><Download size={14} /> Template</button>
                     <label className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer">
                         <Download size={14} /> Import
@@ -178,7 +152,6 @@ const WarehouseStock = () => {
                 </div>
             </div>
 
-            {/* Filters */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col md:flex-row gap-3">
                 <div className="relative flex-1">
                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -211,7 +184,6 @@ const WarehouseStock = () => {
                 )}
             </div>
 
-            {/* Table */}
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 {loading ? <div className="p-10 text-center text-slate-400">Memuat...</div> : filtered.length === 0 ? (
                     <div className="p-10 text-center text-slate-400"><Package size={40} className="mx-auto mb-2 text-slate-300" />Belum ada data stok</div>
@@ -230,28 +202,7 @@ const WarehouseStock = () => {
                                 {filtered.map(item => {
                                     const displayGender = item.gender === 'L' ? 'Ikhwan' : item.gender === 'P' ? 'Akhwat' : item.gender;
                                     const isSeragam = item.category?.name?.toLowerCase().includes('seragam');
-
-                                    let parts;
-                                    if (isSeragam) {
-                                        // Tipe_Nama_Gender_Unit_Ukuran_Tahun
-                                        parts = [
-                                            item.type, 
-                                            item.name, 
-                                            displayGender, 
-                                            item.itemUnit ? <span key="unit" className="text-slate-500 font-bold">({item.itemUnit})</span> : null, 
-                                            item.size ? `Ukuran ${item.size}` : null, 
-                                            item.purchaseYear ? `[${item.purchaseYear}]` : null
-                                        ].filter(Boolean);
-                                    } else {
-                                        parts = [
-                                            item.name, 
-                                            item.type, 
-                                            displayGender, 
-                                            item.itemUnit ? <span key="unit" className="text-slate-500 font-bold">({item.itemUnit})</span> : null, 
-                                            item.size ? `Ukuran ${item.size}` : null, 
-                                            item.purchaseYear ? `[${item.purchaseYear}]` : null
-                                        ].filter(Boolean);
-                                    }
+                                    let parts = isSeragam ? [item.type, item.name, displayGender, item.itemUnit ? <span key="unit" className="text-slate-500 font-bold">({item.itemUnit})</span> : null, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear ? `[${item.purchaseYear}]` : null].filter(Boolean) : [item.name, item.type, displayGender, item.itemUnit ? <span key="unit" className="text-slate-500 font-bold">({item.itemUnit})</span> : null, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear ? `[${item.purchaseYear}]` : null].filter(Boolean);
 
                                     return (
                                         <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
@@ -264,9 +215,7 @@ const WarehouseStock = () => {
                                                         </div>
                                                     )}
                                                     <div className="font-medium flex flex-wrap gap-1">
-                                                        {parts.map((p, i) => (
-                                                            <span key={i}>{p}</span>
-                                                        ))}
+                                                        {parts.map((p, i) => <span key={i}>{p}</span>)}
                                                     </div>
                                                 </div>
                                             </td>
