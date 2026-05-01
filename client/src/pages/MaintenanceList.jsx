@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Search, Filter, Trash2, Eye, Wrench, Calendar, AlertCircle, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Filter, Trash2, Eye, Wrench, Calendar, AlertCircle, Download, ChevronLeft, ChevronRight, BarChart2, Clock } from 'lucide-react';
 import api from '../lib/axios';
 import * as XLSX from 'xlsx';
+import MaintenanceDashboard from '../components/MaintenanceDashboard';
 
 const statusColors = {
     SUBMITTED: 'bg-blue-100 text-blue-700',
@@ -46,6 +47,7 @@ const MaintenanceList = () => {
     const [endDate, setEndDate] = useState('');
     const [limit, setLimit] = useState(10);
     const [page, setPage] = useState(1);
+    const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'schedule', 'list'
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -174,30 +176,67 @@ const MaintenanceList = () => {
                         <Wrench className="text-blue-600" /> Pemeliharaan
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Daftar seluruh laporan pemeliharaan aset dan umum
+                        Pusat kendali pemeliharaan aset dan umum
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <button
-                        onClick={handleExport}
-                        className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2.5 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all text-sm"
-                    >
-                        <Download size={18} /> Ekspor
-                    </button>
-                    <button
                         onClick={() => navigate('/pemeliharaan/input')}
                         className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all text-sm"
                     >
-                        <Plus size={18} /> Buat Laporan
+                        <Plus size={18} /> Buat Laporan Baru
                     </button>
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col md:flex-row gap-3 items-center">
-                <div className="relative flex-1 w-full">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
+            {/* Navigation Tabs */}
+            <div className="flex flex-nowrap overflow-x-auto gap-2 bg-white p-1.5 rounded-xl border border-slate-200">
+                <button
+                    onClick={() => setActiveTab('dashboard')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                >
+                    <BarChart2 size={18} /> Dashboard
+                </button>
+                <button
+                    onClick={() => setActiveTab('schedule')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'schedule' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                >
+                    <Calendar size={18} /> Jadwal Servis
+                </button>
+                <button
+                    onClick={() => setActiveTab('list')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'list' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                >
+                    <Clock size={18} /> Daftar Laporan
+                </button>
+            </div>
+
+            {/* Tab Contents */}
+            {activeTab === 'dashboard' && <MaintenanceDashboard />}
+            
+            {activeTab === 'schedule' && (
+                <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center">
+                    <Calendar size={48} className="mx-auto text-slate-300 mb-4" />
+                    <h3 className="text-lg font-bold text-slate-700">Modul Jadwal Servis Sedang Dibangun</h3>
+                    <p className="text-slate-500 text-sm mt-2">Nantinya Anda bisa melihat aset yang akan jatuh tempo dan melakukan bulk action di sini.</p>
+                </div>
+            )}
+
+            {activeTab === 'list' && (
+                <div className="space-y-4 animate-in fade-in duration-500">
+                    {/* Filters & Actions for List Tab */}
+                    <div className="flex justify-end mb-2">
+                        <button
+                            onClick={handleExport}
+                            className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold shadow hover:shadow-lg transition-all text-sm"
+                        >
+                            <Download size={16} /> Ekspor Data
+                        </button>
+                    </div>
+                    <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col md:flex-row gap-3 items-center">
+                        <div className="relative flex-1 w-full">
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
                         type="text"
                         placeholder="Cari kode, judul, pelapor..."
                         value={search}
@@ -431,6 +470,13 @@ const MaintenanceList = () => {
                         </div>
                     </div>
                 </div>
+            )}
+                </div>
+            )}
+            
+            {/* End of activeTab === 'list' */}
+            {activeTab === 'list' && (
+                <div className="hidden"></div>
             )}
         </div>
     );

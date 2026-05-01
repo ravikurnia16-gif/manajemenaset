@@ -6,6 +6,105 @@ const { createNotification } = require('./notificationController');
 const predictiveService = require('../services/predictiveService');
 const crypto = require('crypto');
 
+// Get Dashboard Stats
+exports.getDashboardStats = async (req, res) => {
+    try {
+        const { targetDept } = req.query; // SARPRAS or PEMBANGUNAN
+        
+        const whereClause = {};
+        if (targetDept) {
+            whereClause.targetDept = targetDept;
+        }
+
+        // 1. Total Cost This Month
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+
+        const thisMonthReports = await prisma.maintenance.findMany({
+            where: {
+                ...whereClause,
+                status: 'COMPLETED',
+                completionDate: { gte: startOfMonth }
+            },
+            select: { cost: true }
+        });
+        const totalCostThisMonth = thisMonthReports.reduce((sum, r) => sum + (r.cost || 0), 0);
+
+        // 2. Active Reports Count
+        const activeReportsCount = await prisma.maintenance.count({
+            where: {
+                ...whereClause,
+                status: { notIn: ['COMPLETED', 'REJECTED'] }
+            }
+        });
+
+        // 3. Overdue Assets Count
+        const overdueAssetsCount = await prisma.asset.count({
+            where: {
+                nextMaintenanceEst: { lt: new Date() },
+                condition: { not: 'DISPOSED' }
+            }
+        });
+
+        // 4. Monthly Trend (Last 6 Months)
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+        sixMonthsAgo.setDate(1);
+        sixMonthsAgo.setHours(0, 0, 0, 0);
+
+        const recentCompleted = await prisma.maintenance.findMany({
+            where: {
+                ...whereClause,
+                status: 'COMPLETED',
+                completionDate: { gte: sixMonthsAgo }
+            },
+            select: { cost: true, completionDate: true }
+        });
+
+        const monthlyTrendMap = {};
+        for(let i=5; i>=0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const key = d.toLocaleString('id-ID', { month: 'short', year: 'numeric' });
+            monthlyTrendMap[key] = { name: key, cost: 0, count: 0 };
+        }
+
+        recentCompleted.forEach(r => {
+            if(r.completionDate) {
+                const key = new Date(r.completionDate).toLocaleString('id-ID', { month: 'short', year: 'numeric' });
+                if(monthlyTrendMap[key]) {
+                    monthlyTrendMap[key].cost += (r.cost || 0);
+                    monthlyTrendMap[key].count += 1;
+                }
+            }
+        });
+        const monthlyTrend = Object.values(monthlyTrendMap);
+
+        // 5. Recent Active Reports
+        const recentReports = await prisma.maintenance.findMany({
+            where: {
+                ...whereClause,
+                status: { notIn: ['COMPLETED', 'REJECTED'] }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            include: { unit: { select: { name: true } } }
+        });
+
+        res.json({
+            totalCostThisMonth,
+            activeReportsCount,
+            overdueAssetsCount,
+            monthlyTrend,
+            recentReports
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // Helper to generate Maintenance Code
 const generateCode = async (targetDept = 'SARPRAS') => {
     const year = new Date().getFullYear();
