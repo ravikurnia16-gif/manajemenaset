@@ -131,6 +131,9 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/aset" className={subNavItemClass('/aset')}>
                             <Box size={16} /> Data Aset
                         </Link>
+                        <Link to="/aset/katalog-standar" className={subNavItemClass('/aset/katalog-standar')}>
+                            <FileText size={16} /> Katalog Standar Aset
+                        </Link>
                         {isAdmin && (
                             <>
                                 <Link to="/rkb" className={subNavItemClass('/rkb')}>

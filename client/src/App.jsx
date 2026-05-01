@@ -58,6 +58,8 @@ import OfficialResidence from './pages/OfficialResidence';
 import QuickComplete from './pages/QuickComplete';
 import EOffice from './pages/EOffice';
 import PublicVerify from './pages/PublicVerify';
+import AssetStandardCatalog from './pages/AssetStandardCatalog';
+import AssetStandardForm from './pages/AssetStandardForm';
 
 
 // Komponen untuk melindungi route yang butuh login
@@ -108,6 +110,9 @@ function App() {
           <Route path="aset/view/:id" element={<AssetDetail />} />
           <Route path="aset/input" element={<AssetForm />} />
           <Route path="aset/edit/:id" element={<AssetForm />} />
+          <Route path="aset/katalog-standar" element={<AssetStandardCatalog />} />
+          <Route path="aset/katalog-standar/new" element={<AssetStandardForm />} />
+          <Route path="aset/katalog-standar/edit/:id" element={<AssetStandardForm />} />
           <Route path="master" element={<MasterData />} />
           <Route path="rkb" element={<RKBList />} />
           <Route path="rkb/:id" element={<RKBDetail />} />

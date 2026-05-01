@@ -186,6 +186,24 @@ model Category {
   depreciationMethod String // e.g. STRAIGHT_LINE
   assets             Asset[]
   procurementItems   ProcurementItem[]
+  assetStandards     AssetStandard[]
+}
+
+model AssetStandard {
+  id            Int      @id @default(autoincrement())
+  name          String
+  categoryId    Int
+  category      Category @relation(fields: [categoryId], references: [id])
+  specification String?  @db.Text
+  minSpec       String?  @db.Text
+  estimatedPrice Float?
+  image         String?  @db.LongText
+  note          String?  @db.Text
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([categoryId])
 }
 
 model Vendor {
