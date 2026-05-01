@@ -331,14 +331,26 @@ export default function OfficialResidence() {
         const res = await axios.get("/official-residence/units");
         setUnits(res.data);
       } else if (activeTab === "Data Penghuni") {
-        const res = await axios.get("/official-residence/residents");
+        const [res, unitsRes] = await Promise.all([
+          axios.get("/official-residence/residents"),
+          axios.get("/official-residence/units")
+        ]);
         setResidents(res.data);
+        setUnits(unitsRes.data);
       } else if (activeTab === "MOU") {
-        const res = await axios.get("/official-residence/mou");
+        const [res, unitsRes] = await Promise.all([
+          axios.get("/official-residence/mou"),
+          axios.get("/official-residence/units")
+        ]);
         setMous(res.data);
+        setUnits(unitsRes.data);
       } else if (activeTab === "Pemeliharaan") {
-        const res = await axios.get("/official-residence/maintenance");
+        const [res, unitsRes] = await Promise.all([
+          axios.get("/official-residence/maintenance"),
+          axios.get("/official-residence/units")
+        ]);
         setMaintenance(res.data);
+        setUnits(unitsRes.data);
       }
       
       // Always fetch all users for the dropdowns
