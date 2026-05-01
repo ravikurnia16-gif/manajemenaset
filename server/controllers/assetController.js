@@ -89,7 +89,7 @@ exports.createAsset = async (req, res) => {
                 // Check if room with same name exists in this unit
                 const existingRoom = await tx.room.findFirst({
                     where: {
-                        name: { equals: newRoomName, mode: 'insensitive' },
+                        name: newRoomName,
                         unitId: unitId ? parseInt(unitId) : null
                     }
                 });

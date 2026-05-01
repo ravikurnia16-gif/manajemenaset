@@ -174,7 +174,7 @@ exports.createRoom = async (req, res) => {
         if (unitId) {
             const existing = await prisma.room.findFirst({
                 where: { 
-                    name: { equals: name, mode: 'insensitive' }, 
+                    name: name, 
                     unitId: parseInt(unitId) 
                 }
             });
@@ -207,7 +207,7 @@ exports.updateRoom = async (req, res) => {
         if (unitId) {
             const existing = await prisma.room.findFirst({
                 where: { 
-                    name: { equals: name, mode: 'insensitive' }, 
+                    name: name, 
                     unitId: parseInt(unitId),
                     id: { not: parseInt(id) }
                 }
@@ -446,7 +446,7 @@ exports.repairRoomConflicts = async (req, res) => {
             // Find or create a room with the same name in the asset's unit
             let correctRoom = await prisma.room.findFirst({
                 where: {
-                    name: { equals: asset.room.name, mode: 'insensitive' },
+                    name: asset.room.name,
                     unitId: asset.unitId
                 }
             });

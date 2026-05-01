@@ -1556,7 +1556,7 @@ exports.sendDailyPersonnelSummary = async () => {
                 OR: [
                     { position: 'Kepala Bidang Sarana dan Prasarana' },
                     { role: 'KEPALA_BIDANG' },
-                    { position: { contains: 'Kepala Bidang Sarana dan Prasarana', mode: 'insensitive' } }
+                    { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } }
                 ]
             }
         });

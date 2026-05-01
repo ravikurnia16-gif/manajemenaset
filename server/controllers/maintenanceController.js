@@ -224,12 +224,12 @@ exports.getAllReports = async (req, res) => {
 
         if (search) {
             whereClause.OR = [
-                { title: { contains: search, mode: 'insensitive' } },
-                { code: { contains: search, mode: 'insensitive' } },
-                { description: { contains: search, mode: 'insensitive' } },
-                { user: { name: { contains: search, mode: 'insensitive' } } },
-                { assets: { some: { name: { contains: search, mode: 'insensitive' } } } },
-                { assets: { some: { code: { contains: search, mode: 'insensitive' } } } }
+                { title: { contains: search } },
+                { code: { contains: search } },
+                { description: { contains: search } },
+                { user: { name: { contains: search } } },
+                { assets: { some: { name: { contains: search } } } },
+                { assets: { some: { code: { contains: search } } } }
             ];
         }
 
@@ -842,8 +842,8 @@ exports.getMaintenanceSchedule = async (req, res) => {
         if (category) whereClause.category = category;
         if (search) {
             whereClause.OR = [
-                { name: { contains: search, mode: 'insensitive' } },
-                { code: { contains: search, mode: 'insensitive' } }
+                { name: { contains: search } },
+                { code: { contains: search } }
             ];
         }
 
