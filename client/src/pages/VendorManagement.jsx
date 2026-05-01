@@ -191,6 +191,9 @@ const VendorManagement = () => {
 
     const handleEditProduct = (product) => {
         setCurrentProduct(product);
+        if (product.vendor) {
+            setSelectedVendorForProducts(product.vendor);
+        }
         setProductForm({
             name: product.name,
             price: product.price || '',
@@ -200,6 +203,7 @@ const VendorManagement = () => {
         setProductPhotoFile(null);
         setProductPhotoPreview(product.image ? getMediaUrl(product.image) : null);
         setIsAddingProduct(true);
+        setIsProductModalOpen(true);
     };
 
     const fetchPriceHistory = async (productId) => {
