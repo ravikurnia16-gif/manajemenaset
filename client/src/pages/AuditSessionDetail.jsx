@@ -238,7 +238,11 @@ const AuditSessionDetail = () => {
         return matchesTab && matchesSearch && matchesRoom;
     });
 
-    const sessionRooms = Array.from(new Set(session.items.map(i => i.asset.room))).filter(Boolean);
+    const sessionRoomsMap = new Map();
+    session.items.forEach(i => {
+        if (i.asset.room) sessionRoomsMap.set(i.asset.room.id, i.asset.room);
+    });
+    const sessionRooms = Array.from(sessionRoomsMap.values());
 
     return (
         <div className="p-4 md:p-8 min-h-screen bg-slate-50 space-y-8 pb-32">

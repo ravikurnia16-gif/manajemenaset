@@ -157,29 +157,23 @@ const AuditList = () => {
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pilih Ruangan di Unit Tersebut</label>
                                 <div className="max-h-60 overflow-y-auto border border-slate-100 rounded-2xl p-2 space-y-1 bg-slate-50/50">
-                                    {!selectedUnit ? (
-                                        <div className="p-6 text-center text-slate-400 text-sm font-medium">Silakan pilih unit terlebih dahulu untuk memunculkan daftar ruangan.</div>
-                                    ) : rooms.filter(r => r.unitId === parseInt(selectedUnit)).length === 0 ? (
-                                        <div className="p-6 text-center text-slate-400 text-sm font-medium">Tidak ada ruangan di unit ini.</div>
-                                    ) : (
-                                        rooms.filter(r => r.unitId === parseInt(selectedUnit)).map(r => (
-                                            <label key={r.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 hover:border-emerald-200 cursor-pointer transition-all">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedRooms.includes(r.id)}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) setSelectedRooms([...selectedRooms, r.id]);
-                                                        else setSelectedRooms(selectedRooms.filter(id => id !== r.id));
-                                                    }}
-                                                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
-                                                />
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-bold text-slate-700">{r.name}</span>
-                                                    <span className="text-[10px] text-slate-400 font-medium">{r.unit?.name ? `${r.unit.name} • ` : ''}{r.building} - Lantai {r.floor}</span>
-                                                </div>
-                                            </label>
-                                        ))
-                                    )}
+                                    {rooms.filter(r => !selectedUnit || r.unitId === parseInt(selectedUnit)).map(r => (
+                                        <label key={r.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 hover:border-emerald-200 cursor-pointer transition-all">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedRooms.includes(r.id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setSelectedRooms([...selectedRooms, r.id]);
+                                                    else setSelectedRooms(selectedRooms.filter(id => id !== r.id));
+                                                }}
+                                                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-bold text-slate-700">{r.name}</span>
+                                                <span className="text-[10px] text-slate-400 font-medium">{r.building} - Lantai {r.floor}</span>
+                                            </div>
+                                        </label>
+                                    ))}
                                 </div>
                             </div>
                         </div>
