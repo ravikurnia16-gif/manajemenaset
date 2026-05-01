@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const fs = require('fs');
 const path = require('path');
-const { deleteFile } = require('../services/minioService');
+const { deleteFile, uploadFile } = require('../services/minioService');
 const whatsappService = require('../services/whatsappService');
 const { createNotification } = require('./notificationController');
 
@@ -758,6 +758,22 @@ exports.processBAST = async (req, res) => {
     }
 
     try {
+        const uploadBase64 = async (base64String, folder = 'assets') => {
+            if (!base64String || !base64String.startsWith('data:')) return null;
+            try {
+                const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+                if (!matches || matches.length !== 3) return null;
+                const type = matches[1];
+                const buffer = Buffer.from(matches[2], 'base64');
+                const extension = type.split('/')[1] || 'jpg';
+                const fileName = `proc_asset_${Date.now()}.${extension}`;
+                return await uploadFile(buffer, fileName, type, folder);
+            } catch (e) {
+                console.error('Base64 Upload Error:', e);
+                return null;
+            }
+        };
+
         const procurement = await prisma.procurement.findUnique({
             where: { id: parseInt(id) },
             include: {
@@ -824,11 +840,21 @@ exports.processBAST = async (req, res) => {
                         // Determine Room ID and PIC ID for this item
                         let roomId = details.roomId ? parseInt(details.roomId) : null;
                         let picId = details.picId ? parseInt(details.picId) : null;
+                        let itemImage = details.image || null; // Could be base64
 
                         // If individual allocation, override with specific unit data if available
                         if (details.allocationType === 'INDIVIDUAL' && details.units?.[i]) {
                             if (details.units[i].roomId) roomId = parseInt(details.units[i].roomId);
                             if (details.units[i].picId) picId = parseInt(details.units[i].picId);
+                            if (details.units[i].image) itemImage = details.units[i].image;
+                        }
+
+                        // Upload image if it's base64
+                        let finalImageUrl = null;
+                        if (itemImage && itemImage.startsWith('data:')) {
+                            finalImageUrl = await uploadBase64(itemImage);
+                        } else if (itemImage) {
+                            finalImageUrl = itemImage;
                         }
 
                         // Calculate maintenance interval in days
@@ -856,6 +882,7 @@ exports.processBAST = async (req, res) => {
                                 vendorName: item.vendorName || null,
                                 quantity: 1,
                                 picId: picId,
+                                image: finalImageUrl,
                                 isLendable: details.isLendable || false,
                                 needsRoutineMaintenance: details.needsRoutineMaintenance || false,
                                 maintenanceInterval: maintenanceInterval

@@ -297,6 +297,59 @@ const Notice = ({ type = 'info', children }) => {
 };
 
 /* ─────────────────────────────────────────────
+    SUB-COMPONENTS
+───────────────────────────────────────────── */
+const AssetImageUpload = ({ value, onChange, label = 'Foto Aset' }) => {
+    const handleFile = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) return alert('File terlalu besar (maks 5MB)');
+        
+        const reader = new FileReader();
+        reader.onloadend = () => onChange(reader.result);
+        reader.readAsDataURL(file);
+    };
+    return (
+        <div>
+            <Label style={{ fontSize: 11, marginBottom: 4 }}>{label}</Label>
+            <div style={{
+                width: '100%', height: 70, borderRadius: 10, border: `1.5px dashed ${T.border}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                position: 'relative', overflow: 'hidden', background: value ? 'transparent' : T.white,
+                transition: 'all 0.2s ease'
+            }}>
+                {value ? (
+                    <>
+                        <img src={value} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <button 
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange(null); }}
+                            style={{ 
+                                position: 'absolute', top: 4, right: 4, 
+                                background: 'rgba(239, 68, 68, 0.9)', color: 'white', 
+                                border: 'none', borderRadius: '50%', width: 18, height: 18, 
+                                cursor: 'pointer', fontSize: 10, display: 'flex', 
+                                alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
+                            }}
+                        >×</button>
+                    </>
+                ) : (
+                    <div style={{ textAlign: 'center', color: T.border }}>
+                        <Camera size={18} style={{ marginBottom: 2 }} />
+                        <div style={{ fontSize: 9, fontWeight: 600 }}>UPLOAD</div>
+                    </div>
+                )}
+                <input 
+                    type="file" accept="image/*" 
+                    onChange={handleFile}
+                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} 
+                />
+            </div>
+        </div>
+    );
+};
+
+/* ─────────────────────────────────────────────
    MAIN COMPONENT
 ───────────────────────────────────────────── */
 const ProcurementDetail = () => {
@@ -374,12 +427,13 @@ const ProcurementDetail = () => {
                 data.items.forEach(it => {
                     const units = [];
                     for (let i = 0; i < it.qty; i++) {
-                        units.push({ roomId: '', picId: '' });
+                        units.push({ roomId: '', picId: '', image: null });
                     }
                     initDetails[it.id] = {
                         categoryId: '',
                         roomId: '',
                         picId: '',
+                        image: null,
                         condition: 'BAIK',
                         isLendable: false,
                         needsRoutineMaintenance: false,
@@ -1241,16 +1295,25 @@ const ProcurementDetail = () => {
                                                         ) : (
                                                             <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10, background: T.cream, padding: 12, borderRadius: 10 }}>
                                                                 {det.units.map((u, uIdx) => (
-                                                                    <div key={uIdx}>
-                                                                        <Label>Unit {uIdx + 1}</Label>
+                                                                    <div key={uIdx} style={{ background: T.white, padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }}>
+                                                                        <Label style={{ fontWeight: 800 }}>Unit {uIdx + 1}</Label>
                                                                         <Select value={u.roomId || ''} onChange={e => {
                                                                             const nextUnits = [...det.units];
                                                                             nextUnits[uIdx].roomId = e.target.value;
                                                                             updateDet('units', nextUnits);
-                                                                        }} style={{ fontSize: 11, padding: '6px 10px' }}>
+                                                                        }} style={{ fontSize: 11, padding: '6px 10px', marginBottom: 8 }}>
                                                                             <option value="">— Pilih Ruangan —</option>
                                                                             {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                                                                         </Select>
+                                                                        <AssetImageUpload 
+                                                                            value={u.image} 
+                                                                            onChange={val => {
+                                                                                const nextUnits = [...det.units];
+                                                                                nextUnits[uIdx].image = val;
+                                                                                updateDet('units', nextUnits);
+                                                                            }} 
+                                                                            label="Foto Unit" 
+                                                                        />
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -1263,6 +1326,15 @@ const ProcurementDetail = () => {
                                                                 {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                             </Select>
                                                         </div>
+                                                        {det.allocationType === 'SAME' && (
+                                                            <div>
+                                                                <AssetImageUpload 
+                                                                    value={det.image} 
+                                                                    onChange={val => updateDet('image', val)} 
+                                                                    label="Foto Aset (Sama untuk semua)" 
+                                                                />
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.cream, padding: '10px 14px', borderRadius: 8 }}>
