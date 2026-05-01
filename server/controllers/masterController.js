@@ -425,6 +425,80 @@ exports.cleanupRooms = async (req, res) => {
     }
 };
 
+exports.repairRoomConflicts = async (req, res) => {
+    try {
+        // Find assets where its unitId doesn't match its room's unitId
+        const conflictingAssets = await prisma.asset.findMany({
+            where: {
+                roomId: { not: null },
+                room: {
+                    unitId: { not: null }
+                }
+            },
+            include: { room: true, unit: true }
+        });
+
+        const filteredConflicts = conflictingAssets.filter(a => a.unitId !== a.room.unitId);
+        let repairCount = 0;
+        let newRoomCount = 0;
+
+        for (const asset of filteredConflicts) {
+            // Find or create a room with the same name in the asset's unit
+            let correctRoom = await prisma.room.findFirst({
+                where: {
+                    name: { equals: asset.room.name, mode: 'insensitive' },
+                    unitId: asset.unitId
+                }
+            });
+
+            if (!correctRoom) {
+                // Get next sequence for room code
+                const lastRoom = await prisma.room.findFirst({
+                    where: {
+                        unitId: asset.unitId,
+                        code: { startsWith: `${asset.unit.code}-` }
+                    },
+                    orderBy: { code: 'desc' }
+                });
+
+                let nextSeq = 1;
+                if (lastRoom) {
+                    const parts = lastRoom.code.split('-');
+                    const lastSeqPart = parts[parts.length - 1];
+                    const lastSeq = parseInt(lastSeqPart);
+                    if (!isNaN(lastSeq)) nextSeq = lastSeq + 1;
+                }
+                const finalRoomCode = `${asset.unit.code}-${nextSeq.toString().padStart(2, '0')}`;
+
+                correctRoom = await prisma.room.create({
+                    data: {
+                        name: asset.room.name,
+                        code: finalRoomCode,
+                        floor: asset.room.floor || '1',
+                        building: asset.room.building || '-',
+                        unitId: asset.unitId
+                    }
+                });
+                newRoomCount++;
+            }
+
+            // Move asset to the correct room
+            await prisma.asset.update({
+                where: { id: asset.id },
+                data: { roomId: correctRoom.id }
+            });
+            repairCount++;
+        }
+
+        res.json({ 
+            message: `Pembersihan selesai. ${repairCount} aset dipindahkan ke unit yang benar, ${newRoomCount} ruangan baru dibuat.` 
+        });
+    } catch (error) {
+        console.error('Repair Error:', error);
+        res.status(500).json({ error: 'Repair Error: ' + error.message });
+    }
+};
+
 exports.syncAssetCodes = async (req, res) => {
     try {
         const assets = await prisma.asset.findMany({

@@ -158,6 +158,17 @@ const MasterData = () => {
         finally { setActionLoading(false); }
     };
 
+    const handleRepairRooms = async () => {
+        if (!confirm('Pindahkan aset yang "salah unit" ke ruangan yang benar? Sistem akan membuat ruangan baru jika diperlukan.')) return;
+        try {
+            setActionLoading(true);
+            const res = await api.post('/master/rooms/repair');
+            alert(res.data.message);
+            fetchData();
+        } catch (err) { alert(err.message); }
+        finally { setActionLoading(false); }
+    };
+
 
 
 
@@ -322,13 +333,24 @@ const MasterData = () => {
                 </div>
                 <div className="flex gap-2">
                     {isAdminAset && activeTab === 'rooms' && (
-                        <button 
-                            disabled={actionLoading}
-                            onClick={handleCleanupRooms} 
-                            className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-amber-100 hover:bg-amber-700 transition-all flex items-center gap-2 disabled:opacity-50"
-                        >
-                            <Save size={16} /> {actionLoading ? 'Memproses...' : 'Bersihkan Duplikat'}
-                        </button>
+                        <div className="flex gap-2">
+                            <button 
+                                disabled={actionLoading}
+                                onClick={handleCleanupRooms} 
+                                className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-amber-100 hover:bg-amber-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                            >
+                                <Save size={16} /> {actionLoading ? 'Memproses...' : 'Bersihkan Duplikat'}
+                            </button>
+                            {user.role === 'SUPER_ADMIN' && (
+                                <button 
+                                    disabled={actionLoading}
+                                    onClick={handleRepairRooms} 
+                                    className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-red-100 hover:bg-red-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    <Edit size={16} /> {actionLoading ? 'Memproses...' : 'Audit & Perbaiki Lokasi'}
+                                </button>
+                            )}
+                        </div>
                     )}
                     {isAdminAset && activeTab === 'units' && (
                         <button 
