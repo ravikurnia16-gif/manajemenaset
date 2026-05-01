@@ -25,17 +25,18 @@ const MaintenanceDashboard = () => {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [month, setMonth] = useState(new Date().getMonth() + 1);
+    const [year, setYear] = useState(new Date().getFullYear());
     const navigate = useNavigate();
 
     useEffect(() => {
         fetchStats();
-    }, []);
+    }, [month, year]);
 
     const fetchStats = async () => {
         try {
             setLoading(true);
-            // Defaulting to SARPRAS for general view, could be dynamic based on user role
-            const response = await api.get('/maintenance/stats/dashboard');
+            const response = await api.get(`/maintenance/stats/dashboard?month=${month}&year=${year}`);
             setStats(response.data);
             setError(null);
         } catch (err) {
@@ -63,6 +64,48 @@ const MaintenanceDashboard = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {/* Month & Year Picker */}
+            <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                        <Calendar size={20} />
+                    </div>
+                    <div>
+                        <h4 className="text-sm font-bold text-slate-800">Periode Statistik</h4>
+                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Pilih Bulan & Tahun</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <select 
+                        value={month} 
+                        onChange={e => setMonth(parseInt(e.target.value))}
+                        className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        {['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'].map((m, i) => (
+                            <option key={i+1} value={i+1}>{m}</option>
+                        ))}
+                    </select>
+                    <select 
+                        value={year} 
+                        onChange={e => setYear(parseInt(e.target.value))}
+                        className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        {[2024, 2025, 2026, 2027].map(y => (
+                            <option key={y} value={y}>{y}</option>
+                        ))}
+                    </select>
+                    {/* Reset to current month */}
+                    {(month !== new Date().getMonth() + 1 || year !== new Date().getFullYear()) && (
+                        <button 
+                            onClick={() => { setMonth(new Date().getMonth() + 1); setYear(new Date().getFullYear()); }}
+                            className="text-xs font-bold text-blue-600 hover:underline px-2"
+                        >
+                            Bulan Ini
+                        </button>
+                    )}
+                </div>
+            </div>
+
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard 

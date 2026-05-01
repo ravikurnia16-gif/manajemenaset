@@ -9,23 +9,31 @@ const crypto = require('crypto');
 // Get Dashboard Stats
 exports.getDashboardStats = async (req, res) => {
     try {
-        const { targetDept } = req.query; // SARPRAS or PEMBANGUNAN
+        const { targetDept, month, year } = req.query; // SARPRAS or PEMBANGUNAN
         
         const whereClause = {};
         if (targetDept) {
             whereClause.targetDept = targetDept;
         }
 
-        // 1. Total Cost This Month
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
+        // Calculate Start and End of specific Month
+        let startOfPeriod = new Date();
+        if (month && year) {
+            startOfPeriod = new Date(parseInt(year), parseInt(month) - 1, 1);
+        } else {
+            startOfPeriod.setDate(1);
+        }
+        startOfPeriod.setHours(0, 0, 0, 0);
 
+        const endOfPeriod = new Date(startOfPeriod);
+        endOfPeriod.setMonth(endOfPeriod.getMonth() + 1);
+
+        // 1. Total Cost for Selected Period
         const thisMonthReports = await prisma.maintenance.findMany({
             where: {
                 ...whereClause,
                 status: 'COMPLETED',
-                completionDate: { gte: startOfMonth }
+                completionDate: { gte: startOfPeriod, lt: endOfPeriod }
             },
             select: { cost: true }
         });
