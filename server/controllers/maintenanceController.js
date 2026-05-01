@@ -834,6 +834,7 @@ exports.getMaintenanceSchedule = async (req, res) => {
 
         const whereClause = {
             nextMaintenanceEst: { not: null },
+            needsRoutineMaintenance: true,
             condition: { not: 'DISPOSED' }
         };
 
