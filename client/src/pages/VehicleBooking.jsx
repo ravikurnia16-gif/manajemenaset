@@ -105,6 +105,25 @@ const VehicleBooking = () => {
     }, [showDriverDropdown]);
 
     useEffect(() => {
+        if (formData.isRented && formData.startDate && formData.startTime && formData.rentalDays) {
+            try {
+                const start = new Date(`${formData.startDate}T${formData.startTime}`);
+                if (!isNaN(start.getTime())) {
+                    const end = new Date(start.getTime() + (parseInt(formData.rentalDays) * 24 * 60 * 60 * 1000));
+                    const endDate = end.toISOString().split('T')[0];
+                    const endTime = end.toTimeString().split(' ')[0].slice(0, 5);
+
+                    if (formData.endDate !== endDate || formData.endTime !== endTime) {
+                        setFormData(prev => ({ ...prev, endDate, endTime }));
+                    }
+                }
+            } catch (err) {
+                console.error('Error calculating rental end date:', err);
+            }
+        }
+    }, [formData.isRented, formData.startDate, formData.startTime, formData.rentalDays]);
+
+    useEffect(() => {
         fetchVehicles();
         fetchStaff();
         fetchDrivers();
@@ -297,9 +316,7 @@ const VehicleBooking = () => {
             await api.post('/vehicles/booking/request', {
                 ...formData,
                 startDate: startDateObj,
-                endDate: formData.isRented
-                    ? new Date(startDateObj.getTime() + (parseInt(formData.rentalDays) * 24 * 60 * 60 * 1000))
-                    : new Date(endStr),
+                endDate: new Date(endStr),
                 rentalPrice: formData.isRented ? selectedVehicle?.defaultRentalPrice : null,
                 startKm: formData.startKm || null
             });
@@ -1018,6 +1035,25 @@ const VehicleBooking = () => {
                                                             className="w-full bg-slate-100 border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm font-bold text-indigo-600 cursor-not-allowed"
                                                             value={selectedVehicle?.defaultRentalPrice ? `Rp ${selectedVehicle.defaultRentalPrice.toLocaleString('id-ID')}` : 'Rp 0'}
                                                         />
+                                                    </div>
+                                                </div>
+                                                <div className="md:col-span-2 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl animate-in slide-in-from-top-2 duration-500">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <label className="block text-[10px] font-black text-indigo-700 uppercase tracking-wider">Estimasi Waktu Selesai</label>
+                                                        <span className="text-[10px] font-bold text-indigo-500 bg-white px-2 py-0.5 rounded-full border border-indigo-100">Otomatis Terhitung</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 bg-white rounded-lg border border-indigo-100 text-indigo-600 shadow-sm">
+                                                            <Calendar size={18} />
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm font-black text-indigo-900">
+                                                                {new Date(`${formData.endDate}T${formData.endTime}`).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                                            </div>
+                                                            <div className="text-xs font-bold text-indigo-500 flex items-center gap-1 mt-0.5">
+                                                                <Clock size={12} /> Pukul {formData.endTime} WIB
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </>
