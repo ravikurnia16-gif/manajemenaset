@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
     Box, ArrowLeft, Calendar, MapPin, Building2, User,
     DollarSign, Tag, FileText, ArrowLeftRight, Wrench,
-    Trash2, Plus, CheckCircle, Clock, Loader2
+    Trash2, Plus, CheckCircle, Clock, Loader2, Store
 } from 'lucide-react';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
@@ -119,6 +119,26 @@ const AssetDetail = () => {
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Harga Perolehan</p>
                                     <p className="text-sm font-bold text-slate-700">Rp {asset.price.toLocaleString()}</p>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-3 pt-4 border-t border-slate-50">
+                                <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                                    <Store size={20} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Vendor / Suplier</p>
+                                    <p className="text-sm font-bold text-slate-700">{asset.vendorName || '-'}</p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-pink-50 flex items-center justify-center text-pink-600">
+                                    <Tag size={20} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Merk / Tipe</p>
+                                    <p className="text-sm font-bold text-slate-700">{asset.brand || '-'}</p>
                                 </div>
                             </div>
                         </div>

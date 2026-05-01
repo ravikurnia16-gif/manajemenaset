@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin, Printer, QrCode, CheckCircle, XCircle, AlertCircle, ArrowLeftRight } from 'lucide-react';
+import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin, Printer, QrCode, CheckCircle, XCircle, AlertCircle, ArrowLeftRight, Store, Tag } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { LabelPrint, BatchLabelPrint } from '../components/LabelPrint';
@@ -987,7 +987,7 @@ const AssetList = ({ validationMode = false }) => {
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col">
                                                 <Link to={`/aset/view/${asset.id}`} className="font-bold text-slate-800 hover:text-blue-600 transition-colors">{asset.name}</Link>
-                                                <div className="flex items-center gap-2 mt-1">
+                                                <div className="flex flex-wrap items-center gap-2 mt-1">
                                                     <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded leading-none">{asset.code}</span>
                                                     {asset.validationStatus === 'VALIDATED' ? (
                                                         <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold">VALID</span>
@@ -997,6 +997,12 @@ const AssetList = ({ validationMode = false }) => {
                                                         <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-bold italic">BELUM CEK</span>
                                                     )}
                                                 </div>
+                                                {(asset.vendorName || asset.brand) && (
+                                                    <div className="flex items-center gap-2 mt-1.5 text-[9px] font-medium text-slate-500">
+                                                        {asset.vendorName && <span className="flex items-center gap-0.5"><Store size={10} className="text-slate-400"/> <span className="truncate max-w-[80px]" title={asset.vendorName}>{asset.vendorName}</span></span>}
+                                                        {asset.brand && <span className="flex items-center gap-0.5"><Tag size={10} className="text-slate-400"/> <span className="truncate max-w-[80px]" title={asset.brand}>{asset.brand}</span></span>}
+                                                    </div>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
@@ -1088,6 +1094,12 @@ const AssetList = ({ validationMode = false }) => {
                                         <div className="flex flex-col">
                                             <Link to={`/aset/view/${asset.id}`} className="font-bold text-slate-800 leading-tight mb-0.5 line-clamp-1">{asset.name}</Link>
                                             <span className="text-[10px] font-mono text-slate-400 tracking-wider bg-slate-50 w-fit px-1.5 rounded uppercase leading-relaxed">{asset.code}</span>
+                                            {(asset.vendorName || asset.brand) && (
+                                                <div className="flex flex-wrap items-center gap-2 mt-1 text-[9px] font-medium text-slate-500">
+                                                    {asset.vendorName && <span className="flex items-center gap-0.5"><Store size={10} className="text-slate-400"/> <span className="truncate max-w-[80px]">{asset.vendorName}</span></span>}
+                                                    {asset.brand && <span className="flex items-center gap-0.5"><Tag size={10} className="text-slate-400"/> <span className="truncate max-w-[80px]">{asset.brand}</span></span>}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="flex flex-col items-end gap-1.5">
