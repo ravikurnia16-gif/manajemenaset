@@ -37,6 +37,7 @@ const urgencyColors = {
 const MaintenanceList = () => {
     const [reports, setReports] = useState([]);
     const [schedule, setSchedule] = useState([]);
+    const [selectedScheduleIds, setSelectedScheduleIds] = useState([]);
     const [meta, setMeta] = useState({ total: 0, page: 1, totalPages: 1, limit: 10 });
     const [loading, setLoading] = useState(true);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -129,6 +130,18 @@ const MaintenanceList = () => {
         overdue: schedule.filter(i => i.serviceStatus === 'OVERDUE').length,
         soon: schedule.filter(i => i.serviceStatus === 'SOON').length,
         ok: schedule.filter(i => i.serviceStatus === 'OK').length
+    };
+
+    const toggleScheduleSelection = (id) => {
+        setSelectedScheduleIds(prev => 
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
+    const handleBulkService = () => {
+        if (selectedScheduleIds.length === 0) return;
+        const ids = selectedScheduleIds.join(',');
+        navigate(`/pemeliharaan/input?assetIds=${ids}&category=ROUTINE`);
     };
 
     const handleDelete = async (id) => {
@@ -300,8 +313,18 @@ const MaintenanceList = () => {
                                         <table className="w-full text-left">
                                             <tbody className="divide-y divide-slate-100">
                                                 {assets.map(item => (
-                                                    <tr key={item.id} className="hover:bg-slate-50/30 transition-colors">
-                                                        <td className="px-6 py-4 w-1/3">
+                                                    <tr key={item.id} className={`hover:bg-slate-50/30 transition-colors ${selectedScheduleIds.includes(item.id) ? 'bg-blue-50/30' : ''}`}>
+                                                        <td className="pl-6 py-4 w-10">
+                                                            {!item.hasActiveReport && (
+                                                                <input 
+                                                                    type="checkbox"
+                                                                    checked={selectedScheduleIds.includes(item.id)}
+                                                                    onChange={() => toggleScheduleSelection(item.id)}
+                                                                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                />
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-4 w-1/3">
                                                             <div className="font-bold text-slate-800 text-sm">{item.name}</div>
                                                             <div className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{item.code}</div>
                                                         </td>
@@ -349,6 +372,20 @@ const MaintenanceList = () => {
                             </div>
                         )}
                     </div>
+
+                    {/* Bulk Action Float Button */}
+                    {selectedScheduleIds.length > 0 && (
+                        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10 duration-500">
+                            <button
+                                onClick={handleBulkService}
+                                className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black shadow-2xl flex items-center gap-4 hover:scale-105 transition-all ring-4 ring-white"
+                            >
+                                <Wrench size={20} className="text-blue-400" />
+                                <span>PROSES {selectedScheduleIds.length} ASET SEKALIGUS</span>
+                                <span className="bg-blue-600 text-[10px] px-2 py-1 rounded-lg ml-2">GO →</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 

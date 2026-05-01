@@ -41,30 +41,47 @@ const MaintenanceForm = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Effect to handle assetId from URL params (QR Scan Redirect)
+    // Effect to handle assetId or assetIds from URL params
     useEffect(() => {
-        if (assetIdParam && !form.title) {
-            const fetchPreSelectedAsset = async () => {
+        const assetIdsParam = searchParams.get('assetIds');
+        const assetIdParam = searchParams.get('assetId');
+        const categoryParam = searchParams.get('category');
+
+        if ((assetIdParam || assetIdsParam) && !form.title) {
+            const fetchPreSelectedAssets = async () => {
                 try {
-                    const res = await api.get(`/assets/${assetIdParam}`);
-                    const asset = res.data;
-                    if (asset) {
+                    const ids = assetIdsParam ? assetIdsParam.split(',') : [assetIdParam];
+                    const selectedAssets = [];
+                    
+                    for (const id of ids) {
+                        const res = await api.get(`/assets/${id}`);
+                        const asset = res.data;
+                        if (asset) {
+                            selectedAssets.push({ id: asset.id, label: `${asset.code} - ${asset.name}` });
+                        }
+                    }
+
+                    if (selectedAssets.length > 0) {
                         setForm(prev => ({
                             ...prev,
                             targetDept: 'SARPRAS',
                             type: 'ASSET',
-                            selectedAssets: [{ id: asset.id, label: `${asset.code} - ${asset.name}` }]
+                            category: categoryParam || prev.category,
+                            title: categoryParam === 'ROUTINE' 
+                                ? (selectedAssets.length > 1 ? `Pemeliharaan Rutin Massal (${selectedAssets.length} Aset)` : `Pemeliharaan Rutin: ${selectedAssets[0].label.split(' - ')[1]}`)
+                                : prev.title,
+                            selectedAssets: selectedAssets
                         }));
                         setStep(1);
                         setAssetSearch('');
                     }
                 } catch (err) {
-                    console.error('Failed to fetch pre-selected asset:', err);
+                    console.error('Failed to fetch pre-selected assets:', err);
                 }
             };
-            fetchPreSelectedAsset();
+            fetchPreSelectedAssets();
         }
-    }, [assetIdParam]);
+    }, [assetIdParam, searchParams]);
 
     useEffect(() => {
         if (form.type === 'ASSET') {
