@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Wrench, CheckCircle, AlertTriangle, TrendingUp, Loader2, Clock, Zap } from 'lucide-react';
+import { Wrench, CheckCircle, AlertTriangle, TrendingUp, Loader2, Clock, Zap, Calendar } from 'lucide-react';
 import api from '../lib/axios';
 import { useNavigate } from 'react-router-dom';
 
