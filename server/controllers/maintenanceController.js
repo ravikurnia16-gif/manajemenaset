@@ -106,8 +106,7 @@ exports.getDashboardStats = async (req, res) => {
             where: {
                 targetDept: 'SARPRAS',
                 status: 'COMPLETED',
-                completionDate: { gte: startOfPeriod, lt: endOfPeriod },
-                createdAt: { not: null }
+                completionDate: { gte: startOfPeriod, lt: endOfPeriod }
             },
             select: {
                 createdAt: true,
