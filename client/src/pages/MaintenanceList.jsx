@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Search, Filter, Trash2, Eye, Wrench, Calendar, AlertCircle, Download } from 'lucide-react';
+import { Plus, Search, Filter, Trash2, Eye, Wrench, Calendar, AlertCircle, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../lib/axios';
 import * as XLSX from 'xlsx';
 
@@ -21,13 +21,31 @@ const statusLabels = {
     REJECTED: 'Ditolak'
 };
 
+const urgencyLabels = {
+    NORMAL: 'Biasa',
+    URGENT: 'Penting',
+    EMERGENCY: 'Darurat'
+};
+
+const urgencyColors = {
+    NORMAL: 'text-slate-400 bg-slate-50 border-slate-100',
+    URGENT: 'text-amber-600 bg-amber-50 border-amber-100',
+    EMERGENCY: 'text-red-600 bg-red-50 border-red-100'
+};
+
 const MaintenanceList = () => {
     const [reports, setReports] = useState([]);
+    const [meta, setMeta] = useState({ total: 0, page: 1, totalPages: 1, limit: 10 });
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [typeFilter, setTypeFilter] = useState('');
     const [targetDeptFilter, setTargetDeptFilter] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [limit, setLimit] = useState(10);
+    const [page, setPage] = useState(1);
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -36,18 +54,35 @@ const MaintenanceList = () => {
     const categoryFromUrl = queryParams.get('category');
     const targetDeptFromUrl = queryParams.get('targetDept');
 
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+            setPage(1); // Reset to page 1 on new search
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [search]);
+
     const fetchReports = async () => {
         try {
             setLoading(true);
-            const params = {};
-            if (statusFilter) params.status = statusFilter;
-            if (typeFilter) params.type = typeFilter;
-            if (targetDeptFilter) params.targetDept = targetDeptFilter;
-            if (categoryFromUrl) params.category = categoryFromUrl;
+            const params = {
+                page,
+                limit,
+                search: debouncedSearch,
+                status: statusFilter,
+                type: typeFilter,
+                targetDept: targetDeptFilter,
+                category: categoryFromUrl,
+                startDate,
+                endDate
+            };
             const res = await api.get('/maintenance', { params });
-            setReports(res.data);
+            // The backend now returns { data: [], meta: {} }
+            setReports(res.data.data || []);
+            setMeta(res.data.meta || { total: 0, page: 1, totalPages: 1, limit: 10 });
         } catch (err) {
             console.error(err);
+            setReports([]);
         } finally {
             setLoading(false);
         }
@@ -59,7 +94,7 @@ const MaintenanceList = () => {
 
     useEffect(() => {
         fetchReports();
-    }, [statusFilter, typeFilter, targetDeptFilter, categoryFromUrl]);
+    }, [statusFilter, typeFilter, targetDeptFilter, categoryFromUrl, debouncedSearch, page, limit, startDate, endDate]);
 
     const handleDelete = async (id) => {
         if (!confirm('Hapus laporan ini?')) return;
@@ -71,56 +106,64 @@ const MaintenanceList = () => {
         }
     };
 
-    const handleExport = () => {
-        const exportData = filtered.map((r, index) => ({
-            'No': index + 1,
-            'Kode': r.code,
-            'Judul': r.title,
-            'Pelapor': `${r.user?.username || ''} (${r.unit?.name || ''})`,
-            'Aset': r.assets?.map(a => `${a.name} (${a.code})`).join(', ') || '-',
-            'Masa': r.category === 'ROUTINE' ? 'Rutin' : 'Insidentil',
-            'Bidang': r.targetDept === 'PEMBANGUNAN' ? 'Pembangunan' : 'Sarpras',
-            'Status': statusLabels[r.status] || r.status,
-            'Tanggal': r.createdAt ? new Date(r.createdAt).toLocaleDateString('id-ID') : '-'
-        }));
+    const handleExport = async () => {
+        try {
+            setLoading(true);
+            // Fetch ALL data with current filters for export
+            const params = {
+                limit: 'all',
+                search: debouncedSearch,
+                status: statusFilter,
+                type: typeFilter,
+                targetDept: targetDeptFilter,
+                category: categoryFromUrl,
+                startDate,
+                endDate
+            };
+            const res = await api.get('/maintenance', { params });
+            const allData = res.data.data || [];
 
-        const ws = XLSX.utils.json_to_sheet(exportData);
-        
-        const colWidths = [
-            { wch: 5 },   // No
-            { wch: 15 },  // Kode
-            { wch: 30 },  // Judul
-            { wch: 25 },  // Pelapor
-            { wch: 40 },  // Aset
-            { wch: 15 },  // Masa
-            { wch: 15 },  // Bidang
-            { wch: 15 },  // Status
-            { wch: 15 }   // Tanggal
-        ];
-        ws['!cols'] = colWidths;
+            const exportData = allData.map((r, index) => ({
+                'No': index + 1,
+                'Kode': r.code,
+                'Judul': r.title,
+                'Urgensi': urgencyLabels[r.urgency] || r.urgency,
+                'Pelapor': `${r.user?.username || ''} (${r.unit?.name || ''})`,
+                'Aset': r.assets?.map(a => `${a.name} (${a.code})`).join(', ') || '-',
+                'Masa': r.category === 'ROUTINE' ? 'Rutin' : 'Insidentil',
+                'Bidang': r.targetDept === 'PEMBANGUNAN' ? 'Pembangunan' : 'Sarpras',
+                'Status': statusLabels[r.status] || r.status,
+                'Tanggal': r.createdAt ? new Date(r.createdAt).toLocaleDateString('id-ID') : '-'
+            }));
 
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Laporan Pemeliharaan");
-        XLSX.writeFile(wb, `Laporan_Pemeliharaan_${new Date().toISOString().split('T')[0]}.xlsx`);
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            
+            const colWidths = [
+                { wch: 5 },   // No
+                { wch: 15 },  // Kode
+                { wch: 30 },  // Judul
+                { wch: 15 },  // Urgensi
+                { wch: 25 },  // Pelapor
+                { wch: 40 },  // Aset
+                { wch: 15 },  // Masa
+                { wch: 15 },  // Bidang
+                { wch: 15 },  // Status
+                { wch: 15 }   // Tanggal
+            ];
+            ws['!cols'] = colWidths;
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Laporan Pemeliharaan");
+            XLSX.writeFile(wb, `Laporan_Pemeliharaan_${new Date().toISOString().split('T')[0]}.xlsx`);
+        } catch (err) {
+            console.error('Export error:', err);
+            alert('Gagal mengekspor data');
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const filtered = Array.isArray(reports) ? reports.filter(r => {
-        const searchLower = search.toLowerCase();
-
-        // Match code, title, or username
-        const basicMatch =
-            (r.title?.toLowerCase() || '').includes(searchLower) ||
-            (r.code?.toLowerCase() || '').includes(searchLower) ||
-            (r.user?.name?.toLowerCase() || '').includes(searchLower);
-
-        // Match within assets array (code or name)
-        const assetMatch = r.assets?.some(asset =>
-            (asset.name?.toLowerCase() || '').includes(searchLower) ||
-            (asset.code?.toLowerCase() || '').includes(searchLower)
-        );
-
-        return basicMatch || assetMatch;
-    }) : [];
+    const filtered = reports; // Now filtered by backend
 
     return (
         <div className="p-4 md:p-6 space-y-6">
@@ -212,6 +255,36 @@ const MaintenanceList = () => {
                 </select>
             </div>
 
+            {/* Date Filters Row */}
+            <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Dari Tanggal</span>
+                    <input 
+                        type="date" 
+                        value={startDate} 
+                        onChange={e => { setStartDate(e.target.value); setPage(1); }}
+                        className="py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sampai</span>
+                    <input 
+                        type="date" 
+                        value={endDate} 
+                        onChange={e => { setEndDate(e.target.value); setPage(1); }}
+                        className="py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                </div>
+                {(startDate || endDate) && (
+                    <button 
+                        onClick={() => { setStartDate(''); setEndDate(''); setPage(1); }}
+                        className="text-[10px] font-bold text-red-500 hover:text-red-600 uppercase"
+                    >
+                        Reset Tanggal
+                    </button>
+                )}
+            </div>
+
             {/* Table */}
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 {loading ? (
@@ -245,7 +318,14 @@ const MaintenanceList = () => {
                                                     {r.targetDept === 'PEMBANGUNAN' ? 'PB' : 'SP'}
                                                 </div>
                                                 <div>
-                                                    <div className="font-medium">{r.title}</div>
+                                                    <div className="font-medium flex items-center gap-1.5">
+                                                        {r.title}
+                                                        {r.urgency && r.urgency !== 'NORMAL' && (
+                                                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase border ${urgencyColors[r.urgency]}`}>
+                                                                {urgencyLabels[r.urgency]}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <div className="text-[10px] text-slate-400">{r.user?.username} ({r.unit?.name})</div>
                                                 </div>
                                             </div>
@@ -292,6 +372,66 @@ const MaintenanceList = () => {
                     </div>
                 )}
             </div>
+
+            {/* Pagination Controls */}
+            {!loading && meta.totalPages > 0 && (
+                <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="text-xs text-slate-500 font-medium">
+                        Menampilkan <span className="text-slate-800">{(meta.page - 1) * meta.limit + 1}</span> - <span className="text-slate-800">{Math.min(meta.page * meta.limit, meta.total)}</span> dari <span className="text-slate-800 font-bold">{meta.total}</span> data
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                        <select 
+                            value={limit} 
+                            onChange={e => { setLimit(e.target.value); setPage(1); }}
+                            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 font-semibold text-slate-600 outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value={10}>10 Baris</option>
+                            <option value={25}>25 Baris</option>
+                            <option value={50}>50 Baris</option>
+                            <option value="all">Semua</option>
+                        </select>
+
+                        <div className="flex items-center gap-1 ml-2">
+                            <button 
+                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                disabled={meta.page === 1}
+                                className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-600"
+                            >
+                                <ChevronLeft size={16} />
+                            </button>
+                            
+                            {[...Array(meta.totalPages)].map((_, i) => {
+                                const p = i + 1;
+                                // Simple logic to show only few pages if many
+                                if (meta.totalPages > 7) {
+                                    if (p !== 1 && p !== meta.totalPages && (p < meta.page - 1 || p > meta.page + 1)) {
+                                        if (p === 2 || p === meta.totalPages - 1) return <span key={p} className="px-1 text-slate-300">...</span>;
+                                        return null;
+                                    }
+                                }
+                                return (
+                                    <button 
+                                        key={p}
+                                        onClick={() => setPage(p)}
+                                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${meta.page === p ? 'bg-blue-600 text-white shadow-md scale-110' : 'text-slate-500 hover:bg-slate-100'}`}
+                                    >
+                                        {p}
+                                    </button>
+                                );
+                            })}
+
+                            <button 
+                                onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
+                                disabled={meta.page === meta.totalPages}
+                                className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-600"
+                            >
+                                <ChevronRight size={16} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

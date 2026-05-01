@@ -38,9 +38,9 @@ const generateCode = async (targetDept = 'SARPRAS') => {
     return `${prefix}/${year}/${sequence}`;
 };
 
-// Get all maintenance reports
+// Get all maintenance reports with pagination
 exports.getAllReports = async (req, res) => {
-    const { status, type, unitId, category, targetDept } = req.query;
+    const { status, type, unitId, category, targetDept, search, page = 1, limit = 10, startDate, endDate } = req.query;
     const user = req.user;
 
     try {
@@ -51,33 +51,83 @@ exports.getAllReports = async (req, res) => {
         if (targetDept) whereClause.targetDept = targetDept;
         if (unitId) whereClause.unitId = parseInt(unitId);
 
+        // Date Range Filter
+        if (startDate || endDate) {
+            whereClause.createdAt = {};
+            if (startDate) whereClause.createdAt.gte = new Date(startDate);
+            if (endDate) {
+                // Set to end of day
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                whereClause.createdAt.lte = end;
+            }
+        }
+
+        if (search) {
+            whereClause.OR = [
+                { title: { contains: search, mode: 'insensitive' } },
+                { code: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } },
+                { user: { name: { contains: search, mode: 'insensitive' } } },
+                { assets: { some: { name: { contains: search, mode: 'insensitive' } } } },
+                { assets: { some: { code: { contains: search, mode: 'insensitive' } } } }
+            ];
+        }
+
         // Non-admin users only see their own unit
         if (['ADMIN_UNIT', 'USER'].includes(user.role)) {
-            // Expansion: Pembangunan staff can see ALL Pembangunan reports globally
             const isPembangunanTeam = ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user.position);
 
             if (isPembangunanTeam) {
-                whereClause.OR = [
-                    { targetDept: 'PEMBANGUNAN' },
-                    { unitId: user.unitId }
-                ];
-                // Remove the top-level unitId if it was set
+                const basePembangunanCondition = { targetDept: 'PEMBANGUNAN' };
+                const baseUnitCondition = { unitId: user.unitId };
+
+                if (whereClause.OR) {
+                    // Combine search OR with role-based OR
+                    const searchOR = whereClause.OR;
+                    delete whereClause.OR;
+                    whereClause.AND = [
+                        { OR: searchOR },
+                        { OR: [basePembangunanCondition, baseUnitCondition] }
+                    ];
+                } else {
+                    whereClause.OR = [basePembangunanCondition, baseUnitCondition];
+                }
                 delete whereClause.unitId;
             } else {
                 whereClause.unitId = user.unitId;
             }
         }
 
-        const reports = await prisma.maintenance.findMany({
-            where: whereClause,
-            include: {
-                user: { select: { username: true, name: true } },
-                unit: { select: { name: true } },
-                assets: { select: { code: true, name: true } }
-            },
-            orderBy: { createdAt: 'desc' }
+        // Pagination setup
+        const isAll = limit === 'all' || limit === '-1';
+        const take = isAll ? undefined : parseInt(limit);
+        const skip = isAll ? undefined : (parseInt(page) - 1) * take;
+
+        const [reports, total] = await Promise.all([
+            prisma.maintenance.findMany({
+                where: whereClause,
+                include: {
+                    user: { select: { username: true, name: true } },
+                    unit: { select: { name: true } },
+                    assets: { select: { code: true, name: true } }
+                },
+                orderBy: { createdAt: 'desc' },
+                take,
+                skip
+            }),
+            prisma.maintenance.count({ where: whereClause })
+        ]);
+
+        res.json({
+            data: reports,
+            meta: {
+                total,
+                page: isAll ? 1 : parseInt(page),
+                limit: isAll ? total : take,
+                totalPages: isAll ? 1 : Math.ceil(total / take)
+            }
         });
-        res.json(reports);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
