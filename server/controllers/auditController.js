@@ -184,3 +184,46 @@ exports.deleteSession = async (req, res) => {
         res.json({ message: 'Sesi audit dihapus' });
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
+
+// Add unexpected finding
+exports.addUnexpectedItem = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { itemName, note } = req.body;
+
+        const session = await prisma.auditSession.findUnique({
+            where: { id: parseInt(id) }
+        });
+
+        if (!session) return res.status(404).json({ error: 'Sesi tidak ditemukan' });
+
+        // Get current unexpected items (parse JSON if needed)
+        let currentUnexpected = [];
+        if (session.unexpectedItems) {
+            try {
+                currentUnexpected = typeof session.unexpectedItems === 'string' 
+                    ? JSON.parse(session.unexpectedItems) 
+                    : session.unexpectedItems;
+            } catch (e) {
+                currentUnexpected = [];
+            }
+        }
+
+        // Add new item
+        currentUnexpected.push({
+            name: itemName,
+            note: note || '',
+            date: new Date().toISOString()
+        });
+
+        // Update session
+        const updatedSession = await prisma.auditSession.update({
+            where: { id: parseInt(id) },
+            data: { unexpectedItems: currentUnexpected }
+        });
+
+        res.json(updatedSession);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+};

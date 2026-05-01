@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
     ClipboardCheck, ArrowLeft, Scan, Search, MapPin, 
     ShieldCheck, AlertTriangle, HelpCircle, Save, X, Camera,
-    CheckCircle2, AlertCircle, Info, RefreshCcw
+    CheckCircle2, AlertCircle, Info, RefreshCcw, Plus
 } from 'lucide-react';
 import { Html5QrcodeScanner } from "html5-qrcode";
 import ExcelJS from 'exceljs';
@@ -36,6 +36,10 @@ const AuditSessionDetail = () => {
         note: '',
         status: 'FOUND'
     });
+    
+    // Unexpected Item Form
+    const [showUnexpectedModal, setShowUnexpectedModal] = useState(false);
+    const [unexpectedForm, setUnexpectedForm] = useState({ itemName: '', note: '' });
 
     const fetchSession = async () => {
         try {
@@ -140,6 +144,16 @@ const AuditSessionDetail = () => {
         } catch (e) { alert('Gagal memproses persetujuan'); }
     };
 
+    const handleAddUnexpected = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post(`/audit/${id}/unexpected`, unexpectedForm);
+            setUnexpectedForm({ itemName: '', note: '' });
+            setShowUnexpectedModal(false);
+            fetchSession();
+        } catch (e) { alert(e.response?.data?.error || 'Gagal mencatat temuan'); }
+    };
+
     const exportToExcel = async () => {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Laporan Audit');
@@ -159,10 +173,26 @@ const AuditSessionDetail = () => {
         // Narrative Summary
         const narrativeRow = worksheet.addRow([generateNarrative()]);
         worksheet.mergeCells(`A${narrativeRow.number}:K${narrativeRow.number}`);
-        narrativeRow.height = 60;
+        narrativeRow.height = 80;
         narrativeRow.getCell(1).alignment = { wrapText: true, vertical: 'middle' };
         narrativeRow.getCell(1).font = { italic: true };
         worksheet.addRow([]); // Gap
+
+        const unexpectedList = getUnexpectedItems();
+        if (unexpectedList.length > 0) {
+            const unexpHeader = worksheet.addRow(['DAFTAR ASET TEMUAN (BELUM TERDATA)']);
+            unexpHeader.font = { bold: true };
+            worksheet.addRow(['No', 'Nama Barang', 'Keterangan/Lokasi', 'Waktu Lapor']);
+            unexpectedList.forEach((item, idx) => {
+                worksheet.addRow([
+                    idx + 1,
+                    item.name,
+                    item.note || '-',
+                    new Date(item.date).toLocaleString('id-ID')
+                ]);
+            });
+            worksheet.addRow([]); // Gap
+        }
 
         // Headers
         const headers = ['No', 'Kode Aset', 'Nama Barang', 'Kategori', 'Lokasi Asli', 'Lokasi Temuan', 'Kondisi Akhir', 'Status Audit', 'Catatan', 'Auditor', 'Waktu Verifikasi'];
@@ -220,6 +250,15 @@ const AuditSessionDetail = () => {
 
     const progress = Math.round(((stats.found + stats.missing) / stats.total) * 100);
 
+    const getUnexpectedItems = () => {
+        if (!session || !session.unexpectedItems) return [];
+        try {
+            return typeof session.unexpectedItems === 'string' 
+                ? JSON.parse(session.unexpectedItems) 
+                : session.unexpectedItems;
+        } catch { return []; }
+    };
+
     const generateNarrative = () => {
         if (!session) return '';
         const found = stats.found;
@@ -227,8 +266,15 @@ const AuditSessionDetail = () => {
         const total = stats.total;
         const damaged = session.items.filter(i => i.foundCondition && i.foundCondition !== 'BAIK').length;
         const dateStr = new Date(session.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        const unexpectedList = getUnexpectedItems();
+        let narrative = `Berdasarkan hasil audit fisik (Stock Opname) "${session.title}" yang dilaksanakan pada tanggal ${dateStr}, telah dilakukan pemeriksaan terhadap total ${total} unit aset. Dari hasil pemeriksaan tersebut, sebanyak ${found} unit aset berhasil ditemukan, di mana ${damaged} unit di antaranya tercatat dalam kondisi membutuhkan perhatian (rusak ringan/berat). Terdapat ${missing} unit aset yang dinyatakan hilang atau tidak ditemukan di lokasi. Seluruh hasil temuan lapangan ini telah divalidasi dan disinkronkan ke dalam database utama Manajemen Aset untuk menjaga akurasi data inventaris.`;
         
-        return `Berdasarkan hasil audit fisik (Stock Opname) "${session.title}" yang dilaksanakan pada tanggal ${dateStr}, telah dilakukan pemeriksaan terhadap total ${total} unit aset. Dari hasil pemeriksaan tersebut, sebanyak ${found} unit aset berhasil ditemukan, di mana ${damaged} unit di antaranya tercatat dalam kondisi membutuhkan perhatian (rusak ringan/berat). Terdapat ${missing} unit aset yang dinyatakan hilang atau tidak ditemukan di lokasi. Seluruh hasil temuan lapangan ini telah divalidasi dan disinkronkan ke dalam database utama Manajemen Aset untuk menjaga akurasi data inventaris.`;
+        if (unexpectedList.length > 0) {
+            const itemNames = unexpectedList.map(u => u.name).join(', ');
+            narrative += ` Selain itu, auditor juga mencatat adanya ${unexpectedList.length} barang temuan baru di lapangan yang sebelumnya belum terdata di sistem, antara lain: ${itemNames}.`;
+        }
+        
+        return narrative;
     };
 
     const filteredItems = session.items.filter(i => {
@@ -260,7 +306,13 @@ const AuditSessionDetail = () => {
                     </div>
                 </div>
                 {session.status === 'OPEN' && (
-                    <div className="flex gap-3 w-full md:w-auto">
+                    <div className="flex flex-wrap gap-3 w-full md:w-auto">
+                        <button 
+                            onClick={() => setShowUnexpectedModal(true)}
+                            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-amber-100 text-amber-700 px-6 py-3 rounded-2xl font-bold shadow-sm hover:bg-amber-200 transition-all"
+                        >
+                            <Plus size={18} /> Lapor Temuan
+                        </button>
                         <button 
                             onClick={exportToExcel}
                             className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 px-6 py-3 rounded-2xl font-bold shadow-sm hover:bg-slate-50 transition-all"
@@ -433,6 +485,28 @@ const AuditSessionDetail = () => {
                 ))}
             </div>
 
+            {/* Unexpected Items Section */}
+            {getUnexpectedItems().length > 0 && (
+                <div className="space-y-4 pt-8 border-t border-slate-200">
+                    <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                        <AlertCircle className="text-amber-500" size={20} />
+                        Daftar Aset Temuan (Belum Terdata)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {getUnexpectedItems().map((u, i) => (
+                            <div key={i} className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-200 hover:-translate-y-1 transition-transform">
+                                <div className="flex items-start justify-between mb-2">
+                                    <h4 className="font-bold text-slate-800">{u.name}</h4>
+                                    <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-md">BARU</span>
+                                </div>
+                                <p className="text-xs text-slate-500 italic mb-3">{u.note || 'Tidak ada catatan'}</p>
+                                <p className="text-[10px] text-slate-400">{new Date(u.date).toLocaleString('id-ID')}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Bulk Action Bar */}
             {selectedIds.length > 0 && (
                 <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[55] w-[90%] max-w-2xl bg-slate-900 text-white p-4 rounded-[32px] shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4 animate-in slide-in-from-bottom-20">
@@ -565,6 +639,44 @@ const AuditSessionDetail = () => {
                         <p className="text-sm font-bold">Scanning for Inventory...</p>
                         <p className="text-[10px] text-white/40 uppercase tracking-widest">Audit ID: {id}</p>
                     </div>
+                </div>
+            )}
+
+            {/* Unexpected Item Modal */}
+            {showUnexpectedModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+                    <form onSubmit={handleAddUnexpected} className="bg-white rounded-[32px] w-full max-w-lg p-8 shadow-2xl space-y-6 animate-in zoom-in-95">
+                        <div className="space-y-1">
+                            <h2 className="text-2xl font-black text-slate-900">Catat Aset Temuan</h2>
+                            <p className="text-sm text-slate-500">Aset ini belum ada di sistem, tapi ditemukan di lapangan</p>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Barang *</label>
+                                <input
+                                    required
+                                    value={unexpectedForm.itemName}
+                                    onChange={e => setUnexpectedForm({...unexpectedForm, itemName: e.target.value})}
+                                    placeholder="Contoh: Kipas Angin Cosmos"
+                                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Lokasi / Keterangan Temuan</label>
+                                <textarea
+                                    value={unexpectedForm.note}
+                                    onChange={e => setUnexpectedForm({...unexpectedForm, note: e.target.value})}
+                                    placeholder="Contoh: Ditemukan di pojok ruangan Lab Komputer..."
+                                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-emerald-100 transition-all resize-none"
+                                    rows={3}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex gap-3 pt-4">
+                            <button type="button" onClick={() => setShowUnexpectedModal(false)} className="flex-1 py-3.5 rounded-2xl font-bold text-slate-400 hover:text-slate-600 transition-colors">Batal</button>
+                            <button type="submit" className="flex-1 py-3.5 bg-amber-500 text-white rounded-2xl font-black shadow-lg shadow-amber-100 hover:bg-amber-600 transition-all">Simpan Temuan</button>
+                        </div>
+                    </form>
                 </div>
             )}
         </div>

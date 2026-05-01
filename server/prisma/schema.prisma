@@ -1265,7 +1265,8 @@ model AuditSession {
   endDate     DateTime?
   createdBy   Int
   creator     User        @relation("AuditCreator", fields: [createdBy], references: [id])
-  items       AuditItem[]
+  items           AuditItem[]
+  unexpectedItems Json?
   
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
