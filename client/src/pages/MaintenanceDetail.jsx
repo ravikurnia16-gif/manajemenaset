@@ -1,15 +1,27 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2 } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
 
+const urgencyLabels = {
+    NORMAL: 'Biasa',
+    URGENT: 'Penting',
+    EMERGENCY: 'Darurat'
+};
+
+const urgencyColors = {
+    NORMAL: 'text-slate-500 bg-slate-100',
+    URGENT: 'text-amber-700 bg-amber-100',
+    EMERGENCY: 'text-red-700 bg-red-100'
+};
+
 const statusSteps = [
-    { key: 'SUBMITTED', label: 'Diajukan', icon: '📋', color: 'blue' },
-    { key: 'APPROVED', label: 'Disetujui', icon: '✅', color: 'cyan' },
-    { key: 'ASSIGNED', label: 'Ditugaskan', icon: '👷', color: 'yellow' },
-    { key: 'IN_PROGRESS', label: 'Sedang Dikerjakan', icon: '🛠️', color: 'orange' },
-    { key: 'COMPLETED', label: 'Selesai', icon: '🎉', color: 'green' },
+    { key: 'SUBMITTED', label: 'Diajukan', icon: ClipboardList, color: 'text-blue-500' },
+    { key: 'APPROVED', label: 'Disetujui', icon: UserCheck, color: 'text-cyan-500' },
+    { key: 'ASSIGNED', label: 'Ditugaskan', icon: HardHat, color: 'text-yellow-500' },
+    { key: 'IN_PROGRESS', label: 'Sedang Dikerjakan', icon: Cog, color: 'text-orange-500' },
+    { key: 'COMPLETED', label: 'Selesai', icon: CheckCircle2, color: 'text-green-500' },
 ];
 
 const MaintenanceDetail = () => {
@@ -29,7 +41,8 @@ const MaintenanceDetail = () => {
     const [technicianPhone, setTechnicianPhone] = useState('');
     const [technicianType, setTechnicianType] = useState('external'); // 'internal' or 'external'
     const [progressNote, setProgressNote] = useState('');
-    const [costInput, setCostInput] = useState('');
+    const [costItems, setCostItems] = useState([]); // [{ id: string, label: string, price: number, assetId: number|null }]
+    const [bulkPrice, setBulkPrice] = useState('');
     const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
     const showToast = (message, type = 'success') => {
@@ -89,7 +102,12 @@ const MaintenanceDetail = () => {
                 } else {
                     payload.actionTaken = report.actionTaken || undefined;
                 }
-                payload.cost = costInput || report.cost || 0;
+                if (actionModal.type === 'completion') {
+                    // Calculate total cost from items
+                    const totalCost = costItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
+                    payload.cost = totalCost;
+                    payload.costDetails = costItems.length > 0 ? costItems : undefined;
+                }
             }
 
             if (actionModal.nextStatus === 'COMPLETED') {
@@ -102,7 +120,8 @@ const MaintenanceDetail = () => {
             setTechnicianName('');
             setTechnicianPhone('');
             setProgressNote('');
-            setCostInput('');
+            setCostItems([]);
+            setBulkPrice('');
             fetchReport();
             showToast('Pembaruan status berhasil disimpan!');
         } catch (err) {
@@ -216,7 +235,7 @@ const MaintenanceDetail = () => {
                         return (
                             <div key={step.key} className="flex flex-col items-center flex-1 min-w-[70px]">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border-2 transition-all ${isActive ? 'border-green-500 bg-green-50' : isCurrent && isRejected ? 'border-red-500 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
-                                    {isRejected && isCurrent ? '❌' : step.icon}
+                                    {isRejected && isCurrent ? <XCircle size={20} className="text-red-500" /> : <step.icon size={20} className={isActive ? step.color : 'text-slate-400'} />}
                                 </div>
                                 <span className={`mt-1 text-[10px] font-semibold text-center ${isActive ? 'text-green-600' : 'text-slate-400'}`}>{step.label}</span>
                                 {i < statusSteps.length - 1 && (
@@ -244,6 +263,16 @@ const MaintenanceDetail = () => {
                             <span className={`px-2 py-0.5 rounded font-bold ${report.targetDept === 'PEMBANGUNAN' ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
                                 {report.targetDept === 'PEMBANGUNAN' ? 'Pembangunan' : 'Sarana & Prasarana'}
                             </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-slate-500">Urgensi</span>
+                            {report.urgency && report.urgency !== 'NORMAL' ? (
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${urgencyColors[report.urgency]}`}>
+                                    {urgencyLabels[report.urgency]}
+                                </span>
+                            ) : (
+                                <span className="font-semibold text-slate-600">Biasa</span>
+                            )}
                         </div>
                         <div className="flex justify-between"><span className="text-slate-500">Tipe</span><span className={`font-semibold ${report.type === 'ASSET' ? 'text-purple-600' : 'text-gray-600'}`}>{report.type === 'ASSET' ? 'Aset Terdata' : 'Non-Aset'}</span></div>
 
@@ -352,15 +381,47 @@ const MaintenanceDetail = () => {
                 </div>
             </div>
 
-            {/* Action Taken */}
-            {report.actionTaken && (
-                <div className="bg-green-50 rounded-xl border border-green-200 p-5">
-                    <h3 className="text-sm font-semibold text-green-700 mb-2">Riwayat & Tindakan Perbaikan</h3>
-                    <div className="text-sm text-green-800 whitespace-pre-wrap font-mono relative">
-                        {report.actionTaken}
+            {/* Action Taken & Costs */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {report.actionTaken && (
+                    <div className="bg-green-50 rounded-xl border border-green-200 p-5">
+                        <h3 className="text-sm font-semibold text-green-700 mb-2">Riwayat & Tindakan Perbaikan</h3>
+                        <div className="text-sm text-green-800 whitespace-pre-wrap font-mono relative">
+                            {report.actionTaken}
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+                
+                {report.cost > 0 && (
+                    <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+                        <div className="flex justify-between items-center mb-3">
+                            <h3 className="text-sm font-semibold text-slate-700">Rincian Biaya</h3>
+                            <span className="font-bold text-slate-800 text-lg">Rp {report.cost.toLocaleString('id-ID')}</span>
+                        </div>
+                        {report.costDetails && report.costDetails.length > 0 ? (
+                            <div className="space-y-2 mt-3 bg-white p-3 rounded-lg border border-slate-100 max-h-48 overflow-y-auto">
+                                {report.costDetails.map((item, idx) => (
+                                    <div key={idx} className="flex justify-between items-center text-xs pb-2 border-b border-slate-50 last:border-0 last:pb-0">
+                                        <div>
+                                            <span className="font-medium text-slate-700">{item.label}</span>
+                                            {item.assetId && (
+                                                <div className="text-[9px] text-blue-600 font-mono mt-0.5">
+                                                    Target: {report.assets?.find(a => a.id === item.assetId)?.code || 'Aset Terpilih'}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <span className="font-semibold text-slate-600">Rp {item.price?.toLocaleString('id-ID')}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-xs text-slate-500 italic text-center py-2">
+                                Detail biaya tidak tersedia untuk laporan lama.
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
 
             {/* Action Buttons */}
             {nextAction && (
@@ -504,15 +565,115 @@ const MaintenanceDetail = () => {
                                     />
                                 </div>
                                 {actionModal.type === 'completion' && (
-                                    <div>
-                                        <label className="block text-sm font-semibold text-slate-700 mb-1">Biaya (Rp)</label>
-                                        <input
-                                            type="number"
-                                            value={costInput}
-                                            onChange={e => setCostInput(e.target.value)}
-                                            placeholder="0"
-                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                                        />
+                                    <div className="border-t border-slate-200 pt-4 mt-4">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <label className="block text-sm font-semibold text-slate-700">Rincian Biaya (Rp)</label>
+                                            <span className="text-sm font-bold text-slate-800">
+                                                Total: Rp {costItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0).toLocaleString('id-ID')}
+                                            </span>
+                                        </div>
+                                        
+                                        {/* Adaptive UI Logic */}
+                                        {report.assets && report.assets.length > 1 ? (
+                                            <div className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                                <div className="flex items-end gap-2">
+                                                    <div className="flex-1">
+                                                        <label className="block text-xs font-semibold text-slate-600 mb-1">Biaya per Unit (Apply Semua)</label>
+                                                        <input
+                                                            type="number"
+                                                            value={bulkPrice}
+                                                            onChange={e => setBulkPrice(e.target.value)}
+                                                            placeholder="Contoh: 75000"
+                                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                                        />
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => {
+                                                            if (!bulkPrice) return;
+                                                            const newItems = report.assets.map(asset => ({
+                                                                id: Math.random().toString(),
+                                                                label: 'Service Rutin',
+                                                                price: parseFloat(bulkPrice),
+                                                                assetId: asset.id
+                                                            }));
+                                                            setCostItems(newItems);
+                                                        }}
+                                                        className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700"
+                                                    >
+                                                        Terapkan
+                                                    </button>
+                                                </div>
+                                                
+                                                {/* Asset Checklist / Cost List */}
+                                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                                    {report.assets.map(asset => {
+                                                        const assetCosts = costItems.filter(ci => ci.assetId === asset.id);
+                                                        const totalAssetCost = assetCosts.reduce((s, ci) => s + (parseFloat(ci.price) || 0), 0);
+                                                        return (
+                                                            <div key={asset.id} className="bg-white p-2 border border-slate-200 rounded-lg text-xs">
+                                                                <div className="flex justify-between items-center font-semibold text-slate-700">
+                                                                    <span>{asset.code}</span>
+                                                                    <span className={totalAssetCost > 0 ? 'text-green-600' : 'text-slate-400'}>
+                                                                        Rp {totalAssetCost.toLocaleString('id-ID')}
+                                                                    </span>
+                                                                </div>
+                                                                {assetCosts.map(ci => (
+                                                                    <div key={ci.id} className="flex justify-between items-center mt-1 pl-2 border-l-2 border-slate-100 text-[10px] text-slate-500">
+                                                                        <span>{ci.label}</span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span>Rp {ci.price.toLocaleString('id-ID')}</span>
+                                                                            <button onClick={() => setCostItems(prev => prev.filter(p => p.id !== ci.id))} className="text-red-500 hover:text-red-700"><Trash2 size={12} /></button>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                                <button 
+                                                                    onClick={() => setCostItems(prev => [...prev, { id: Math.random().toString(), label: 'Biaya Ekstra', price: 0, assetId: asset.id }])}
+                                                                    className="mt-2 text-[10px] font-bold text-blue-600 flex items-center gap-1 hover:underline"
+                                                                >
+                                                                    <Plus size={10} /> Tambah Item Khusus
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {costItems.map((item, idx) => (
+                                                    <div key={item.id} className="flex gap-2 items-center">
+                                                        <input 
+                                                            type="text" 
+                                                            value={item.label}
+                                                            onChange={e => {
+                                                                const newItems = [...costItems];
+                                                                newItems[idx].label = e.target.value;
+                                                                setCostItems(newItems);
+                                                            }}
+                                                            placeholder="Nama Item (misal: Busi)"
+                                                            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                                        />
+                                                        <input 
+                                                            type="number" 
+                                                            value={item.price}
+                                                            onChange={e => {
+                                                                const newItems = [...costItems];
+                                                                newItems[idx].price = parseFloat(e.target.value) || 0;
+                                                                setCostItems(newItems);
+                                                            }}
+                                                            placeholder="Harga"
+                                                            className="w-1/3 px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                                        />
+                                                        <button onClick={() => setCostItems(prev => prev.filter(p => p.id !== item.id))} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                                                    </div>
+                                                ))}
+                                                <button 
+                                                    onClick={() => setCostItems(prev => [...prev, { id: Math.random().toString(), label: '', price: 0, assetId: report.assets?.[0]?.id || null }])}
+                                                    className="w-full py-2 border border-dashed border-slate-300 text-slate-500 rounded-lg text-xs font-bold hover:bg-slate-50 flex items-center justify-center gap-1"
+                                                >
+                                                    <Plus size={14} /> Tambah Rincian Biaya
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </>

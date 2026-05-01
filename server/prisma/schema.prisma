@@ -350,6 +350,7 @@ model Maintenance {
   completionNote  String?   @db.Text
   completionDate  DateTime?
   cost            Float     @default(0)
+  costDetails     Json?     // Array of { label: string, price: number, assetId: number | null }
 
   aiDiagnosis Json? // AI Diagnosis Results (Diagnosis, Severity, Actions)
   isDirectOrder Boolean @default(false)

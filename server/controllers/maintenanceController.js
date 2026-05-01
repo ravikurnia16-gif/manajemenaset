@@ -386,7 +386,7 @@ exports.addMedia = async (req, res) => {
 // Update Status (Workflow Transitions)
 exports.updateStatus = async (req, res) => {
     const { id } = req.params;
-    const { status, approvalNote, validationNote, rejectionReason, technician, technicianPhone, actionTaken, completionNote, cost } = req.body;
+    const { status, approvalNote, validationNote, rejectionReason, technician, technicianPhone, actionTaken, completionNote, cost, costDetails } = req.body;
 
     try {
         const oldReport = await prisma.maintenance.findUnique({ where: { id: parseInt(id) } });
@@ -400,6 +400,7 @@ exports.updateStatus = async (req, res) => {
         if (actionTaken) updateData.actionTaken = actionTaken;
         if (completionNote) updateData.completionNote = completionNote;
         if (cost !== undefined) updateData.cost = parseFloat(cost);
+        if (costDetails !== undefined) updateData.costDetails = costDetails; // Add this line
         if (status === 'COMPLETED') {
             updateData.completionDate = new Date();
             updateData.quickToken = null; // Clear token after use
