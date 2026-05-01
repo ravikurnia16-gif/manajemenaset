@@ -25,6 +25,7 @@ router.delete('/items/:id', wh.deleteItem);
 
 // Maintenance (Super Admin only)
 router.get('/maintenance/fix-gender', wh.fixExistingGenderData);
+router.get('/maintenance/fix-units', wh.fixUnitNames);
 
 // Transactions
 router.get('/transactions', wh.getAllTransactions);

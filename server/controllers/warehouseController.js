@@ -161,6 +161,24 @@ exports.fixExistingGenderData = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
+exports.fixUnitNames = async (req, res) => {
+    try {
+        if (!['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role)) {
+            return res.status(403).json({ error: 'Akses ditolak.' });
+        }
+        
+        const result = await prisma.warehouseItem.updateMany({
+            where: { itemUnit: 'SD Ikhwan' },
+            data: { itemUnit: 'SD' }
+        });
+
+        res.json({ 
+            success: true, 
+            message: `Pembersihan Unit selesai. Total ${result.count} data 'SD Ikhwan' diubah menjadi 'SD'.` 
+        });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
 const generateItemCode = async (categoryName, knownSequence = null) => {
     const prefix = categoryName?.toLowerCase().includes('seragam') ? 'GD/SRG' : 'GD/PLK';
     let nextSequence = knownSequence;
