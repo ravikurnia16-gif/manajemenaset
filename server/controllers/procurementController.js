@@ -751,10 +751,10 @@ exports.addVendorOffer = async (req, res) => {
 // Process BAST & Auto-Asset Creation
 exports.processBAST = async (req, res) => {
     const { id } = req.params;
-    let { bastDate, bastFile, roomAllocation, picId } = req.body;
+    let { bastDate, bastFile, assetDetails } = req.body;
 
-    if (typeof roomAllocation === 'string') {
-        try { roomAllocation = JSON.parse(roomAllocation); } catch (e) { }
+    if (typeof assetDetails === 'string') {
+        try { assetDetails = JSON.parse(assetDetails); } catch (e) { }
     }
 
     try {
@@ -793,12 +793,12 @@ exports.processBAST = async (req, res) => {
                     const qty = item.qty;
                     const unitCode = procurement.unit.code;
 
-                    // Fetch actual category for code generation (consistent with item.categoryId)
-                    const itemCategory = item.categoryId 
-                        ? await prisma.category.findUnique({ where: { id: item.categoryId } }) 
-                        : defaultCategory;
+                    const details = assetDetails?.[item.id] || {};
+
+                    // Fetch actual category for code generation
+                    const categoryIdToUse = details.categoryId || item.categoryId || defaultCategory.id;
+                    const itemCategory = await prisma.category.findUnique({ where: { id: parseInt(categoryIdToUse) } }) || defaultCategory;
                     
-                    if (!itemCategory) throw new Error(`Category with ID ${item.categoryId} not found.`);
                     const categoryCode = itemCategory.code;
 
                     const patternPrefix = `${prefix}.${unitCode}.${categoryCode}.${year}.`;
@@ -821,15 +821,9 @@ exports.processBAST = async (req, res) => {
 
                         const fundingSource = item.fundingSource || 'Yayasan';
 
-                        // Determine Room ID for this item
-                        let roomId = null;
-                        if (roomAllocation) {
-                            if (roomAllocation.type === 'SAME') {
-                                roomId = roomAllocation.roomId ? parseInt(roomAllocation.roomId) : null;
-                            } else if (roomAllocation.type === 'INDIVIDUAL') {
-                                roomId = roomAllocation.itemRooms?.[item.id] ? parseInt(roomAllocation.itemRooms[item.id]) : null;
-                            }
-                        }
+                        // Determine Room ID and PIC ID for this item
+                        let roomId = details.roomId ? parseInt(details.roomId) : null;
+                        let picId = details.picId ? parseInt(details.picId) : null;
 
                         await prisma.asset.create({
                             data: {
@@ -839,16 +833,17 @@ exports.processBAST = async (req, res) => {
                                 brand: item.brand,
                                 price: item.finalPrice || item.estPrice,
                                 purchaseDate: new Date(bastDate),
-                                condition: 'BAIK',
+                                condition: details.condition || 'BAIK',
                                 sourceOfFunds: fundingSource,
                                 acquisitionStatus: 'Pembelian',
                                 unitId: procurement.unitId,
                                 roomId: roomId,
-                                categoryId: item.categoryId || defaultCategory.id,
+                                categoryId: itemCategory.id,
                                 usefulLife: item.usefulLife || itemCategory.usefulLife || 4,
-                                vendorName: item.vendor ? item.vendor.name : null,
+                                vendorName: item.vendorName || null,
                                 quantity: 1,
-                                picId: picId || null
+                                picId: picId,
+                                isLendable: details.isLendable || false
                             }
                         });
                     }

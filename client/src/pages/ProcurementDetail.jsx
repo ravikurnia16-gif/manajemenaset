@@ -310,11 +310,11 @@ const ProcurementDetail = () => {
     const [handoverPhoto, setHandoverPhoto] = useState(null);
     const [handoverFile, setHandoverFile] = useState(null);
     const [rooms, setRooms] = useState([]);
-    const [roomAllocation, setRoomAllocation] = useState({ type: 'SAME', roomId: '', itemRooms: {} });
+    const [categories, setCategories] = useState([]);
+    const [assetDetails, setAssetDetails] = useState({}); // { itemId: { categoryId, roomId, picId, condition, isLendable } }
     const [notifying, setNotifying] = useState(false);
     const [selectedUnits, setSelectedUnits] = useState({});
     const [activeTab, setActiveTab] = useState(1);
-    const [picId, setPicId] = useState('');
     const [savingItems, setSavingItems] = useState({}); // { itemId: boolean }
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
@@ -322,7 +322,7 @@ const ProcurementDetail = () => {
     const isAssignedToAny = req?.items?.some(i => i.assignedToId === user?.id) || false;
     const isAssignedToItem = (item) => item.assignedToId === user?.id;
 
-    useEffect(() => { fetchDetail(); fetchUsers(); fetchUnits(); }, [id]);
+    useEffect(() => { fetchDetail(); fetchUsers(); fetchUnits(); fetchCategories(); }, [id]);
 
     const fetchUsers = async () => {
         try {
@@ -333,6 +333,11 @@ const ProcurementDetail = () => {
 
     const fetchUnits = async () => {
         try { const res = await api.get('/master/units'); setUnits(res.data); }
+        catch (e) { console.error(e); }
+    };
+
+    const fetchCategories = async () => {
+        try { const res = await api.get('/master/categories'); setCategories(res.data); }
         catch (e) { console.error(e); }
     };
 
@@ -364,10 +369,18 @@ const ProcurementDetail = () => {
             }));
             setReq(data);
             setRooms(roomsRes.data.filter(r => r.unitId === data.unitId));
-            if (data.type === 'ASSET' && data.items.length > 1) {
-                const init = {};
-                data.items.forEach(it => init[it.id] = '');
-                setRoomAllocation(prev => ({ ...prev, itemRooms: init }));
+            if (data.type === 'ASSET' && data.items.length > 0) {
+                const initDetails = {};
+                data.items.forEach(it => {
+                    initDetails[it.id] = {
+                        categoryId: '',
+                        roomId: '',
+                        picId: '',
+                        condition: 'BAIK',
+                        isLendable: false
+                    };
+                });
+                setAssetDetails(initDetails);
             }
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
@@ -433,16 +446,18 @@ const ProcurementDetail = () => {
     const handleBAST = async () => {
         if (!bastDate) return alert('Pilih tanggal serah terima');
         if (req.type === 'ASSET') {
-            if (roomAllocation.type === 'SAME' && !roomAllocation.roomId) return alert('Pilih Ruangan Aset');
-            if (roomAllocation.type === 'INDIVIDUAL' && !req.items.every(it => roomAllocation.itemRooms[it.id])) return alert('Pilih Ruangan untuk setiap item');
+            for (const item of req.items) {
+                const det = assetDetails[item.id];
+                if (!det?.categoryId) return alert(`Pilih Kategori untuk item: ${item.name}`);
+                if (!det?.roomId) return alert(`Pilih Ruangan untuk item: ${item.name}`);
+            }
         }
 
         try {
             setLoading(true);
             const formData = new FormData();
             formData.append('bastDate', bastDate);
-            formData.append('roomAllocation', JSON.stringify(req.type === 'ASSET' ? roomAllocation : null));
-            formData.append('picId', picId ? picId : '');
+            formData.append('assetDetails', JSON.stringify(req.type === 'ASSET' ? assetDetails : {}));
 
             if (handoverFile) {
                 formData.append('bastFile', handoverFile);
@@ -1136,80 +1151,78 @@ const ProcurementDetail = () => {
                                     </div>
                                 </div>
 
-                                {/* Room Allocation */}
+                                {/* Asset Item Details (Card Per Item) */}
                                 {req.type === 'ASSET' && (
-                                    <div style={{
-                                        background: '#eef3fc', borderRadius: 14,
-                                        border: '1px solid #bfd0f5', padding: 20
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                                            <MapPin size={15} color='#2c5fc4' />
-                                            <span style={{ fontWeight: 700, fontSize: 13, color: '#1e3a8a' }}>Lokasi Penempatan Aset</span>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                            <Package size={16} color={T.gold} />
+                                            <span style={{ fontWeight: 700, fontSize: 14, color: T.navy }}>Detail Aset per Item</span>
                                         </div>
-
-                                        {req.items.length > 1 && (
-                                            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                                                {[['SAME', 'Satu Ruangan (Sama)'], ['INDIVIDUAL', 'Beda Ruangan (Per Item)']].map(([val, label]) => (
-                                                    <button key={val}
-                                                        onClick={() => setRoomAllocation(p => ({ ...p, type: val }))}
-                                                        style={{
-                                                            flex: 1, padding: '9px 12px',
-                                                            borderRadius: 9, fontSize: 12, fontWeight: 600,
-                                                            border: `1.5px solid ${roomAllocation.type === val ? '#2c5fc4' : T.border}`,
-                                                            background: roomAllocation.type === val ? '#2c5fc4' : T.white,
-                                                            color: roomAllocation.type === val ? T.white : T.slate,
-                                                            cursor: 'pointer', transition: 'all .2s'
-                                                        }}>
-                                                        {label}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        {roomAllocation.type === 'SAME' ? (
-                                            <div>
-                                                <Label>Ruangan</Label>
-                                                <Select value={roomAllocation.roomId}
-                                                    onChange={e => setRoomAllocation(p => ({ ...p, roomId: e.target.value }))}>
-                                                    <option value="">— Pilih Ruangan —</option>
-                                                    {rooms.map(r => <option key={r.id} value={r.id}>{r.name}{r.building ? ` (${r.building})` : ''}</option>)}
-                                                </Select>
-                                            </div>
-                                        ) : (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                                {req.items.map(it => (
-                                                    <div key={it.id} style={{
-                                                        background: T.white, borderRadius: 9, padding: '12px 14px',
-                                                        border: `1px solid ${T.border}`
-                                                    }}>
-                                                        <div style={{ fontSize: 11.5, fontWeight: 600, color: T.navy, marginBottom: 6 }}>{it.name}</div>
-                                                        <Select value={roomAllocation.itemRooms[it.id] || ''}
-                                                            onChange={e => setRoomAllocation(p => ({ ...p, itemRooms: { ...p.itemRooms, [it.id]: e.target.value } }))}>
-                                                            <option value="">— Pilih Ruangan —</option>
-                                                            {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                                        </Select>
+                                        {req.items.map((it, idx) => {
+                                            const det = assetDetails[it.id] || {};
+                                            const updateDet = (field, val) => {
+                                                setAssetDetails(p => ({
+                                                    ...p,
+                                                    [it.id]: { ...p[it.id], [field]: val }
+                                                }));
+                                            };
+                                            return (
+                                                <div key={it.id} style={{
+                                                    background: T.white, borderRadius: 12, padding: 20,
+                                                    border: `1px solid ${T.border}`,
+                                                    boxShadow: '0 2px 8px rgba(15,31,61,0.04)'
+                                                }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottom: `1px dashed ${T.creamDk}` }}>
+                                                        <div style={{ fontWeight: 700, fontSize: 14, color: T.navy }}>{idx + 1}. {it.name}</div>
+                                                        <div style={{ fontSize: 11, color: T.slate, background: T.cream, padding: '4px 8px', borderRadius: 6 }}>Qty: {it.qty} {it.unit}</div>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* PIC Allocation */}
-                                {req.type === 'ASSET' && (
-                                    <div style={{
-                                        background: T.cream, borderRadius: 14,
-                                        border: `1px solid ${T.border}`, padding: 20
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                                            <UserCheck size={15} color={T.gold} />
-                                            <span style={{ fontWeight: 700, fontSize: 13, color: T.navy }}>Penanggung Jawab Aset (PIC)</span>
-                                        </div>
-                                        <Label>Pilih PIC Utama untuk semua aset ini (Opsional)</Label>
-                                        <Select value={picId} onChange={e => setPicId(e.target.value)}>
-                                            <option value="">— Tidak ada / Atur Nanti —</option>
-                                            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                                        </Select>
+                                                    
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                                                        <div>
+                                                            <Label>Kategori *</Label>
+                                                            <Select value={det.categoryId || ''} onChange={e => updateDet('categoryId', e.target.value)}>
+                                                                <option value="">— Pilih Kategori —</option>
+                                                                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                            </Select>
+                                                        </div>
+                                                        <div>
+                                                            <Label>Ruangan *</Label>
+                                                            <Select value={det.roomId || ''} onChange={e => updateDet('roomId', e.target.value)}>
+                                                                <option value="">— Pilih Ruangan —</option>
+                                                                {rooms.map(r => <option key={r.id} value={r.id}>{r.name}{r.building ? ` (${r.building})` : ''}</option>)}
+                                                            </Select>
+                                                        </div>
+                                                        <div>
+                                                            <Label>Kondisi Awal</Label>
+                                                            <Select value={det.condition || 'BAIK'} onChange={e => updateDet('condition', e.target.value)}>
+                                                                <option value="BAIK">Baik</option>
+                                                                <option value="RUSAK_RINGAN">Rusak Ringan</option>
+                                                                <option value="RUSAK_BERAT">Rusak Berat</option>
+                                                            </Select>
+                                                        </div>
+                                                        <div>
+                                                            <Label>PIC (Opsional)</Label>
+                                                            <Select value={det.picId || ''} onChange={e => updateDet('picId', e.target.value)}>
+                                                                <option value="">— Tidak ada —</option>
+                                                                {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                                            </Select>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8, background: T.cream, padding: '10px 14px', borderRadius: 8 }}>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            id={`lendable-${it.id}`}
+                                                            checked={det.isLendable || false} 
+                                                            onChange={e => updateDet('isLendable', e.target.checked)}
+                                                            style={{ cursor: 'pointer', width: 16, height: 16 }}
+                                                        />
+                                                        <label htmlFor={`lendable-${it.id}`} style={{ fontSize: 12, fontWeight: 600, color: T.text, cursor: 'pointer', userSelect: 'none' }}>
+                                                            Aset ini bisa dipinjam oleh unit lain
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
 
