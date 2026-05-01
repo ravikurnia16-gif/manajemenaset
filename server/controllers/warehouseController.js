@@ -226,6 +226,13 @@ exports.deleteItem = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
+exports.exportItems = async (req, res) => {
+    try {
+        const items = await prisma.warehouseItem.findMany({ include: { category: true }, orderBy: { code: 'asc' } });
+        res.json(items);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
 // ======================== IMPORT ========================
 exports.importItems = async (req, res) => {
     const { items } = req.body;
