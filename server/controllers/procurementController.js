@@ -209,7 +209,7 @@ exports.createProcurement = async (req, res) => {
                     `${idx + 1}. *${it.name}*` + (it.spec && it.spec !== '-' ? ` (${it.spec})` : '')
                 ).join('\n');
 
-                const msg = `*Bismillah*\n\n` +
+                const msg = `Bismillah.\n\n` +
                     `*Info Penugasan Pengadaan (MANDAT KABID)*\n\n` +
                     `Halo *${assignedUser.name || assignedUser.username}*,\n\n` +
                     `Anda menerima perintah langsung pengadaan *"${title}"* dari Kepala Bidang.\n\n` +
@@ -275,8 +275,8 @@ exports.createProcurement = async (req, res) => {
                 ).join('\n');
 
                 if (submitter.phone) {
-                    const msgSubmitter = `*Info Request Pengadaan*\n\n` +
-                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*, ${results.length} permintaan anda telah kami terima dengan rincian:\n\n` +
+                    const msgSubmitter = `Bismillah.\n*Info Request Pengadaan*\n\n` +
+                        `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n${results.length} permintaan anda telah kami terima dengan rincian:\n\n` +
                         `${itemList}\n\n` +
                         `${isDirect ? `*Status* : Langsung Disetujui (Instruksi Kabid) \u2705\n` : `Pesanan Ustadz/Ustadzah akan segera kami proses.`}`;
 
@@ -297,7 +297,7 @@ exports.createProcurement = async (req, res) => {
                     });
 
                     if (admins.length > 0) {
-                        const msgAdm = `*Info Request Pengadaan*\n\n` +
+                        const msgAdm = `Bismillah.\n*Info Request Pengadaan (URGENT)*\n\n` +
                             `Ada ${results.length} pesanan baru dari:\n` +
                             `\u{1F464} *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
                             `\u{1F194} *NIY* : ${submitter.username || '-'}\n` +
@@ -446,7 +446,7 @@ exports.importProcurement = async (req, res) => {
                 });
 
                 if (admins.length > 0) {
-                    const msgAdm = `*[IMPORT REQUEST PENGADAAN]* 📥\n\n` +
+                    const msgAdm = `Bismillah.\n*[IMPORT REQUEST PENGADAAN]* 📥\n\n` +
                         `Ada ${results.length} pesanan baru di-import dari Excel oleh:\n` +
                         `\u{1F464} *Nama Lengkap* : ${submitter.name || submitter.username}\n` +
                         `\u{1F194} *NIY* : ${submitter.username || '-'}\n` +
@@ -531,14 +531,14 @@ exports.updateStatus = async (req, res) => {
                 const title = procurement.title || procurement.code;
 
                 if (status === 'VALIDATED' || status === 'APPROVED') {
-                    msg = `*Info Request Pengadaan*\n\n` +
+                    msg = `Bismillah.\n*Info Request Pengadaan*\n\n` +
                         `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n\n` +
                         `Permintaan Anda *"${title}"* telah *Disetujui dan Divalidasi* \u2705\n\n` +
                         `*Rincian:*\n${itemList}\n\n` +
                         `Pesanan sedang dalam proses pengadaan. Mohon ditunggu.`;
                 } else if (status === 'REJECTED') {
                     const reason = rejectionReason || 'Tidak ada keterangan';
-                    msg = `*Info Request Pengadaan*\n\n` +
+                    msg = `Bismillah.\n*Info Request Pengadaan*\n\n` +
                         `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n\n` +
                         `Mohon maaf, permintaan Anda *"${title}"* *DITOLAK* \u274C\n\n` +
                         `*Alasan:* ${reason}\n\n` +
@@ -647,7 +647,7 @@ exports.updateItemDetail = async (req, res) => {
                         (it.assignmentNote ? `\n   _Catatan: ${it.assignmentNote}_` : '')
                     ).join('\n');
 
-                    const msg = `Bismillah\n\n` +
+                    const msg = `Bismillah.\n\n` +
                         `*Info Penugasan Pengadaan*\n\n` +
                         `Ustadz/Ustadzah *${assignedUser.name || assignedUser.username}*,\n\n` +
                         `Anda telah ditugaskan untuk mengelola item berikut pada pengajuan *"${procurement.title || procurement.code}"*:\n\n` +
@@ -693,7 +693,7 @@ exports.updateItemDetail = async (req, res) => {
                     const vendor = await prisma.vendor.findUnique({ where: { id: parseInt(vendorId) } });
                     const vendorName = vendor?.name || 'Vendor';
 
-                    const msg = `*Bismillah*\n\n` +
+                    const msg = `Bismillah.\n\n` +
                         `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n\n` +
                         `Vendor telah terpilih untuk item *"${updatedItem.name}"* pada permintaan *"${proc.title || proc.code}"*:\n\n` +
                         `\u{1F3EA} *Vendor* : ${vendorName}\n` +
@@ -917,7 +917,7 @@ exports.processBAST = async (req, res) => {
                     `${i + 1}. ${item.name} (${item.qty} ${item.unit})`
                 ).join('\n');
 
-                const msg = `*Info Request Pengadaan*\n\n` +
+                const msg = `Bismillah.\n*Info Request Pengadaan*\n\n` +
                     `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n` +
                     `Permintaan Anda *"${procurement.title || procurement.code}"* telah *SELESAI (BAST)* \u2705\u2705\u2705\n\n` +
                     `*Rincian:*\n${itemList}\n\n` +
@@ -991,7 +991,7 @@ exports.notifyAssignees = async (req, res) => {
                 `${idx + 1}. *${it.name}*` + (it.spec && it.spec !== '-' ? ` (${it.spec})` : '')
             ).join('\n');
 
-            const msg = `Bismillah\n\n` +
+            const msg = `Bismillah.\n\n` +
                 `*Info Penugasan Pengadaan (Manual)*\n\n` +
                 `Ustadz/Ustadzah *${user.name || user.username}*,\n\n` +
                 `Anda telah ditugaskan untuk mengelola item berikut pada pengajuan *"${procurement.title || procurement.code}"*:\n\n` +

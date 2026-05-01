@@ -431,7 +431,7 @@ exports.createAssignment = async (req, res) => {
                         ? items.map((it, idx) => `${idx + 1}. ${it.text}`).join('\n')
                         : '';
 
-                    const msg = `*Bismillah*\n\n` +
+                    const msg = `Bismillah.\n\n` +
                         `Telah masuk permintaan dari Kepala Bidang Sarana dan Prasarana Dengan Rinciannya:\n\n` +
                         `📌 *Judul* : ${title}\n` +
                         `📅 *Deadline* : ${dueDate ? new Date(dueDate).toLocaleDateString('id-ID') : '-'}\n` +
@@ -1077,7 +1077,7 @@ exports.checkAssignmentDeadlines = async () => {
             }
 
             if (type && a.assignee?.phone) {
-                const msg = `${urgencyMsg}\n\n` +
+                const msg = `Bismillah.\n` + `${urgencyMsg}\n\n` +
                     `Assalamu'alaikum Ustadz ${a.assignee.name || ''},\n\n` +
                     `Mohon izin mengingatkan kembali untuk tugas berikut:\n\n` +
                     `📌 *Judul* : ${a.title}\n` +

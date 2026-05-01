@@ -410,7 +410,7 @@ exports.createReport = async (req, res) => {
 
                 // 1. Notify Submitter
                 if (submitter?.phone) {
-                    const msgSubmitter = `*Info Laporan Pemeliharaan*\n\n` +
+                    const msgSubmitter = `Bismillah.\n*Info Laporan Pemeliharaan*\n\n` +
                         `Ustadz/Ustadzah *${submitter.name || submitter.username}*, laporan pemeliharaan Anda telah kami terima.\n\n` +
                         `\u{1F4CB} *Judul* : ${isDirect ? `[INSTRUKSI KABID] ${title}` : title}\n` +
                         `\u{1F4C4} *Kode* : ${code}\n` +
@@ -440,7 +440,7 @@ exports.createReport = async (req, res) => {
                         'EMERGENCY': '🔴 DARURAT'
                     };
 
-                    const msgAdmin = `${targetDept === 'PEMBANGUNAN' ? '🏗️ *LAPORAN PEMBANGUNAN BARU*' : (isDirect ? `👑 *INSTRUKSI LANGSUNG KABID*` : `🔧 *LAPORAN PEMELIHARAAN BARU*`)}\n\n` +
+                    const msgAdmin = `Bismillah.\n${targetDept === 'PEMBANGUNAN' ? '🏗️ *LAPORAN PEMBANGUNAN BARU*' : (isDirect ? `👑 *INSTRUKSI LANGSUNG KABID*` : `🔧 *LAPORAN PEMELIHARAAN BARU*`)}\n\n` +
                         `👤 *Pelapor* : ${submitter?.name || submitter?.username || '-'}\n` +
                         `📞 *Kontak* : wa.me/${submitter?.phone?.replace(/^0/, '62') || '-'}\n` +
                         `⚡ *Urgensi* : ${isDirect ? 'PENGERJAAN PRIORITAS' : (urgencyLabels[report.urgency] || report.urgency)}\n` +
@@ -478,7 +478,7 @@ exports.createReport = async (req, res) => {
                     });
 
                     if (techUser && techUser.phone) {
-                        const msgTech = `🛠 *PENUGASAN MANDAT KABID*\n\n` +
+                        const msgTech = `Bismillah.\n🛠 *PENUGASAN MANDAT KABID*\n\n` +
                             `Halo *${techUser.name || techUser.username}*,\n` +
                             `Anda mendapatkan instruksi langsung untuk memperbaiki: *${title}*.\n\n` +
                             `📜 *Kode* : ${code}\n` +
@@ -662,7 +662,7 @@ exports.updateStatus = async (req, res) => {
                             const isExternal = !techUser;
                             const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
                             const maintenanceUrl = `${baseUrl}/pemeliharaan/${report.id}`;
-                            const msgTech = `🛠 *PENUGASAN PEMELIHARAAN*\n\n` +
+                            const msgTech = `Bismillah.\n🛠 *PENUGASAN PEMELIHARAAN*\n\n` +
                                 `Halo *${techUser?.name || techUser?.username || technician}*,\n` +
                                 `Anda ditugaskan untuk memperbaiki: *${report.title}*.\n\n` +
                                 `📜 *Kode* : ${report.code}\n` +
@@ -692,7 +692,7 @@ exports.updateStatus = async (req, res) => {
                 };
 
                 const statusLabel = statusLabels[status] || status;
-                let msg = `*Info Laporan Pemeliharaan*\n\n` +
+                let msg = `Bismillah.\n*Info Laporan Pemeliharaan*\n\n` +
                     `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n\n` +
                     `Laporan Anda *\"${report.title}\"* (${report.code})\n` +
                     `Status terbaru: *${statusLabel}*\n`;
@@ -789,7 +789,7 @@ exports.quickComplete = async (req, res) => {
 
                 // 2. WhatsApp Notification to Pelapor
                 if (report.user?.phone) {
-                    const msg = `*Info Laporan Pemeliharaan*\n\n` +
+                    const msg = `Bismillah.\n*Info Laporan Pemeliharaan*\n\n` +
                         `Ustadz/Ustadzah *${report.user.name || report.user.username}*,\n\n` +
                         `Laporan Anda *"${report.title}"* (${report.code})\n` +
                         `Status terbaru: *Selesai ✅✅✅*\n\n` +
@@ -917,7 +917,7 @@ exports.checkAssetMaintenanceReminders = async () => {
         if (overdue.length === 0 && soon.length === 0) return;
 
         // 2. Prepare Message
-        let msg = `🔧 *PENGINGAT PEMELIHARAAN RUTIN*\n\n` +
+        let msg = `Bismillah.\n🔧 *PENGINGAT PEMELIHARAAN RUTIN*\n\n` +
             `Halo Tim Manajemen Aset, berikut adalah ringkasan aset yang membutuhkan pemeliharaan:\n\n`;
 
         if (overdue.length > 0) {

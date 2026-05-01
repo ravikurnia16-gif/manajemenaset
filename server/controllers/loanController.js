@@ -91,7 +91,7 @@ exports.requestLoan = async (req, res) => {
 
                             if (admin.phone) {
                                 const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
-                                const message = `📢 *PERMOHONAN PINJAM ASET YAYASAN*\n\nUser *${requesterName}* mengajukan peminjaman aset Yayasan:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
+                                const message = `Bismillah.\n📢 *PERMOHONAN PINJAM ASET YAYASAN*\n\nUser *${requesterName}* mengajukan peminjaman aset Yayasan:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
                                 await whatsappService.sendMessage(admin.phone, message);
                                 console.log(`[Loan Notif] WA sent to ${admin.position}: ${admin.name}`);
                             }
@@ -117,7 +117,7 @@ exports.requestLoan = async (req, res) => {
 
                             if (admin.phone) {
                                 const assetListStr = unitAssets.map(a => `- ${a.name} (${a.code})`).join('\n');
-                                const message = `📦 *PERMOHONAN PINJAM ASET*\n\nUser *${requesterName}* mengajukan peminjaman aset dari unit Anda:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
+                                const message = `Bismillah.\n📦 *PERMOHONAN PINJAM ASET*\n\nUser *${requesterName}* mengajukan peminjaman aset dari unit Anda:\n\n${assetListStr}\n\nKeperluan: ${purpose}\nKembali: ${expectedReturnDate}\n\nMohon tinjau di sistem.`;
                                 await whatsappService.sendMessage(admin.phone, message);
                             }
                         } catch (e) {
@@ -330,7 +330,7 @@ exports.checkOverdueLoans = async () => {
             if (borrower.phone) {
                 try {
                     const assetListStr = loans.map(l => `- ${l.asset.name} (Batas: ${new Date(l.expectedReturnDate).toLocaleDateString('id-ID')})`).join('\n');
-                    const message = `⚠️ *PERINGATAN: PENGEMBALIAN ASET TERLAMBAT*\n\nHalo *${borrower.name}*,\n\nMohon segera mengembalikan aset berikut yang telah melewati batas waktu pengembalian:\n\n${assetListStr}\n\nMohon segera lakukan pengembalian dan konfirmasi di sistem Manajemen Aset. Terima kasih.`;
+                    const message = `Bismillah.\n⚠️ *PERINGATAN: PENGEMBALIAN ASET TERLAMBAT*\n\nHalo *${borrower.name}*,\n\nMohon segera mengembalikan aset berikut yang telah melewati batas waktu pengembalian:\n\n${assetListStr}\n\nMohon segera lakukan pengembalian dan konfirmasi di sistem Manajemen Aset. Terima kasih.`;
 
                     await whatsappService.sendMessage(borrower.phone, message);
                 } catch (e) {

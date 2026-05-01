@@ -259,7 +259,7 @@ const createEvent = async (req, res) => {
                         if (!pic.phone) continue;
 
                         const dateStr = new Date(date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-                        let msg = `📅 *Assalamu'alaykum Warahmatullahi Wabarakatuh*\n\n`;
+                        let msg = `Bismillah.\n📅 *Assalamu'alaykum Warahmatullahi Wabarakatuh*\n\n`;
                         msg += `Ustadz/Ustadzah ${pic.name}, ditunjuk sebagai PIC kegiatan berikut:\n\n`;
                         msg += `📌 *${title}*\n`;
                         msg += `📅 Tanggal: ${dateStr}\n`;
@@ -368,7 +368,7 @@ const updateEvent = async (req, res) => {
                         if (!pic.phone) continue;
 
                         const dateStr = new Date(date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-                        let msg = `📅 *TUGAS BARU (KALENDER)*\n\n`;
+                        let msg = `Bismillah.\n📅 *TUGAS BARU (KALENDER)*\n\n`;
                         msg += `Halo ${pic.name}, Anda baru saja ditambahkan sebagai PIC untuk kegiatan:\n\n`;
                         msg += `📌 *${title}*\n`;
                         msg += `📅 Tanggal: ${dateStr}\n`;
@@ -505,7 +505,7 @@ const sendCalendarReminders = async (req = null, res = null) => {
             for (const picId in groupedByPIC) {
                 const data = groupedByPIC[picId];
 
-                let msg = `📅 *REMINDER KEGIATAN BESOK*\n`;
+                let msg = `Bismillah.\n📅 *REMINDER KEGIATAN BESOK*\n`;
                 msg += `Halo ${data.picName}, berikut agenda Sarpras untuk besok:\n\n`;
 
                 data.events.forEach((event, idx) => {
@@ -601,7 +601,7 @@ const sendWeeklyCalendarSummary = async () => {
 
         if (allWeekly.length === 0) {
             console.log('[Weekly Summary] No events for this week. Sending empty report.');
-            const emptyMsg = `📅 *LAPORAN KEGIATAN PEKAN INI*\nPeriode: ${monday.toLocaleDateString('id-ID')} - ${sunday.toLocaleDateString('id-ID')}\n\n*Tidak ada agenda kegiatan yang tercatat untuk pekan ini.*\n\nTerima kasih.`;
+            const emptyMsg = `Bismillah.\n📅 *LAPORAN KEGIATAN PEKAN INI*\nPeriode: ${monday.toLocaleDateString('id-ID')} - ${sunday.toLocaleDateString('id-ID')}\n\n*Tidak ada agenda kegiatan yang tercatat untuk pekan ini.*\n\nTerima kasih.`;
             for (const lead of leads) {
                 await whatsappService.sendMessage(lead.phone, emptyMsg);
                 console.log(`[Weekly Summary] Empty report sent to ${lead.name}`);
@@ -610,7 +610,7 @@ const sendWeeklyCalendarSummary = async () => {
         }
 
         // 4. Format Message
-        let msg = `📅 *LAPORAN KEGIATAN PEKAN INI*\n`;
+        let msg = `Bismillah.\n📅 *LAPORAN KEGIATAN PEKAN INI*\n`;
         msg += `Periode: ${monday.toLocaleDateString('id-ID')} - ${sunday.toLocaleDateString('id-ID')}\n\n`;
 
         let currentDayStr = '';

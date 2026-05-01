@@ -109,8 +109,9 @@ const createBusBooking = async (req, res) => {
 
                 // 1. Notify Requester
                 if (requesterPhone) {
-                    const requesterMsg = `*Bismillah Ustadz/Ustadzah ${requesterLabel.toUpperCase()}*\n\n` +
-                        `Booking bus  telah dicatat.\n` +
+                    const requesterMsg = `Bismillah.\n*KONFIRMASI BOOKING BUS*\n\n` +
+                        `Ustadz/Ustadzah *${requesterLabel.toUpperCase()}*,\n` +
+                        `Booking bus telah dicatat.\n` +
                         `Armada: ${vehicleNames}\n` +
                         `Token Batal: *${token}*\n\n` +
                         `Simpan token ini jika Anda ingin membatalkan pesanan secara mandiri di halaman publik.\n\n` +
@@ -158,7 +159,7 @@ const createBusBooking = async (req, res) => {
                     const cleanPhone = formatPhoneForWA(requesterPhone);
                     const waLink = cleanPhone ? `https://wa.me/${cleanPhone}` : null;
 
-                    const adminMsg = `*BOOKING BUS BARU*\n\n` +
+                    const adminMsg = `Bismillah.\n*BOOKING BUS BARU*\n\n` +
                         `Pemohon: ${requesterLabel}\n` +
                         `No. HP: ${requesterPhone || '-'}\n` +
                         `Armada: ${vehicleNames}\n` +
@@ -518,7 +519,7 @@ const assignDriver = async (req, res) => {
                 const cleanPhone = formatPhoneForWA(booking.requesterPhone);
                 const waLink = cleanPhone ? `https://wa.me/${cleanPhone}` : null;
 
-                const msg = `*PENUGASAN SUPIR BUS*\n\n` +
+                const msg = `Bismillah.\n*PENUGASAN SUPIR BUS*\n\n` +
                     `Assalamu'alaikum ${booking.driver.name},\n\n` +
                     `Anda telah ditugaskan untuk mengendarai armada berikut:\n` +
                     `🚌 *Bus*: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
@@ -583,8 +584,8 @@ const checkBusBookingNotifications = async () => {
 
             if (!requesterPhone) continue;
 
-            let msg = `📢 *KONFIRMASI JADWAL BUS (H-1)* 🚌\n\n` +
-                `Bismillah Ustadz/Ustadzah *${(requesterName || '').toUpperCase()}*,\n\n` +
+            let msg = `Bismillah.\n📢 *KONFIRMASI JADWAL BUS (H-1)* 🚌\n\n` +
+                `Ustadz/Ustadzah *${(requesterName || '').toUpperCase()}*,\n\n` +
                 `Kami dari Bagian Sarpras ingin memastikan kembali rencana keberangkatan bus untuk:\n` +
                 `📍 *Tujuan*: ${destination}\n` +
                 `📅 *Jadwal*: ${new Date(startDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}\n\n`;
@@ -666,13 +667,13 @@ const publicConfirmBooking = async (req, res) => {
         if (staffKendaraan.length > 0) {
             let staffMsg = '';
             if (decision === 'JADI') {
-                staffMsg = `✅ *KONFIRMASI JADWAL BUS (FIX)*\n\n` +
+                staffMsg = `Bismillah.\n✅ *KONFIRMASI JADWAL BUS (FIX)*\n\n` +
                     `Alhamdulillah! Pemesan *${booking.requesterName}* telah mengonfirmasi bahwa jadwal bus ke *${booking.destination}* besok *TETAP JADI*.\n\n` +
                     `🚌 *Armada*: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
                     `👤 *Driver*: ${booking.driver?.name || '_Belum ditentukan_'}\n\n` +
                     `Mohon dipastikan armada dan personil dalam kondisi prima. Jazakallah Khairan.\n_Sistem Manajemen Aset_`;
             } else {
-                staffMsg = `❌ *PEMBATALAN JADWAL BUS*\n\n` +
+                staffMsg = `Bismillah.\n❌ *PEMBATALAN JADWAL BUS*\n\n` +
                     `Informasi: Pemesan *${booking.requesterName}* telah *MEMBATALKAN* jadwal bus ke *${booking.destination}* untuk besok.\n\n` +
                     `Armada *${booking.vehicle.name}* (${booking.vehicle.plateNumber}) kini tersedia kembali (Status: Tersedia) untuk unit lain yang membutuhkan. Syukron.\n_Sistem Manajemen Aset_`;
             }
@@ -730,8 +731,8 @@ const checkUnpaidBusInvoices = async () => {
 
         // Build summary message
         let hasReminders = false;
-        let summaryMsg = `⚠️ *LAPORAN TAGIHAN BUS MENUNGGAK* ⚠️\n\n` +
-            `Bismillah, pengingat tagihan bus yang belum lunas (interval 3 hari):\n\n`;
+        let summaryMsg = `Bismillah.\n⚠️ *LAPORAN TAGIHAN BUS MENUNGGAK* ⚠️\n\n` +
+            `Pengingat tagihan bus yang belum lunas (interval 3 hari):\n\n`;
 
         unpaidBookings.forEach((b) => {
             const ageDays = Math.floor((now - new Date(b.completedAt)) / (1000 * 60 * 60 * 24));
@@ -806,7 +807,7 @@ const completeBusBooking = async (req, res) => {
 
         // Send WA Notification to Requester
         if (booking.requesterPhone) {
-            const msg = `📢 *TAGIHAN PERJALANAN BUS* 🚌\n\n` +
+            const msg = `Bismillah.\n*INVOICE BUS: ${booking.vehicle.name}*\n\n` +
                 `Bismillah Ustadz/Ustadzah *${(booking.requesterName || '').toUpperCase()}*,\n` +
                 `Berikut adalah rincian tagihan perjalanan bus Anda:\n\n` +
                 `🏢 *Unit*: ${booking.unit || '-'}\n` +
@@ -834,7 +835,7 @@ const completeBusBooking = async (req, res) => {
                 });
 
                 if (finStaffs.length > 0) {
-                    const finMsg = `📢 *PELAPORAN TAGIHAN BUS (KEUANGAN)* 🚌\n\n` +
+                    const finMsg = `Bismillah.\n💰 *PENDAPATAN BUS MASUK (LUNAS)*\n\n` +
                         `Bismillah, pemberitahuan tagihan baru untuk penggunaan bus:\n\n` +
                         `👤 *Pemesan*: ${booking.requesterName}\n` +
                         `🏢 *Unit*: ${booking.unit || '-'}\n` +
