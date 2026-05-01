@@ -40,6 +40,7 @@ const AuditSessionDetail = () => {
     const fetchSession = async () => {
         try {
             setLoading(true);
+            const res = await api.get(`/audit/${id}`);
             setSession(res.data);
             const roomsRes = await api.get('/master/rooms');
             setAllRooms(roomsRes.data);
