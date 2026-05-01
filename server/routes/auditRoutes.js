@@ -12,6 +12,7 @@ router.post('/', auditController.createSession);
 router.get('/:id', auditController.getSessionById);
 router.post('/verify', auditController.verifyItem);
 router.post('/bulk-verify', auditController.bulkVerify);
+router.post('/approve-item', auditController.approveItem);
 router.post('/:id/finalize', auditController.finalizeSession);
 router.delete('/:id', auditController.deleteSession);
 

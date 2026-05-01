@@ -1287,6 +1287,7 @@ model AuditItem {
   notes            String?      @db.Text
   image            String?      @db.LongText
   verifiedAt       DateTime?
+  reconcileApproved Boolean    @default(false)
 
   @@index([sessionId])
   @@index([assetId])

@@ -22,6 +22,8 @@ const AuditSessionDetail = () => {
     const [activeTab, setActiveTab] = useState('PENDING'); // PENDING, FOUND, MISSING
     const [search, setSearch] = useState('');
     const [selectedIds, setSelectedIds] = useState([]);
+    const [roomFilter, setRoomFilter] = useState('');
+    const [allRooms, setAllRooms] = useState([]);
     
     // Scanner State
     const [showScanner, setShowScanner] = useState(false);
@@ -38,8 +40,9 @@ const AuditSessionDetail = () => {
     const fetchSession = async () => {
         try {
             setLoading(true);
-            const res = await api.get(`/audit/${id}`);
             setSession(res.data);
+            const roomsRes = await api.get('/master/rooms');
+            setAllRooms(roomsRes.data);
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
     };
@@ -74,7 +77,12 @@ const AuditSessionDetail = () => {
             return;
         }
         setSelectedItem(item);
-        setForm({ condition: item.asset.condition || 'BAIK', note: '', status: 'FOUND' });
+        setForm({ 
+            condition: item.asset.condition || 'BAIK', 
+            note: '', 
+            status: 'FOUND',
+            foundLocationId: item.asset.roomId
+        });
         setShowScanner(false);
     };
 
@@ -122,6 +130,13 @@ const AuditSessionDetail = () => {
         } else {
             setSelectedIds(filteredItems.map(i => i.id));
         }
+    };
+
+    const handleApprove = async (itemId, approved) => {
+        try {
+            await api.post('/audit/approve-item', { id: itemId, approved });
+            fetchSession();
+        } catch (e) { alert('Gagal memproses persetujuan'); }
     };
 
     const exportToExcel = async () => {
@@ -218,8 +233,11 @@ const AuditSessionDetail = () => {
     const filteredItems = session.items.filter(i => {
         const matchesTab = i.status === activeTab;
         const matchesSearch = i.asset.name.toLowerCase().includes(search.toLowerCase()) || i.asset.code.toLowerCase().includes(search.toLowerCase());
-        return matchesTab && matchesSearch;
+        const matchesRoom = !roomFilter || i.asset.roomId === parseInt(roomFilter);
+        return matchesTab && matchesSearch && matchesRoom;
     });
+
+    const sessionRooms = Array.from(new Set(session.items.map(i => i.asset.room))).filter(Boolean);
 
     return (
         <div className="p-4 md:p-8 min-h-screen bg-slate-50 space-y-8 pb-32">
@@ -255,7 +273,7 @@ const AuditSessionDetail = () => {
                                 onClick={handleFinalize}
                                 className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-900 text-white px-8 py-3 rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all"
                             >
-                                <ShieldCheck size={20} /> FINALISASI
+                                <ShieldCheck size={20} /> FINALISASI ({session.items.filter(i => i.reconcileApproved).length} DISETUJUI)
                             </button>
                         )}
                     </div>
@@ -330,14 +348,26 @@ const AuditSessionDetail = () => {
                     )}
                 </div>
 
-                <div className="relative group max-w-xl">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input 
-                        placeholder="Cari nama barang atau kode..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all shadow-sm"
-                    />
+                <div className="flex flex-col md:flex-row gap-4 max-w-4xl">
+                    <div className="relative group flex-1">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input 
+                            placeholder="Cari nama barang atau kode..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all shadow-sm"
+                        />
+                    </div>
+                    <select
+                        value={roomFilter}
+                        onChange={e => setRoomFilter(e.target.value)}
+                        className="px-6 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-emerald-100 transition-all shadow-sm"
+                    >
+                        <option value="">Semua Ruangan</option>
+                        {sessionRooms.map(r => (
+                            <option key={r.id} value={r.id}>{r.name}</option>
+                        ))}
+                    </select>
                 </div>
             </div>
 
@@ -368,8 +398,30 @@ const AuditSessionDetail = () => {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <h4 className="text-sm font-black text-slate-800 line-clamp-1">{item.asset.name}</h4>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{item.asset.code}</p>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{item.asset.code}</p>
+                                    {item.status === 'FOUND' && item.foundLocationId && item.foundLocationId !== item.asset.roomId && (
+                                        <span className="text-[9px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-black uppercase">MISPLACED</span>
+                                    )}
+                                </div>
+                                <p className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mt-0.5">
+                                    <MapPin size={10} /> {item.asset.room?.name}
+                                </p>
                             </div>
+                            
+                            {/* Approval Action for Misplaced / Found Items */}
+                            {session.status === 'OPEN' && item.status === 'FOUND' && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleApprove(item.id, !item.reconcileApproved);
+                                    }}
+                                    className={`p-2 rounded-xl border transition-all ${item.reconcileApproved ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-500'}`}
+                                    title={item.reconcileApproved ? "Sudah Disetujui" : "Setujui Perubahan Data"}
+                                >
+                                    <ShieldCheck size={18} />
+                                </button>
+                            )}
                             <ChevronRight className="text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" size={20} />
                         </div>
                     </div>
@@ -444,6 +496,25 @@ const AuditSessionDetail = () => {
                                     <option value="RUSAK_BERAT">RUSAK BERAT</option>
                                 </select>
                             </div>
+                        </div>
+
+                        <div className="p-4 bg-slate-50 rounded-2xl space-y-2">
+                            <p className="text-[10px] font-black text-slate-400 uppercase">Lokasi Ditemukan</p>
+                            <select 
+                                disabled={form.status === 'MISSING'}
+                                value={form.foundLocationId}
+                                onChange={e => setForm({...form, foundLocationId: e.target.value})}
+                                className="w-full bg-white border-none rounded-xl text-xs font-black p-3 outline-none disabled:opacity-50"
+                            >
+                                {allRooms.map(r => (
+                                    <option key={r.id} value={r.id}>{r.name} ({r.building})</option>
+                                ))}
+                            </select>
+                            {form.foundLocationId && parseInt(form.foundLocationId) !== selectedItem.asset.roomId && (
+                                <p className="text-[10px] text-purple-600 font-bold flex items-center gap-1">
+                                    <AlertTriangle size={12} /> Barang seharusnya ada di: {selectedItem.asset.room?.name}
+                                </p>
+                            )}
                         </div>
 
                         <div className="space-y-2">

@@ -124,6 +124,18 @@ exports.bulkVerify = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
+// Approve item for reconciliation
+exports.approveItem = async (req, res) => {
+    const { id, approved } = req.body;
+    try {
+        const item = await prisma.auditItem.update({
+            where: { id: parseInt(id) },
+            data: { reconcileApproved: approved }
+        });
+        res.json(item);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
 // Finalize/Reconcile Session
 exports.finalizeSession = async (req, res) => {
     const sessionId = parseInt(req.params.id);
@@ -137,12 +149,11 @@ exports.finalizeSession = async (req, res) => {
             return res.status(400).json({ error: 'Sesi audit tidak valid atau sudah ditutup' });
         }
 
-        // Perform Reconciliation
-        // Update all FOUND assets with new condition and location
-        const foundItems = session.items.filter(item => item.status === 'FOUND');
+        // Perform Reconciliation ONLY for Approved Items
+        const approvedItems = session.items.filter(item => item.status === 'FOUND' && item.reconcileApproved);
         
         await prisma.$transaction(async (tx) => {
-            for (const item of foundItems) {
+            for (const item of approvedItems) {
                 await tx.asset.update({
                     where: { id: item.assetId },
                     data: {
@@ -159,7 +170,10 @@ exports.finalizeSession = async (req, res) => {
             });
         });
 
-        res.json({ message: 'Audit berhasil difinalisasi. Data aset telah diperbarui.' });
+        res.json({ 
+            message: `Audit difinalisasi. ${approvedItems.length} aset telah diperbarui berdasarkan persetujuan.`,
+            updatedCount: approvedItems.length
+        });
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
