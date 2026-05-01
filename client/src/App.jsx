@@ -60,6 +60,8 @@ import EOffice from './pages/EOffice';
 import PublicVerify from './pages/PublicVerify';
 import AssetStandardCatalog from './pages/AssetStandardCatalog';
 import AssetStandardForm from './pages/AssetStandardForm';
+import AuditList from './pages/AuditList';
+import AuditSessionDetail from './pages/AuditSessionDetail';
 
 
 // Komponen untuk melindungi route yang butuh login
@@ -113,6 +115,8 @@ function App() {
           <Route path="aset/katalog-standar" element={<AssetStandardCatalog />} />
           <Route path="aset/katalog-standar/new" element={<AssetStandardForm />} />
           <Route path="aset/katalog-standar/edit/:id" element={<AssetStandardForm />} />
+          <Route path="aset/audit" element={<AuditList />} />
+          <Route path="aset/audit/:id" element={<AuditSessionDetail />} />
           <Route path="master" element={<MasterData />} />
           <Route path="rkb" element={<RKBList />} />
           <Route path="rkb/:id" element={<RKBDetail />} />

@@ -75,6 +75,8 @@ model User {
   calendarEventsCreated    SarprasCalendarEvent[] @relation("CalendarCreator")
   calendarEventsPIC        SarprasCalendarEvent[] @relation("CalendarPICs")
   notifications            Notification[]
+  auditSessionsCreated     AuditSession[]         @relation("AuditCreator")
+  auditedItems             AuditItem[]            @relation("Auditor")
 
   loans         AssetLoan[] @relation("Borrower")
   reviewedLoans AssetLoan[] @relation("LoanReviewer")
@@ -290,6 +292,7 @@ model Asset {
   maintenances Maintenance[]
   disposal     AssetDisposal?
   loans        AssetLoan[]
+  auditItems   AuditItem[]
 
   // Validation Fields
   validationStatus   ValidationStatus @default(UNVERIFIED)
@@ -1252,3 +1255,39 @@ model OfficeDocument {
   updatedAt       DateTime               @updatedAt
 }
 
+
+model AuditSession {
+  id          Int         @id @default(autoincrement())
+  title       String
+  description String?     @db.Text
+  status      String      @default("OPEN") // OPEN, CLOSED, CANCELLED
+  startDate   DateTime    @default(now())
+  endDate     DateTime?
+  createdBy   Int
+  creator     User        @relation("AuditCreator", fields: [createdBy], references: [id])
+  items       AuditItem[]
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model AuditItem {
+  id               Int          @id @default(autoincrement())
+  sessionId        Int
+  session          AuditSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  assetId          Int
+  asset            Asset        @relation(fields: [assetId], references: [id])
+  
+  status           String       @default("PENDING") // PENDING, FOUND, MISSING
+  originalLocation String?      // Nama lokasi saat audit dimulai
+  foundLocationId  Int?
+  foundCondition   Condition?
+  auditorId        Int?
+  auditor          User?        @relation("Auditor", fields: [auditorId], references: [id])
+  notes            String?      @db.Text
+  image            String?      @db.LongText
+  verifiedAt       DateTime?
+
+  @@index([sessionId])
+  @@index([assetId])
+}

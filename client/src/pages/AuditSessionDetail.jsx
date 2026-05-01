@@ -1,0 +1,306 @@
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { 
+    ClipboardCheck, ArrowLeft, Scan, Search, MapPin, 
+    ShieldCheck, AlertTriangle, HelpCircle, Save, X, Camera,
+    CheckCircle2, AlertCircle, Info, RefreshCcw
+} from 'lucide-react';
+import { Html5QrcodeScanner } from "html5-qrcode";
+import api from '../lib/axios';
+
+const AuditSessionDetail = () => {
+    const { id } = useParams();
+    const navigate = useNavigate();
+    const [session, setSession] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('PENDING'); // PENDING, FOUND, MISSING
+    const [search, setSearch] = useState('');
+    
+    // Scanner State
+    const [showScanner, setShowScanner] = useState(false);
+    const [scannerLoading, setScannerLoading] = useState(false);
+    
+    // Verification Form
+    const [selectedItem, setSelectedItem] = useState(null);
+    const [form, setForm] = useState({
+        condition: 'BAIK',
+        note: '',
+        status: 'FOUND'
+    });
+
+    const fetchSession = async () => {
+        try {
+            setLoading(true);
+            const res = await api.get(`/audit/${id}`);
+            setSession(res.data);
+        } catch (e) { console.error(e); }
+        finally { setLoading(false); }
+    };
+
+    useEffect(() => { fetchSession(); }, [id]);
+
+    // Handle Scanner
+    useEffect(() => {
+        if (showScanner) {
+            const scanner = new Html5QrcodeScanner("reader", { 
+                fps: 10, 
+                qrbox: { width: 250, height: 250 },
+                rememberLastUsedCamera: true
+            }, false);
+
+            scanner.render(onScanSuccess, onScanError);
+            return () => scanner.clear();
+        }
+    }, [showScanner]);
+
+    function onScanSuccess(decodedText) {
+        // decodedText is the Asset Code
+        handleScan(decodedText);
+    }
+
+    function onScanError(err) { /* quiet error */ }
+
+    const handleScan = async (code) => {
+        const item = session.items.find(i => i.asset.code === code);
+        if (!item) {
+            alert('Aset dengan kode ' + code + ' tidak terdaftar dalam sesi audit ini.');
+            return;
+        }
+        setSelectedItem(item);
+        setForm({ condition: item.asset.condition || 'BAIK', note: '', status: 'FOUND' });
+        setShowScanner(false);
+    };
+
+    const handleVerify = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('/audit/verify', {
+                sessionId: id,
+                assetCode: selectedItem.asset.code,
+                status: form.status,
+                condition: form.condition,
+                note: form.note
+            });
+            setSelectedItem(null);
+            fetchSession();
+        } catch (e) { alert(e.response?.data?.error || 'Gagal memverifikasi'); }
+    };
+
+    const handleFinalize = async () => {
+        if (!confirm('Finalisasi audit? Seluruh aset yang "Ditemukan" akan diperbarui kondisinya di database utama.')) return;
+        try {
+            await api.post(`/audit/${id}/finalize`);
+            fetchSession();
+            alert('Audit berhasil difinalisasi!');
+        } catch (e) { alert(e.response?.data?.error || 'Gagal finalisasi'); }
+    };
+
+    if (loading) return <div className="flex justify-center items-center min-h-screen"><div className="w-12 h-12 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin"></div></div>;
+    if (!session) return <div className="p-20 text-center">Data tidak ditemukan</div>;
+
+    const stats = {
+        total: session.items.length,
+        found: session.items.filter(i => i.status === 'FOUND').length,
+        missing: session.items.filter(i => i.status === 'MISSING').length,
+        pending: session.items.filter(i => i.status === 'PENDING').length,
+    };
+
+    const progress = Math.round(((stats.found + stats.missing) / stats.total) * 100);
+
+    const filteredItems = session.items.filter(i => {
+        const matchesTab = i.status === activeTab;
+        const matchesSearch = i.asset.name.toLowerCase().includes(search.toLowerCase()) || i.asset.code.toLowerCase().includes(search.toLowerCase());
+        return matchesTab && matchesSearch;
+    });
+
+    return (
+        <div className="p-4 md:p-8 min-h-screen bg-slate-50 space-y-8 pb-32">
+            {/* Sticky Mobile Header */}
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                    <button onClick={() => navigate('/aset/audit')} className="p-2 bg-white rounded-xl shadow-sm border border-slate-200 text-slate-500">
+                        <ArrowLeft size={20} />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-black text-slate-900 line-clamp-1">{session.title}</h1>
+                        <p className="text-xs text-slate-500 font-bold flex items-center gap-2">
+                            <MapPin size={12} /> {session.items[0]?.originalLocation || 'Multiple Locations'}
+                        </p>
+                    </div>
+                </div>
+                {session.status === 'OPEN' && (
+                    <div className="flex gap-3 w-full md:w-auto">
+                        <button 
+                            onClick={() => setShowScanner(true)}
+                            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-8 py-3 rounded-2xl font-black shadow-xl shadow-emerald-100 hover:scale-105 transition-all"
+                        >
+                            <Scan size={20} /> SCAN QR
+                        </button>
+                        {progress === 100 && (
+                            <button 
+                                onClick={handleFinalize}
+                                className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-900 text-white px-8 py-3 rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all"
+                            >
+                                <ShieldCheck size={20} /> FINALISASI
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Stats Dashboard */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm space-y-1">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Cakupan</p>
+                    <p className="text-2xl font-black text-slate-800">{stats.total}</p>
+                </div>
+                <div className="bg-emerald-50 p-5 rounded-[28px] border border-emerald-100 shadow-sm space-y-1">
+                    <p className="text-[10px] font-black text-emerald-600/60 uppercase tracking-widest">Ditemukan</p>
+                    <p className="text-2xl font-black text-emerald-700">{stats.found}</p>
+                </div>
+                <div className="bg-red-50 p-5 rounded-[28px] border border-red-100 shadow-sm space-y-1">
+                    <p className="text-[10px] font-black text-red-600/60 uppercase tracking-widest">Hilang</p>
+                    <p className="text-2xl font-black text-red-700">{stats.missing}</p>
+                </div>
+                <div className="bg-amber-50 p-5 rounded-[28px] border border-amber-100 shadow-sm space-y-1">
+                    <p className="text-[10px] font-black text-amber-600/60 uppercase tracking-widest">Progress</p>
+                    <p className="text-2xl font-black text-amber-700">{progress}%</p>
+                </div>
+            </div>
+
+            {/* Tabs & Search */}
+            <div className="space-y-4">
+                <div className="flex bg-slate-200/50 p-1 rounded-2xl w-full max-w-md">
+                    {['PENDING', 'FOUND', 'MISSING'].map(t => (
+                        <button
+                            key={t}
+                            onClick={() => setActiveTab(t)}
+                            className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-all ${activeTab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            {t === 'PENDING' ? 'BELUM' : t === 'FOUND' ? 'ADA' : 'HILANG'} 
+                            <span className="ml-1.5 px-1.5 py-0.5 bg-slate-100 rounded text-[10px]">{stats[t.toLowerCase()]}</span>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="relative group max-w-xl">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input 
+                        placeholder="Cari nama barang atau kode..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all shadow-sm"
+                    />
+                </div>
+            </div>
+
+            {/* Item List */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredItems.map(item => (
+                    <div 
+                        key={item.id} 
+                        onClick={() => session.status === 'OPEN' && setSelectedItem(item)}
+                        className={`bg-white p-5 rounded-3xl border border-slate-200 flex items-center gap-4 group transition-all ${session.status === 'OPEN' ? 'cursor-pointer hover:border-emerald-500 hover:shadow-lg' : ''}`}
+                    >
+                        <div className={`p-3 rounded-2xl ${item.status === 'FOUND' ? 'bg-emerald-50 text-emerald-600' : item.status === 'MISSING' ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-400'}`}>
+                            {item.status === 'FOUND' ? <CheckCircle2 size={24} /> : item.status === 'MISSING' ? <AlertCircle size={24} /> : <Info size={24} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-black text-slate-800 line-clamp-1">{item.asset.name}</h4>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{item.asset.code}</p>
+                        </div>
+                        <ChevronRight className="text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" size={20} />
+                    </div>
+                ))}
+            </div>
+
+            {/* Verification Drawer / Modal */}
+            {selectedItem && (
+                <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center p-0 md:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-white w-full max-w-lg rounded-t-[40px] md:rounded-[40px] shadow-2xl p-8 space-y-8 animate-in slide-in-from-bottom-10">
+                        <div className="flex justify-between items-start">
+                            <div className="space-y-1">
+                                <h3 className="text-2xl font-black text-slate-900">{selectedItem.asset.name}</h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{selectedItem.asset.code}</p>
+                            </div>
+                            <button onClick={() => setSelectedItem(null)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X size={20} /></button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="p-4 bg-slate-50 rounded-2xl space-y-1">
+                                <p className="text-[10px] font-black text-slate-400 uppercase">Status Sekarang</p>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setForm({...form, status: 'FOUND'})} className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${form.status === 'FOUND' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'bg-white text-slate-400'}`}>ADA</button>
+                                    <button onClick={() => setForm({...form, status: 'MISSING'})} className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${form.status === 'MISSING' ? 'bg-red-600 text-white shadow-lg shadow-red-100' : 'bg-white text-slate-400'}`}>HILANG</button>
+                                </div>
+                            </div>
+                            <div className="p-4 bg-slate-50 rounded-2xl space-y-1">
+                                <p className="text-[10px] font-black text-slate-400 uppercase">Kondisi Fisik</p>
+                                <select 
+                                    disabled={form.status === 'MISSING'}
+                                    value={form.condition}
+                                    onChange={e => setForm({...form, condition: e.target.value})}
+                                    className="w-full bg-white border-none rounded-xl text-xs font-black p-2 outline-none disabled:opacity-50"
+                                >
+                                    <option value="BAIK">BAIK</option>
+                                    <option value="RUSAK_RINGAN">RUSAK RINGAN</option>
+                                    <option value="RUSAK_BERAT">RUSAK BERAT</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Catatan Audit</label>
+                            <textarea 
+                                value={form.note}
+                                onChange={e => setForm({...form, note: e.target.value})}
+                                placeholder="Contoh: Barang ditemukan di bawah meja, LCD bergaris..."
+                                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-emerald-100 transition-all resize-none italic"
+                                rows={3}
+                            />
+                        </div>
+
+                        <button 
+                            onClick={handleVerify}
+                            className="w-full flex items-center justify-center gap-3 bg-emerald-600 text-white py-5 rounded-[28px] font-black shadow-xl shadow-emerald-100 hover:scale-[1.02] transition-all"
+                        >
+                            <Save size={20} /> SIMPAN HASIL VERIFIKASI
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Scanner View */}
+            {showScanner && (
+                <div className="fixed inset-0 z-[70] bg-slate-900 flex flex-col p-6 space-y-6">
+                    <div className="flex justify-between items-center text-white">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-emerald-600 rounded-lg"><Scan size={20} /></div>
+                            <h3 className="font-bold">Arahkan ke QR Code Aset</h3>
+                        </div>
+                        <button onClick={() => setShowScanner(false)} className="p-2 bg-white/10 rounded-full"><X size={20} /></button>
+                    </div>
+                    
+                    <div className="flex-1 rounded-[40px] overflow-hidden border-4 border-emerald-500/50 bg-black relative">
+                        <div id="reader" className="w-full h-full"></div>
+                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                            <div className="w-64 h-64 border-2 border-emerald-400 rounded-3xl opacity-50 animate-pulse"></div>
+                        </div>
+                    </div>
+
+                    <div className="p-6 bg-white/5 rounded-3xl backdrop-blur-md text-white text-center space-y-2">
+                        <p className="text-sm font-bold">Scanning for Inventory...</p>
+                        <p className="text-[10px] text-white/40 uppercase tracking-widest">Audit ID: {id}</p>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Simple Icon
+const ChevronRight = ({className, size}) => (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+);
+
+export default AuditSessionDetail;
