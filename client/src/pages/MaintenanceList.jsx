@@ -144,6 +144,24 @@ const MaintenanceList = () => {
         navigate(`/pemeliharaan/input?assetIds=${ids}&category=ROUTINE`);
     };
 
+    const toggleUnitSelection = (assets) => {
+        const actionableAssets = assets.filter(a => !a.hasActiveReport);
+        const actionableIds = actionableAssets.map(a => a.id);
+        const allSelected = actionableIds.length > 0 && actionableIds.every(id => selectedScheduleIds.includes(id));
+
+        if (allSelected) {
+            setSelectedScheduleIds(prev => prev.filter(id => !actionableIds.includes(id)));
+        } else {
+            setSelectedScheduleIds(prev => {
+                const newIds = [...prev];
+                actionableIds.forEach(id => {
+                    if (!newIds.includes(id)) newIds.push(id);
+                });
+                return newIds;
+            });
+        }
+    };
+
     const handleDelete = async (id) => {
         if (!confirm('Hapus laporan ini?')) return;
         try {
@@ -301,13 +319,23 @@ const MaintenanceList = () => {
                             Object.entries(groupedSchedule).map(([unitName, assets]) => (
                                 <div key={unitName} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                                     <div className="bg-slate-50/80 px-6 py-3 border-b border-slate-200 flex justify-between items-center">
-                                        <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                                            <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
-                                            {unitName}
-                                            <span className="text-xs bg-white px-2 py-0.5 rounded-lg border border-slate-200 text-slate-500 ml-2">
-                                                {assets.length} Aset
-                                            </span>
-                                        </h3>
+                                        <div className="flex items-center gap-3">
+                                            {assets.some(a => !a.hasActiveReport) && (
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={assets.filter(a => !a.hasActiveReport).every(a => selectedScheduleIds.includes(a.id))}
+                                                    onChange={() => toggleUnitSelection(assets)}
+                                                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                />
+                                            )}
+                                            <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                                                <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
+                                                {unitName}
+                                                <span className="text-xs bg-white px-2 py-0.5 rounded-lg border border-slate-200 text-slate-500 ml-2">
+                                                    {assets.length} Aset
+                                                </span>
+                                            </h3>
+                                        </div>
                                     </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left">
