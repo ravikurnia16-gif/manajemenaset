@@ -156,26 +156,26 @@ const MaintenanceDashboard = () => {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="bg-white rounded-xl border border-indigo-100 p-5 shadow-sm border-l-4 border-l-indigo-500">
                             <p className="text-slate-500 text-sm font-semibold mb-1">Rata-rata Keseluruhan</p>
-                            <h3 className="text-2xl font-black text-indigo-700">{stats.slaStats.overallAvgDays.toFixed(1)} <span className="text-sm font-medium text-slate-500">Hari</span></h3>
+                            <h3 className="text-2xl font-black text-indigo-700">{(stats.slaStats?.overallAvgDays || 0).toFixed(1)} <span className="text-sm font-medium text-slate-500">Hari</span></h3>
                             <p className="text-xs text-slate-400 mt-1">Kecepatan rata-rata Sarpras</p>
                         </div>
                         
                         <div className="bg-white rounded-xl border border-red-100 p-5 shadow-sm border-l-4 border-l-red-500">
                             <p className="text-slate-500 text-sm font-semibold mb-1">Darurat (Emergency)</p>
-                            <h3 className="text-2xl font-black text-red-600">{stats.slaStats.byUrgency.EMERGENCY.avgDays.toFixed(1)} <span className="text-sm font-medium text-slate-500">Hari</span></h3>
-                            <p className="text-xs text-slate-400 mt-1">{stats.slaStats.byUrgency.EMERGENCY.count} laporan selesai</p>
+                            <h3 className="text-2xl font-black text-red-600">{(stats.slaStats?.byUrgency?.EMERGENCY?.avgDays || 0).toFixed(1)} <span className="text-sm font-medium text-slate-500">Hari</span></h3>
+                            <p className="text-xs text-slate-400 mt-1">{stats.slaStats?.byUrgency?.EMERGENCY?.count || 0} laporan selesai</p>
                         </div>
                         
                         <div className="bg-white rounded-xl border border-amber-100 p-5 shadow-sm border-l-4 border-l-amber-500">
                             <p className="text-slate-500 text-sm font-semibold mb-1">Penting (Urgent)</p>
-                            <h3 className="text-2xl font-black text-amber-600">{stats.slaStats.byUrgency.URGENT.avgDays.toFixed(1)} <span className="text-sm font-medium text-slate-500">Hari</span></h3>
-                            <p className="text-xs text-slate-400 mt-1">{stats.slaStats.byUrgency.URGENT.count} laporan selesai</p>
+                            <h3 className="text-2xl font-black text-amber-600">{(stats.slaStats?.byUrgency?.URGENT?.avgDays || 0).toFixed(1)} <span className="text-sm font-medium text-slate-500">Hari</span></h3>
+                            <p className="text-xs text-slate-400 mt-1">{stats.slaStats?.byUrgency?.URGENT?.count || 0} laporan selesai</p>
                         </div>
                         
                         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm border-l-4 border-l-slate-400">
                             <p className="text-slate-500 text-sm font-semibold mb-1">Biasa (Normal)</p>
-                            <h3 className="text-2xl font-black text-slate-700">{stats.slaStats.byUrgency.NORMAL.avgDays.toFixed(1)} <span className="text-sm font-medium text-slate-500">Hari</span></h3>
-                            <p className="text-xs text-slate-400 mt-1">{stats.slaStats.byUrgency.NORMAL.count} laporan selesai</p>
+                            <h3 className="text-2xl font-black text-slate-700">{(stats.slaStats?.byUrgency?.NORMAL?.avgDays || 0).toFixed(1)} <span className="text-sm font-medium text-slate-500">Hari</span></h3>
+                            <p className="text-xs text-slate-400 mt-1">{stats.slaStats?.byUrgency?.NORMAL?.count || 0} laporan selesai</p>
                         </div>
                     </div>
                 </div>
