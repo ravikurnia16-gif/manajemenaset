@@ -882,3 +882,87 @@ exports.getMaintenanceSchedule = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+/**
+ * Scheduled Task: Send daily reminders for overdue/soon routine maintenance
+ * to Staff Manajemen Aset via WhatsApp.
+ */
+exports.checkAssetMaintenanceReminders = async () => {
+    try {
+        console.log('[Scheduler] Checking Asset Maintenance Reminders...');
+        
+        // 1. Get Overdue/Soon Assets (only marked routine)
+        const assets = await prisma.asset.findMany({
+            where: {
+                nextMaintenanceEst: { lte: new Date(new Date().setDate(new Date().getDate() + 7)) },
+                needsRoutineMaintenance: true,
+                condition: { not: 'DISPOSED' }
+            },
+            include: { 
+                unit: { select: { name: true } },
+                maintenances: {
+                    where: { status: { notIn: ['COMPLETED', 'REJECTED'] } },
+                    take: 1
+                }
+            }
+        });
+
+        // Filter out those with active reports
+        const dueAssets = assets.filter(a => a.maintenances.length === 0);
+        if (dueAssets.length === 0) return;
+
+        const overdue = dueAssets.filter(a => new Date(a.nextMaintenanceEst) < new Date());
+        const soon = dueAssets.filter(a => new Date(a.nextMaintenanceEst) >= new Date());
+
+        if (overdue.length === 0 && soon.length === 0) return;
+
+        // 2. Prepare Message
+        let msg = `🔧 *PENGINGAT PEMELIHARAAN RUTIN*\n\n` +
+            `Halo Tim Manajemen Aset, berikut adalah ringkasan aset yang membutuhkan pemeliharaan:\n\n`;
+
+        if (overdue.length > 0) {
+            msg += `🔴 *OVERDUE (Terlewat)*:\n`;
+            overdue.slice(0, 10).forEach(a => {
+                msg += `- ${a.name} (${a.unit?.name || 'Umum'})\n`;
+            });
+            if (overdue.length > 10) msg += `- ...dan ${overdue.length - 10} aset lainnya\n`;
+            msg += `\n`;
+        }
+
+        if (soon.length > 0) {
+            msg += `🟡 *SOON (7 Hari Ke Depan)*:\n`;
+            soon.slice(0, 10).forEach(a => {
+                msg += `- ${a.name} (${a.unit?.name || 'Umum'})\n`;
+            });
+            if (soon.length > 10) msg += `- ...dan ${soon.length - 10} aset lainnya\n`;
+            msg += `\n`;
+        }
+
+        msg += `Silakan cek detail dan proses di menu *Jadwal Servis* pada aplikasi.\n\n` +
+               `_Sistem Manajemen Aset_`;
+
+        // 3. Find Recipients (Staff Manajemen Aset)
+        const recipients = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { position: { contains: 'Manajemen Aset' } },
+                    { role: 'ADMIN_ASET' }
+                ],
+                phone: { not: null, not: '' }
+            }
+        });
+
+        // 4. Send WA
+        for (const user of recipients) {
+            try {
+                await whatsappService.sendMessage(user.phone, msg);
+                console.log(`[Scheduler] Maintenance reminder sent to ${user.name} (${user.phone})`);
+            } catch (e) {
+                console.error(`[Scheduler] Failed to send WA to ${user.phone}:`, e.message);
+            }
+        }
+
+    } catch (error) {
+        console.error('[Scheduler] checkAssetMaintenanceReminders Error:', error);
+    }
+};
