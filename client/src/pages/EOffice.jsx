@@ -1088,12 +1088,14 @@ const EOffice = () => {
                     </div>
                     <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
                         <div className="flex flex-wrap items-center gap-2">
-                            <button
-                                onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
-                                className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20"
-                            >
-                                <Printer size={18} /> {viewingDoc.category === 'Lainnya' ? 'Lihat Dokumen Final' : 'Cetak PDF'}
-                            </button>
+                            {viewingDoc.type !== 'SURAT_MASUK' && (
+                                <button
+                                    onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
+                                    className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20"
+                                >
+                                    <Printer size={18} /> {viewingDoc.category === 'Lainnya' ? 'Lihat Dokumen Final' : 'Cetak PDF'}
+                                </button>
+                            )}
                             {viewingDoc.category === 'Lainnya' && viewingDoc.status === 'SIGNED' && (
                                 <button
                                     onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/tte-asset?token=${localStorage.getItem('token')}`, '_blank')}
