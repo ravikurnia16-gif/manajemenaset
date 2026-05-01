@@ -825,6 +825,19 @@ exports.processBAST = async (req, res) => {
                         let roomId = details.roomId ? parseInt(details.roomId) : null;
                         let picId = details.picId ? parseInt(details.picId) : null;
 
+                        // If individual allocation, override with specific unit data if available
+                        if (details.allocationType === 'INDIVIDUAL' && details.units?.[i]) {
+                            if (details.units[i].roomId) roomId = parseInt(details.units[i].roomId);
+                            if (details.units[i].picId) picId = parseInt(details.units[i].picId);
+                        }
+
+                        // Calculate maintenance interval in days
+                        let maintenanceInterval = 0;
+                        if (details.needsRoutineMaintenance) {
+                            const val = parseInt(details.maintenanceInterval || 0);
+                            maintenanceInterval = details.intervalUnit === 'MONTHS' ? val * 30 : val;
+                        }
+
                         await prisma.asset.create({
                             data: {
                                 code: assetCode,
@@ -843,7 +856,9 @@ exports.processBAST = async (req, res) => {
                                 vendorName: item.vendorName || null,
                                 quantity: 1,
                                 picId: picId,
-                                isLendable: details.isLendable || false
+                                isLendable: details.isLendable || false,
+                                needsRoutineMaintenance: details.needsRoutineMaintenance || false,
+                                maintenanceInterval: maintenanceInterval
                             }
                         });
                     }

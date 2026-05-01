@@ -372,12 +372,21 @@ const ProcurementDetail = () => {
             if (data.type === 'ASSET' && data.items.length > 0) {
                 const initDetails = {};
                 data.items.forEach(it => {
+                    const units = [];
+                    for (let i = 0; i < it.qty; i++) {
+                        units.push({ roomId: '', picId: '' });
+                    }
                     initDetails[it.id] = {
                         categoryId: '',
                         roomId: '',
                         picId: '',
                         condition: 'BAIK',
-                        isLendable: false
+                        isLendable: false,
+                        needsRoutineMaintenance: false,
+                        maintenanceInterval: 3,
+                        intervalUnit: 'MONTHS',
+                        allocationType: 'SAME',
+                        units: units
                     };
                 });
                 setAssetDetails(initDetails);
@@ -449,7 +458,13 @@ const ProcurementDetail = () => {
             for (const item of req.items) {
                 const det = assetDetails[item.id];
                 if (!det?.categoryId) return alert(`Pilih Kategori untuk item: ${item.name}`);
-                if (!det?.roomId) return alert(`Pilih Ruangan untuk item: ${item.name}`);
+                
+                if (det.allocationType === 'SAME') {
+                    if (!det?.roomId) return alert(`Pilih Ruangan untuk item: ${item.name}`);
+                } else {
+                    const missing = det.units.some(u => !u.roomId);
+                    if (missing) return alert(`Lengkapi Ruangan untuk setiap unit item: ${item.name}`);
+                }
             }
         }
 
@@ -1186,13 +1201,6 @@ const ProcurementDetail = () => {
                                                             </Select>
                                                         </div>
                                                         <div>
-                                                            <Label>Ruangan *</Label>
-                                                            <Select value={det.roomId || ''} onChange={e => updateDet('roomId', e.target.value)}>
-                                                                <option value="">— Pilih Ruangan —</option>
-                                                                {rooms.map(r => <option key={r.id} value={r.id}>{r.name}{r.building ? ` (${r.building})` : ''}</option>)}
-                                                            </Select>
-                                                        </div>
-                                                        <div>
                                                             <Label>Kondisi Awal</Label>
                                                             <Select value={det.condition || 'BAIK'} onChange={e => updateDet('condition', e.target.value)}>
                                                                 <option value="BAIK">Baik</option>
@@ -1200,6 +1208,54 @@ const ProcurementDetail = () => {
                                                                 <option value="RUSAK_BERAT">Rusak Berat</option>
                                                             </Select>
                                                         </div>
+
+                                                        {it.qty > 1 && (
+                                                            <div style={{ gridColumn: 'span 2' }}>
+                                                                <Label>Alokasi Ruangan</Label>
+                                                                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                                                                    {[['SAME', 'Sama untuk Semua'], ['INDIVIDUAL', 'Berbeda per Unit']].map(([val, label]) => (
+                                                                        <button key={val}
+                                                                            onClick={() => updateDet('allocationType', val)}
+                                                                            style={{
+                                                                                flex: 1, padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                                                                                border: `1.5px solid ${det.allocationType === val ? T.navy : T.border}`,
+                                                                                background: det.allocationType === val ? T.navy : T.white,
+                                                                                color: det.allocationType === val ? T.white : T.slate,
+                                                                                cursor: 'pointer'
+                                                                            }}>
+                                                                            {label}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {det.allocationType === 'SAME' ? (
+                                                            <div>
+                                                                <Label>Ruangan *</Label>
+                                                                <Select value={det.roomId || ''} onChange={e => updateDet('roomId', e.target.value)}>
+                                                                    <option value="">— Pilih Ruangan —</option>
+                                                                    {rooms.map(r => <option key={r.id} value={r.id}>{r.name}{r.building ? ` (${r.building})` : ''}</option>)}
+                                                                </Select>
+                                                            </div>
+                                                        ) : (
+                                                            <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10, background: T.cream, padding: 12, borderRadius: 10 }}>
+                                                                {det.units.map((u, uIdx) => (
+                                                                    <div key={uIdx}>
+                                                                        <Label>Unit {uIdx + 1}</Label>
+                                                                        <Select value={u.roomId || ''} onChange={e => {
+                                                                            const nextUnits = [...det.units];
+                                                                            nextUnits[uIdx].roomId = e.target.value;
+                                                                            updateDet('units', nextUnits);
+                                                                        }} style={{ fontSize: 11, padding: '6px 10px' }}>
+                                                                            <option value="">— Pilih Ruangan —</option>
+                                                                            {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                                                        </Select>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+
                                                         <div>
                                                             <Label>PIC (Opsional)</Label>
                                                             <Select value={det.picId || ''} onChange={e => updateDet('picId', e.target.value)}>
@@ -1208,17 +1264,61 @@ const ProcurementDetail = () => {
                                                             </Select>
                                                         </div>
                                                     </div>
-                                                    <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8, background: T.cream, padding: '10px 14px', borderRadius: 8 }}>
-                                                        <input 
-                                                            type="checkbox" 
-                                                            id={`lendable-${it.id}`}
-                                                            checked={det.isLendable || false} 
-                                                            onChange={e => updateDet('isLendable', e.target.checked)}
-                                                            style={{ cursor: 'pointer', width: 16, height: 16 }}
-                                                        />
-                                                        <label htmlFor={`lendable-${it.id}`} style={{ fontSize: 12, fontWeight: 600, color: T.text, cursor: 'pointer', userSelect: 'none' }}>
-                                                            Aset ini bisa dipinjam oleh unit lain
-                                                        </label>
+                                                    <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.cream, padding: '10px 14px', borderRadius: 8 }}>
+                                                            <input 
+                                                                type="checkbox" 
+                                                                id={`lendable-${it.id}`}
+                                                                checked={det.isLendable || false} 
+                                                                onChange={e => updateDet('isLendable', e.target.checked)}
+                                                                style={{ cursor: 'pointer', width: 16, height: 16 }}
+                                                            />
+                                                            <label htmlFor={`lendable-${it.id}`} style={{ fontSize: 12, fontWeight: 600, color: T.text, cursor: 'pointer', userSelect: 'none' }}>
+                                                                Aset ini bisa dipinjam oleh unit lain
+                                                            </label>
+                                                        </div>
+
+                                                        <div style={{ background: '#eef3fc', padding: '14px', borderRadius: 10, border: '1px solid #bfd0f5' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: det.needsRoutineMaintenance ? 12 : 0 }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: det.needsRoutineMaintenance ? '#2c5fc4' : T.border }} />
+                                                                    <label htmlFor={`maint-${it.id}`} style={{ fontSize: 12, fontWeight: 700, color: '#1e3a8a', cursor: 'pointer' }}>
+                                                                        Pemeliharaan Rutin?
+                                                                    </label>
+                                                                </div>
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    id={`maint-${it.id}`}
+                                                                    checked={det.needsRoutineMaintenance || false} 
+                                                                    onChange={e => updateDet('needsRoutineMaintenance', e.target.checked)}
+                                                                    style={{ cursor: 'pointer', width: 16, height: 16 }}
+                                                                />
+                                                            </div>
+                                                            {det.needsRoutineMaintenance && (
+                                                                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <Label>Interval</Label>
+                                                                        <Input 
+                                                                            type="number" 
+                                                                            value={det.maintenanceInterval || 3} 
+                                                                            onChange={e => updateDet('maintenanceInterval', e.target.value)}
+                                                                            style={{ padding: '6px 10px', fontSize: 12 }}
+                                                                        />
+                                                                    </div>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <Label>Satuan</Label>
+                                                                        <Select 
+                                                                            value={det.intervalUnit || 'MONTHS'} 
+                                                                            onChange={e => updateDet('intervalUnit', e.target.value)}
+                                                                            style={{ padding: '6px 10px', fontSize: 12 }}
+                                                                        >
+                                                                            <option value="MONTHS">Bulan</option>
+                                                                            <option value="DAYS">Hari</option>
+                                                                        </Select>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             );
