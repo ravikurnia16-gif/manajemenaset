@@ -14,6 +14,7 @@ const AssetStandardCatalog = () => {
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const canEdit = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT'].includes(user.role);
+    const canDelete = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user.role);
 
     const fetchData = async () => {
         try {
@@ -181,13 +182,15 @@ const AssetStandardCatalog = () => {
                                                 >
                                                     <Edit size={16} />
                                                 </button>
-                                                <button 
-                                                    onClick={() => handleDelete(std.id)}
-                                                    className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm"
-                                                    title="Hapus"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                {canDelete && (
+                                                    <button 
+                                                        onClick={() => handleDelete(std.id)}
+                                                        className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                                                        title="Hapus"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
                                             </>
                                         )}
                                     </div>

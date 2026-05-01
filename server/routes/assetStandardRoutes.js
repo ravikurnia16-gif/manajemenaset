@@ -10,11 +10,13 @@ router.use(verifyToken);
 router.get('/', asc.getAllStandards);
 router.get('/:id', asc.getStandardById);
 
-// Writing/Deleting restricted to Super Admin, Admin Aset, and Admin Unit
+// Writing restricted to Super Admin, Admin Aset, and Admin Unit
 const writeAccess = authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'ADMIN_UNIT']);
+// Deleting restricted to Super Admin and Admin Aset only
+const deleteAccess = authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']);
 
 router.post('/', writeAccess, handleUpload('image', 'standards'), asc.createStandard);
 router.put('/:id', writeAccess, handleUpload('image', 'standards'), asc.updateStandard);
-router.delete('/:id', writeAccess, asc.deleteStandard);
+router.delete('/:id', deleteAccess, asc.deleteStandard);
 
 module.exports = router;
