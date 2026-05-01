@@ -165,7 +165,7 @@ model Unit {
 
 model Room {
   id       Int     @id @default(autoincrement())
-  code     String  @unique
+  code     String
   name     String
   floor    String
   building String
@@ -173,6 +173,9 @@ model Room {
   unitId   Int?
   unit     Unit?   @relation(fields: [unitId], references: [id])
   assets   Asset[]
+
+  @@unique([unitId, code])
+  @@unique([unitId, name])
 }
 
 model Category {
