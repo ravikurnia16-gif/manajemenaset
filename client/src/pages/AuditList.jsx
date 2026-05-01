@@ -8,6 +8,8 @@ const AuditList = () => {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [rooms, setRooms] = useState([]);
+    const [units, setUnits] = useState([]);
+    const [selectedUnit, setSelectedUnit] = useState('');
     const [selectedRooms, setSelectedRooms] = useState([]);
     const [title, setTitle] = useState('');
     const navigate = useNavigate();
@@ -19,6 +21,8 @@ const AuditList = () => {
             setSessions(res.data);
             const roomRes = await api.get('/master/rooms');
             setRooms(roomRes.data);
+            const unitRes = await api.get('/master/units');
+            setUnits(unitRes.data);
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
     };
@@ -134,9 +138,26 @@ const AuditList = () => {
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pilih Ruangan (Scope)</label>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pilih Unit Terlebih Dahulu</label>
+                                <select
+                                    value={selectedUnit}
+                                    onChange={e => {
+                                        setSelectedUnit(e.target.value);
+                                        setSelectedRooms([]);
+                                    }}
+                                    className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 transition-all cursor-pointer"
+                                >
+                                    <option value="">-- Pilih Unit --</option>
+                                    {units.map(u => (
+                                        <option key={u.id} value={u.id}>{u.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pilih Ruangan di Unit Tersebut</label>
                                 <div className="max-h-60 overflow-y-auto border border-slate-100 rounded-2xl p-2 space-y-1 bg-slate-50/50">
-                                    {rooms.map(r => (
+                                    {rooms.filter(r => !selectedUnit || r.unitId === parseInt(selectedUnit)).map(r => (
                                         <label key={r.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 hover:border-emerald-200 cursor-pointer transition-all">
                                             <input
                                                 type="checkbox"
