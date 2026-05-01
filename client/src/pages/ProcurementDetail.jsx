@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     CheckCircle, XCircle, FileText, Upload, DollarSign, Store,
     ArrowLeft, Plus, Trash2, ShoppingCart, UserCheck, Camera,
-    Image, MapPin, ChevronRight, AlertCircle, Package
+    Image, MapPin, ChevronRight, AlertCircle, Package, QrCode
 } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
@@ -354,7 +354,8 @@ const ProcurementDetail = () => {
                 usefulLife: item.usefulLife || (data.type === 'ASSET' ? 4 : 0),
                 finalPrice: item.finalPrice || item.estPrice,
                 fundingSource: item.fundingSource || 'Mandiri',
-                vendorId: item.vendorId || '',
+                vendorId: item.vendorId || (item.vendorName ? `CV-${item.vendorName}` : ''),
+                vendorName: item.vendorName || '',
                 comparisonVendors: safeJSON(item.comparisonVendors),
                 needComparison: item.needComparison !== false,
                 assignedTo: item.assignedTo || '',
@@ -376,16 +377,19 @@ const ProcurementDetail = () => {
         try {
             if (!silent) setSavingItems(prev => ({ ...prev, [item.id]: true }));
 
-            let vendorId = item.vendorId, newVendorName = null;
-            if (item.vendorId === 'OTHER') { vendorId = null; newVendorName = item.newVendorName; }
-            else if (typeof item.vendorId === 'string' && item.vendorId.startsWith('CV-')) {
-                vendorId = null; newVendorName = item.vendorId.replace('CV-', '');
+            // Resolve vendor name from selection
+            let resolvedVendorName = item.vendorName || null;
+            if (item.vendorId === 'OTHER') {
+                resolvedVendorName = item.newVendorName || null;
+            } else if (typeof item.vendorId === 'string' && item.vendorId.startsWith('CV-')) {
+                resolvedVendorName = item.vendorId.replace('CV-', '');
             }
 
             await api.put(`/procurements/items/${item.id}`, {
                 fundingSource: item.fundingSource, brand: item.brand,
                 usefulLife: item.usefulLife, finalPrice: item.finalPrice,
-                vendorId, newVendorName,
+                vendorId: null,
+                vendorName: resolvedVendorName,
                 comparisonVendors: item.comparisonVendors,
                 needComparison: item.needComparison,
                 assignedTo: item.assignedTo, assignedToId: item.assignedToId,
@@ -574,7 +578,7 @@ const ProcurementDetail = () => {
                             setLoading(false);
                         }
                         if (activeTab === 4 && targetStep > 4) {
-                            const incomplete = req.items.find(i => !i.vendorId || !i.finalPrice);
+                            const incomplete = req.items.find(i => (!i.vendorId && !i.vendorName) || !i.finalPrice);
                             if (incomplete) return alert(`Lengkapi Vendor & Harga untuk: ${incomplete.name}`);
                             setLoading(true);
                             try { for (const item of req.items) await handleSaveItem(item, true); }
@@ -942,7 +946,7 @@ const ProcurementDetail = () => {
                         {isAdmin && req.status === 'PROCESS' && (
                             <Btn variant="primary"
                                 onClick={async () => {
-                                    const inc = req.items.find(i => !i.vendorId || !i.finalPrice);
+                                    const inc = req.items.find(i => (!i.vendorId && !i.vendorName) || !i.finalPrice);
                                     if (inc) return alert(`Lengkapi Vendor & Harga untuk: ${inc.name}`);
                                     setLoading(true);
                                     try { for (const item of req.items) await handleSaveItem(item, true); setActiveTab(5); }
@@ -961,7 +965,7 @@ const ProcurementDetail = () => {
                                 <div key={item.id} style={{
                                     border: `1px solid ${T.border}`,
                                     borderRadius: 12, padding: '20px',
-                                    background: item.vendorId && item.finalPrice ? `linear-gradient(to right, ${T.successBg}50, ${T.white})` : T.cream
+                                    background: (item.vendorName || item.vendorId) && item.finalPrice ? `linear-gradient(to right, ${T.successBg}50, ${T.white})` : T.cream
                                 }}>
                                     <div style={{ fontWeight: 700, fontSize: 14, color: T.navy, marginBottom: 4 }}>{item.name}</div>
                                     <div style={{ fontSize: 11.5, color: T.slate, marginBottom: 16 }}>{item.spec}</div>
@@ -1254,7 +1258,7 @@ const ProcurementDetail = () => {
                                                 subject: `BAST Pengadaan: ${req.title}`,
                                                 party1Name: 'Ravi Kurnia',
                                                 party1Title: 'Pemberi',
-                                                party2Name: req.vendor?.name || '',
+                                                party2Name: req.items?.[0]?.vendorName || '',
                                                 party2Title: 'Penerima',
                                                 bastItems
                                             } 
@@ -1333,7 +1337,7 @@ const ProcurementDetail = () => {
                                             subject: `BAST Pengadaan: ${req.title}`,
                                             party1Name: 'Kepala Bidang Sarana Prasarana',
                                             party1Title: 'Pemberi',
-                                            party2Name: req.vendor?.name || '',
+                                            party2Name: req.items?.[0]?.vendorName || '',
                                             party2Title: 'Penerima',
                                             bastItems
                                         } 

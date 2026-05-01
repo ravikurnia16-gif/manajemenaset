@@ -569,32 +569,15 @@ exports.updateStatus = async (req, res) => {
 // Update Item Detail (Vendor, Brand, Specs)
 exports.updateItemDetail = async (req, res) => {
     const { itemId } = req.params;
-    const { fundingSource, brand, usefulLife, vendorId, finalPrice, newVendorName, comparisonVendors, needComparison, assignedTo, assignedToId, assignmentNote, spec, categoryId } = req.body;
+    const { fundingSource, brand, usefulLife, vendorId, vendorName, finalPrice, comparisonVendors, needComparison, assignedTo, assignedToId, assignmentNote, spec, categoryId } = req.body;
 
     try {
-        let finalVendorId = vendorId;
-
-        // Create new vendor if requested
-        if (newVendorName) {
-            const existingVendor = await prisma.vendor.findFirst({
-                where: { name: newVendorName }
-            });
-
-            if (existingVendor) {
-                finalVendorId = existingVendor.id;
-            } else {
-                const newVendor = await prisma.vendor.create({
-                    data: { name: newVendorName }
-                });
-                finalVendorId = newVendor.id;
-            }
-        }
-
         const updateData = {
             fundingSource,
             brand,
             usefulLife: usefulLife ? parseInt(usefulLife) : undefined,
-            vendorId: finalVendorId ? parseInt(finalVendorId) : undefined,
+            vendorId: vendorId ? parseInt(vendorId) : null,
+            vendorName: vendorName || null,
             finalPrice: finalPrice ? parseFloat(finalPrice) : undefined,
             assignedTo,
             assignedToId: assignedToId ? parseInt(assignedToId) : null,
@@ -621,40 +604,6 @@ exports.updateItemDetail = async (req, res) => {
             where: { id: parseInt(itemId) },
             data: updateData
         });
-
-        // --- Auto-Register to Vendor Catalog (VendorProduct) ---
-        if (item.vendorId && item.finalPrice) {
-            try {
-                const existingProduct = await prisma.vendorProduct.findFirst({
-                    where: {
-                        vendorId: item.vendorId,
-                        name: item.name
-                    }
-                });
-
-                if (existingProduct) {
-                    await prisma.vendorProduct.update({
-                        where: { id: existingProduct.id },
-                        data: {
-                            price: item.finalPrice,
-                            specification: item.spec || existingProduct.specification
-                        }
-                    });
-                } else {
-                    await prisma.vendorProduct.create({
-                        data: {
-                            vendorId: item.vendorId,
-                            name: item.name,
-                            price: item.finalPrice,
-                            specification: item.spec || ''
-                        }
-                    });
-                }
-            } catch (catalogErr) {
-                console.error('Failed to auto-register vendor product:', catalogErr);
-                // We don't fail the whole request because of this
-            }
-        }
 
         res.json(item);
 
@@ -717,7 +666,7 @@ exports.updateItemDetail = async (req, res) => {
 
         // --- WhatsApp Notification: Vendor Terpilih (Async) ---
         // Only notify if vendor is NEW or CHANGED (compared to what was in DB)
-        const isVendorChanged = finalVendorId && (parseInt(finalVendorId) !== currentItem.vendorId);
+        const isVendorChanged = vendorId && (parseInt(vendorId) !== currentItem.vendorId);
 
         if (isVendorChanged) {
             (async () => {
@@ -741,7 +690,7 @@ exports.updateItemDetail = async (req, res) => {
                     if (!submitter || !submitter.phone) return;
 
                     // Get vendor name
-                    const vendor = await prisma.vendor.findUnique({ where: { id: parseInt(finalVendorId) } });
+                    const vendor = await prisma.vendor.findUnique({ where: { id: parseInt(vendorId) } });
                     const vendorName = vendor?.name || 'Vendor';
 
                     const msg = `*Bismillah*\n\n` +
