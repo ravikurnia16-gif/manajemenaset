@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Search, Package } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Search, Package, DollarSign } from 'lucide-react';
 import api from '../lib/axios';
 
 const WarehouseTransactionForm = () => {
@@ -10,13 +10,13 @@ const WarehouseTransactionForm = () => {
     const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
     const [note, setNote] = useState('');
     const [allItems, setAllItems] = useState([]);
-    const [rows, setRows] = useState([{ itemId: '', quantity: '1', recipientName: '', recipientUnit: '', search: '' }]);
+    const [rows, setRows] = useState([{ itemId: '', quantity: '1', price: '', recipientName: '', recipientUnit: '', search: '' }]);
 
     useEffect(() => {
         api.get('/warehouse/items').then(r => setAllItems(r.data)).catch(console.error);
     }, []);
 
-    const addRow = () => setRows(prev => [...prev, { itemId: '', quantity: '1', recipientName: '', recipientUnit: '', search: '' }]);
+    const addRow = () => setRows(prev => [...prev, { itemId: '', quantity: '1', price: '', recipientName: '', recipientUnit: '', search: '' }]);
 
     const removeRow = (idx) => {
         if (rows.length === 1) return;
@@ -28,7 +28,12 @@ const WarehouseTransactionForm = () => {
     };
 
     const selectItem = (idx, item) => {
-        setRows(prev => prev.map((r, i) => i === idx ? { ...r, itemId: item.id.toString(), search: `${item.code} - ${item.name}${item.type ? ` [${item.type}]` : ''}${item.itemUnit ? ` (${item.itemUnit})` : ''}${item.size ? ` (${item.size})` : ''}${item.purchaseYear ? ` [${item.purchaseYear}]` : ''}` } : r));
+        setRows(prev => prev.map((r, i) => i === idx ? { 
+            ...r, 
+            itemId: item.id.toString(), 
+            price: item.purchasePrice?.toString() || '',
+            search: `${item.code} - ${item.name}${item.type ? ` [${item.type}]` : ''}${item.itemUnit ? ` (${item.itemUnit})` : ''}${item.size ? ` (${item.size})` : ''}${item.purchaseYear ? ` [${item.purchaseYear}]` : ''}` 
+        } : r));
     };
 
     const getFilteredItems = (searchTerm) => {
@@ -38,14 +43,8 @@ const WarehouseTransactionForm = () => {
         return allItems.filter(i => {
             const displayGender = i.gender === 'L' ? 'Ikhwan' : i.gender === 'P' ? 'Akhwat' : i.gender;
             const searchableText = [
-                i.code,
-                i.name,
-                i.type,
-                displayGender,
-                i.itemUnit,
-                i.size ? `Ukuran ${i.size}` : null,
-                i.purchaseYear,
-                i.category?.name
+                i.code, i.name, i.type, displayGender, i.itemUnit,
+                i.size ? `Ukuran ${i.size}` : null, i.purchaseYear, i.category?.name
             ].filter(Boolean).join(' ').toLowerCase();
 
             return searchTerms.every(term => searchableText.includes(term));
@@ -64,6 +63,7 @@ const WarehouseTransactionForm = () => {
                 items: validRows.map(r => ({
                     itemId: parseInt(r.itemId),
                     quantity: parseInt(r.quantity),
+                    price: type === 'IN' ? parseFloat(r.price) || 0 : null,
                     recipientName: r.recipientName || null,
                     recipientUnit: r.recipientUnit || null
                 }))
@@ -84,7 +84,6 @@ const WarehouseTransactionForm = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
-                {/* Type Toggle */}
                 <div className="flex gap-3">
                     <button type="button" onClick={() => setType('IN')}
                         className={`flex-1 p-3 rounded-xl border-2 text-sm font-semibold text-center transition-all flex items-center justify-center gap-2 ${type === 'IN' ? 'border-green-500 bg-green-50 text-green-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
@@ -96,7 +95,6 @@ const WarehouseTransactionForm = () => {
                     </button>
                 </div>
 
-                {/* Date & Note */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1">Tanggal</label>
@@ -108,7 +106,6 @@ const WarehouseTransactionForm = () => {
                     </div>
                 </div>
 
-                {/* Items */}
                 <div>
                     <div className="flex items-center justify-between mb-3">
                         <label className="text-sm font-semibold text-slate-700">Daftar Item</label>
@@ -159,8 +156,20 @@ const WarehouseTransactionForm = () => {
                                             </div>
                                         )}
                                     </div>
-                                    <input type="number" value={row.quantity} onChange={e => updateRow(idx, 'quantity', e.target.value)} min="1" className="w-20 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-center" placeholder="Qty" />
-                                    <button type="button" onClick={() => removeRow(idx)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                                    <div className="flex flex-col gap-1">
+                                        <input type="number" value={row.quantity} onChange={e => updateRow(idx, 'quantity', e.target.value)} min="1" className="w-20 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-center" placeholder="Qty" />
+                                        <span className="text-[10px] text-center text-slate-400 font-bold">JUMLAH</span>
+                                    </div>
+                                    {type === 'IN' && (
+                                        <div className="flex flex-col gap-1">
+                                            <div className="relative">
+                                                <DollarSign size={12} className="absolute left-2 top-3 text-slate-400" />
+                                                <input type="number" value={row.price} onChange={e => updateRow(idx, 'price', e.target.value)} className="w-32 pl-6 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm" placeholder="Harga Beli" />
+                                            </div>
+                                            <span className="text-[10px] text-center text-slate-400 font-bold uppercase">Harga Satuan</span>
+                                        </div>
+                                    )}
+                                    <button type="button" onClick={() => removeRow(idx)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg self-start mt-1"><Trash2 size={16} /></button>
                                 </div>
                                 {type === 'OUT' && (
                                     <div className="flex gap-2">

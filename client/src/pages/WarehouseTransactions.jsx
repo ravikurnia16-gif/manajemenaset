@@ -23,7 +23,12 @@ const WarehouseTransactions = () => {
 
     const handleDelete = async (id) => {
         if (!confirm('Hapus transaksi ini? Stok akan dikembalikan.')) return;
-        try { await api.delete(`/warehouse/transactions/${id}`); fetchTxs(); } catch (e) { alert('Gagal menghapus'); }
+        try { await api.delete(`/warehouse/transactions/${id}`); fetchTxs(); } catch (e) { alert(e.response?.data?.error || 'Gagal menghapus'); }
+    };
+
+    const formatPrice = (p) => {
+        if (!p) return '-';
+        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(p);
     };
 
     return (
@@ -56,7 +61,7 @@ const WarehouseTransactions = () => {
                                 <th className="text-left p-3 font-semibold text-slate-600">Kode</th>
                                 <th className="text-left p-3 font-semibold text-slate-600">Tipe</th>
                                 <th className="text-left p-3 font-semibold text-slate-600">Tanggal</th>
-                                <th className="text-left p-3 font-semibold text-slate-600">Item</th>
+                                <th className="text-left p-3 font-semibold text-slate-600">Item & Harga</th>
                                 <th className="text-left p-3 font-semibold text-slate-600">Oleh</th>
                                 <th className="text-left p-3 font-semibold text-slate-600">Catatan</th>
                                 <th className="text-center p-3 font-semibold text-slate-600">Aksi</th>
@@ -72,14 +77,19 @@ const WarehouseTransactions = () => {
                                         </td>
                                         <td className="p-3 text-slate-500 text-xs">{new Date(tx.date).toLocaleDateString('id-ID')}</td>
                                         <td className="p-3">
-                                            <div className="space-y-1">
+                                            <div className="space-y-1.5">
                                                 {(tx.items || []).map((ti, i) => (
                                                     <div key={i} className="text-xs">
-                                                        <span className="font-medium">{ti.item?.name}</span>
-                                                        {ti.item?.itemUnit && <span className="text-slate-500 font-bold ml-1">({ti.item.itemUnit})</span>}
-                                                        {ti.item?.size && <span className="text-slate-400 ml-1">({ti.item.size})</span>}
-                                                        <span className="ml-1 font-bold text-indigo-600">×{ti.quantity}</span>
-                                                        {ti.recipientName && <span className="text-slate-400 ml-1">→ {ti.recipientName}</span>}
+                                                        <div className="font-medium text-slate-800">{ti.item?.name}</div>
+                                                        <div className="flex items-center gap-1 text-[10px] mt-0.5">
+                                                            {ti.item?.itemUnit && <span className="text-slate-500 font-bold uppercase">{ti.item.itemUnit}</span>}
+                                                            {ti.item?.size && <span className="text-slate-400">({ti.item.size})</span>}
+                                                            <span className="ml-1 font-bold text-indigo-600 bg-indigo-50 px-1 rounded">×{ti.quantity}</span>
+                                                            {tx.type === 'IN' && ti.price && (
+                                                                <span className="ml-1 text-emerald-600 font-bold">@ {formatPrice(ti.price)}</span>
+                                                            )}
+                                                            {ti.recipientName && <span className="text-slate-400 ml-1">→ {ti.recipientName}</span>}
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>

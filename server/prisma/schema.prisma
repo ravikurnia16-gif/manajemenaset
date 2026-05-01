@@ -753,6 +753,25 @@ model WarehouseTransactionItem {
   quantity      Int
   recipientName String? // Penerima (for OUT)
   recipientUnit String? // Unit penerima
+
+  // FIFO Pricing Fields
+  price        Float? // Harga satuan saat transaksi (wajib utk IN)
+  remainingQty Int? // Sisa stok dari batch ini (hanya untuk tipe IN)
+
+  // Deductions from this batch (if this is an IN item)
+  deductions WarehouseStockDeduction[] @relation("InItem")
+
+  // Deductions made by this item (if this is an OUT item)
+  deductedFrom WarehouseStockDeduction[] @relation("OutItem")
+}
+
+model WarehouseStockDeduction {
+  id        Int                      @id @default(autoincrement())
+  inItemId  Int
+  inItem    WarehouseTransactionItem @relation("InItem", fields: [inItemId], references: [id], onDelete: Cascade)
+  outItemId Int
+  outItem   WarehouseTransactionItem @relation("OutItem", fields: [outItemId], references: [id], onDelete: Cascade)
+  quantity  Int
 }
 
 // --- PESANAN SERAGAM PUBLIK ---
