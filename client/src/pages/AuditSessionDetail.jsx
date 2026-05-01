@@ -112,6 +112,14 @@ const AuditSessionDetail = () => {
         worksheet.addRow(['Status Sesi:', session.status]);
         worksheet.addRow([]); // Gap
 
+        // Narrative Summary
+        const narrativeRow = worksheet.addRow([generateNarrative()]);
+        worksheet.mergeCells(`A${narrativeRow.number}:K${narrativeRow.number}`);
+        narrativeRow.height = 60;
+        narrativeRow.getCell(1).alignment = { wrapText: true, vertical: 'middle' };
+        narrativeRow.getCell(1).font = { italic: true };
+        worksheet.addRow([]); // Gap
+
         // Headers
         const headers = ['No', 'Kode Aset', 'Nama Barang', 'Kategori', 'Lokasi Asli', 'Lokasi Temuan', 'Kondisi Akhir', 'Status Audit', 'Catatan', 'Auditor', 'Waktu Verifikasi'];
         const headerRow = worksheet.addRow(headers);
@@ -154,6 +162,17 @@ const AuditSessionDetail = () => {
         anchor.download = `Laporan_Audit_${session.title.replace(/\s+/g, '_')}.xlsx`;
         anchor.click();
         window.URL.revokeObjectURL(url);
+    };
+
+    const generateNarrative = () => {
+        if (!session) return '';
+        const found = stats.found;
+        const missing = stats.missing;
+        const total = stats.total;
+        const damaged = session.items.filter(i => i.foundCondition && i.foundCondition !== 'BAIK').length;
+        const dateStr = new Date(session.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        
+        return `Berdasarkan hasil audit fisik (Stock Opname) "${session.title}" yang dilaksanakan pada tanggal ${dateStr}, telah dilakukan pemeriksaan terhadap total ${total} unit aset. Dari hasil pemeriksaan tersebut, sebanyak ${found} unit aset berhasil ditemukan, di mana ${damaged} unit di antaranya tercatat dalam kondisi membutuhkan perhatian (rusak ringan/berat). Terdapat ${missing} unit aset yang dinyatakan hilang atau tidak ditemukan di lokasi. Seluruh hasil temuan lapangan ini telah divalidasi dan disinkronkan ke dalam database utama Manajemen Aset untuk menjaga akurasi data inventaris.`;
     };
 
     if (loading) return <div className="flex justify-center items-center min-h-screen"><div className="w-12 h-12 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin"></div></div>;
@@ -232,6 +251,28 @@ const AuditSessionDetail = () => {
                 <div className="bg-amber-50 p-5 rounded-[28px] border border-amber-100 shadow-sm space-y-1">
                     <p className="text-[10px] font-black text-amber-600/60 uppercase tracking-widest">Progress</p>
                     <p className="text-2xl font-black text-amber-700">{progress}%</p>
+                </div>
+            </div>
+
+            {/* Narrative Card */}
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-[32px] p-8 text-white shadow-2xl space-y-4 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-10"><ClipboardCheck size={120} /></div>
+                <div className="flex items-center gap-2 text-emerald-400 text-xs font-black uppercase tracking-widest">
+                    <Info size={14} /> Ringkasan Laporan Otomatis
+                </div>
+                <p className="text-sm leading-relaxed font-medium relative z-10 max-w-3xl text-slate-200 italic">
+                    "{generateNarrative()}"
+                </p>
+                <div className="pt-4 flex gap-3 relative z-10">
+                    <button 
+                        onClick={() => {
+                            navigator.clipboard.writeText(generateNarrative());
+                            alert('Narasi berhasil disalin ke clipboard!');
+                        }}
+                        className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-bold transition-all"
+                    >
+                        Salin Narasi
+                    </button>
                 </div>
             </div>
 
