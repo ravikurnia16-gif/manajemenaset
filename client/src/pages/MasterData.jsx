@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Database, Plus, Trash2, Building2, MapPin, Tag, Save, Edit } from 'lucide-react';
+import { Database, Plus, Trash2, Building2, MapPin, Tag, Save, Edit, Search } from 'lucide-react';
 import api from '../lib/axios';
 
 const MasterData = () => {
