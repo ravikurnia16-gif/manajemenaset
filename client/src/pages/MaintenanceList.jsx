@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Search, Filter, Trash2, Eye, Wrench, Calendar, AlertCircle, Download, ChevronLeft, ChevronRight, BarChart2, Clock } from 'lucide-react';
+import { Plus, Search, Filter, Trash2, Eye, Wrench, Calendar, AlertCircle, Download, ChevronLeft, ChevronRight, BarChart2, Clock, CheckCircle } from 'lucide-react';
 import api from '../lib/axios';
 import * as XLSX from 'xlsx';
 import MaintenanceDashboard from '../components/MaintenanceDashboard';
