@@ -38,6 +38,7 @@ const MaintenanceList = () => {
     const [reports, setReports] = useState([]);
     const [schedule, setSchedule] = useState([]);
     const [selectedScheduleIds, setSelectedScheduleIds] = useState([]);
+    const [expandedUnits, setExpandedUnits] = useState([]);
     const [meta, setMeta] = useState({ total: 0, page: 1, totalPages: 1, limit: 10 });
     const [loading, setLoading] = useState(true);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -160,6 +161,12 @@ const MaintenanceList = () => {
                 return newIds;
             });
         }
+    };
+
+    const toggleUnitExpand = (unitName) => {
+        setExpandedUnits(prev => 
+            prev.includes(unitName) ? prev.filter(u => u !== unitName) : [...prev, unitName]
+        );
     };
 
     const handleDelete = async (id) => {
@@ -316,46 +323,65 @@ const MaintenanceList = () => {
                     {/* Grouped Content */}
                     <div className="space-y-4">
                         {Object.keys(groupedSchedule).length > 0 ? (
-                            Object.entries(groupedSchedule).map(([unitName, assets]) => (
-                                <div key={unitName} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                                    <div className="bg-slate-50/80 px-6 py-3 border-b border-slate-200 flex justify-between items-center">
-                                        <div className="flex items-center gap-3">
-                                            {assets.some(a => !a.hasActiveReport) && (
-                                                <input 
-                                                    type="checkbox"
-                                                    checked={assets.filter(a => !a.hasActiveReport).every(a => selectedScheduleIds.includes(a.id))}
-                                                    onChange={() => toggleUnitSelection(assets)}
-                                                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                                />
-                                            )}
-                                            <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                                                <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
-                                                {unitName}
-                                                <span className="text-xs bg-white px-2 py-0.5 rounded-lg border border-slate-200 text-slate-500 ml-2">
-                                                    {assets.length} Aset
-                                                </span>
-                                            </h3>
+                            Object.entries(groupedSchedule).map(([unitName, assets]) => {
+                                const isExpanded = expandedUnits.includes(unitName);
+                                return (
+                                    <div key={unitName} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-300">
+                                        <div 
+                                            onClick={() => toggleUnitExpand(unitName)}
+                                            className={`px-6 py-4 border-b border-slate-100 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors ${isExpanded ? 'bg-slate-50/50' : ''}`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                {assets.some(a => !a.hasActiveReport) && (
+                                                    <input 
+                                                        type="checkbox"
+                                                        checked={assets.filter(a => !a.hasActiveReport).every(a => selectedScheduleIds.includes(a.id))}
+                                                        onChange={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleUnitSelection(assets);
+                                                        }}
+                                                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                    />
+                                                )}
+                                                <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                                                    <span className={`w-1.5 h-5 ${isExpanded ? 'bg-blue-600' : 'bg-slate-300'} rounded-full transition-colors`}></span>
+                                                    {unitName}
+                                                    <span className="text-[10px] bg-white px-2 py-0.5 rounded-lg border border-slate-200 text-slate-500 ml-2 font-bold uppercase tracking-wider">
+                                                        {assets.length} Aset
+                                                    </span>
+                                                </h3>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                {/* Overdue badge mini for collapsed state */}
+                                                {!isExpanded && assets.some(a => a.serviceStatus === 'OVERDUE') && (
+                                                    <span className="text-[8px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-black animate-pulse">OVERDUE</span>
+                                                )}
+                                                <div className={`text-slate-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                                                    <ChevronLeft size={20} className="-rotate-90" />
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left">
-                                            <tbody className="divide-y divide-slate-100">
-                                                {assets.map(item => (
-                                                    <tr key={item.id} className={`hover:bg-slate-50/30 transition-colors ${selectedScheduleIds.includes(item.id) ? 'bg-blue-50/30' : ''}`}>
-                                                        <td className="pl-6 py-4 w-10">
-                                                            {!item.hasActiveReport && (
-                                                                <input 
-                                                                    type="checkbox"
-                                                                    checked={selectedScheduleIds.includes(item.id)}
-                                                                    onChange={() => toggleScheduleSelection(item.id)}
-                                                                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                                />
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-4 w-1/3">
-                                                            <div className="font-bold text-slate-800 text-sm">{item.name}</div>
-                                                            <div className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{item.code}</div>
-                                                        </td>
+                                        
+                                        {isExpanded && (
+                                            <div className="overflow-x-auto animate-in slide-in-from-top-2 duration-300">
+                                                <table className="w-full text-left">
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {assets.map(item => (
+                                                            <tr key={item.id} className={`hover:bg-slate-50/30 transition-colors ${selectedScheduleIds.includes(item.id) ? 'bg-blue-50/30' : ''}`}>
+                                                                <td className="pl-6 py-4 w-10">
+                                                                    {!item.hasActiveReport && (
+                                                                        <input 
+                                                                            type="checkbox"
+                                                                            checked={selectedScheduleIds.includes(item.id)}
+                                                                            onChange={() => toggleScheduleSelection(item.id)}
+                                                                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                        />
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-4 w-1/3">
+                                                                    <div className="font-bold text-slate-800 text-sm">{item.name}</div>
+                                                                    <div className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter">{item.code}</div>
+                                                                </td>
                                                         <td className="px-6 py-4">
                                                             <div className="text-xs font-bold text-slate-700">
                                                                 {new Date(item.nextMaintenanceEst).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
