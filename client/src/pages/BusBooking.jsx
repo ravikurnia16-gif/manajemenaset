@@ -23,7 +23,16 @@ const BusBooking = () => {
     const [paying, setPaying] = useState(false);
     const [drivers, setDrivers] = useState([]);
     const [toasts, setToasts] = useState([]);
-    const [viewMode, setViewMode] = useState('dashboard'); // 'dashboard', 'list', 'calendar', 'revenue'
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const isAuthorizedForWA = user.name?.toLowerCase().includes('wegi') ||
+        user.position === 'Kepala Bidang Sarana dan Prasarana' ||
+        user.role === 'SUPER_ADMIN';
+
+    const isSarpras = user.position?.toLowerCase().includes('sarana dan prasarana') || ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
+    const isAdminAset = user.role === 'ADMIN_ASET' || user.role === 'SUPER_ADMIN';
+
+    const [viewMode, setViewMode] = useState(isAdminAset ? 'dashboard' : 'list'); // 'dashboard', 'list', 'calendar', 'revenue'
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [selectedInvoices, setSelectedInvoices] = useState([]);
@@ -56,13 +65,6 @@ const BusBooking = () => {
         passengerCount: ''
     });
 
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const isAuthorizedForWA = user.name?.toLowerCase().includes('wegi') ||
-        user.position === 'Kepala Bidang Sarana dan Prasarana' ||
-        user.role === 'SUPER_ADMIN';
-
-    const isSarpras = user.position?.toLowerCase().includes('sarana dan prasarana') || ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
-    const isAdminAset = user.role === 'ADMIN_ASET' || user.role === 'SUPER_ADMIN';
 
     const showToast = (message, type = 'success') => {
         const id = Date.now();
@@ -289,12 +291,14 @@ const BusBooking = () => {
                 </div>
                 <div className="flex items-center gap-3 w-full md:w-auto justify-center">
                     <div className="flex bg-slate-100 p-1 rounded-xl">
-                        <button
-                            onClick={() => setViewMode('dashboard')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === 'dashboard' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <BarChart3 size={14} /> Dashboard
-                        </button>
+                        {isAdminAset && (
+                            <button
+                                onClick={() => setViewMode('dashboard')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === 'dashboard' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <BarChart3 size={14} /> Dashboard
+                            </button>
+                        )}
                         <button
                             onClick={() => setViewMode('list')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === 'list' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
@@ -346,7 +350,7 @@ const BusBooking = () => {
                     )}
                 </div>
 
-                {viewMode === 'dashboard' ? (
+                {isAdminAset && viewMode === 'dashboard' ? (
                     <BusOperationalDashboard 
                         bookings={bookings}
                         loading={loading}
