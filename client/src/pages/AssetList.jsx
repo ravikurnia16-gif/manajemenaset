@@ -65,7 +65,7 @@ const AssetList = ({ validationMode = false }) => {
     const [totalItems, setTotalItems] = useState(0);
 
     const handlePrintKIR = useReactToPrint({
-        content: () => kirRef.current,
+        contentRef: kirRef,
         documentTitle: `KIR_${rooms.find(r => r.id.toString() === selectedRoom.toString())?.name || 'Ruangan'}_${new Date().toISOString().split('T')[0]}`,
         onAfterPrint: () => {
             setIsPreparingKIR(false);
