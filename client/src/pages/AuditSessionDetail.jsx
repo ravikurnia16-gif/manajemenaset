@@ -5,7 +5,7 @@ import {
     ShieldCheck, AlertTriangle, HelpCircle, Save, X, Camera,
     CheckCircle2, AlertCircle, Info, RefreshCcw, Plus
 } from 'lucide-react';
-import { Html5QrcodeScanner } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 import ExcelJS from 'exceljs';
 import api from '../lib/axios';
 
@@ -56,24 +56,40 @@ const AuditSessionDetail = () => {
 
     // Handle Scanner
     useEffect(() => {
+        let html5QrCode;
         if (showScanner) {
-            const scanner = new Html5QrcodeScanner("reader", { 
+            html5QrCode = new Html5Qrcode("reader");
+            const config = { 
                 fps: 10, 
-                qrbox: { width: 250, height: 250 },
-                rememberLastUsedCamera: true
-            }, false);
+                qrbox: { width: 250, height: 250 }
+            };
 
-            scanner.render(onScanSuccess, onScanError);
-            return () => scanner.clear();
+            const startScanner = async () => {
+                try {
+                    await html5QrCode.start(
+                        { facingMode: "environment" }, 
+                        config, 
+                        (decodedText) => {
+                            handleScan(decodedText);
+                        }
+                    );
+                } catch (err) {
+                    console.error("Scanner start error:", err);
+                    alert("Gagal mengakses kamera. Pastikan izin kamera telah diberikan.");
+                    setShowScanner(false);
+                }
+            };
+
+            startScanner();
+
+            return () => {
+                if (html5QrCode && html5QrCode.isScanning) {
+                    html5QrCode.stop().catch(err => console.error("Scanner stop error:", err));
+                }
+            };
         }
     }, [showScanner]);
 
-    function onScanSuccess(decodedText) {
-        // decodedText is the Asset Code
-        handleScan(decodedText);
-    }
-
-    function onScanError(err) { /* quiet error */ }
 
     const handleScan = async (code) => {
         const item = session.items.find(i => i.asset.code === code);
