@@ -48,6 +48,8 @@ const MaintenanceList = () => {
     const [statusFilter, setStatusFilter] = useState('');
     const [typeFilter, setTypeFilter] = useState('');
     const [targetDeptFilter, setTargetDeptFilter] = useState('');
+    const [unitFilter, setUnitFilter] = useState('');
+    const [units, setUnits] = useState([]);
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [limit, setLimit] = useState(10);
@@ -79,6 +81,7 @@ const MaintenanceList = () => {
                 status: statusFilter,
                 type: typeFilter,
                 targetDept: targetDeptFilter,
+                unitId: unitFilter,
                 category: categoryFromUrl,
                 startDate,
                 endDate
@@ -94,18 +97,18 @@ const MaintenanceList = () => {
         }
     };
 
-    const fetchSchedule = async () => {
+    const fetchUnits = async () => {
         try {
-            setLoading(true);
-            const res = await api.get('/maintenance/schedule');
-            setSchedule(res.data || []);
+            const res = await api.get('/master/units');
+            setUnits(res.data || []);
         } catch (err) {
-            console.error(err);
-            setSchedule([]);
-        } finally {
-            setLoading(false);
+            console.error('Fetch units error:', err);
         }
     };
+
+    useEffect(() => {
+        fetchUnits();
+    }, []);
 
     useEffect(() => {
         if (targetDeptFromUrl) setTargetDeptFilter(targetDeptFromUrl);
@@ -117,7 +120,7 @@ const MaintenanceList = () => {
         } else if (activeTab === 'schedule') {
             fetchSchedule();
         }
-    }, [activeTab, statusFilter, typeFilter, targetDeptFilter, categoryFromUrl, debouncedSearch, page, limit, startDate, endDate]);
+    }, [activeTab, statusFilter, typeFilter, targetDeptFilter, unitFilter, categoryFromUrl, debouncedSearch, page, limit, startDate, endDate]);
 
     // Group schedule by Unit
     const groupedSchedule = schedule.reduce((acc, item) => {
@@ -189,6 +192,7 @@ const MaintenanceList = () => {
                 status: statusFilter,
                 type: typeFilter,
                 targetDept: targetDeptFilter,
+                unitId: unitFilter,
                 category: categoryFromUrl,
                 startDate,
                 endDate
@@ -514,6 +518,16 @@ const MaintenanceList = () => {
                     <option value="">Semua Tipe</option>
                     <option value="ASSET">Aset Terdata</option>
                     <option value="NON_ASSET">Non-Aset</option>
+                </select>
+                <select
+                    value={unitFilter}
+                    onChange={e => setUnitFilter(e.target.value)}
+                    className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm min-w-[140px]"
+                >
+                    <option value="">Semua Unit</option>
+                    {units.map(u => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
                 </select>
             </div>
 
