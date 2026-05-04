@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
     Bus, Calendar, MapPin, Clock, Users, Plus, X, ArrowRight, Trash2, LayoutList, Phone, CheckCircle2,
-    ChevronLeft, ChevronRight, Printer, BarChart3
+    ChevronLeft, ChevronRight, Printer, BarChart3, Upload, FileUp
 } from 'lucide-react';
 import api from '../lib/axios';
+import ExcelJS from 'exceljs';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
     PieChart, Pie, Cell, Legend 
@@ -28,6 +29,7 @@ const BusBooking = () => {
     const [selectedInvoices, setSelectedInvoices] = useState([]);
     const [filterUnit, setFilterUnit] = useState('');
     const [revMonthFilter, setRevMonthFilter] = useState('all'); // 'all' or 'YYYY-MM'
+    const [dashMonthFilter, setDashMonthFilter] = useState('all'); // 'all' or 'YYYY-MM'
 
     // Calendar States
     const today = new Date();
@@ -348,6 +350,8 @@ const BusBooking = () => {
                     <BusOperationalDashboard 
                         bookings={bookings}
                         loading={loading}
+                        monthFilter={dashMonthFilter}
+                        setMonthFilter={setDashMonthFilter}
                     />
                 ) : viewMode === 'list' ? (
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -1365,18 +1369,32 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter, isAdminAse
 };
 
 // --- Sub-Component: Operational Dashboard ---
-const BusOperationalDashboard = ({ bookings, loading }) => {
+const BusOperationalDashboard = ({ bookings, loading, monthFilter, setMonthFilter }) => {
     if (loading) return <div className="p-12 text-center text-slate-400">Memuat data statistik...</div>;
 
+    // Available months from data
+    const availableMonths = [...new Set(bookings.map(b => {
+        const d = new Date(b.startDate);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }))].sort().reverse();
+
+    // Filtered data
+    const filteredBookings = monthFilter === 'all' 
+        ? bookings 
+        : bookings.filter(b => {
+            const d = new Date(b.startDate);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === monthFilter;
+        });
+
     const stats = {
-        totalTrips: bookings.length,
-        totalPassengers: bookings.reduce((sum, b) => sum + (Number(b.passengerCount) || 0), 0),
-        upcoming: bookings.filter(b => new Date(b.startDate) > new Date() && b.status !== 'COMPLETED').length,
-        completed: bookings.filter(b => b.status === 'COMPLETED').length,
+        totalTrips: filteredBookings.length,
+        totalPassengers: filteredBookings.reduce((sum, b) => sum + (Number(b.passengerCount) || 0), 0),
+        upcoming: filteredBookings.filter(b => new Date(b.startDate) > new Date() && b.status !== 'COMPLETED').length,
+        completed: filteredBookings.filter(b => b.status === 'COMPLETED').length,
     };
 
     // Data for Unit Distribution
-    const unitMap = bookings.reduce((acc, b) => {
+    const unitMap = filteredBookings.reduce((acc, b) => {
         const u = b.unit || 'Umum';
         acc[u] = (acc[u] || 0) + 1;
         return acc;
@@ -1387,7 +1405,7 @@ const BusOperationalDashboard = ({ bookings, loading }) => {
         .slice(0, 5);
 
     // Data for Vehicle Utilization
-    const vehicleMap = bookings.reduce((acc, b) => {
+    const vehicleMap = filteredBookings.reduce((acc, b) => {
         const v = b.vehicle?.name || 'Unknown';
         acc[v] = (acc[v] || 0) + 1;
         return acc;
@@ -1398,8 +1416,92 @@ const BusOperationalDashboard = ({ bookings, loading }) => {
 
     const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
+    const formatBulan = (yyyymm) => {
+        if(yyyymm === 'all') return 'Semua Waktu';
+        const [y, m] = yyyymm.split('-');
+        const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        return `${monthNames[parseInt(m)-1]} ${y}`;
+    };
+
+    const handleExport = async () => {
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Laporan Operasional Bus');
+
+        // Header Style
+        const headerStyle = {
+            font: { bold: true, color: { argb: 'FFFFFF' } },
+            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: '2563EB' } },
+            alignment: { horizontal: 'center' }
+        };
+
+        sheet.addRow(['LAPORAN RINGKASAN OPERASIONAL BUS']);
+        sheet.addRow([`Periode: ${formatBulan(monthFilter)}`]);
+        sheet.addRow([]);
+
+        sheet.addRow(['RINGKASAN STATISTIK']);
+        sheet.addRow(['Metrik', 'Nilai']);
+        sheet.addRow(['Total Perjalanan', stats.totalTrips]);
+        sheet.addRow(['Total Penumpang', stats.totalPassengers]);
+        sheet.addRow(['Jadwal Mendatang', stats.upcoming]);
+        sheet.addRow(['Jadwal Selesai', stats.completed]);
+        sheet.addRow([]);
+
+        sheet.addRow(['DAFTAR PERJALANAN']);
+        const tripsHeader = sheet.addRow(['Tanggal', 'Armada', 'Plat Nomor', 'Unit', 'Tujuan', 'Penumpang', 'Status']);
+        tripsHeader.eachCell(cell => Object.assign(cell, headerStyle));
+
+        filteredBookings.forEach(b => {
+            sheet.addRow([
+                new Date(b.startDate).toLocaleDateString('id-ID'),
+                b.vehicle?.name,
+                b.vehicle?.plateNumber,
+                b.unit || 'Umum',
+                b.destination,
+                b.passengerCount,
+                b.isPaid ? 'LUNAS' : b.status === 'COMPLETED' ? 'SELESAI' : 'BOOKING'
+            ]);
+        });
+
+        sheet.getColumn(1).width = 15;
+        sheet.getColumn(2).width = 20;
+        sheet.getColumn(3).width = 15;
+        sheet.getColumn(4).width = 15;
+        sheet.getColumn(5).width = 30;
+        sheet.getColumn(6).width = 10;
+        sheet.getColumn(7).width = 15;
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `Laporan_Operasional_Bus_${monthFilter}.xlsx`;
+        link.click();
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Header / Filter Dashboard */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <select
+                        className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-48"
+                        value={monthFilter}
+                        onChange={(e) => setMonthFilter(e.target.value)}
+                    >
+                        <option value="all">Semua Waktu</option>
+                        {availableMonths.map(m => (
+                            <option key={m} value={m}>{formatBulan(m)}</option>
+                        ))}
+                    </select>
+                </div>
+                <button
+                    onClick={handleExport}
+                    className="w-full sm:w-auto bg-slate-900 text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+                >
+                    <Upload size={16} /> EKSPOR DATA
+                </button>
+            </div>
+
             {/* Quick Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center space-y-2">
@@ -1506,7 +1608,7 @@ const BusOperationalDashboard = ({ bookings, loading }) => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {bookings.slice(0, 5).map(b => (
+                            {filteredBookings.slice(0, 5).map(b => (
                                 <tr key={b.id} className="group hover:bg-slate-50/50 transition-colors">
                                     <td className="py-3 font-bold text-slate-600">
                                         {new Date(b.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
