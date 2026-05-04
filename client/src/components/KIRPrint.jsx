@@ -62,12 +62,12 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
     };
 
     return (
-        <div ref={ref} className="p-12 bg-white text-black font-serif print:p-8" style={{ minHeight: '297mm' }}>
+        <div ref={ref} className="p-8 bg-white text-black font-serif print:p-6">
             {/* Header */}
-            <div className="flex flex-col items-center text-center border-b-2 border-black pb-4 mb-6">
-                <h1 className="text-xl font-bold uppercase tracking-widest">{settings?.companyName || 'YAYASAN DAR EL-IMAN'}</h1>
-                <h2 className="text-2xl font-black mt-1">KARTU INVENTARIS RUANGAN (KIR)</h2>
-                <div className="w-full flex justify-between mt-4 text-sm font-bold">
+            <div className="flex flex-col items-center text-center border-b-2 border-black pb-2 mb-4">
+                <h1 className="text-lg font-bold uppercase tracking-wider">{settings?.companyName || 'YAYASAN DAR EL-IMAN'}</h1>
+                <h2 className="text-xl font-black mt-0.5">KARTU INVENTARIS RUANGAN (KIR)</h2>
+                <div className="w-full flex justify-between mt-2 text-xs font-bold">
                     <div className="text-left">
                         <div className="flex gap-2">
                             <span className="w-24">RUANGAN</span>
@@ -95,34 +95,34 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
             <table className="w-full border-collapse border-2 border-black text-[11px]">
                 <thead>
                     <tr className="bg-slate-100">
-                        <th className="border-2 border-black p-2 w-10">NO</th>
-                        <th className="border-2 border-black p-2">NAMA BARANG / JENIS</th>
-                        <th className="border-2 border-black p-2">MERK / MODEL / TYPE</th>
-                        <th className="border-2 border-black p-2 w-14">JML</th>
-                        <th className="border-2 border-black p-2 w-20">TAHUN</th>
-                        <th className="border-2 border-black p-2 w-28">KONDISI</th>
-                        <th className="border-2 border-black p-2">KETERANGAN</th>
+                        <th className="border-2 border-black p-1 w-10">NO</th>
+                        <th className="border-2 border-black p-1">NAMA BARANG / JENIS</th>
+                        <th className="border-2 border-black p-1">MERK / MODEL / TYPE</th>
+                        <th className="border-2 border-black p-1 w-14">JML</th>
+                        <th className="border-2 border-black p-1 w-20">TAHUN</th>
+                        <th className="border-2 border-black p-1 w-28">KONDISI</th>
+                        <th className="border-2 border-black p-1">KETERANGAN</th>
                     </tr>
                 </thead>
                 <tbody>
                     {groupedAssets.length > 0 ? groupedAssets.map((group, index) => (
                         <tr key={index}>
-                            <td className="border-2 border-black p-2 text-center">{index + 1}</td>
-                            <td className="border-2 border-black p-2 font-bold">{group.name}</td>
-                            <td className="border-2 border-black p-2">{group.brand}</td>
-                            <td className="border-2 border-black p-2 text-center font-bold">{group.qty}</td>
-                            <td className="border-2 border-black p-2 text-center">
+                            <td className="border-2 border-black p-1 text-center">{index + 1}</td>
+                            <td className="border-2 border-black p-1 font-bold">{group.name}</td>
+                            <td className="border-2 border-black p-1">{group.brand}</td>
+                            <td className="border-2 border-black p-1 text-center font-bold">{group.qty}</td>
+                            <td className="border-2 border-black p-1 text-center">
                                 {group.earliestYear === 9999 ? '-' :
                                     group.earliestYear === group.latestYear ? group.earliestYear :
                                         `${group.earliestYear}-${group.latestYear}`}
                             </td>
-                            <td className="border-2 border-black p-2 text-center text-[10px]">
+                            <td className="border-2 border-black p-1 text-center text-[10px]">
                                 {group.qty === 1
                                     ? conditionLabel(group.worstCondition)
                                     : formatConditionBreakdown(group.conditionBreakdown)
                                 }
                             </td>
-                            <td className="border-2 border-black p-2 text-xs italic">
+                            <td className="border-2 border-black p-1 text-xs italic">
                                 {group.qty === 1 ? (group.codes[0] || '-') : `${group.codes.length} unit`}
                             </td>
                         </tr>
@@ -135,23 +135,23 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
                     )}
                     {/* Empty rows to fill space if needed */}
                     {groupedAssets.length < 15 && Array.from({ length: 15 - groupedAssets.length }).map((_, i) => (
-                        <tr key={`empty-${i}`} className="h-8">
-                            <td className="border-2 border-black p-2"></td>
-                            <td className="border-2 border-black p-2"></td>
-                            <td className="border-2 border-black p-2"></td>
-                            <td className="border-2 border-black p-2"></td>
-                            <td className="border-2 border-black p-2"></td>
-                            <td className="border-2 border-black p-2"></td>
-                            <td className="border-2 border-black p-2"></td>
+                        <tr key={`empty-${i}`} className="h-6">
+                            <td className="border-2 border-black p-1"></td>
+                            <td className="border-2 border-black p-1"></td>
+                            <td className="border-2 border-black p-1"></td>
+                            <td className="border-2 border-black p-1"></td>
+                            <td className="border-2 border-black p-1"></td>
+                            <td className="border-2 border-black p-1"></td>
+                            <td className="border-2 border-black p-1"></td>
                         </tr>
                     ))}
                 </tbody>
                 {/* Footer Row: Total */}
                 <tfoot>
                     <tr className="bg-slate-50 font-bold">
-                        <td colSpan="3" className="border-2 border-black p-2 text-right uppercase text-[10px]">TOTAL INVENTARIS</td>
-                        <td className="border-2 border-black p-2 text-center">{(assets || []).length}</td>
-                        <td colSpan="3" className="border-2 border-black p-2 text-[10px] italic">
+                        <td colSpan="3" className="border-2 border-black p-1 text-right uppercase text-[10px]">TOTAL INVENTARIS</td>
+                        <td className="border-2 border-black p-1 text-center">{(assets || []).length}</td>
+                        <td colSpan="3" className="border-2 border-black p-1 text-[10px] italic">
                             {groupedAssets.length} jenis barang
                         </td>
                     </tr>
@@ -172,7 +172,7 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
             </div>
 
             {/* Signature Area */}
-            <div className="mt-12 grid grid-cols-2 text-center font-bold text-sm">
+            <div className="mt-8 grid grid-cols-2 text-center font-bold text-sm" style={{ breakInside: 'avoid' }}>
                 <div>
                     <p>Mengetahui,</p>
                     <p className="mb-20">Pengelola Aset</p>
