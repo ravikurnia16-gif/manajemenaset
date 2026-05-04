@@ -538,21 +538,21 @@ const assignDriver = async (req, res) => {
     }
 };
 
-// 6. Automated Notifications (H-1) & Booking Confirmation Public Endpoint
+// 6. Automated Notifications (H-2) & Booking Confirmation Public Endpoint
 const checkBusBookingNotifications = async () => {
     try {
         const now = new Date();
-        const h1 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        const h1End = new Date(h1);
-        h1End.setHours(23, 59, 59, 999);
+        const h2 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
+        const h2End = new Date(h2);
+        h2End.setHours(23, 59, 59, 999);
 
-        console.log(`[Bus Booking] Checking for H-1 trips on ${h1.toLocaleDateString('id-ID')}...`);
+        console.log(`[Bus Booking] Checking for H-2 trips on ${h2.toLocaleDateString('id-ID')}...`);
 
         const bookings = await prisma.busBooking.findMany({
             where: {
                 startDate: {
-                    gte: h1,
-                    lte: h1End
+                    gte: h2,
+                    lte: h2End
                 },
                 status: 'APPROVED',
                 isReminderSent: false
@@ -584,7 +584,7 @@ const checkBusBookingNotifications = async () => {
 
             if (!requesterPhone) continue;
 
-            let msg = `Bismillah.\n📢 *KONFIRMASI JADWAL BUS (H-1)* 🚌\n\n` +
+            let msg = `Bismillah.\n📢 *KONFIRMASI JADWAL BUS (H-2)* 🚌\n\n` +
                 `Ustadz/Ustadzah *${(requesterName || '').toUpperCase()}*,\n\n` +
                 `Kami dari Bagian Sarpras ingin memastikan kembali rencana keberangkatan bus untuk:\n` +
                 `📍 *Tujuan*: ${destination}\n` +
@@ -603,7 +603,7 @@ const checkBusBookingNotifications = async () => {
             try {
                 // Call waTemplateService
                 await whatsappService.sendMessage(requesterPhone, msg);
-                console.log(`[Bus Booking] H-1 Reminder sent to ${requesterName} (${requesterPhone})`);
+                console.log(`[Bus Booking] H-2 Reminder sent to ${requesterName} (${requesterPhone})`);
 
                 // Mark as sent
                 await prisma.busBooking.updateMany({
@@ -611,11 +611,11 @@ const checkBusBookingNotifications = async () => {
                     data: { isReminderSent: true }
                 });
             } catch (err) {
-                console.error(`[Bus Booking] H-1 WA Failed for ${requesterName}:`, err.message);
+                console.error(`[Bus Booking] H-2 WA Failed for ${requesterName}:`, err.message);
             }
         }
     } catch (err) {
-        console.error('[Bus Booking] H-1 Notif Error:', err);
+        console.error('[Bus Booking] H-2 Notif Error:', err);
     }
 };
 
@@ -665,16 +665,17 @@ const publicConfirmBooking = async (req, res) => {
         });
 
         if (staffKendaraan.length > 0) {
+            const tripDate = new Date(booking.startDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
             let staffMsg = '';
             if (decision === 'JADI') {
                 staffMsg = `Bismillah.\n✅ *KONFIRMASI JADWAL BUS (FIX)*\n\n` +
-                    `Alhamdulillah! Pemesan *${booking.requesterName}* telah mengonfirmasi bahwa jadwal bus ke *${booking.destination}* besok *TETAP JADI*.\n\n` +
+                    `Alhamdulillah! Pemesan *${booking.requesterName}* telah mengonfirmasi bahwa jadwal bus ke *${booking.destination}* pada hari *${tripDate}* tetap *TETAP JADI*.\n\n` +
                     `🚌 *Armada*: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
                     `👤 *Driver*: ${booking.driver?.name || '_Belum ditentukan_'}\n\n` +
                     `Mohon dipastikan armada dan personil dalam kondisi prima. Jazakallah Khairan.\n_Sistem Manajemen Aset_`;
             } else {
                 staffMsg = `Bismillah.\n❌ *PEMBATALAN JADWAL BUS*\n\n` +
-                    `Informasi: Pemesan *${booking.requesterName}* telah *MEMBATALKAN* jadwal bus ke *${booking.destination}* untuk besok.\n\n` +
+                    `Informasi: Pemesan *${booking.requesterName}* telah *MEMBATALKAN* jadwal bus ke *${booking.destination}* untuk hari *${tripDate}*.\n\n` +
                     `Armada *${booking.vehicle.name}* (${booking.vehicle.plateNumber}) kini tersedia kembali (Status: Tersedia) untuk unit lain yang membutuhkan. Syukron.\n_Sistem Manajemen Aset_`;
             }
 
