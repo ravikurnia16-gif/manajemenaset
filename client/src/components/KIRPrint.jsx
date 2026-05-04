@@ -132,7 +132,7 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
                                 Tidak ada data aset di ruangan ini
                             </td>
                         </tr>
-                    ))}
+                    )}
                 </tbody>
                 {/* Footer Row: Total */}
                 <tfoot>
