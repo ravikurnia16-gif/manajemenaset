@@ -69,29 +69,8 @@ const AssetList = ({ validationMode = false }) => {
         documentTitle: `KIR_${rooms.find(r => r.id.toString() === selectedRoom.toString())?.name || 'Ruangan'}_${new Date().toISOString().split('T')[0]}`,
         onAfterPrint: () => {
             setIsPreparingKIR(false);
-            setAssetsForKIR([]);
         }
     });
-
-    // Trigger print only AFTER React has rendered KIRPrint with data
-    const [kirReady, setKirReady] = useState(false);
-    useEffect(() => {
-        if (kirReady && isPreparingKIR) {
-            // Wait for next paint cycle so the DOM is guaranteed to be updated
-            const rafId = requestAnimationFrame(() => {
-                if (kirRef.current) {
-                    handlePrintKIR();
-                } else {
-                    // Fallback: retry once more after another frame
-                    requestAnimationFrame(() => {
-                        handlePrintKIR();
-                    });
-                }
-                setKirReady(false);
-            });
-            return () => cancelAnimationFrame(rafId);
-        }
-    }, [kirReady, isPreparingKIR, assetsForKIR]);
 
     const prepareKIR = async () => {
         if (!selectedRoom) return alert("Pilih ruangan terlebih dahulu");
@@ -105,8 +84,9 @@ const AssetList = ({ validationMode = false }) => {
             });
             const allAssets = resp.data.data || resp.data;
             setAssetsForKIR(Array.isArray(allAssets) ? allAssets : []);
-            // Signal that data is ready — useEffect above will fire after render
-            setKirReady(true);
+            // KIRPrint is always mounted, so ref is always valid.
+            // Small delay just for React to update the props (assets data).
+            setTimeout(() => handlePrintKIR(), 300);
         } catch (error) {
             console.error("Failed to prepare KIR:", error);
             alert("Gagal menyiapkan data KIR");
@@ -1388,17 +1368,16 @@ const AssetList = ({ validationMode = false }) => {
                     />
                 </div>
             )}
-            {isPreparingKIR && (
-                <div className="hidden">
-                    <KIRPrint
-                        ref={kirRef}
-                        room={rooms.find(r => r.id.toString() === selectedRoom.toString())}
-                        unit={units.find(u => u.id.toString() === selectedUnit.toString())}
-                        assets={assetsForKIR}
-                        settings={settings}
-                    />
-                </div>
-            )}
+            {/* KIR Print - Always mounted so ref is always available */}
+            <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+                <KIRPrint
+                    ref={kirRef}
+                    room={rooms.find(r => r.id.toString() === selectedRoom.toString())}
+                    unit={units.find(u => u.id.toString() === selectedUnit.toString())}
+                    assets={assetsForKIR}
+                    settings={settings}
+                />
+            </div>
         </div >
     );
 };
