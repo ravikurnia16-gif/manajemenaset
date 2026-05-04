@@ -58,10 +58,10 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
         return parts.join(', ');
     };
 
-    // Calculate empty rows: header~90px, each row~24px, footer area~180px
-    // A4 portrait usable height ~960px with padding
-    // We want table to stretch but signature stays on page 1
-    const maxRowsPerPage = 28;
+    // Calculate empty rows to fill table to page bottom
+    // A4 usable: header~80px + table header~24px + signature~150px = ~254px overhead
+    // Remaining ~700px / ~24px per row ≈ 18 data rows max to keep signature on same page
+    const maxRowsPerPage = 18;
     const emptyRowCount = Math.max(0, maxRowsPerPage - groupedAssets.length);
 
     return (
@@ -178,13 +178,13 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
                 <div className="mt-4 grid grid-cols-2 text-center font-bold text-sm">
                     <div>
                         <p>Mengetahui,</p>
-                        <p className="mb-14">Pengelola Aset</p>
+                        <p className="mb-10">Pengelola Aset</p>
                         <p className="underline">( ........................................ )</p>
                         <p className="text-xs font-normal">NIY: ............................</p>
                     </div>
                     <div>
                         <p>Padang, {today}</p>
-                        <p className="mb-14">Penanggung Jawab Ruangan</p>
+                        <p className="mb-10">Penanggung Jawab Ruangan</p>
                         <p className="underline">( ........................................ )</p>
                         <p className="text-xs font-normal">NIY: ............................</p>
                     </div>
