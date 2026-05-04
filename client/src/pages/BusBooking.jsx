@@ -4,6 +4,10 @@ import {
     ChevronLeft, ChevronRight, Printer, BarChart3
 } from 'lucide-react';
 import api from '../lib/axios';
+import { 
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+    PieChart, Pie, Cell, Legend 
+} from 'recharts';
 
 const DAY_NAMES = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 const MONTH_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -18,7 +22,7 @@ const BusBooking = () => {
     const [paying, setPaying] = useState(false);
     const [drivers, setDrivers] = useState([]);
     const [toasts, setToasts] = useState([]);
-    const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
+    const [viewMode, setViewMode] = useState('dashboard'); // 'dashboard', 'list', 'calendar', 'revenue'
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [selectedInvoices, setSelectedInvoices] = useState([]);
@@ -284,6 +288,12 @@ const BusBooking = () => {
                 <div className="flex items-center gap-3 w-full md:w-auto justify-center">
                     <div className="flex bg-slate-100 p-1 rounded-xl">
                         <button
+                            onClick={() => setViewMode('dashboard')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === 'dashboard' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <BarChart3 size={14} /> Dashboard
+                        </button>
+                        <button
                             onClick={() => setViewMode('list')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${viewMode === 'list' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
@@ -316,7 +326,7 @@ const BusBooking = () => {
             <div className="w-full space-y-4">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
                     <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
-                        {viewMode === 'list' ? 'Jadwal Mendatang' : viewMode === 'calendar' ? 'Kalender Jadwal' : 'Rekapitulasi Keuangan Bus'}
+                        {viewMode === 'dashboard' ? 'Ringkasan Operasional' : viewMode === 'list' ? 'Jadwal Mendatang' : viewMode === 'calendar' ? 'Kalender Jadwal' : 'Rekapitulasi Keuangan Bus'}
                     </h2>
                     {viewMode === 'list' && (
                         <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -334,7 +344,12 @@ const BusBooking = () => {
                     )}
                 </div>
 
-                {viewMode === 'list' ? (
+                {viewMode === 'dashboard' ? (
+                    <BusOperationalDashboard 
+                        bookings={bookings}
+                        loading={loading}
+                    />
+                ) : viewMode === 'list' ? (
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                         {loading ? (
                             <div className="p-12 text-center text-slate-400 text-sm">Memuat data...</div>
@@ -1343,6 +1358,175 @@ const BusRevenueDashboard = ({ bookings, monthFilter, setMonthFilter, isAdminAse
                             </div>
                         ))}
                     </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Sub-Component: Operational Dashboard ---
+const BusOperationalDashboard = ({ bookings, loading }) => {
+    if (loading) return <div className="p-12 text-center text-slate-400">Memuat data statistik...</div>;
+
+    const stats = {
+        totalTrips: bookings.length,
+        totalPassengers: bookings.reduce((sum, b) => sum + (Number(b.passengerCount) || 0), 0),
+        upcoming: bookings.filter(b => new Date(b.startDate) > new Date() && b.status !== 'COMPLETED').length,
+        completed: bookings.filter(b => b.status === 'COMPLETED').length,
+    };
+
+    // Data for Unit Distribution
+    const unitMap = bookings.reduce((acc, b) => {
+        const u = b.unit || 'Umum';
+        acc[u] = (acc[u] || 0) + 1;
+        return acc;
+    }, {});
+    const unitData = Object.entries(unitMap)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5);
+
+    // Data for Vehicle Utilization
+    const vehicleMap = bookings.reduce((acc, b) => {
+        const v = b.vehicle?.name || 'Unknown';
+        acc[v] = (acc[v] || 0) + 1;
+        return acc;
+    }, {});
+    const vehicleData = Object.entries(vehicleMap)
+        .map(([name, trips]) => ({ name, trips }))
+        .sort((a, b) => b.trips - a.trips);
+
+    const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+    return (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Quick Stats Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center space-y-2">
+                    <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                        <Bus size={20} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Trip</p>
+                        <p className="text-2xl font-black text-slate-800">{stats.totalTrips}</p>
+                    </div>
+                </div>
+                <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center space-y-2">
+                    <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
+                        <Users size={20} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Penumpang</p>
+                        <p className="text-2xl font-black text-slate-800">{stats.totalPassengers.toLocaleString('id-ID')}</p>
+                    </div>
+                </div>
+                <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center space-y-2">
+                    <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center">
+                        <Calendar size={20} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Upcoming</p>
+                        <p className="text-2xl font-black text-slate-800">{stats.upcoming}</p>
+                    </div>
+                </div>
+                <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center space-y-2">
+                    <div className="w-10 h-10 bg-slate-50 text-slate-600 rounded-2xl flex items-center justify-center">
+                        <CheckCircle2 size={20} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Selesai</p>
+                        <p className="text-2xl font-black text-slate-800">{stats.completed}</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Charts Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Unit Distribution Pie Chart */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+                    <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                        <Users size={16} className="text-blue-500" /> Distribusi Trip per Unit (Top 5)
+                    </h4>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={unitData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {unitData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                                <Legend verticalAlign="bottom" height={36}/>
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Vehicle Utilization Bar Chart */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+                    <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                        <Bus size={16} className="text-emerald-500" /> Intensitas Penggunaan Armada
+                    </h4>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={vehicleData} layout="vertical">
+                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                                <Tooltip cursor={{fill: '#f8fafc'}} />
+                                <Bar dataKey="trips" fill="#10b981" radius={[0, 8, 8, 0]} barSize={20} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+
+            {/* Recent Trips Mini Table */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                <h4 className="text-sm font-black text-slate-800 mb-4 flex items-center gap-2">
+                    <Clock size={16} className="text-blue-500" /> Ringkasan Perjalanan Terbaru
+                </h4>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-[11px]">
+                        <thead>
+                            <tr className="border-b border-slate-100 text-slate-400 font-bold text-left uppercase tracking-widest">
+                                <th className="pb-3 pr-4">Tanggal</th>
+                                <th className="pb-3 pr-4">Armada</th>
+                                <th className="pb-3 pr-4">Unit</th>
+                                <th className="pb-3 pr-4">Tujuan</th>
+                                <th className="pb-3">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {bookings.slice(0, 5).map(b => (
+                                <tr key={b.id} className="group hover:bg-slate-50/50 transition-colors">
+                                    <td className="py-3 font-bold text-slate-600">
+                                        {new Date(b.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                    </td>
+                                    <td className="py-3 font-black text-slate-800">{b.vehicle?.name}</td>
+                                    <td className="py-3 font-bold text-blue-600">{b.unit || 'Umum'}</td>
+                                    <td className="py-3 text-slate-500 truncate max-w-[150px]">{b.destination}</td>
+                                    <td className="py-3">
+                                        {b.isPaid ? (
+                                            <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full uppercase">LUNAS</span>
+                                        ) : b.status === 'COMPLETED' ? (
+                                            <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase">SELESAI</span>
+                                        ) : (
+                                            <span className="text-[9px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase">BOOKING</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
