@@ -855,9 +855,9 @@ const AssetList = ({ validationMode = false }) => {
                             <div className="space-y-4">
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase">Ruangan / Lokasi</p>
-                                    <p className="text-sm font-bold text-slate-700">{asset.room?.name || '-'}</p>
+                                    <p className="text-sm font-bold text-slate-700">{assets.find(a => a.id === validationModal.assetIds[0])?.room?.name || '-'}</p>
                                     <p className="text-[10px] text-slate-400 font-medium italic">
-                                        {asset.room?.unit?.name || '-'} | {asset.room?.building || '-'}
+                                        {assets.find(a => a.id === validationModal.assetIds[0])?.room?.unit?.name || '-'} | {assets.find(a => a.id === validationModal.assetIds[0])?.room?.building || '-'}
                                     </p>
                                 </div>
                                 <div>
