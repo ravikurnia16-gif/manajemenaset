@@ -132,18 +132,6 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
                                 Tidak ada data aset di ruangan ini
                             </td>
                         </tr>
-                    )}
-                    {/* Empty rows to fill space if needed */}
-                    {groupedAssets.length < 15 && Array.from({ length: 15 - groupedAssets.length }).map((_, i) => (
-                        <tr key={`empty-${i}`} className="h-6">
-                            <td className="border-2 border-black p-1"></td>
-                            <td className="border-2 border-black p-1"></td>
-                            <td className="border-2 border-black p-1"></td>
-                            <td className="border-2 border-black p-1"></td>
-                            <td className="border-2 border-black p-1"></td>
-                            <td className="border-2 border-black p-1"></td>
-                            <td className="border-2 border-black p-1"></td>
-                        </tr>
                     ))}
                 </tbody>
                 {/* Footer Row: Total */}
@@ -158,32 +146,32 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
                 </tfoot>
             </table>
 
-            {/* Legend and Footer */}
-            <div className="mt-4 flex justify-between items-start text-[10px]">
-                <div className="italic">
-                    Keterangan Kondisi:<br />
-                    B : Baik<br />
-                    RR : Rusak Ringan<br />
-                    RB : Rusak Berat
+            {/* Legend + Signature — keep together on same page */}
+            <div style={{ breakInside: 'avoid' }}>
+                <div className="mt-2 flex justify-between items-start text-[10px]">
+                    <div className="italic">
+                        Keterangan Kondisi:<br />
+                        B : Baik | RR : Rusak Ringan | RB : Rusak Berat
+                    </div>
+                    <div className="text-right italic">
+                        Dicetak pada: {today}
+                    </div>
                 </div>
-                <div className="text-right italic">
-                    Dicetak pada: {today}
-                </div>
-            </div>
 
-            {/* Signature Area */}
-            <div className="mt-8 grid grid-cols-2 text-center font-bold text-sm" style={{ breakInside: 'avoid' }}>
-                <div>
-                    <p>Mengetahui,</p>
-                    <p className="mb-20">Pengelola Aset</p>
-                    <p className="underline">( ........................................ )</p>
-                    <p className="text-xs font-normal">NIP/NIY: ............................</p>
-                </div>
-                <div>
-                    <p>Padang, {today}</p>
-                    <p className="mb-20">Penanggung Jawab Ruangan</p>
-                    <p className="underline">( ........................................ )</p>
-                    <p className="text-xs font-normal">NIP/NIY: ............................</p>
+                {/* Signature Area */}
+                <div className="mt-6 grid grid-cols-2 text-center font-bold text-sm">
+                    <div>
+                        <p>Mengetahui,</p>
+                        <p className="mb-16">Pengelola Aset</p>
+                        <p className="underline">( ........................................ )</p>
+                        <p className="text-xs font-normal">NIP/NIY: ............................</p>
+                    </div>
+                    <div>
+                        <p>Padang, {today}</p>
+                        <p className="mb-16">Penanggung Jawab Ruangan</p>
+                        <p className="underline">( ........................................ )</p>
+                        <p className="text-xs font-normal">NIP/NIY: ............................</p>
+                    </div>
                 </div>
             </div>
         </div>
