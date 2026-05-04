@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useMemo } from 'react';
 
 const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
     if (!room) return null;
@@ -8,6 +8,58 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
         month: 'long',
         year: 'numeric'
     });
+
+    // Group assets by name — same name + same brand/condition → 1 row with qty
+    const groupedAssets = useMemo(() => {
+        const map = new Map();
+        (assets || []).forEach(asset => {
+            const key = `${(asset.name || '').trim().toLowerCase()}||${(asset.brand || asset.spec || '').trim().toLowerCase()}`;
+            if (map.has(key)) {
+                const group = map.get(key);
+                group.qty += 1;
+                group.codes.push(asset.code);
+                // Track conditions
+                if (asset.condition === 'RUSAK_BERAT') group.worstCondition = 'RUSAK_BERAT';
+                else if (asset.condition === 'RUSAK_RINGAN' && group.worstCondition !== 'RUSAK_BERAT') group.worstCondition = 'RUSAK_RINGAN';
+                // Collect conditions breakdown
+                group.conditionBreakdown[asset.condition] = (group.conditionBreakdown[asset.condition] || 0) + 1;
+                // Keep earliest year
+                if (asset.purchaseDate) {
+                    const yr = new Date(asset.purchaseDate).getFullYear();
+                    if (yr < group.earliestYear) group.earliestYear = yr;
+                    if (yr > group.latestYear) group.latestYear = yr;
+                }
+            } else {
+                const yr = asset.purchaseDate ? new Date(asset.purchaseDate).getFullYear() : null;
+                map.set(key, {
+                    name: asset.name,
+                    brand: asset.brand || asset.spec || '-',
+                    codes: [asset.code],
+                    qty: 1,
+                    earliestYear: yr || 9999,
+                    latestYear: yr || 0,
+                    worstCondition: asset.condition || 'BAIK',
+                    conditionBreakdown: { [asset.condition || 'BAIK']: 1 },
+                    notes: asset.notes || ''
+                });
+            }
+        });
+        return Array.from(map.values());
+    }, [assets]);
+
+    const conditionLabel = (cond) => {
+        if (cond === 'BAIK') return 'B';
+        if (cond === 'RUSAK_RINGAN') return 'RR';
+        return 'RB';
+    };
+
+    const formatConditionBreakdown = (breakdown) => {
+        const parts = [];
+        if (breakdown['BAIK']) parts.push(`B: ${breakdown['BAIK']}`);
+        if (breakdown['RUSAK_RINGAN']) parts.push(`RR: ${breakdown['RUSAK_RINGAN']}`);
+        if (breakdown['RUSAK_BERAT']) parts.push(`RB: ${breakdown['RUSAK_BERAT']}`);
+        return parts.join(', ');
+    };
 
     return (
         <div ref={ref} className="p-12 bg-white text-black font-serif print:p-8" style={{ minHeight: '297mm' }}>
@@ -46,26 +98,33 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
                         <th className="border-2 border-black p-2 w-10">NO</th>
                         <th className="border-2 border-black p-2">NAMA BARANG / JENIS</th>
                         <th className="border-2 border-black p-2">MERK / MODEL / TYPE</th>
-                        <th className="border-2 border-black p-2">KODE ASET</th>
+                        <th className="border-2 border-black p-2 w-14">JML</th>
                         <th className="border-2 border-black p-2 w-20">TAHUN</th>
-                        <th className="border-2 border-black p-2 w-24">KONDISI</th>
+                        <th className="border-2 border-black p-2 w-28">KONDISI</th>
                         <th className="border-2 border-black p-2">KETERANGAN</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {assets.length > 0 ? assets.map((asset, index) => (
-                        <tr key={asset.id}>
+                    {groupedAssets.length > 0 ? groupedAssets.map((group, index) => (
+                        <tr key={index}>
                             <td className="border-2 border-black p-2 text-center">{index + 1}</td>
-                            <td className="border-2 border-black p-2 font-bold">{asset.name}</td>
-                            <td className="border-2 border-black p-2">{asset.brand || asset.spec || '-'}</td>
-                            <td className="border-2 border-black p-2 font-mono">{asset.code}</td>
+                            <td className="border-2 border-black p-2 font-bold">{group.name}</td>
+                            <td className="border-2 border-black p-2">{group.brand}</td>
+                            <td className="border-2 border-black p-2 text-center font-bold">{group.qty}</td>
                             <td className="border-2 border-black p-2 text-center">
-                                {asset.purchaseDate ? new Date(asset.purchaseDate).getFullYear() : '-'}
+                                {group.earliestYear === 9999 ? '-' :
+                                    group.earliestYear === group.latestYear ? group.earliestYear :
+                                        `${group.earliestYear}-${group.latestYear}`}
                             </td>
-                            <td className="border-2 border-black p-2 text-center font-bold">
-                                {asset.condition === 'BAIK' ? 'B' : asset.condition === 'RUSAK_RINGAN' ? 'RR' : 'RB'}
+                            <td className="border-2 border-black p-2 text-center text-[10px]">
+                                {group.qty === 1
+                                    ? conditionLabel(group.worstCondition)
+                                    : formatConditionBreakdown(group.conditionBreakdown)
+                                }
                             </td>
-                            <td className="border-2 border-black p-2 text-xs italic">{asset.notes || '-'}</td>
+                            <td className="border-2 border-black p-2 text-xs italic">
+                                {group.qty === 1 ? (group.codes[0] || '-') : `${group.codes.length} unit`}
+                            </td>
                         </tr>
                     )) : (
                         <tr>
@@ -75,7 +134,7 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
                         </tr>
                     )}
                     {/* Empty rows to fill space if needed */}
-                    {assets.length < 15 && Array.from({ length: 15 - assets.length }).map((_, i) => (
+                    {groupedAssets.length < 15 && Array.from({ length: 15 - groupedAssets.length }).map((_, i) => (
                         <tr key={`empty-${i}`} className="h-8">
                             <td className="border-2 border-black p-2"></td>
                             <td className="border-2 border-black p-2"></td>
@@ -87,6 +146,16 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
                         </tr>
                     ))}
                 </tbody>
+                {/* Footer Row: Total */}
+                <tfoot>
+                    <tr className="bg-slate-50 font-bold">
+                        <td colSpan="3" className="border-2 border-black p-2 text-right uppercase text-[10px]">TOTAL INVENTARIS</td>
+                        <td className="border-2 border-black p-2 text-center">{(assets || []).length}</td>
+                        <td colSpan="3" className="border-2 border-black p-2 text-[10px] italic">
+                            {groupedAssets.length} jenis barang
+                        </td>
+                    </tr>
+                </tfoot>
             </table>
 
             {/* Legend and Footer */}
