@@ -58,12 +58,10 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
         return parts.join(', ');
     };
 
-    // Fill the page: ~26 rows fits one A4 page with header/signature
-    const maxRows = 26;
-    const emptyRowCount = Math.max(0, maxRows - groupedAssets.length);
+
 
     return (
-        <div ref={ref} className="bg-white text-black font-serif" style={{ padding: '8mm 10mm', minHeight: '277mm', display: 'flex', flexDirection: 'column' }}>
+        <div ref={ref} className="bg-white text-black font-serif" style={{ padding: '8mm 10mm' }}>
             {/* Header */}
             <div className="flex flex-col items-center text-center border-b-2 border-black pb-2 mb-3">
                 <h1 className="text-lg font-bold uppercase tracking-wider">{settings?.companyName || 'YAYASAN DAR EL-IMAN'}</h1>
@@ -92,8 +90,8 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
                 </div>
             </div>
 
-            {/* Table — grows to fill space */}
-            <div style={{ flex: 1 }}>
+            {/* Table */}
+            <div className="mt-2">
                 <table className="w-full border-collapse border-2 border-black text-[11px]">
                     <thead>
                         <tr className="bg-slate-100">
@@ -135,18 +133,7 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
                                 </td>
                             </tr>
                         )}
-                        {/* Empty filler rows to stretch table to bottom */}
-                        {emptyRowCount > 0 && Array.from({ length: emptyRowCount }).map((_, i) => (
-                            <tr key={`e-${i}`}>
-                                <td className="border-2 border-black p-1">&nbsp;</td>
-                                <td className="border-2 border-black p-1"></td>
-                                <td className="border-2 border-black p-1"></td>
-                                <td className="border-2 border-black p-1"></td>
-                                <td className="border-2 border-black p-1"></td>
-                                <td className="border-2 border-black p-1"></td>
-                                <td className="border-2 border-black p-1"></td>
-                            </tr>
-                        ))}
+
 
                         {/* Footer Row: Total — Now at the very bottom of the table */}
                         <tr className="bg-slate-50 font-bold">
