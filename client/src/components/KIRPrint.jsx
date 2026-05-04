@@ -58,11 +58,9 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
         return parts.join(', ');
     };
 
-    // Calculate empty rows to fill table to page bottom
-    // A4 usable: header~80px + table header~24px + signature~150px = ~254px overhead
-    // Remaining ~700px / ~24px per row ≈ 18 data rows max to keep signature on same page
-    const maxRowsPerPage = 18;
-    const emptyRowCount = Math.max(0, maxRowsPerPage - groupedAssets.length);
+    // Fill the page: ~26 rows fits one A4 page with header/signature
+    const maxRows = 26;
+    const emptyRowCount = Math.max(0, maxRows - groupedAssets.length);
 
     return (
         <div ref={ref} className="bg-white text-black font-serif" style={{ padding: '8mm 10mm', minHeight: '277mm', display: 'flex', flexDirection: 'column' }}>
@@ -149,9 +147,8 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
                                 <td className="border-2 border-black p-1"></td>
                             </tr>
                         ))}
-                    </tbody>
-                    {/* Footer Row: Total */}
-                    <tfoot>
+
+                        {/* Footer Row: Total — Now at the very bottom of the table */}
                         <tr className="bg-slate-50 font-bold">
                             <td colSpan="3" className="border-2 border-black p-1 text-right uppercase text-[10px]">TOTAL INVENTARIS</td>
                             <td className="border-2 border-black p-1 text-center">{(assets || []).length}</td>
@@ -159,7 +156,7 @@ const KIRPrint = forwardRef(({ room, unit, assets, settings }, ref) => {
                                 {groupedAssets.length} jenis barang
                             </td>
                         </tr>
-                    </tfoot>
+                    </tbody>
                 </table>
             </div>
 
