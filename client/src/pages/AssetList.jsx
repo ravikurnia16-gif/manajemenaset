@@ -73,6 +73,26 @@ const AssetList = ({ validationMode = false }) => {
         }
     });
 
+    // Trigger print only AFTER React has rendered KIRPrint with data
+    const [kirReady, setKirReady] = useState(false);
+    useEffect(() => {
+        if (kirReady && isPreparingKIR) {
+            // Wait for next paint cycle so the DOM is guaranteed to be updated
+            const rafId = requestAnimationFrame(() => {
+                if (kirRef.current) {
+                    handlePrintKIR();
+                } else {
+                    // Fallback: retry once more after another frame
+                    requestAnimationFrame(() => {
+                        handlePrintKIR();
+                    });
+                }
+                setKirReady(false);
+            });
+            return () => cancelAnimationFrame(rafId);
+        }
+    }, [kirReady, isPreparingKIR, assetsForKIR]);
+
     const prepareKIR = async () => {
         if (!selectedRoom) return alert("Pilih ruangan terlebih dahulu");
         try {
@@ -80,16 +100,13 @@ const AssetList = ({ validationMode = false }) => {
             const resp = await api.get('/assets', {
                 params: {
                     roomId: selectedRoom,
-                    limit: 1000 // Get all assets for this room
+                    limit: 1000
                 }
             });
             const allAssets = resp.data.data || resp.data;
             setAssetsForKIR(Array.isArray(allAssets) ? allAssets : []);
-
-            // Small delay to ensure state update and render
-            setTimeout(() => {
-                handlePrintKIR();
-            }, 500);
+            // Signal that data is ready — useEffect above will fire after render
+            setKirReady(true);
         } catch (error) {
             console.error("Failed to prepare KIR:", error);
             alert("Gagal menyiapkan data KIR");
