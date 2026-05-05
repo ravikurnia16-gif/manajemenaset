@@ -66,7 +66,11 @@ const VehicleBooking = () => {
     const [showBorrowModal, setShowBorrowModal] = useState(false);
     const [selectedVehicle, setSelectedVehicle] = useState(null);
     const [showActionModal, setShowActionModal] = useState(null); // { type: 'REJECT'|'START'|'END', data: booking }
-    const [actionData, setActionData] = useState({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelLiters: '', fuelCondition: null });
+    const [actionData, setActionData] = useState({ 
+        reason: '', km: '', notes: '', fuelRefill: false, 
+        fuelPrice: '', fuelLiters: '', fuelCondition: null,
+        returnLocation: '', customLocation: ''
+    });
 
     // Filter State for History
     const [filterVehicle, setFilterVehicle] = useState('');
@@ -382,16 +386,19 @@ const VehicleBooking = () => {
                 return;
             }
             setSubmitting(true);
+            const finalLocation = actionData.returnLocation === 'Lainnya' ? actionData.customLocation : actionData.returnLocation;
+
             await api.post(`/vehicles/booking/${showActionModal.data.id}/end`, {
                 endKm: parseInt(actionData.km),
                 tripNotes: actionData.notes,
                 fuelRefill: actionData.fuelRefill,
                 fuelPrice: actionData.fuelPrice,
-                fuelCondition: actionData.fuelCondition
+                fuelCondition: actionData.fuelCondition,
+                returnLocation: finalLocation
             });
             showToast('Perjalanan selesai!', 'success');
             setShowActionModal(null);
-            setActionData({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelCondition: null });
+            setActionData({ reason: '', km: '', notes: '', fuelRefill: false, fuelPrice: '', fuelCondition: null, returnLocation: '', customLocation: '' });
             fetchBookings();
             fetchVehicles(); // Refresh vehicles to update last fuel condition
 
@@ -2654,6 +2661,31 @@ const VehicleBooking = () => {
                                     </div>
 
                                     <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Posisi Terakhir Kendaraan</label>
+                                        <div className="grid grid-cols-3 gap-2 mb-2">
+                                            {['Lapai', 'Islamic', 'Lainnya'].map(loc => (
+                                                <button
+                                                    key={loc}
+                                                    type="button"
+                                                    onClick={() => setActionData({ ...actionData, returnLocation: loc })}
+                                                    className={`py-2 rounded-xl border text-xs font-bold transition-all ${actionData.returnLocation === loc ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                                                >
+                                                    {loc}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {actionData.returnLocation === 'Lainnya' && (
+                                            <input
+                                                type="text"
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none animate-in fade-in slide-in-from-top-1"
+                                                placeholder="Sebutkan lokasi..."
+                                                value={actionData.customLocation}
+                                                onChange={e => setActionData({ ...actionData, customLocation: e.target.value })}
+                                            />
+                                        )}
+                                    </div>
+
+                                    <div>
                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Catatan Perjalanan (Opsional)</label>
                                         <textarea
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm"
@@ -2665,7 +2697,7 @@ const VehicleBooking = () => {
                                     </div>
 
                                     <button
-                                        disabled={!actionData.km || submitting}
+                                        disabled={!actionData.km || !actionData.returnLocation || (actionData.returnLocation === 'Lainnya' && !actionData.customLocation) || submitting}
                                         onClick={handleEndTrip}
                                         className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-all shadow-lg shadow-green-200"
                                     >
@@ -2786,6 +2818,8 @@ const VehicleBooking = () => {
                                         <div className="text-right font-bold text-green-700">{(showDetailModal.endKm - showDetailModal.startKm).toLocaleString()} KM</div>
                                         <div className="text-slate-500">BBM Refill:</div>
                                         <div className="text-right font-bold text-green-700">{showDetailModal.fuelRefill ? `Rp ${showDetailModal.fuelPrice?.toLocaleString()}` : 'TIDAK'}</div>
+                                        <div className="text-slate-500">Posisi Akhir:</div>
+                                        <div className="text-right font-bold text-green-700">{showDetailModal.returnLocation || '-'}</div>
                                     </div>
                                     {showDetailModal.tripNotes && (
                                         <div className="pt-2 mt-2 border-t border-green-100/50 text-xs italic text-green-600">
