@@ -746,6 +746,15 @@ const VehicleBooking = () => {
                                                         'Belum ditunjuk'
                                                     )}
                                                 </div>
+                                                {v.lastPosition && (
+                                                    <div className="mt-2 pt-2 border-t border-slate-200/50">
+                                                        <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">
+                                                            <MapPin size={10} className="text-red-500" />
+                                                            Posisi Terakhir
+                                                        </div>
+                                                        <div className="text-[10px] font-black text-blue-600 uppercase">{v.lastPosition}</div>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Usage Info */}
@@ -1451,9 +1460,16 @@ const VehicleBooking = () => {
                                                 <div className="flex items-center gap-2 text-[11px] text-blue-600 font-bold">
                                                     <MapPin size={14} /> {b.destination}
                                                 </div>
-                                                <div className="pt-2 border-t border-slate-200 flex justify-between">
-                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">KM Start: {b.startKm || '-'}</div>
-                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">KM End: {b.endKm || '-'}</div>
+                                                <div className="pt-2 border-t border-slate-200 flex flex-col gap-1.5">
+                                                    <div className="flex justify-between">
+                                                        <div className="text-[10px] font-bold text-slate-400 uppercase">KM Start: {b.startKm || '-'}</div>
+                                                        <div className="text-[10px] font-bold text-slate-400 uppercase">KM End: {b.endKm || '-'}</div>
+                                                    </div>
+                                                    {b.returnLocation && (
+                                                        <div className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                                            <MapPin size={10} /> LOKASI AKHIR: {b.returnLocation}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
@@ -1554,6 +1570,11 @@ const VehicleBooking = () => {
                                                         <div className="text-[10px] font-bold text-slate-500 mt-1">
                                                             END: {b.endKm ? `${b.endKm} km` : '-'}
                                                         </div>
+                                                        {b.returnLocation && (
+                                                            <div className="text-[10px] font-black text-blue-600 mt-1 uppercase flex items-center gap-1">
+                                                                <MapPin size={10} /> {b.returnLocation}
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex justify-center gap-2">
@@ -1740,10 +1761,17 @@ const VehicleBooking = () => {
                                                 <div className="flex items-center gap-2 text-[11px] text-blue-600 font-bold">
                                                     <MapPin size={14} /> {b.destination}
                                                 </div>
-                                                <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-2">
-                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">Trip: {b.startKm || '?'} - {b.endKm || '?'} km</div>
-                                                    {b.fuelRefill && (
-                                                        <span className="bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded text-[9px] font-bold border border-orange-100">BBM: Rp {b.fuelPrice.toLocaleString()}</span>
+                                                <div className="pt-2 border-t border-slate-200 flex flex-col gap-1.5">
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <div className="text-[10px] font-bold text-slate-400 uppercase">Trip: {b.startKm || '?'} - {b.endKm || '?'} km</div>
+                                                        {b.fuelRefill && (
+                                                            <span className="bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded text-[9px] font-bold border border-orange-100">BBM: Rp {b.fuelPrice.toLocaleString()}</span>
+                                                        )}
+                                                    </div>
+                                                    {b.returnLocation && (
+                                                        <div className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
+                                                            <MapPin size={10} /> POSISI: {b.returnLocation}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -1796,6 +1824,11 @@ const VehicleBooking = () => {
                                                         <div className="text-[10px] font-bold text-slate-500 mb-1">
                                                             Trip: {b.startKm || '?'} km - {b.endKm || '?'} km
                                                         </div>
+                                                        {b.returnLocation && (
+                                                            <div className="text-[10px] font-black text-blue-600 mb-1 uppercase flex items-center gap-1">
+                                                                <MapPin size={10} /> POS: {b.returnLocation}
+                                                            </div>
+                                                        )}
                                                         {b.fuelRefill ? (
                                                             <div className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 px-2 py-0.5 rounded text-[10px] font-bold border border-orange-100">
                                                                 <Fuel size={10} /> Isi BBM {b.fuelPrice > 0 ? `(Rp ${b.fuelPrice.toLocaleString()})` : ''}
@@ -2662,8 +2695,8 @@ const VehicleBooking = () => {
 
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Posisi Terakhir Kendaraan</label>
-                                        <div className="grid grid-cols-3 gap-2 mb-2">
-                                            {['Lapai', 'Islamic', 'Lainnya'].map(loc => (
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
+                                            {['Lapai', 'Islamic', 'Pondok Putra', 'Kampung Jua', 'Lainnya'].map(loc => (
                                                 <button
                                                     key={loc}
                                                     type="button"
