@@ -316,7 +316,7 @@ async function generateSuratPDF(doc, setting) {
     const recipientsData = content.recipientsData;
 
     const generateSinglePage = async (recipient = null) => {
-        const page = pdfDoc.addPage([595.28, 841.89]);
+        let page = pdfDoc.addPage([595.28, 841.89]);
         const { width, height } = page.getSize();
         const kopImages = await embedKopSuratImages(pdfDoc);
         
@@ -434,7 +434,7 @@ async function generateSuratPDF(doc, setting) {
 
 async function generateBASTMouPDF(doc, setting) {
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595.28, 841.89]); // A4
+    let page = pdfDoc.addPage([595.28, 841.89]); // A4
     const { width, height } = page.getSize();
 
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
@@ -674,7 +674,7 @@ async function generateBASTMouPDF(doc, setting) {
 
 async function generateSuratTugasPDF(doc, setting) {
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595.28, 841.89]);
+    let page = pdfDoc.addPage([595.28, 841.89]);
     const { width, height } = page.getSize();
 
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
@@ -901,7 +901,7 @@ async function generateSuratTugasPDF(doc, setting) {
  * Generate PDF for Surat Pesanan (Purchasing Order)
  */
 async function generateSuratPesananPDF(doc) {
-    const { pdfDoc, page, fontRegular, fontBold, fontItalic, margin, width, height, rgb } = await createBasePDF();
+    let { pdfDoc, page, fontRegular, fontBold, fontItalic, margin, width, height, rgb } = await createBasePDF();
     const startY = await drawKopSurat(page, fontBold, fontRegular);
     const kopImages = await embedKopSuratImages(pdfDoc);
 
