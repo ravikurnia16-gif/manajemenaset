@@ -204,8 +204,9 @@ const MaintenanceList = () => {
                 'No': index + 1,
                 'Kode': r.code,
                 'Judul': r.title,
+                'Deskripsi': r.description,
                 'Urgensi': urgencyLabels[r.urgency] || r.urgency,
-                'Pelapor': `${r.user?.username || ''} (${r.unit?.name || ''})`,
+                'Pelapor': `${r.user?.name || ''} (${r.unit?.name || ''})`,
                 'Aset': r.assets?.map(a => `${a.name} (${a.code})`).join(', ') || '-',
                 'Masa': r.category === 'ROUTINE' ? 'Rutin' : 'Insidentil',
                 'Bidang': r.targetDept === 'PEMBANGUNAN' ? 'Pembangunan' : 'Sarpras',
@@ -219,6 +220,7 @@ const MaintenanceList = () => {
                 { wch: 5 },   // No
                 { wch: 15 },  // Kode
                 { wch: 30 },  // Judul
+                { wch: 40 },  // Deskripsi
                 { wch: 15 },  // Urgensi
                 { wch: 25 },  // Pelapor
                 { wch: 40 },  // Aset
@@ -602,7 +604,7 @@ const MaintenanceList = () => {
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="text-[10px] text-slate-400">{r.user?.username} ({r.unit?.name})</div>
+                                                    <div className="text-[10px] text-slate-400">{r.user?.name} ({r.unit?.name})</div>
                                                 </div>
                                             </div>
                                         </td>
