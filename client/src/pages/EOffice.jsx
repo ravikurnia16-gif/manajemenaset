@@ -237,6 +237,7 @@ const ListView = ({
                                                 <Download size={18} />
                                             </button>
                                         ) : null
+                                    ) : (
                                         <button onClick={() => window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cetak PDF"><Printer size={18} /></button>
                                     )}
                                     {doc.type === 'INVOICE' && (
