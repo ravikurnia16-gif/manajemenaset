@@ -100,7 +100,7 @@ exports.createIncomingMail = async (req, res) => {
  */
 exports.getOutgoingDocuments = async (req, res) => {
     try {
-        const { search, type, typeGroup, status, page = 1, limit = 20 } = req.query;
+        const { search, type, typeGroup, status, category, categories, page = 1, limit = 20 } = req.query;
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
         const where = { type: { not: 'SURAT_MASUK' } };
@@ -111,6 +111,11 @@ exports.getOutgoingDocuments = async (req, res) => {
 
         if (type) where.type = type;
         if (status) where.status = status;
+        if (category) where.category = category;
+        if (categories) {
+            const catList = Array.isArray(categories) ? categories : categories.split(',');
+            where.category = { in: catList };
+        }
         if (search) {
             where.OR = [
                 { subject: { contains: search } },

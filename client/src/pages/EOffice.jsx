@@ -1,13 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../lib/axios';
-import {
-    FileText, Inbox, Send, Plus, Search, Filter,
-    MoreVertical, CheckCircle2, XCircle, Clock,
-    FileSignature, Download, Eye, Trash2, Printer,
-    Calendar, User, Tag, ArrowRight, ShieldCheck,
-    AlertCircle, Save, X, Edit2, QrCode, LayoutDashboard, Paperclip
-} from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, LayoutDashboard, Inbox, Send, FileText, Tag, Archive, X, ArrowRight, ShieldCheck, Search, ChevronRight, Download, FileSignature, Filter, MoreVertical, Eye, Printer, Trash } from 'lucide-react';
 import SignaturePad from '../components/SignaturePad';
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const BULAN_FULL = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -158,7 +152,9 @@ const ListView = ({
     setEditingDoc,
     setIsFormOpen,
     isSuperAdmin,
-    handleDelete
+    handleDelete,
+    handleSendWA,
+    sendingWA
 }) => (
     <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -241,8 +237,17 @@ const ListView = ({
                                                 <Download size={18} />
                                             </button>
                                         ) : null
-                                    ) : (
                                         <button onClick={() => window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cetak PDF"><Printer size={18} /></button>
+                                    )}
+                                    {doc.type === 'INVOICE' && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleSendWA(doc.id); }}
+                                            disabled={sendingWA === doc.id}
+                                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                            title="Kirim WA"
+                                        >
+                                            {sendingWA === doc.id ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                                        </button>
                                     )}
                                     {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
                                         <button onClick={() => { setEditingDoc(doc); setIsFormOpen(true); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Edit"><Edit2 size={18} /></button>
@@ -300,6 +305,15 @@ const ListView = ({
                             ) : (
                                 <button onClick={(e) => { e.stopPropagation(); window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank'); }} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg"><Printer size={14} /></button>
                             )}
+                            {doc.type === 'INVOICE' && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleSendWA(doc.id); }}
+                                    disabled={sendingWA === doc.id}
+                                    className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg"
+                                >
+                                    {sendingWA === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                                </button>
+                            )}
                             {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
                                 <button onClick={(e) => { e.stopPropagation(); setEditingDoc(doc); setIsFormOpen(true); }} className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg"><Edit2 size={14} /></button>
                             )}
@@ -322,7 +336,7 @@ const InfoGroup = ({ label, value, icon, full }) => {
     );
 };
 
-const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate }) => {
+const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, handleSendWA, sendingWA }) => {
     if (!viewingDoc) return null;
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
@@ -915,6 +929,15 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate })
                                 <Paperclip size={18} /> Unggah File Final
                             </button>
                         )}
+                        {viewingDoc.type === 'INVOICE' && (
+                            <button
+                                onClick={() => handleSendWA(viewingDoc.id)}
+                                disabled={sendingWA === viewingDoc.id}
+                                className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20 disabled:opacity-50"
+                            >
+                                {sendingWA === viewingDoc.id ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />} Kirim Notifikasi WA
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -976,6 +999,9 @@ const EOffice = () => {
                 endpoint = '/office-documents/incoming';
             } else if (tab === 'invoice') {
                 params.type = 'INVOICE';
+            } else if (tab === 'manajemen-dokumen') {
+                params.type = 'LAINNYA';
+                params.categories = 'SOP,Peraturan,Surat Edaran';
             } else if (tab === 'lainnya') {
                 params.type = 'LAINNYA';
             } else if (tab === 'surat-keluar') {
@@ -1103,6 +1129,8 @@ const EOffice = () => {
                 setIsFormOpen={setIsFormOpen}
                 isSuperAdmin={isSuperAdmin}
                 handleDelete={handleDelete}
+                handleSendWA={handleSendWA}
+                sendingWA={sendingWA}
             />
         );
     };
@@ -1131,6 +1159,7 @@ const EOffice = () => {
                     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
                     { id: 'surat-masuk', label: 'Masuk', icon: <Inbox size={14} /> },
                     { id: 'surat-keluar', label: 'Keluar', icon: <Send size={14} /> },
+                    { id: 'manajemen-dokumen', label: 'Dokumen', icon: <Archive size={14} /> },
                     { id: 'invoice', label: 'Invoice', icon: <FileText size={14} /> },
                     { id: 'lainnya', label: 'Lainnya', icon: <Tag size={14} /> },
                 ].map((t) => (
@@ -1151,7 +1180,15 @@ const EOffice = () => {
             {renderContent()}
 
             {/* Modals */}
-            <ViewModal viewingDoc={viewingDoc} setViewingDoc={setViewingDoc} localStorage={localStorage} api={api} formatDate={formatDate} />
+            <ViewModal 
+                viewingDoc={viewingDoc} 
+                setViewingDoc={setViewingDoc} 
+                localStorage={localStorage} 
+                api={api} 
+                formatDate={formatDate} 
+                handleSendWA={handleSendWA}
+                sendingWA={sendingWA}
+            />
             <FormModal
                 isOpen={isFormOpen}
                 onClose={() => { setIsFormOpen(false); setEditingDoc(null); }}
@@ -1173,7 +1210,11 @@ const EOffice = () => {
                 onClose={() => setIsTypeModalOpen(false)}
                 onSelect={(type) => {
                     setIsTypeModalOpen(false);
-                    setEditingDoc({ type });
+                    if (type === 'MANAJEMEN_DOKUMEN') {
+                        setEditingDoc({ type: 'LAINNYA', category: 'SOP', _isManagement: true });
+                    } else {
+                        setEditingDoc({ type });
+                    }
                     setIsFormOpen(true);
                 }}
             />
@@ -1561,7 +1602,11 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 } else if (formData.type === 'INVOICE') {
                     navigate('/e-office/invoice');
                 } else if (formData.type === 'LAINNYA') {
-                    navigate('/e-office/lainnya');
+                    if (['SOP', 'Peraturan', 'Surat Edaran'].includes(formData.category)) {
+                        navigate('/e-office/manajemen-dokumen');
+                    } else {
+                        navigate('/e-office/lainnya');
+                    }
                 } else {
                     navigate('/e-office/surat-keluar');
                 }
@@ -1602,6 +1647,27 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             className={`px-4 py-3 rounded-xl text-xs font-bold border transition-all text-center ${formData.category === c
                                                 ? 'bg-blue-600 border-blue-600 text-white shadow-md'
                                                 : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
+                                                }`}
+                                        >
+                                            {c}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {formData.type === 'LAINNYA' && (['SOP', 'Peraturan', 'Surat Edaran'].includes(formData.category) || formData._isManagement) && (
+                            <div className="col-span-full bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100 mb-2">
+                                <label className="text-xs font-black text-indigo-600 uppercase tracking-widest mb-3 block">1. Pilih Kategori Dokumen Internal</label>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    {['SOP', 'Peraturan', 'Surat Edaran', 'Lainnya'].map(c => (
+                                        <button
+                                            key={c}
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, category: c })}
+                                            className={`px-4 py-3 rounded-xl text-xs font-bold border transition-all text-center ${formData.category === c
+                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                                : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-400'
                                                 }`}
                                         >
                                             {c}
@@ -3267,6 +3333,10 @@ const TypeSelectionModal = ({ isOpen, onClose, onSelect }) => {
         {
             id: 'INVOICE', label: 'Invoice / Tagihan', icon: <FileText size={24} />,
             desc: 'Dokumen penagihan atau bukti pembayaran', color: 'amber'
+        },
+        {
+            id: 'MANAJEMEN_DOKUMEN', label: 'Manajemen Dokumen', icon: <Archive size={24} />,
+            desc: 'SOP, Peraturan, Surat Edaran, dll', color: 'indigo'
         },
         {
             id: 'LAINNYA', label: 'Dokumen Lainnya', icon: <Tag size={24} />,

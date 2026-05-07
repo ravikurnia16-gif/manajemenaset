@@ -525,13 +525,15 @@ exports.addMedia = async (req, res) => {
         if (newMedia.length === 0) {
             return res.status(400).json({ error: 'Tidak ada media yang diunggah.' });
         }
+        const { isReceipt } = req.query;
+        const taggedMedia = newMedia.map(m => ({ ...m, isReceipt: isReceipt === 'true' }));
 
         let mergedMedia = [];
         const existingMedia = report.media;
         if (Array.isArray(existingMedia)) {
-            mergedMedia = [...existingMedia, ...newMedia];
+            mergedMedia = [...existingMedia, ...taggedMedia];
         } else {
-            mergedMedia = [...newMedia];
+            mergedMedia = [...taggedMedia];
         }
 
         const updatedReport = await prisma.maintenance.update({

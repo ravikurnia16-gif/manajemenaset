@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, Edit2, FileText as FileIcon } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
 
@@ -115,7 +115,7 @@ const MaintenanceDetail = () => {
             if (actionModal.type === 'completion' && receiptFile) {
                 const formData = new FormData();
                 formData.append('media', receiptFile);
-                await api.post(`/maintenance/${id}/media`, formData, {
+                await api.post(`/maintenance/${id}/media?isReceipt=true`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
             }
@@ -392,6 +392,31 @@ const MaintenanceDetail = () => {
                 </div>
             </div>
 
+            {/* Nota / Bukti Pembayaran Section */}
+            {report.media?.some(m => m.isReceipt) && (
+                <div className="bg-amber-50 rounded-xl border border-amber-200 p-5 space-y-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <h3 className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+                        <FileIcon size={18} /> Nota / Bukti Pembayaran
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {report.media.filter(m => m.isReceipt).map((item, idx) => (
+                            <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-amber-100 bg-white group shadow-sm">
+                                <a href={getMediaUrl(item.url)} target="_blank" rel="noreferrer" className="block w-full h-full">
+                                    <img
+                                        src={getMediaUrl(item.url)}
+                                        alt={`Receipt ${idx + 1}`}
+                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                    />
+                                </a>
+                                <div className="absolute top-2 right-2 p-1 bg-amber-500 text-white rounded-full shadow-lg">
+                                    <CheckCircle size={10} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Action Taken & Costs */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {report.actionTaken && (
@@ -403,7 +428,7 @@ const MaintenanceDetail = () => {
                     </div>
                 )}
                 
-                {report.cost > 0 && (
+                {(report.cost > 0 || report.status === 'COMPLETED') && (
                     <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
                         <div className="flex justify-between items-center mb-3">
                             <h3 className="text-sm font-semibold text-slate-700">Rincian Biaya</h3>
@@ -427,7 +452,7 @@ const MaintenanceDetail = () => {
                             </div>
                         ) : (
                             <div className="text-xs text-slate-500 italic text-center py-2">
-                                Detail biaya tidak tersedia untuk laporan lama.
+                                {report.status === 'COMPLETED' ? 'Belum ada rincian biaya yang dimasukkan.' : 'Detail biaya tidak tersedia untuk laporan lama.'}
                             </div>
                         )}
                     </div>
@@ -462,6 +487,21 @@ const MaintenanceDetail = () => {
                         </button>
                     )}
                 </div>
+            )}
+
+            {/* Edit Biaya & Nota Button for Completed Reports */}
+            {!nextAction && report.status === 'COMPLETED' && (isAdmin || isAssignedTechnician) && (
+                <button
+                    onClick={() => {
+                        setCostItems(report.costDetails || []);
+                        setProgressNote(''); 
+                        setActionNote(report.completionNote || '');
+                        setActionModal({ show: true, type: 'completion', nextStatus: 'COMPLETED' });
+                    }}
+                    className="w-full flex items-center justify-center gap-2 bg-slate-800 text-white py-4 rounded-xl font-black shadow-xl shadow-slate-200 hover:bg-slate-900 transition-all uppercase tracking-widest text-xs"
+                >
+                    <Edit2 size={16} /> Edit Biaya & Nota Pembayaran
+                </button>
             )}
 
             {/* Action Modal */}
