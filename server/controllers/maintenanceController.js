@@ -10,7 +10,7 @@ const crypto = require('crypto');
 exports.getDashboardStats = async (req, res) => {
     try {
         const { targetDept, month, year } = req.query; // SARPRAS or PEMBANGUNAN
-        
+
         const whereClause = {};
         if (targetDept) {
             whereClause.targetDept = targetDept;
@@ -71,7 +71,7 @@ exports.getDashboardStats = async (req, res) => {
         });
 
         const monthlyTrendMap = {};
-        for(let i=5; i>=0; i--) {
+        for (let i = 5; i >= 0; i--) {
             const d = new Date();
             d.setMonth(d.getMonth() - i);
             const key = d.toLocaleString('id-ID', { month: 'short', year: 'numeric' });
@@ -79,9 +79,9 @@ exports.getDashboardStats = async (req, res) => {
         }
 
         recentCompleted.forEach(r => {
-            if(r.completionDate) {
+            if (r.completionDate) {
                 const key = new Date(r.completionDate).toLocaleString('id-ID', { month: 'short', year: 'numeric' });
-                if(monthlyTrendMap[key]) {
+                if (monthlyTrendMap[key]) {
                     monthlyTrendMap[key].cost += (r.cost || 0);
                     monthlyTrendMap[key].count += 1;
                 }
@@ -382,7 +382,10 @@ exports.createReport = async (req, res) => {
                 // 1. In-App Notification (Only Staff Manajemen Aset for incoming requests)
                 const notifRecipients = await prisma.user.findMany({
                     where: {
-                        position: { contains: 'Staff Manajemen Aset' }
+                        OR: [
+                            { position: { contains: 'Staff Manajemen Aset' } },
+                            { position: { contains: 'Kepala Bidang Pembangunan' } }
+                        ]
                     }
                 });
 
@@ -424,7 +427,10 @@ exports.createReport = async (req, res) => {
                 // 2. WhatsApp Notification (Only Staff Manajemen Aset for incoming requests)
                 const waRecipients = await prisma.user.findMany({
                     where: {
-                        position: { contains: 'Manajemen Aset' },
+                        OR: [
+                            { position: { contains: 'Manajemen Aset' } },
+                            { position: { contains: 'Kepala Bidang Pembangunan' } }
+                        ],
                         phone: { not: null, not: '' }
                     }
                 });
@@ -735,7 +741,7 @@ exports.quickComplete = async (req, res) => {
     try {
         const report = await prisma.maintenance.findUnique({
             where: { quickToken: token },
-            include: { 
+            include: {
                 assets: true,
                 user: { select: { name: true, phone: true, username: true } }
             }
@@ -864,7 +870,7 @@ exports.getMaintenanceSchedule = async (req, res) => {
             const today = new Date();
             const estDate = new Date(asset.nextMaintenanceEst);
             const diffDays = Math.ceil((estDate - today) / (1000 * 60 * 60 * 24));
-            
+
             let status = 'OK';
             if (diffDays < 0) status = 'OVERDUE';
             else if (diffDays <= 30) status = 'SOON';
@@ -890,7 +896,7 @@ exports.getMaintenanceSchedule = async (req, res) => {
 exports.checkAssetMaintenanceReminders = async () => {
     try {
         console.log('[Scheduler] Checking Asset Maintenance Reminders...');
-        
+
         // 1. Get Overdue/Soon Assets (only marked routine)
         const assets = await prisma.asset.findMany({
             where: {
@@ -898,7 +904,7 @@ exports.checkAssetMaintenanceReminders = async () => {
                 needsRoutineMaintenance: true,
                 condition: { not: 'DISPOSED' }
             },
-            include: { 
+            include: {
                 unit: { select: { name: true } },
                 maintenances: {
                     where: { status: { notIn: ['COMPLETED', 'REJECTED'] } },
@@ -939,14 +945,14 @@ exports.checkAssetMaintenanceReminders = async () => {
         }
 
         msg += `Silakan cek detail dan proses di menu *Jadwal Servis* pada aplikasi.\n\n` +
-               `_Sistem Manajemen Aset_`;
+            `_Sistem Manajemen Aset_`;
 
-        // 3. Find Recipients (Staff Manajemen Aset)
+        // 3. Find Recipients (Staff Manajemen Aset & Kabid Pembangunan)
         const recipients = await prisma.user.findMany({
             where: {
                 OR: [
                     { position: { contains: 'Manajemen Aset' } },
-                    { role: 'ADMIN_ASET' }
+                    { position: { contains: 'Kepala Bidang Pembangunan' } }
                 ],
                 phone: { not: null, not: '' }
             }

@@ -24,6 +24,904 @@ const formatDate = (dateStr, type = 'short') => {
     return `${dd} ${BULAN[mm]} ${yyyy}`;
 };
 
+const StatCard = ({ title, value, icon, color }) => (
+    <div className="bg-white p-3 sm:p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 sm:gap-4">
+        <div className={`p-2 sm:p-3 rounded-xl bg-${color}-50`}>{icon}</div>
+        <div>
+            <div className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">{title}</div>
+            <div className="text-lg sm:text-2xl font-black text-slate-800">{value}</div>
+        </div>
+    </div>
+);
+
+const StatusBadge = ({ status }) => {
+    const configs = {
+        'DRAFT': { bg: 'bg-slate-100', text: 'text-slate-600', label: 'Draft' },
+        'PENDING_APPROVAL': { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Menunggu TTE' },
+        'SIGNED': { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Ditandatangani' },
+        'APPROVED': { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Disetujui' },
+        'REJECTED': { bg: 'bg-red-100', text: 'text-red-700', label: 'Ditolak' },
+    };
+    const c = configs[status] || configs['DRAFT'];
+    return <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${c.bg} ${c.text}`}>{c.label}</span>;
+};
+
+const getPaymentStatus = (doc) => {
+    if (doc.type !== 'INVOICE') return null;
+    try {
+        const parsed = JSON.parse(doc.content || '{}');
+        return parsed.paymentStatus || 'UNPAID';
+    } catch (e) {
+        return 'UNPAID';
+    }
+};
+
+const DashboardView = ({ stats, navigate, setViewingDoc }) => (
+    <div className="space-y-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">
+            <StatCard title="Surat Masuk" value={stats?.totalIncoming || 0} icon={<Inbox className="text-blue-500" size={22} />} color="blue" />
+            <StatCard title="Surat Keluar" value={stats?.totalOutgoing || 0} icon={<Send className="text-emerald-500" size={22} />} color="emerald" />
+            <StatCard title="Invoice" value={stats?.totalInvoices || 0} icon={<FileText className="text-amber-500" size={22} />} color="amber" />
+            <StatCard title="Menunggu TTE" value={stats?.pendingApproval || 0} icon={<Clock className="text-rose-500" size={22} />} color="rose" />
+            <StatCard title="Signed Bulan Ini" value={stats?.signedThisMonth || 0} icon={<CheckCircle2 className="text-indigo-500" size={22} />} color="indigo" />
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2"><Clock size={18} className="text-blue-500" /> Dokumen Terbaru</h3>
+                <button onClick={() => navigate('/e-office/surat-keluar')} className="text-xs font-semibold text-blue-600 hover:underline">Lihat Semua</button>
+            </div>
+            <div className="divide-y divide-slate-100">
+                {stats?.recentDocuments?.length > 0 ? stats.recentDocuments.map(doc => (
+                    <div key={doc.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between cursor-pointer" onClick={() => setViewingDoc(doc)}>
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                {doc.type === 'SURAT_MASUK' ? <Inbox size={18} /> : <Send size={18} />}
+                            </div>
+                            <div>
+                                <div className="font-semibold text-slate-800 text-sm">{doc.subject}</div>
+                                <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                                    <span>{doc.number || 'Draft'}</span><span>•</span><span>{formatDate(doc.date)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <StatusBadge status={doc.status} />
+                    </div>
+                )) : (
+                    <div className="p-8 text-center text-slate-400 text-sm italic">Belum ada dokumen</div>
+                )}
+            </div>
+        </div>
+    </div>
+);
+
+const LampiranPreview = ({ doc }) => {
+    let content = {};
+    try { content = JSON.parse(doc.content || '{}'); } catch (e) { }
+    const hasText = content.lampiranText && content.lampiranText.trim();
+
+    const photoUrls = (doc.fileUrl || '').split(',').filter(url => url.trim());
+    const hasPhoto = photoUrls.some(url =>
+        url.toLowerCase().endsWith('.jpg') ||
+        url.toLowerCase().endsWith('.jpeg') ||
+        url.toLowerCase().endsWith('.png') ||
+        url.toLowerCase().endsWith('.webp')
+    );
+
+    if (!hasText && !hasPhoto) return null;
+
+    return (
+        <div className="mt-8 pt-6 border-t border-slate-100">
+            <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Paperclip size={14} /> Lampiran Dokumen
+            </div>
+            {hasText && (
+                <div className="bg-slate-50 p-4 rounded-xl mb-4">
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Teks Lampiran</div>
+                    <div className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{content.lampiranText}</div>
+                </div>
+            )}
+            {hasPhoto && (
+                <div className="space-y-4">
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Foto / Gambar Lampiran</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {photoUrls.map((url, idx) => {
+                            const isImage = url.toLowerCase().endsWith('.jpg') ||
+                                url.toLowerCase().endsWith('.jpeg') ||
+                                url.toLowerCase().endsWith('.png') ||
+                                url.toLowerCase().endsWith('.webp');
+                            if (!isImage) return null;
+                            return (
+                                <div key={idx} className="rounded-xl overflow-hidden border border-slate-100 shadow-sm bg-white p-2">
+                                    <img
+                                        src={url.startsWith('http') || url.startsWith('/') ? url : `/api/media/${url}`}
+                                        alt={`Lampiran ${idx + 1}`}
+                                        className="w-full h-auto max-h-[400px] object-contain rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                        onClick={() => window.open(url.startsWith('http') || url.startsWith('/') ? url : `/api/media/${url}`, '_blank')}
+                                    />
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const ListView = ({
+    loading,
+    filteredDocs,
+    searchQuery,
+    setSearchQuery,
+    setViewingDoc,
+    setEditingDoc,
+    setIsFormOpen,
+    isSuperAdmin,
+    handleDelete
+}) => (
+    <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                    type="text"
+                    placeholder="Cari subjek, nomor..."
+                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+            </div>
+        </div>
+
+        {/* Desktop Table */}
+        <div className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                        <th className="px-6 py-4 font-bold text-slate-700">Dokumen</th>
+                        <th className="px-6 py-4 font-bold text-slate-700">Kategori</th>
+                        <th className="px-6 py-4 font-bold text-slate-700">Tanggal</th>
+                        <th className="px-6 py-4 font-bold text-slate-700">Status</th>
+                        <th className="px-6 py-4 font-bold text-slate-700 text-right">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                    {loading ? (
+                        <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">Memuat data...</td></tr>
+                    ) : filteredDocs.length === 0 ? (
+                        <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">Tidak ada dokumen ditemukan</td></tr>
+                    ) : filteredDocs.map(doc => (
+                        <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors group">
+                            <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-lg ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                        {doc.type === 'SURAT_MASUK' ? <Inbox size={18} /> : <Send size={18} />}
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-slate-800 line-clamp-1">{doc.subject}</div>
+                                        <div className="text-[11px] text-slate-500 font-medium">
+                                            {doc.number || 'Draft'} {doc.senderName && `• Dari: ${doc.senderName}`}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td className="px-6 py-4">
+                                <div className="flex items-center gap-1.5 text-slate-600">
+                                    <Tag size={14} className="text-slate-400" />
+                                    {doc.category || '-'}
+                                </div>
+                            </td>
+                            <td className="px-6 py-4 text-slate-600 font-medium">{formatDate(doc.date)}</td>
+                            <td className="px-6 py-4">
+                                <StatusBadge status={doc.status} />
+                                {doc.type === 'INVOICE' && (
+                                    <div className="mt-1">
+                                        {getPaymentStatus(doc) === 'PAID' ? (
+                                            <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-black uppercase tracking-widest">LUNAS</span>
+                                        ) : (
+                                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest">BELUM LUNAS</span>
+                                        )}
+                                    </div>
+                                )}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                    <button onClick={() => setViewingDoc(doc)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Lihat Detail"><Eye size={18} /></button>
+                                    {doc.type === 'SURAT_MASUK' ? (
+                                        doc.fileUrl ? (
+                                            <button
+                                                onClick={() => {
+                                                    const firstFile = doc.fileUrl.split(',')[0];
+                                                    window.open(firstFile.startsWith('http') || firstFile.startsWith('/') ? firstFile : `/api/media/${firstFile}`, '_blank');
+                                                }}
+                                                className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block"
+                                                title="Lihat File"
+                                            >
+                                                <Download size={18} />
+                                            </button>
+                                        ) : null
+                                    ) : (
+                                        <button onClick={() => window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cetak PDF"><Printer size={18} /></button>
+                                    )}
+                                    {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
+                                        <button onClick={() => { setEditingDoc(doc); setIsFormOpen(true); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Edit"><Edit2 size={18} /></button>
+                                    )}
+                                    {isSuperAdmin && (
+                                        <button onClick={() => handleDelete(doc.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Hapus"><Trash2 size={18} /></button>
+                                    )}
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+
+        {/* Mobile Card List */}
+        <div className="md:hidden space-y-3">
+            {loading ? (
+                <div className="p-8 text-center text-slate-400 italic bg-white rounded-xl border">Memuat data...</div>
+            ) : filteredDocs.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 italic bg-white rounded-xl border">Tidak ada dokumen</div>
+            ) : filteredDocs.map(doc => (
+                <div key={doc.id} className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm" onClick={() => setViewingDoc(doc)}>
+                    <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg shrink-0 ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                            {doc.type === 'SURAT_MASUK' ? <Inbox size={16} /> : <Send size={16} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="font-bold text-slate-800 text-sm line-clamp-2">{doc.subject}</div>
+                            <div className="text-[10px] text-slate-500 mt-0.5">{doc.number || 'Draft'} • {formatDate(doc.date)}</div>
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                <StatusBadge status={doc.status} />
+                                {doc.category && <span className="text-[10px] text-slate-400 font-medium">{doc.category}</span>}
+                                {doc.type === 'INVOICE' && (
+                                    getPaymentStatus(doc) === 'PAID'
+                                        ? <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[9px] font-black">LUNAS</span>
+                                        : <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[9px] font-black">BELUM LUNAS</span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-1 shrink-0">
+                            {doc.type === 'SURAT_MASUK' ? (
+                                doc.fileUrl && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const firstFile = doc.fileUrl.split(',')[0];
+                                            window.open(firstFile.startsWith('http') || firstFile.startsWith('/') ? firstFile : `/api/media/${firstFile}`, '_blank');
+                                        }}
+                                        className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg"
+                                    >
+                                        <Download size={14} />
+                                    </button>
+                                )
+                            ) : (
+                                <button onClick={(e) => { e.stopPropagation(); window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank'); }} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg"><Printer size={14} /></button>
+                            )}
+                            {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
+                                <button onClick={(e) => { e.stopPropagation(); setEditingDoc(doc); setIsFormOpen(true); }} className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg"><Edit2 size={14} /></button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
+const InfoGroup = ({ label, value, icon, full }) => {
+    return (
+        <div className={full ? 'col-span-full' : ''}>
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                {icon} {label}
+            </div>
+            <div className="text-slate-800 font-bold leading-relaxed">{value || '-'}</div>
+        </div>
+    );
+};
+
+const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate }) => {
+    if (!viewingDoc) return null;
+    return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 sm:zoom-in duration-200 max-h-[95vh] sm:max-h-[90vh] flex flex-col">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-600 text-white rounded-lg">
+                            <FileText size={20} />
+                        </div>
+                        <div>
+                            <h3 className="font-black text-slate-900 leading-none">Detail Dokumen</h3>
+                            <p className="text-xs text-slate-500 mt-1 font-medium">{viewingDoc.number || 'DRAFT'}</p>
+                        </div>
+                    </div>
+                    <button onClick={() => setViewingDoc(null)} className="p-2 text-slate-400 hover:text-slate-600 transition-colors">
+                        <X size={24} />
+                    </button>
+                </div>
+
+                <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 overflow-y-auto flex-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
+                        <InfoGroup label="Subjek / Perihal" value={viewingDoc.subject} icon={<Tag size={16} />} full />
+                        <InfoGroup label="Kategori" value={viewingDoc.category} />
+                        <InfoGroup label="Prioritas" value={viewingDoc.priority} />
+                        <InfoGroup label="Tanggal Dokumen" value={formatDate(viewingDoc.date, 'full')} />
+                        <InfoGroup label="Penulis / Pembuat" value={viewingDoc.author?.name} />
+
+                        {viewingDoc.type === 'SURAT_MASUK' && (
+                            <>
+                                <InfoGroup label="Pengirim" value={viewingDoc.senderName} />
+                                <InfoGroup label="Instansi Pengirim" value={viewingDoc.senderOrg} />
+                                <InfoGroup label="No. Surat Referensi" value={viewingDoc.referenceNumber} />
+                                <InfoGroup label="Tanggal Diterima" value={viewingDoc.receivedDate ? formatDate(viewingDoc.receivedDate, 'full') : '-'} />
+                                {viewingDoc.fileUrl && (
+                                    <div className="col-span-full pt-4 space-y-2">
+                                        {viewingDoc.fileUrl.split(',').filter(u => u.trim()).map((url, idx, arr) => (
+                                            <a
+                                                key={idx}
+                                                href={url.startsWith('http') || url.startsWith('/') ? url : `/api/media/${url}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-colors"
+                                            >
+                                                <Download size={18} /> {arr.length > 1 ? `Unduh / Lihat File ${idx + 1}` : 'Unduh / Lihat File Surat Masuk'}
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+
+                    {viewingDoc.status === 'SIGNED' && (
+                        <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-6">
+                            <div className="p-4 bg-white rounded-xl shadow-sm border border-emerald-100 shrink-0">
+                                <QrCode size={48} className="text-emerald-600" />
+                            </div>
+                            <div>
+                                <div className="font-black text-emerald-900 text-lg">Dokumen Terverifikasi</div>
+                                <div className="text-emerald-700 text-sm font-medium leading-relaxed">
+                                    Ditandatangani oleh <span className="font-bold underline">{viewingDoc.signedBy?.name}</span> pada {formatDate(viewingDoc.signedAt, 'datetime')}.
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {viewingDoc.status === 'REJECTED' && (
+                        <div className="p-6 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-4">
+                            <AlertCircle className="text-red-500 shrink-0" size={24} />
+                            <div>
+                                <div className="font-black text-red-900">Dokumen Ditolak</div>
+                                <div className="text-red-700 text-sm font-medium">Alasan: {viewingDoc.rejectionReason || '-'}</div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="space-y-4">
+                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Isi Dokumen / Rincian</label>
+                        {['BAST', 'SURAT_KELUAR'].includes(viewingDoc.type) && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(viewingDoc.category) ? (
+                            <div className="space-y-4">
+                                {/* Lokasi */}
+                                {(() => {
+                                    try {
+                                        const content = JSON.parse(viewingDoc.content || '{}');
+                                        if (content.location) {
+                                            return (
+                                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+                                                        <Tag size={16} />
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Lokasi Penyerahan (Bertempat di)</div>
+                                                        <div className="text-sm font-bold text-slate-800">{content.location}</div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                    } catch (e) { }
+                                    return null;
+                                })()}
+
+                                {/* Pihak 1 & Pihak 2 */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 relative">
+                                        <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-1">Pihak Pertama</div>
+                                        <div className="text-sm font-bold text-slate-800">{viewingDoc.party1Name || '-'}</div>
+                                        <div className="text-[11px] text-slate-500">{viewingDoc.party1Title || ''}</div>
+                                        {viewingDoc.party1Org && <div className="text-[11px] font-medium text-slate-600 mt-1">{viewingDoc.party1Org}</div>}
+
+                                        {viewingDoc.party1SignedAt && (
+                                            <div className="mt-3 pt-3 border-t border-blue-200/50 flex items-center gap-2 text-[10px] font-bold text-blue-700">
+                                                <ShieldCheck size={14} /> Tanda Tangan Digital OK
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 relative">
+                                        <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Pihak Kedua</div>
+                                        <div className="text-sm font-bold text-slate-800">{viewingDoc.party2Name || '-'}</div>
+                                        <div className="text-[11px] text-slate-500">{viewingDoc.party2Title || ''}</div>
+                                        {viewingDoc.party2Org && <div className="text-[11px] font-medium text-slate-600 mt-1">{viewingDoc.party2Org}</div>}
+
+                                        {viewingDoc.party2SignedAt && (
+                                            <div className="mt-3 pt-3 border-t border-emerald-200/50 flex items-center gap-2 text-[10px] font-bold text-emerald-700">
+                                                <CheckCircle2 size={14} /> Telah Ditandatangani
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                {/* Items Table */}
+                                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                    <table className="w-full text-left border-collapse text-sm">
+                                        <thead className="bg-slate-50 text-slate-600 font-bold">
+                                            <tr>
+                                                <th className="p-3 border-b border-slate-200">Jenis Barang</th>
+                                                <th className="p-3 border-b border-slate-200">Spesifikasi/SN</th>
+                                                <th className="p-3 border-b border-slate-200 w-24">Qty</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(() => {
+                                                try {
+                                                    const content = JSON.parse(viewingDoc.content || '{}');
+                                                    const items = Array.isArray(content) ? content : (content.items || []);
+                                                    if (items.length === 0) return <tr><td colSpan="3" className="p-4 text-center text-slate-400 italic">Tidak ada rincian barang</td></tr>;
+
+                                                    return items.map((item, i) => (
+                                                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                            <td className="p-3 border-b border-slate-100 font-medium">{item.name}</td>
+                                                            <td className="p-3 border-b border-slate-100 text-xs text-slate-500">{item.spec || '-'}</td>
+                                                            <td className="p-3 border-b border-slate-100">{item.qty} {item.unit || ''}</td>
+                                                        </tr>
+                                                    ));
+                                                } catch (e) {
+                                                    return <tr><td colSpan="3" className="p-4 text-center text-slate-400 italic">Format data tidak valid</td></tr>;
+                                                }
+                                            })()}
+                                        </tbody>
+                                    </table>
+                                    <LampiranPreview doc={viewingDoc} />
+                                </div>
+                            </div>
+                        ) : (viewingDoc.type === 'INVOICE' || viewingDoc.category === 'Invoice') ? (
+                            <div className="space-y-6">
+                                {(() => {
+                                    try {
+                                        const data = JSON.parse(viewingDoc.content || '{}');
+                                        const items = data.items || [];
+                                        const total = items.reduce((acc, curr) => acc + (curr.total || 0), 0);
+                                        return (
+                                            <div className="space-y-6">
+                                                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                                    <table className="w-full text-left border-collapse text-xs">
+                                                        <thead className="bg-slate-50 text-slate-600 font-bold uppercase">
+                                                            <tr>
+                                                                <th className="p-3 border-b border-slate-200">Barang / Jasa</th>
+                                                                <th className="p-3 border-b border-slate-200 w-16">Qty</th>
+                                                                <th className="p-3 border-b border-slate-200 w-32 text-right">Total</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {items.map((item, i) => {
+                                                                const price = parseFloat(item.price) || 0;
+                                                                const total = (parseFloat(item.qty) || 0) * price;
+                                                                return (
+                                                                    <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                                        <td className="p-3 border-b border-slate-100 font-medium">
+                                                                            {item.name}
+                                                                            {item.spec && <div className="text-[10px] text-slate-400 font-normal">{item.spec}</div>}
+                                                                        </td>
+                                                                        <td className="p-3 border-b border-slate-100 font-bold">{item.qty} {item.unit}</td>
+                                                                        <td className="p-3 border-b border-slate-100 text-right font-black text-blue-700">
+                                                                            {price > 0 ? (
+                                                                                new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(total)
+                                                                            ) : (
+                                                                                <span className="text-slate-400 italic font-medium">Menyusul</span>
+                                                                            )}
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                            <tr className="bg-blue-50/30">
+                                                                <td colSpan="2" className="p-3 text-right font-bold text-slate-500 uppercase tracking-widest text-[10px]">Total Tagihan</td>
+                                                                <td className="p-3 text-right font-black text-blue-800 text-sm">
+                                                                    {items.some(it => !(parseFloat(it.price) > 0)) ? (
+                                                                        <span className="text-slate-400 italic">Menyusul</span>
+                                                                    ) : (
+                                                                        new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(total)
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                                        <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Informasi Pembayaran</span>
+                                                        <div className="space-y-1">
+                                                            <div className="text-sm font-bold text-slate-800">{data.bankInfo?.bankName || '-'}</div>
+                                                            <div className="text-xs font-medium text-slate-500">{data.bankInfo?.bankAccountNumber || '-'} a.n {data.bankInfo?.bankAccountName || '-'}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100">
+                                                        <span className="block text-[10px] font-black text-amber-600 uppercase tracking-widest mb-2">Jatuh Tempo</span>
+                                                        <div className="text-sm font-black text-amber-900">{data.dueDate ? formatDate(data.dueDate, 'full') : '-'}</div>
+                                                    </div>
+                                                </div>
+
+                                                {data.notes && (
+                                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 italic text-sm text-slate-600">
+                                                        <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest not-italic mb-1">Catatan Tambahan</span>
+                                                        {data.notes}
+                                                    </div>
+                                                )}
+                                                <LampiranPreview doc={viewingDoc} />
+                                            </div>
+                                        );
+                                    } catch (e) {
+                                        return <p className="text-red-500 italic">Gagal memuat rincian invoice</p>;
+                                    }
+                                })()}
+                            </div>
+                        ) : viewingDoc.category === 'Pesanan' ? (
+                            <div className="space-y-6">
+                                <div className="text-center border-y border-slate-100 py-4">
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Pesanan Perihal</div>
+                                    <div className="text-sm font-black text-slate-900 leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
+                                </div>
+                                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                    <table className="w-full text-left border-collapse text-xs">
+                                        <thead className="bg-slate-50 text-slate-600 font-bold uppercase">
+                                            <tr>
+                                                <th className="p-3 border-b border-slate-200">Nama Barang</th>
+                                                <th className="p-3 border-b border-slate-200">Spek</th>
+                                                <th className="p-3 border-b border-slate-200 w-16">Qty</th>
+                                                <th className="p-3 border-b border-slate-200 w-24 text-right">Harga</th>
+                                                <th className="p-3 border-b border-slate-200 w-24 text-right">Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(() => {
+                                                try {
+                                                    const items = JSON.parse(viewingDoc.content || '[]');
+                                                    const hasUnknownPrice = items.some(it => !(parseFloat(it.price) > 0));
+                                                    const grandTotal = items.reduce((acc, curr) => acc + ((parseFloat(curr.qty) || 0) * (parseFloat(curr.price) || 0)), 0);
+
+                                                    return (
+                                                        <>
+                                                            {items.map((item, i) => {
+                                                                const price = parseFloat(item.price) || 0;
+                                                                const total = (parseFloat(item.qty) || 0) * price;
+                                                                return (
+                                                                    <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                                        <td className="p-3 border-b border-slate-100 font-bold text-slate-800">{item.name}</td>
+                                                                        <td className="p-3 border-b border-slate-100 text-slate-500">{item.spec || '-'}</td>
+                                                                        <td className="p-3 border-b border-slate-100 font-black text-blue-600">{item.qty} {item.unit}</td>
+                                                                        <td className="p-3 border-b border-slate-100 text-right font-bold text-slate-700">
+                                                                            {price > 0 ? (
+                                                                                new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(price)
+                                                                            ) : (
+                                                                                <span className="text-slate-400 italic font-medium">Menyusul</span>
+                                                                            )}
+                                                                        </td>
+                                                                        <td className="p-3 border-b border-slate-100 text-right font-black text-blue-700">
+                                                                            {price > 0 ? (
+                                                                                new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(total)
+                                                                            ) : (
+                                                                                <span className="text-slate-400 italic font-medium">Menyusul</span>
+                                                                            )}
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                            <tr className="bg-slate-50/50 font-black">
+                                                                <td colSpan="4" className="p-3 text-right text-slate-500 uppercase tracking-widest text-[10px]">Total Perkiraan</td>
+                                                                <td className="p-3 text-right text-blue-800 text-sm">
+                                                                    {hasUnknownPrice ? (
+                                                                        <span className="text-slate-400 italic">Menyusul</span>
+                                                                    ) : (
+                                                                        new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(grandTotal)
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        </>
+                                                    );
+                                                } catch (e) { return null; }
+                                            })()}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <LampiranPreview doc={viewingDoc} />
+                            </div>
+                        ) : viewingDoc.category === 'Edaran' ? (
+                            <div className="space-y-6">
+                                {(() => {
+                                    try {
+                                        const data = JSON.parse(viewingDoc.content || '{}');
+                                        return (
+                                            <div className="space-y-6">
+                                                <div className="text-center border-y border-slate-100 py-4 mb-4">
+                                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Tentang</div>
+                                                    <div className="text-sm font-black text-slate-900 uppercase leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4 pb-6 border-b border-slate-100">
+                                                    <div>
+                                                        <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Kepada Yth.</span>
+                                                        <div className="text-xs font-bold text-slate-800">{viewingDoc.party2Name}</div>
+                                                    </div>
+                                                    <div>
+                                                        <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tempat</span>
+                                                        <div className="text-xs font-bold text-slate-800">{viewingDoc.party2Address}</div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <div className="text-[11px] font-black text-amber-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                                            <span className="w-5 h-5 rounded bg-amber-100 flex items-center justify-center text-[10px]">1</span> Latar Belakang
+                                                        </div>
+                                                        <div className="text-xs text-slate-600 leading-relaxed pl-7 text-justify">{data.background || '-'}</div>
+                                                    </div>
+
+                                                    <div>
+                                                        <div className="text-[11px] font-black text-amber-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                                            <span className="w-5 h-5 rounded bg-amber-100 flex items-center justify-center text-[10px]">2</span> Ketentuan
+                                                        </div>
+                                                        <div className="space-y-3 pl-7">
+                                                            {(data.points || []).map((p, i) => {
+                                                                const pt = typeof p === 'string' ? { text: p, subs: [] } : p;
+                                                                return (
+                                                                    <div key={i}>
+                                                                        <div className="flex gap-3 items-start">
+                                                                            <div className="text-[10px] font-bold text-slate-400 mt-0.5">{i + 1}.</div>
+                                                                            <div className="text-xs text-slate-700 leading-relaxed text-justify">{pt.text}</div>
+                                                                        </div>
+                                                                        {pt.subs && pt.subs.filter(s => s).length > 0 && (
+                                                                            <div className="ml-8 mt-1 space-y-1">
+                                                                                {pt.subs.filter(s => s).map((s, j) => (
+                                                                                    <div key={j} className="flex gap-2 items-start">
+                                                                                        <div className="text-[9px] font-bold text-slate-300 mt-0.5">{String.fromCharCode(97 + j)}.</div>
+                                                                                        <div className="text-[11px] text-slate-500 leading-relaxed text-justify">{s}</div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <LampiranPreview doc={viewingDoc} />
+                                            </div>
+                                        );
+                                    } catch (e) {
+                                        return <p className="text-red-500 italic">Gagal memuat rincian edaran</p>;
+                                    }
+                                })()}
+                            </div>
+                        ) : viewingDoc.category === 'Keputusan' ? (
+                            <div className="space-y-6">
+                                {(() => {
+                                    try {
+                                        const data = JSON.parse(viewingDoc.content || '{}');
+                                        return (
+                                            <div className="space-y-6 text-xs">
+                                                <div className="text-center border-y border-slate-100 py-4 mb-4">
+                                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Keputusan Tentang</div>
+                                                    <div className="text-sm font-black text-slate-900 uppercase leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
+                                                </div>
+
+                                                <div>
+                                                    <div className="font-black text-amber-700 uppercase text-[10px] tracking-widest mb-2">Menimbang:</div>
+                                                    <ul className="space-y-1.5 pl-4">
+                                                        {(data.menimbang || []).map((item, idx) => (
+                                                            <li key={idx} className="text-slate-700 flex gap-2">
+                                                                <span className="font-bold text-amber-500">{String.fromCharCode(97 + idx)}.</span>
+                                                                <span className="leading-relaxed text-justify">{item}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+
+                                                <div>
+                                                    <div className="font-black text-amber-700 uppercase text-[10px] tracking-widest mb-2">Mengingat:</div>
+                                                    <ul className="space-y-1.5 pl-4">
+                                                        {(data.mengingat || []).map((item, idx) => (
+                                                            <li key={idx} className="text-slate-700 flex gap-2">
+                                                                <span className="font-bold text-amber-500">{idx + 1}.</span>
+                                                                <span className="leading-relaxed text-justify">{item}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+
+                                                <div>
+                                                    <div className="font-black text-blue-700 uppercase text-[10px] tracking-widest mb-2 text-center">MEMUTUSKAN:</div>
+                                                    <div className="space-y-4">
+                                                        {(data.menetapkan || []).map((item, idx) => (
+                                                            <div key={idx}>
+                                                                <div className="font-black text-slate-900 uppercase text-[9px] mb-1">{item.label}:</div>
+                                                                <div className="text-slate-700 leading-relaxed text-justify pl-4">{item.text}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <LampiranPreview doc={viewingDoc} />
+                                            </div>
+                                        );
+                                    } catch (e) {
+                                        return <p className="text-red-500 italic">Gagal memuat rincian keputusan</p>;
+                                    }
+                                })()}
+                            </div>
+                        ) : viewingDoc.category === 'Berita Acara Kunjungan' ? (
+                            <div className="space-y-6">
+                                {(() => {
+                                    try {
+                                        const data = JSON.parse(viewingDoc.content || '{}');
+                                        return (
+                                            <div className="space-y-6">
+                                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+                                                    <div className="flex items-start gap-3">
+                                                        <Calendar className="text-slate-400 mt-1" size={16} />
+                                                        <div>
+                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Waktu Kunjungan</div>
+                                                            <div className="text-sm font-bold text-slate-800">{formatDate(data.date, 'full')}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-start gap-3">
+                                                        <Tag className="text-slate-400 mt-1" size={16} />
+                                                        <div>
+                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tujuan Kunjungan</div>
+                                                            <div className="text-sm font-bold text-slate-800">{data.purpose}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-start gap-3">
+                                                        <Search className="text-slate-400 mt-1" size={16} />
+                                                        <div>
+                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Lokasi</div>
+                                                            <div className="text-sm font-bold text-slate-800">{data.locationName}</div>
+                                                            <div className="text-xs text-slate-500">{data.locationAddress}</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <div className="text-[11px] font-black text-emerald-600 uppercase tracking-widest mb-2">Aktivitas Kegiatan</div>
+                                                        <div className="space-y-2 pl-2">
+                                                            {data.activities && data.activities.map((act, i) => (
+                                                                <div key={i} className="flex gap-3 text-xs text-slate-700 bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                                                                    <div className="w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center text-[10px] font-bold text-emerald-600 shrink-0">{i + 1}</div>
+                                                                    <div className="leading-relaxed">{act}</div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <div className="text-[11px] font-black text-blue-600 uppercase tracking-widest mb-2">Hasil & Kesimpulan</div>
+                                                        <div className="grid grid-cols-1 gap-3 pl-2">
+                                                            {data.results && Array.isArray(data.results) ? data.results.map((res, i) => (
+                                                                <div key={i} className="bg-white/50 p-3 rounded-xl border border-slate-100">
+                                                                    <div className="font-black text-slate-900 text-[11px] uppercase mb-2 flex items-center gap-2">
+                                                                        <div className="w-1 h-3 bg-emerald-500 rounded-full"></div>
+                                                                        {res.title || '-'}
+                                                                    </div>
+                                                                    <ul className="space-y-1 pl-3">
+                                                                        {res.items && res.items.map((it, j) => (
+                                                                            <li key={j} className="text-slate-600 text-[11px] flex gap-2">
+                                                                                <span className="text-emerald-400">•</span>
+                                                                                <span>{it}</span>
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                            )) : <div className="whitespace-pre-wrap leading-relaxed">{data.results || '-'}</div>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <LampiranPreview doc={viewingDoc} />
+                                            </div>
+                                        );
+                                    } catch (e) {
+                                        return <p className="text-red-500 italic">Gagal memuat rincian kunjungan</p>;
+                                    }
+                                })()}
+                            </div>
+                        ) : viewingDoc.category === 'Lainnya' ? (
+                            <div className="p-6 bg-violet-50 rounded-2xl border border-violet-100">
+                                <div className="text-center mb-6">
+                                    <div className="w-12 h-12 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                                        <FileText size={24} />
+                                    </div>
+                                    <h3 className="text-lg font-black text-violet-900 mb-1">Dokumen Kategori Khusus</h3>
+                                    <p className="text-sm font-medium text-violet-700">Dokumen ini disusun di luar sistem (Ms. Word).</p>
+                                </div>
+                                <div className="bg-white p-5 rounded-xl border border-violet-100 shadow-sm space-y-3 text-sm font-medium text-slate-700">
+                                    <div className="flex justify-between border-b border-slate-100 pb-3">
+                                        <span className="text-slate-500">Nomor Surat:</span>
+                                        <span className="font-bold font-mono">{viewingDoc.number || '-'}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-slate-100 pb-3">
+                                        <span className="text-slate-500">Status File Final:</span>
+                                        <span className="font-bold">{viewingDoc.fileUrl ? '✅ File Tersedia' : '❌ File Belum Diunggah'}</span>
+                                    </div>
+                                    <p className="text-xs text-slate-500 text-center pt-2">
+                                        {viewingDoc.fileUrl
+                                            ? 'Klik "Lihat Dokumen Final" di bawah untuk melihat file.'
+                                            : 'Silakan unggah file final PDF Anda di bawah ini.'}
+                                    </p>
+                                    {viewingDoc.status === 'SIGNED' && (
+                                        <div className="pt-4 border-t border-slate-100">
+                                            <input
+                                                type="file"
+                                                id="upload-final-file"
+                                                className="hidden"
+                                                accept=".pdf,application/pdf"
+                                                onChange={async (e) => {
+                                                    const file = e.target.files[0];
+                                                    if (!file) return;
+                                                    try {
+                                                        const fd = new FormData();
+                                                        fd.append('files', file);
+                                                        await api.put(`/office-documents/${viewingDoc.id}/final-file`, fd, {
+                                                            headers: { 'Content-Type': 'multipart/form-data' }
+                                                        });
+                                                        alert('File final berhasil diunggah!');
+                                                        // Close modal and refresh (we don't have direct access to fetchDocuments here so we reload)
+                                                        window.location.reload();
+                                                    } catch (err) {
+                                                        alert('Gagal mengunggah file: ' + (err.response?.data?.error || err.message));
+                                                    }
+                                                }}
+                                            />
+                                            <label
+                                                htmlFor="upload-final-file"
+                                                className="w-full px-4 py-2 bg-violet-100 text-violet-700 hover:bg-violet-200 rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                                            >
+                                                <FileText size={16} /> {viewingDoc.fileUrl ? 'Perbarui File Final' : 'Unggah File Final PDF'}
+                                            </label>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-slate-700 whitespace-pre-wrap leading-relaxed font-medium">
+                                {viewingDoc.content || '(Tanpa isi)'}
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {viewingDoc.type !== 'SURAT_MASUK' && (
+                            <button
+                                onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
+                                className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20"
+                            >
+                                <Printer size={18} /> {viewingDoc.category === 'Lainnya' ? 'Lihat Dokumen Final' : 'Cetak PDF'}
+                            </button>
+                        )}
+                        {viewingDoc.category === 'Lainnya' && viewingDoc.status === 'SIGNED' && (
+                            <button
+                                onClick={() => document.getElementById('upload-final-file').click()}
+                                className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-violet-700 transition-all shadow-lg shadow-violet-900/20"
+                            >
+                                <Paperclip size={18} /> Unggah File Final
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const EOffice = () => {
     const { tab = 'dashboard' } = useParams();
     const navigate = useNavigate();
@@ -112,132 +1010,9 @@ const EOffice = () => {
 
     // --- Helper Components ---
 
-    const StatCard = ({ title, value, icon, color }) => (
-        <div className="bg-white p-3 sm:p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 sm:gap-4">
-            <div className={`p-2 sm:p-3 rounded-xl bg-${color}-50`}>{icon}</div>
-            <div>
-                <div className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">{title}</div>
-                <div className="text-lg sm:text-2xl font-black text-slate-800">{value}</div>
-            </div>
-        </div>
-    );
 
-    const StatusBadge = ({ status }) => {
-        const configs = {
-            'DRAFT': { bg: 'bg-slate-100', text: 'text-slate-600', label: 'Draft' },
-            'PENDING_APPROVAL': { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Menunggu TTE' },
-            'SIGNED': { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Ditandatangani' },
-            'APPROVED': { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Disetujui' },
-            'REJECTED': { bg: 'bg-red-100', text: 'text-red-700', label: 'Ditolak' },
-        };
-        const c = configs[status] || configs['DRAFT'];
-        return <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${c.bg} ${c.text}`}>{c.label}</span>;
-    };
 
-    // --- Sub-components for Views ---
 
-    const DashboardView = () => (
-        <div className="space-y-6">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">
-                <StatCard title="Surat Masuk" value={stats?.totalIncoming || 0} icon={<Inbox className="text-blue-500" size={22} />} color="blue" />
-                <StatCard title="Surat Keluar" value={stats?.totalOutgoing || 0} icon={<Send className="text-emerald-500" size={22} />} color="emerald" />
-                <StatCard title="Invoice" value={stats?.totalInvoices || 0} icon={<FileText className="text-amber-500" size={22} />} color="amber" />
-                <StatCard title="Menunggu TTE" value={stats?.pendingApproval || 0} icon={<Clock className="text-rose-500" size={22} />} color="rose" />
-                <StatCard title="Signed Bulan Ini" value={stats?.signedThisMonth || 0} icon={<CheckCircle2 className="text-indigo-500" size={22} />} color="indigo" />
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><Clock size={18} className="text-blue-500" /> Dokumen Terbaru</h3>
-                    <button onClick={() => navigate('/e-office/surat-keluar')} className="text-xs font-semibold text-blue-600 hover:underline">Lihat Semua</button>
-                </div>
-                <div className="divide-y divide-slate-100">
-                    {stats?.recentDocuments?.length > 0 ? stats.recentDocuments.map(doc => (
-                        <div key={doc.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between cursor-pointer" onClick={() => setViewingDoc(doc)}>
-                            <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-lg ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                    {doc.type === 'SURAT_MASUK' ? <Inbox size={18} /> : <Send size={18} />}
-                                </div>
-                                <div>
-                                    <div className="font-semibold text-slate-800 text-sm">{doc.subject}</div>
-                                    <div className="text-[11px] text-slate-500 flex items-center gap-2">
-                                        <span>{doc.number || 'Draft'}</span><span>•</span><span>{formatDate(doc.date)}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <StatusBadge status={doc.status} />
-                        </div>
-                    )) : (
-                        <div className="p-8 text-center text-slate-400 text-sm italic">Belum ada dokumen</div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-
-    const getPaymentStatus = (doc) => {
-        if (doc.type !== 'INVOICE') return null;
-        try {
-            const parsed = JSON.parse(doc.content || '{}');
-            return parsed.paymentStatus || 'UNPAID';
-        } catch (e) {
-            return 'UNPAID';
-        }
-    };
-
-    const LampiranPreview = ({ doc }) => {
-        let content = {};
-        try { content = JSON.parse(doc.content || '{}'); } catch (e) { }
-        const hasText = content.lampiranText && content.lampiranText.trim();
-
-        const photoUrls = (doc.fileUrl || '').split(',').filter(url => url.trim());
-        const hasPhoto = photoUrls.some(url =>
-            url.toLowerCase().endsWith('.jpg') ||
-            url.toLowerCase().endsWith('.jpeg') ||
-            url.toLowerCase().endsWith('.png') ||
-            url.toLowerCase().endsWith('.webp')
-        );
-
-        if (!hasText && !hasPhoto) return null;
-
-        return (
-            <div className="mt-8 pt-6 border-t border-slate-100">
-                <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <Paperclip size={14} /> Lampiran Dokumen
-                </div>
-                {hasText && (
-                    <div className="bg-slate-50 p-4 rounded-xl mb-4">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Teks Lampiran</div>
-                        <div className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{content.lampiranText}</div>
-                    </div>
-                )}
-                {hasPhoto && (
-                    <div className="space-y-4">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Foto / Gambar Lampiran</div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {photoUrls.map((url, idx) => {
-                                const isImage = url.toLowerCase().endsWith('.jpg') ||
-                                    url.toLowerCase().endsWith('.jpeg') ||
-                                    url.toLowerCase().endsWith('.png') ||
-                                    url.toLowerCase().endsWith('.webp');
-                                if (!isImage) return null;
-                                return (
-                                    <div key={idx} className="rounded-xl overflow-hidden border border-slate-100 shadow-sm bg-white p-2">
-                                        <img
-                                            src={url.startsWith('http') || url.startsWith('/') ? url : `/api/media/${url}`}
-                                            alt={`Lampiran ${idx + 1}`}
-                                            className="w-full h-auto max-h-[400px] object-contain rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                                            onClick={() => window.open(url.startsWith('http') || url.startsWith('/') ? url : `/api/media/${url}`, '_blank')}
-                                        />
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
 
     const filteredDocs = (documents || []).filter(doc => {
         if (!doc) return false;
@@ -246,967 +1021,7 @@ const EOffice = () => {
             (doc.senderName || '').toLowerCase().includes(searchQuery.toLowerCase());
     });
 
-    const ListView = () => (
-        <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input
-                        type="text"
-                        placeholder="Cari subjek, nomor..."
-                        className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                </div>
-            </div>
 
-            {/* Desktop Table */}
-            <div className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-200">
-                        <tr>
-                            <th className="px-6 py-4 font-bold text-slate-700">Dokumen</th>
-                            <th className="px-6 py-4 font-bold text-slate-700">Kategori</th>
-                            <th className="px-6 py-4 font-bold text-slate-700">Tanggal</th>
-                            <th className="px-6 py-4 font-bold text-slate-700">Status</th>
-                            <th className="px-6 py-4 font-bold text-slate-700 text-right">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {loading ? (
-                            <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">Memuat data...</td></tr>
-                        ) : filteredDocs.length === 0 ? (
-                            <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">Tidak ada dokumen ditemukan</td></tr>
-                        ) : filteredDocs.map(doc => (
-                            <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors group">
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-2 rounded-lg ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                            {doc.type === 'SURAT_MASUK' ? <Inbox size={18} /> : <Send size={18} />}
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-slate-800 line-clamp-1">{doc.subject}</div>
-                                            <div className="text-[11px] text-slate-500 font-medium">
-                                                {doc.number || 'Draft'} {doc.senderName && `• Dari: ${doc.senderName}`}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center gap-1.5 text-slate-600">
-                                        <Tag size={14} className="text-slate-400" />
-                                        {doc.category || '-'}
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4 text-slate-600 font-medium">{formatDate(doc.date)}</td>
-                                <td className="px-6 py-4">
-                                    <StatusBadge status={doc.status} />
-                                    {doc.type === 'INVOICE' && (
-                                        <div className="mt-1">
-                                            {getPaymentStatus(doc) === 'PAID' ? (
-                                                <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-black uppercase tracking-widest">LUNAS</span>
-                                            ) : (
-                                                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest">BELUM LUNAS</span>
-                                            )}
-                                        </div>
-                                    )}
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                    <div className="flex items-center justify-end gap-2">
-                                        <button onClick={() => setViewingDoc(doc)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Lihat Detail"><Eye size={18} /></button>
-                                        {doc.type === 'SURAT_MASUK' ? (
-                                            doc.fileUrl ? (
-                                                <button
-                                                    onClick={() => {
-                                                        const firstFile = doc.fileUrl.split(',')[0];
-                                                        window.open(firstFile.startsWith('http') || firstFile.startsWith('/') ? firstFile : `/api/media/${firstFile}`, '_blank');
-                                                    }}
-                                                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block"
-                                                    title="Lihat File"
-                                                >
-                                                    <Download size={18} />
-                                                </button>
-                                            ) : null
-                                        ) : (
-                                            <button onClick={() => window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cetak PDF"><Printer size={18} /></button>
-                                        )}
-                                        {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
-                                            <button onClick={() => { setEditingDoc(doc); setIsFormOpen(true); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Edit"><Edit2 size={18} /></button>
-                                        )}
-                                        {isSuperAdmin && (
-                                            <button onClick={() => handleDelete(doc.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Hapus"><Trash2 size={18} /></button>
-                                        )}
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Mobile Card List */}
-            <div className="md:hidden space-y-3">
-                {loading ? (
-                    <div className="p-8 text-center text-slate-400 italic bg-white rounded-xl border">Memuat data...</div>
-                ) : filteredDocs.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 italic bg-white rounded-xl border">Tidak ada dokumen</div>
-                ) : filteredDocs.map(doc => (
-                    <div key={doc.id} className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm" onClick={() => setViewingDoc(doc)}>
-                        <div className="flex items-start gap-3">
-                            <div className={`p-2 rounded-lg shrink-0 ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                {doc.type === 'SURAT_MASUK' ? <Inbox size={16} /> : <Send size={16} />}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="font-bold text-slate-800 text-sm line-clamp-2">{doc.subject}</div>
-                                <div className="text-[10px] text-slate-500 mt-0.5">{doc.number || 'Draft'} • {formatDate(doc.date)}</div>
-                                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                    <StatusBadge status={doc.status} />
-                                    {doc.category && <span className="text-[10px] text-slate-400 font-medium">{doc.category}</span>}
-                                    {doc.type === 'INVOICE' && (
-                                        getPaymentStatus(doc) === 'PAID'
-                                            ? <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[9px] font-black">LUNAS</span>
-                                            : <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[9px] font-black">BELUM LUNAS</span>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="flex flex-col gap-1 shrink-0">
-                                {doc.type === 'SURAT_MASUK' ? (
-                                    doc.fileUrl && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                const firstFile = doc.fileUrl.split(',')[0];
-                                                window.open(firstFile.startsWith('http') || firstFile.startsWith('/') ? firstFile : `/api/media/${firstFile}`, '_blank');
-                                            }}
-                                            className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg"
-                                        >
-                                            <Download size={14} />
-                                        </button>
-                                    )
-                                ) : (
-                                    <button onClick={(e) => { e.stopPropagation(); window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank'); }} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg"><Printer size={14} /></button>
-                                )}
-                                {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
-                                    <button onClick={(e) => { e.stopPropagation(); setEditingDoc(doc); setIsFormOpen(true); }} className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg"><Edit2 size={14} /></button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-
-    const ViewModal = () => {
-        if (!viewingDoc) return null;
-        return (
-            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
-                <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 sm:zoom-in duration-200 max-h-[95vh] sm:max-h-[90vh] flex flex-col">
-                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-blue-600 text-white rounded-lg">
-                                <FileText size={20} />
-                            </div>
-                            <div>
-                                <h3 className="font-black text-slate-900 leading-none">Detail Dokumen</h3>
-                                <p className="text-xs text-slate-500 mt-1 font-medium">{viewingDoc.number || 'DRAFT'}</p>
-                            </div>
-                        </div>
-                        <button onClick={() => setViewingDoc(null)} className="p-2 text-slate-400 hover:text-slate-600 transition-colors">
-                            <X size={24} />
-                        </button>
-                    </div>
-
-                    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8 overflow-y-auto flex-1">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
-                            <InfoGroup label="Subjek / Perihal" value={viewingDoc.subject} icon={<Tag size={16} />} full />
-                            <InfoGroup label="Kategori" value={viewingDoc.category} />
-                            <InfoGroup label="Prioritas" value={viewingDoc.priority} />
-                            <InfoGroup label="Tanggal Dokumen" value={formatDate(viewingDoc.date, 'full')} />
-                            <InfoGroup label="Penulis / Pembuat" value={viewingDoc.author?.name} />
-
-                            {viewingDoc.type === 'SURAT_MASUK' && (
-                                <>
-                                    <InfoGroup label="Pengirim" value={viewingDoc.senderName} />
-                                    <InfoGroup label="Instansi Pengirim" value={viewingDoc.senderOrg} />
-                                    <InfoGroup label="No. Surat Referensi" value={viewingDoc.referenceNumber} />
-                                    <InfoGroup label="Tanggal Diterima" value={viewingDoc.receivedDate ? formatDate(viewingDoc.receivedDate, 'full') : '-'} />
-                                    {viewingDoc.fileUrl && (
-                                        <div className="col-span-full pt-4 space-y-2">
-                                            {viewingDoc.fileUrl.split(',').filter(u => u.trim()).map((url, idx, arr) => (
-                                                <a
-                                                    key={idx}
-                                                    href={url.startsWith('http') || url.startsWith('/') ? url : `/api/media/${url}`}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-colors"
-                                                >
-                                                    <Download size={18} /> {arr.length > 1 ? `Unduh / Lihat File ${idx + 1}` : 'Unduh / Lihat File Surat Masuk'}
-                                                </a>
-                                            ))}
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-
-                        {viewingDoc.status === 'SIGNED' && (
-                            <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-6">
-                                <div className="p-4 bg-white rounded-xl shadow-sm border border-emerald-100 shrink-0">
-                                    <QrCode size={48} className="text-emerald-600" />
-                                </div>
-                                <div>
-                                    <div className="font-black text-emerald-900 text-lg">Dokumen Terverifikasi</div>
-                                    <div className="text-emerald-700 text-sm font-medium leading-relaxed">
-                                        Ditandatangani oleh <span className="font-bold underline">{viewingDoc.signedBy?.name}</span> pada {formatDate(viewingDoc.signedAt, 'datetime')}.
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {viewingDoc.status === 'REJECTED' && (
-                            <div className="p-6 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-4">
-                                <AlertCircle className="text-red-500 shrink-0" size={24} />
-                                <div>
-                                    <div className="font-black text-red-900">Dokumen Ditolak</div>
-                                    <div className="text-red-700 text-sm font-medium">Alasan: {viewingDoc.rejectionReason || '-'}</div>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="space-y-4">
-                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Isi Dokumen / Rincian</label>
-                            {['BAST', 'SURAT_KELUAR'].includes(viewingDoc.type) && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(viewingDoc.category) ? (
-                                <div className="space-y-4">
-                                    {/* Lokasi */}
-                                    {(() => {
-                                        try {
-                                            const content = JSON.parse(viewingDoc.content || '{}');
-                                            if (content.location) {
-                                                return (
-                                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400">
-                                                            <Tag size={16} />
-                                                        </div>
-                                                        <div>
-                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Lokasi Penyerahan (Bertempat di)</div>
-                                                            <div className="text-sm font-bold text-slate-800">{content.location}</div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            }
-                                        } catch (e) { }
-                                        return null;
-                                    })()}
-
-                                    {/* Pihak 1 & Pihak 2 */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 relative">
-                                            <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-1">Pihak Pertama</div>
-                                            <div className="text-sm font-bold text-slate-800">{viewingDoc.party1Name || '-'}</div>
-                                            <div className="text-[11px] text-slate-500">{viewingDoc.party1Title || ''}</div>
-                                            {viewingDoc.party1Org && <div className="text-[11px] font-medium text-slate-600 mt-1">{viewingDoc.party1Org}</div>}
-
-                                            {viewingDoc.party1SignedAt && (
-                                                <div className="mt-3 pt-3 border-t border-blue-200/50 flex items-center gap-2 text-[10px] font-bold text-blue-700">
-                                                    <ShieldCheck size={14} /> Tanda Tangan Digital OK
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 relative">
-                                            <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Pihak Kedua</div>
-                                            <div className="text-sm font-bold text-slate-800">{viewingDoc.party2Name || '-'}</div>
-                                            <div className="text-[11px] text-slate-500">{viewingDoc.party2Title || ''}</div>
-                                            {viewingDoc.party2Org && <div className="text-[11px] font-medium text-slate-600 mt-1">{viewingDoc.party2Org}</div>}
-
-                                            {viewingDoc.party2SignedAt && (
-                                                <div className="mt-3 pt-3 border-t border-emerald-200/50 flex items-center gap-2 text-[10px] font-bold text-emerald-700">
-                                                    <CheckCircle2 size={14} /> Telah Ditandatangani
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    {/* Items Table */}
-                                    <div className="border border-slate-200 rounded-xl overflow-hidden">
-                                        <table className="w-full text-left border-collapse text-sm">
-                                            <thead className="bg-slate-50 text-slate-600 font-bold">
-                                                <tr>
-                                                    <th className="p-3 border-b border-slate-200">Jenis Barang</th>
-                                                    <th className="p-3 border-b border-slate-200">Spesifikasi/SN</th>
-                                                    <th className="p-3 border-b border-slate-200 w-24">Qty</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {(() => {
-                                                    try {
-                                                        const content = JSON.parse(viewingDoc.content || '{}');
-                                                        const items = Array.isArray(content) ? content : (content.items || []);
-                                                        if (items.length === 0) return <tr><td colSpan="3" className="p-4 text-center text-slate-400 italic">Tidak ada rincian barang</td></tr>;
-
-                                                        return items.map((item, i) => (
-                                                            <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                                                <td className="p-3 border-b border-slate-100 font-medium">{item.name}</td>
-                                                                <td className="p-3 border-b border-slate-100 text-xs text-slate-500">{item.spec || '-'}</td>
-                                                                <td className="p-3 border-b border-slate-100">{item.qty} {item.unit || ''}</td>
-                                                            </tr>
-                                                        ));
-                                                    } catch (e) {
-                                                        return <tr><td colSpan="3" className="p-4 text-center text-slate-400 italic">Format data tidak valid</td></tr>;
-                                                    }
-                                                })()}
-                                            </tbody>
-                                        </table>
-                                        <LampiranPreview doc={viewingDoc} />
-                                    </div>
-                                </div>
-                            ) : (viewingDoc.type === 'INVOICE' || viewingDoc.category === 'Invoice') ? (
-                                <div className="space-y-6">
-                                    {(() => {
-                                        try {
-                                            const data = JSON.parse(viewingDoc.content || '{}');
-                                            const items = data.items || [];
-                                            const total = items.reduce((acc, curr) => acc + (curr.total || 0), 0);
-                                            return (
-                                                <div className="space-y-6">
-                                                    <div className="border border-slate-200 rounded-xl overflow-hidden">
-                                                        <table className="w-full text-left border-collapse text-xs">
-                                                            <thead className="bg-slate-50 text-slate-600 font-bold uppercase">
-                                                                <tr>
-                                                                    <th className="p-3 border-b border-slate-200">Barang / Jasa</th>
-                                                                    <th className="p-3 border-b border-slate-200 w-16">Qty</th>
-                                                                    <th className="p-3 border-b border-slate-200 w-32 text-right">Total</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {items.map((item, i) => {
-                                                                    const price = parseFloat(item.price) || 0;
-                                                                    const total = (parseFloat(item.qty) || 0) * price;
-                                                                    return (
-                                                                        <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                                                            <td className="p-3 border-b border-slate-100 font-medium">
-                                                                                {item.name}
-                                                                                {item.spec && <div className="text-[10px] text-slate-400 font-normal">{item.spec}</div>}
-                                                                            </td>
-                                                                            <td className="p-3 border-b border-slate-100 font-bold">{item.qty} {item.unit}</td>
-                                                                            <td className="p-3 border-b border-slate-100 text-right font-black text-blue-700">
-                                                                                {price > 0 ? (
-                                                                                    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(total)
-                                                                                ) : (
-                                                                                    <span className="text-slate-400 italic font-medium">Menyusul</span>
-                                                                                )}
-                                                                            </td>
-                                                                        </tr>
-                                                                    );
-                                                                })}
-                                                                <tr className="bg-blue-50/30">
-                                                                    <td colSpan="2" className="p-3 text-right font-bold text-slate-500 uppercase tracking-widest text-[10px]">Total Tagihan</td>
-                                                                    <td className="p-3 text-right font-black text-blue-800 text-sm">
-                                                                        {items.some(it => !(parseFloat(it.price) > 0)) ? (
-                                                                            <span className="text-slate-400 italic">Menyusul</span>
-                                                                        ) : (
-                                                                            new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(total)
-                                                                        )}
-                                                                    </td>
-                                                                </tr>
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Informasi Pembayaran</span>
-                                                            <div className="space-y-1">
-                                                                <div className="text-sm font-bold text-slate-800">{data.bankInfo?.bankName || '-'}</div>
-                                                                <div className="text-xs font-medium text-slate-500">{data.bankInfo?.bankAccountNumber || '-'} a.n {data.bankInfo?.bankAccountName || '-'}</div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100">
-                                                            <span className="block text-[10px] font-black text-amber-600 uppercase tracking-widest mb-2">Jatuh Tempo</span>
-                                                            <div className="text-sm font-black text-amber-900">{data.dueDate ? formatDate(data.dueDate, 'full') : '-'}</div>
-                                                        </div>
-                                                    </div>
-
-                                                    {data.notes && (
-                                                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 italic text-sm text-slate-600">
-                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest not-italic mb-1">Catatan Tambahan</span>
-                                                            {data.notes}
-                                                        </div>
-                                                    )}
-                                                    <LampiranPreview doc={viewingDoc} />
-                                                </div>
-                                            );
-                                        } catch (e) {
-                                            return <p className="text-red-500 italic">Gagal memuat rincian invoice</p>;
-                                        }
-                                    })()}
-                                </div>
-                            ) : viewingDoc.category === 'Pesanan' ? (
-                                <div className="space-y-6">
-                                    <div className="text-center border-y border-slate-100 py-4">
-                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Pesanan Perihal</div>
-                                        <div className="text-sm font-black text-slate-900 leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
-                                    </div>
-                                    <div className="border border-slate-200 rounded-xl overflow-hidden">
-                                        <table className="w-full text-left border-collapse text-xs">
-                                            <thead className="bg-slate-50 text-slate-600 font-bold uppercase">
-                                                <tr>
-                                                    <th className="p-3 border-b border-slate-200">Nama Barang</th>
-                                                    <th className="p-3 border-b border-slate-200">Spek</th>
-                                                    <th className="p-3 border-b border-slate-200 w-16">Qty</th>
-                                                    <th className="p-3 border-b border-slate-200 w-24 text-right">Harga</th>
-                                                    <th className="p-3 border-b border-slate-200 w-24 text-right">Total</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {(() => {
-                                                    try {
-                                                        const items = JSON.parse(viewingDoc.content || '[]');
-                                                        const hasUnknownPrice = items.some(it => !(parseFloat(it.price) > 0));
-                                                        const grandTotal = items.reduce((acc, curr) => acc + ((parseFloat(curr.qty) || 0) * (parseFloat(curr.price) || 0)), 0);
-
-                                                        return (
-                                                            <>
-                                                                {items.map((item, i) => {
-                                                                    const price = parseFloat(item.price) || 0;
-                                                                    const total = (parseFloat(item.qty) || 0) * price;
-                                                                    return (
-                                                                        <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                                                            <td className="p-3 border-b border-slate-100 font-bold text-slate-800">{item.name}</td>
-                                                                            <td className="p-3 border-b border-slate-100 text-slate-500">{item.spec || '-'}</td>
-                                                                            <td className="p-3 border-b border-slate-100 font-black text-blue-600">{item.qty} {item.unit}</td>
-                                                                            <td className="p-3 border-b border-slate-100 text-right font-bold text-slate-700">
-                                                                                {price > 0 ? (
-                                                                                    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(price)
-                                                                                ) : (
-                                                                                    <span className="text-slate-400 italic font-medium">Menyusul</span>
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="p-3 border-b border-slate-100 text-right font-black text-blue-700">
-                                                                                {price > 0 ? (
-                                                                                    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(total)
-                                                                                ) : (
-                                                                                    <span className="text-slate-400 italic font-medium">Menyusul</span>
-                                                                                )}
-                                                                            </td>
-                                                                        </tr>
-                                                                    );
-                                                                })}
-                                                                <tr className="bg-slate-50/50 font-black">
-                                                                    <td colSpan="4" className="p-3 text-right text-slate-500 uppercase tracking-widest text-[10px]">Total Perkiraan</td>
-                                                                    <td className="p-3 text-right text-blue-800 text-sm">
-                                                                        {hasUnknownPrice ? (
-                                                                            <span className="text-slate-400 italic">Menyusul</span>
-                                                                        ) : (
-                                                                            new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(grandTotal)
-                                                                        )}
-                                                                    </td>
-                                                                </tr>
-                                                            </>
-                                                        );
-                                                    } catch (e) { return null; }
-                                                })()}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    <LampiranPreview doc={viewingDoc} />
-                                </div>
-                            ) : viewingDoc.category === 'Edaran' ? (
-                                <div className="space-y-6">
-                                    {(() => {
-                                        try {
-                                            const data = JSON.parse(viewingDoc.content || '{}');
-                                            return (
-                                                <div className="space-y-6">
-                                                    <div className="text-center border-y border-slate-100 py-4 mb-4">
-                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Tentang</div>
-                                                        <div className="text-sm font-black text-slate-900 uppercase leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
-                                                    </div>
-
-                                                    <div className="grid grid-cols-2 gap-4 pb-6 border-b border-slate-100">
-                                                        <div>
-                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Kepada Yth.</span>
-                                                            <div className="text-xs font-bold text-slate-800">{viewingDoc.party2Name}</div>
-                                                        </div>
-                                                        <div>
-                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tempat</span>
-                                                            <div className="text-xs font-bold text-slate-800">{viewingDoc.party2Address}</div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="space-y-4">
-                                                        <div>
-                                                            <div className="text-[11px] font-black text-amber-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                                <span className="w-5 h-5 rounded bg-amber-100 flex items-center justify-center text-[10px]">1</span> Latar Belakang
-                                                            </div>
-                                                            <div className="text-xs text-slate-600 leading-relaxed pl-7 text-justify">{data.background || '-'}</div>
-                                                        </div>
-
-                                                        <div>
-                                                            <div className="text-[11px] font-black text-amber-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                                <span className="w-5 h-5 rounded bg-amber-100 flex items-center justify-center text-[10px]">2</span> Ketentuan
-                                                            </div>
-                                                            <div className="space-y-3 pl-7">
-                                                                {(data.points || []).map((p, i) => {
-                                                                    const pt = typeof p === 'string' ? { text: p, subs: [] } : p;
-                                                                    return (
-                                                                        <div key={i}>
-                                                                            <div className="flex gap-3 items-start">
-                                                                                <div className="text-[10px] font-bold text-slate-400 mt-0.5">{i + 1}.</div>
-                                                                                <div className="text-xs text-slate-700 leading-relaxed text-justify">{pt.text}</div>
-                                                                            </div>
-                                                                            {pt.subs && pt.subs.filter(s => s).length > 0 && (
-                                                                                <div className="ml-8 mt-1 space-y-1">
-                                                                                    {pt.subs.filter(s => s).map((s, j) => (
-                                                                                        <div key={j} className="flex gap-2 items-start">
-                                                                                            <div className="text-[9px] font-bold text-slate-300 mt-0.5">{String.fromCharCode(97 + j)}.</div>
-                                                                                            <div className="text-[11px] text-slate-500 leading-relaxed text-justify">{s}</div>
-                                                                                        </div>
-                                                                                    ))}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <LampiranPreview doc={viewingDoc} />
-                                                </div>
-                                            );
-                                        } catch (e) {
-                                            return <p className="text-red-500 italic">Gagal memuat rincian edaran</p>;
-                                        }
-                                    })()}
-                                </div>
-                            ) : viewingDoc.category === 'Keputusan' ? (
-                                <div className="space-y-6">
-                                    {(() => {
-                                        try {
-                                            const data = JSON.parse(viewingDoc.content || '{}');
-                                            return (
-                                                <div className="space-y-6 text-xs">
-                                                    <div className="text-center border-y border-slate-100 py-4 mb-4">
-                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Keputusan Tentang</div>
-                                                        <div className="text-sm font-black text-slate-900 uppercase leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
-                                                    </div>
-
-                                                    <div>
-                                                        <div className="font-black text-amber-700 uppercase text-[10px] tracking-widest mb-2">Menimbang:</div>
-                                                        <ul className="space-y-1.5 pl-4">
-                                                            {(data.menimbang || []).map((item, idx) => (
-                                                                <li key={idx} className="text-slate-700 flex gap-2">
-                                                                    <span className="font-bold text-amber-500">{String.fromCharCode(97 + idx)}.</span>
-                                                                    <span className="leading-relaxed text-justify">{item}</span>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-
-                                                    <div>
-                                                        <div className="font-black text-amber-700 uppercase text-[10px] tracking-widest mb-2">Mengingat:</div>
-                                                        <ul className="space-y-1.5 pl-4">
-                                                            {(data.mengingat || []).map((item, idx) => (
-                                                                <li key={idx} className="text-slate-700 flex gap-2">
-                                                                    <span className="font-bold text-amber-500">{idx + 1}.</span>
-                                                                    <span className="leading-relaxed text-justify">{item}</span>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-
-                                                    <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100">
-                                                        <div className="text-center font-black text-slate-900 mb-4 tracking-widest">MEMUTUSKAN</div>
-                                                        <div className="space-y-4">
-                                                            {(data.menetapkan || []).map((item, idx) => (
-                                                                <div key={idx}>
-                                                                    <div className="font-black text-amber-700 uppercase text-[9px] mb-1">{item.label}:</div>
-                                                                    <div className="text-slate-800 leading-relaxed font-medium text-justify">{item.text}</div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-
-                                                    {data.tembusan && data.tembusan.filter(t => t).length > 0 && (
-                                                        <div className="pt-4 border-t border-slate-100">
-                                                            <div className="font-black text-slate-400 uppercase text-[9px] mb-2">Tembusan:</div>
-                                                            <ul className="space-y-1 pl-4">
-                                                                {data.tembusan.filter(t => t).map((item, idx) => (
-                                                                    <li key={idx} className="text-slate-500 italic flex gap-2">
-                                                                        <span>-</span> {item}
-                                                                    </li>
-                                                                ))}
-                                                            </ul>
-                                                        </div>
-                                                    )}
-                                                    <LampiranPreview doc={viewingDoc} />
-                                                </div>
-                                            );
-                                        } catch (e) { return <p className="text-red-500">Error parsing content</p>; }
-                                    })()}
-                                </div>
-                            ) : viewingDoc.category === 'Pemberitahuan' ? (
-                                <div className="space-y-5">
-                                    {(() => {
-                                        try {
-                                            const data = JSON.parse(viewingDoc.content || '{}');
-                                            return (
-                                                <div className="space-y-5 text-xs">
-                                                    <div className="text-center border-y border-slate-100 py-4">
-                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Pemberitahuan Perihal</div>
-                                                        <div className="text-sm font-black text-slate-900 leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
-                                                    </div>
-                                                    <div className="italic text-slate-500 text-[11px]">Assalamu'alaikum Warahmatullahi Wabarakatuh,</div>
-                                                    <div className="text-slate-700 leading-relaxed">
-                                                        <div className="mb-2">Dengan hormat,</div>
-                                                        <div className="mb-4 text-justify">Segala puji bagi Allah <span className="italic">Subhaanahu wa ta'aala</span> yang senantiasa melimpahkan nikmat dan hidayah-Nya kepada kita semua. Shalawat dan salam atas Nabi Muhammad <span className="italic">Shalallaahu 'alaihi wa sallam</span>. Kami mendo'akan semoga Bapak/Ibu selalu berada dalam lindungan Allah <span className="italic">Subhaanahu wa ta'aala</span>, Amin.</div>
-                                                        <div className="text-justify">{data.pembukaan}</div>
-                                                    </div>
-                                                    {data.points && data.points.filter(p => p).length > 0 && (
-                                                        <div>
-                                                            <div className="text-[10px] font-black text-green-700 uppercase tracking-widest mb-2">Poin-poin Penting</div>
-                                                            <ul className="space-y-1.5 pl-4">
-                                                                {data.points.filter(p => p).map((item, idx) => (
-                                                                    <li key={idx} className="text-slate-700 flex gap-2">
-                                                                        <span className="font-bold text-green-500">{idx + 1}.</span>
-                                                                        <span className="leading-relaxed text-justify">{item}</span>
-                                                                    </li>
-                                                                ))}
-                                                            </ul>
-                                                        </div>
-                                                    )}
-                                                    {data.penutup && <div className="text-slate-700 leading-relaxed">{data.penutup}</div>}
-                                                    <div className="italic text-slate-500 text-[11px]">Wassalamu'alaikum Warahmatullahi Wabarakatuh.</div>
-                                                    <LampiranPreview doc={viewingDoc} />
-                                                </div>
-                                            );
-                                        } catch (e) { return <p className="text-red-500">Error parsing content</p>; }
-                                    })()}
-                                </div>
-                            ) : viewingDoc.category === 'Tugas' ? (
-                                <div className="space-y-6 bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
-                                    {(() => {
-                                        try {
-                                            const task = JSON.parse(viewingDoc.content || '{}');
-                                            return (
-                                                <div className="grid grid-cols-1 gap-6 text-sm">
-                                                    <div>
-                                                        <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Dasar Penugasan</span>
-                                                        <ul className="space-y-1.5">
-                                                            {(task.basisList || (task.basis ? [task.basis] : [])).map((b, i) => (
-                                                                <li key={i} className="text-slate-800 font-medium leading-relaxed flex gap-2">
-                                                                    <span className="text-blue-400 font-bold">{i + 1}.</span> {b}
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                    <div>
-                                                        <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Menugaskan Kepada</span>
-                                                        <div className="space-y-3">
-                                                            {(task.personnelList || (task.personnel ? [{ name: task.personnel }] : [])).map((p, i) => (
-                                                                <div key={i} className="flex items-start gap-3 bg-white p-3 rounded-xl border border-blue-100/50 shadow-sm">
-                                                                    <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">{i + 1}</div>
-                                                                    <div>
-                                                                        <div className="text-slate-900 font-bold">{p.name || '-'}</div>
-                                                                        <div className="text-[11px] text-slate-500 font-medium">
-                                                                            {p.position || 'Staff'} {p.nip ? `• NIY: ${p.nip}` : ''}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <span className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Untuk (Maksud & Tujuan)</span>
-                                                        <ul className="space-y-1.5">
-                                                            {(task.purposeList || (task.purpose ? [task.purpose] : [])).map((p, i) => (
-                                                                <li key={i} className="text-slate-800 font-medium leading-relaxed flex gap-2">
-                                                                    <span className="text-blue-400 font-bold">•</span> {p}
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-blue-100">
-                                                        <div>
-                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Waktu Pelaksanaan</span>
-                                                            <p className="text-slate-800 font-bold flex items-center gap-2">
-                                                                <Calendar size={14} className="text-blue-500" />
-                                                                {task.dateStart ? formatDate(task.dateStart) : '-'}
-                                                                {task.dateEnd && task.dateEnd !== task.dateStart ? ` s.d ${formatDate(task.dateEnd)}` : ''}
-                                                            </p>
-                                                            {task.timeRange && <p className="text-[11px] text-slate-500 mt-1 ml-5 font-medium">{task.timeRange}</p>}
-                                                        </div>
-                                                        <div>
-                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tempat / Lokasi</span>
-                                                            <p className="text-slate-800 font-bold flex items-center gap-2">
-                                                                <Tag size={14} className="text-blue-500" />
-                                                                {task.location || '-'}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    {task.carbonCopy && task.carbonCopy.length > 0 && task.carbonCopy[0] && (
-                                                        <div className="pt-4 border-t border-blue-100">
-                                                            <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Tembusan</span>
-                                                            <div className="text-[11px] text-slate-500 space-y-1">
-                                                                {task.carbonCopy.map((c, i) => <div key={i}>{i + 1}. {c}</div>)}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    <LampiranPreview doc={viewingDoc} />
-                                                </div>
-                                            );
-                                        } catch (e) {
-                                            return <p className="text-red-500 italic">Gagal memuat rincian tugas</p>;
-                                        }
-                                    })()}
-                                </div>
-                            ) : viewingDoc.category === 'Berita Acara Kunjungan' ? (
-                                <div className="space-y-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
-                                    {(() => {
-                                        try {
-                                            const data = JSON.parse(viewingDoc.content || '{}');
-                                            return (
-                                                <div className="grid grid-cols-1 gap-4 text-sm text-slate-700">
-                                                    <div className="grid grid-cols-2 gap-4 pb-4 border-b border-slate-200">
-                                                        <div>
-                                                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tanggal Kunjungan</div>
-                                                            <div className="font-bold text-slate-900">{data.date ? formatDate(data.date) : '-'}</div>
-                                                        </div>
-                                                        <div>
-                                                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tujuan</div>
-                                                            <div className="font-bold text-slate-900">{data.purpose || '-'}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="pb-4 border-b border-slate-200">
-                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lokasi Kunjungan</div>
-                                                        <div className="font-bold text-slate-900">{data.locationName || '-'}</div>
-                                                        <div className="text-slate-500">{data.locationAddress || '-'}</div>
-                                                    </div>
-                                                    <div className="pb-4 border-b border-slate-200">
-                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Uraian Kegiatan</div>
-                                                        <div className="space-y-1.5">
-                                                            {Array.isArray(data.activities) ? data.activities.map((act, i) => (
-                                                                <div key={i} className="flex gap-2">
-                                                                    <span className="font-bold text-blue-500">{i + 1}.</span>
-                                                                    <span className="leading-relaxed">{act}</span>
-                                                                </div>
-                                                            )) : <div className="whitespace-pre-wrap leading-relaxed">{data.activities || '-'}</div>}
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Hasil & Catatan Kunjungan</div>
-                                                        <div className="space-y-4">
-                                                            {Array.isArray(data.results) ? data.results.map((res, i) => (
-                                                                <div key={i} className="bg-white/50 p-3 rounded-xl border border-slate-100">
-                                                                    <div className="font-black text-slate-900 text-[11px] uppercase mb-2 flex items-center gap-2">
-                                                                        <div className="w-1 h-3 bg-emerald-500 rounded-full"></div>
-                                                                        {res.title || '-'}
-                                                                    </div>
-                                                                    <ul className="space-y-1 pl-3">
-                                                                        {res.items && res.items.map((it, j) => (
-                                                                            <li key={j} className="text-slate-600 text-[11px] flex gap-2">
-                                                                                <span className="text-emerald-400">•</span>
-                                                                                <span>{it}</span>
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                </div>
-                                                            )) : <div className="whitespace-pre-wrap leading-relaxed">{data.results || '-'}</div>}
-                                                        </div>
-                                                    </div>
-                                                    <LampiranPreview doc={viewingDoc} />
-                                                </div>
-                                            );
-                                        } catch (e) {
-                                            return <p className="text-red-500 italic">Gagal memuat rincian kunjungan</p>;
-                                        }
-                                    })()}
-                                </div>
-                            ) : viewingDoc.category === 'Lainnya' ? (
-                                <div className="p-6 bg-violet-50 rounded-2xl border border-violet-100">
-                                    <div className="text-center mb-6">
-                                        <div className="w-12 h-12 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mx-auto mb-3">
-                                            <FileText size={24} />
-                                        </div>
-                                        <h3 className="text-lg font-black text-violet-900 mb-1">Dokumen Kategori Khusus</h3>
-                                        <p className="text-sm font-medium text-violet-700">Dokumen ini disusun di luar sistem (Ms. Word).</p>
-                                    </div>
-                                    <div className="bg-white p-5 rounded-xl border border-violet-100 shadow-sm space-y-3 text-sm font-medium text-slate-700">
-                                        <div className="flex justify-between border-b border-slate-100 pb-3">
-                                            <span className="text-slate-500">Nomor Surat:</span>
-                                            <span className="font-bold font-mono">{viewingDoc.number || '-'}</span>
-                                        </div>
-                                        <div className="flex justify-between border-b border-slate-100 pb-3">
-                                            <span className="text-slate-500">Status File Final:</span>
-                                            <span className="font-bold">{viewingDoc.fileUrl ? '✅ File Tersedia' : '❌ File Belum Diunggah'}</span>
-                                        </div>
-                                        <p className="text-xs text-slate-500 text-center pt-2">
-                                            {viewingDoc.fileUrl 
-                                                ? 'Klik "Lihat Dokumen Final" di bawah untuk melihat file.'
-                                                : 'Silakan unggah file final PDF Anda di bawah ini.'}
-                                        </p>
-                                        {viewingDoc.status === 'SIGNED' && (
-                                            <div className="pt-4 border-t border-slate-100">
-                                                <input
-                                                    type="file"
-                                                    id="upload-final-file"
-                                                    className="hidden"
-                                                    accept=".pdf,application/pdf"
-                                                    onChange={async (e) => {
-                                                        const file = e.target.files[0];
-                                                        if (!file) return;
-                                                        try {
-                                                            const fd = new FormData();
-                                                            fd.append('files', file);
-                                                            await api.put(`/office-documents/${viewingDoc.id}/final-file`, fd, {
-                                                                headers: { 'Content-Type': 'multipart/form-data' }
-                                                            });
-                                                            alert('File final berhasil diunggah!');
-                                                            // Close modal and refresh (we don't have direct access to fetchDocuments here so we reload)
-                                                            window.location.reload();
-                                                        } catch (err) {
-                                                            alert('Gagal mengunggah file: ' + (err.response?.data?.error || err.message));
-                                                        }
-                                                    }}
-                                                />
-                                                <label
-                                                    htmlFor="upload-final-file"
-                                                    className="w-full px-4 py-2 bg-violet-100 text-violet-700 hover:bg-violet-200 rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors"
-                                                >
-                                                    <FileText size={16} /> {viewingDoc.fileUrl ? 'Perbarui File Final' : 'Unggah File Final PDF'}
-                                                </label>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-slate-700 whitespace-pre-wrap leading-relaxed font-medium">
-                                    {viewingDoc.content || '(Tanpa isi)'}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                    <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                        <div className="flex flex-wrap items-center gap-2">
-                            {viewingDoc.type !== 'SURAT_MASUK' && (
-                                <button
-                                    onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
-                                    className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20"
-                                >
-                                    <Printer size={18} /> {viewingDoc.category === 'Lainnya' ? 'Lihat Dokumen Final' : 'Cetak PDF'}
-                                </button>
-                            )}
-                            {viewingDoc.category === 'Lainnya' && viewingDoc.status === 'SIGNED' && (
-                                <button
-                                    onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/tte-asset?token=${localStorage.getItem('token')}`, '_blank')}
-                                    className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-violet-700 transition-all shadow-lg shadow-violet-600/20"
-                                >
-                                    <Download size={18} /> Unduh QR TTE
-                                </button>
-                            )}
-                            {(viewingDoc.type === 'INVOICE' || viewingDoc.category === 'Invoice') && (
-                                <button
-                                    onClick={() => handleSendWA(viewingDoc.id)}
-                                    disabled={sendingWA === viewingDoc.id}
-                                    className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50"
-                                >
-                                    <Send size={18} /> {sendingWA === viewingDoc.id ? 'Mengirim...' : 'Kirim WA'}
-                                </button>
-                            )}
-                        </div>
-                        <div className="flex flex-wrap items-center justify-end gap-2">
-                            {(viewingDoc.status === 'DRAFT' || viewingDoc.status === 'REJECTED' || viewingDoc.status === 'PENDING_APPROVAL') && (
-                                <button
-                                    onClick={() => {
-                                        setEditingDoc(viewingDoc);
-                                        setViewingDoc(null);
-                                        setIsFormOpen(true);
-                                    }}
-                                    className="px-4 sm:px-5 py-2.5 bg-amber-50 text-amber-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-amber-100 transition-all shadow-lg shadow-amber-600/5"
-                                >
-                                    <Edit2 size={18} /> Edit Dokumen
-                                </button>
-                            )}
-                            {viewingDoc.status === 'DRAFT' && (
-                                <button
-                                    onClick={() => handleSubmitForApproval(viewingDoc.id)}
-                                    className="px-4 sm:px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20"
-                                >
-                                    <Send size={18} /> Ajukan
-                                </button>
-                            )}
-
-                            {(['BAST', 'MOU'].includes(viewingDoc.type) || (viewingDoc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(viewingDoc.category))) && (
-                                <>
-                                    {!viewingDoc.party2Signature && (
-                                        <button
-                                            onClick={() => setSignatureRequest({ doc: viewingDoc, party: 'party2' })}
-                                            className="px-4 sm:px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
-                                        >
-                                            <FileSignature size={18} /> TTD Pihak 2 (Pad)
-                                        </button>
-                                    )}
-                                </>
-                            )}
-
-                            {viewingDoc.status === 'PENDING_APPROVAL' && isKabidSarpras && (
-                                <button
-                                    onClick={() => { setSignatureRequest({ doc: viewingDoc }); }}
-                                    className="px-4 sm:px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
-                                >
-                                    <FileSignature size={18} /> TTE Kabid
-                                </button>
-                            )}
-
-                            {viewingDoc.type === 'INVOICE' && (
-                                <button
-                                    onClick={() => handleTogglePaymentStatus(viewingDoc.id, getPaymentStatus(viewingDoc))}
-                                    className={`px-4 sm:px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg ${getPaymentStatus(viewingDoc) === 'PAID'
-                                        ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 shadow-amber-600/10'
-                                        : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/20'
-                                        }`}
-                                >
-                                    <CheckCircle2 size={18} /> {getPaymentStatus(viewingDoc) === 'PAID' ? 'Unpaid' : 'Lunas'}
-                                </button>
-                            )}
-
-                            {viewingDoc.type === 'INVOICE' && (
-                                <button
-                                    onClick={() => handleSendInvoiceWA(viewingDoc.id)}
-                                    className={`px-4 sm:px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-lg ${getPaymentStatus(viewingDoc) === 'PAID'
-                                        ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 shadow-emerald-600/5'
-                                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100 shadow-blue-600/5'
-                                        }`}
-                                >
-                                    <Send size={18} /> {getPaymentStatus(viewingDoc) === 'PAID' ? 'Bukti Lunas' : 'Tagihan'}
-                                </button>
-                            )}
-
-                            {isSuperAdmin && (
-                                <button
-                                    onClick={() => handleDelete(viewingDoc.id)}
-                                    className="px-5 py-2.5 bg-rose-50 text-rose-600 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-rose-100 transition-all"
-                                >
-                                    <Trash2 size={18} /> Hapus Dokumen
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
-    const InfoGroup = ({ label, value, icon, full }) => {
-        return (
-            <div className={full ? 'col-span-full' : ''}>
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                    {icon} {label}
-                </div>
-                <div className="text-slate-800 font-bold leading-relaxed">{value || '-'}</div>
-            </div>
-        );
-    };
 
     const handleDelete = async (id) => {
         if (!window.confirm('Apakah Anda yakin ingin menghapus dokumen ini secara permanen?')) {
@@ -1270,8 +1085,26 @@ const EOffice = () => {
     // --- Content Area Rendering ---
 
     const renderContent = () => {
-        if (tab === 'dashboard') return <DashboardView />;
-        return <ListView />;
+        if (tab === 'dashboard') return (
+            <DashboardView 
+                stats={stats} 
+                navigate={navigate} 
+                setViewingDoc={setViewingDoc} 
+            />
+        );
+        return (
+            <ListView 
+                loading={loading}
+                filteredDocs={filteredDocs}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                setViewingDoc={setViewingDoc}
+                setEditingDoc={setEditingDoc}
+                setIsFormOpen={setIsFormOpen}
+                isSuperAdmin={isSuperAdmin}
+                handleDelete={handleDelete}
+            />
+        );
     };
 
     return (
@@ -1318,7 +1151,7 @@ const EOffice = () => {
             {renderContent()}
 
             {/* Modals */}
-            <ViewModal />
+            <ViewModal viewingDoc={viewingDoc} setViewingDoc={setViewingDoc} localStorage={localStorage} api={api} formatDate={formatDate} />
             <FormModal
                 isOpen={isFormOpen}
                 onClose={() => { setIsFormOpen(false); setEditingDoc(null); }}
