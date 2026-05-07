@@ -318,8 +318,18 @@ async function generateSuratPDF(doc, setting) {
     const generateSinglePage = async (recipient = null) => {
         const page = pdfDoc.addPage([595.28, 841.89]);
         const { width, height } = page.getSize();
-        const startY = drawKopSuratSync(page, fontBold, fontRegular, images);
+        const kopImages = await embedKopSuratImages(pdfDoc);
+        
         const margin = 56;
+        const bottomMargin = 60;
+        const checkPage = (needed = 30) => {
+            if (y - needed < bottomMargin) {
+                page = pdfDoc.addPage([595.28, 841.89]);
+                y = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
+            }
+        };
+
+        const startY = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
         let y = startY;
 
         // === HEADER DOKUMEN ===
@@ -364,8 +374,14 @@ async function generateSuratPDF(doc, setting) {
 
             const lines = plainText.split('\n');
             for (const line of lines) {
-                if (y < 28) { /* logic page break? */ }
                 if (line.trim() === '') { y -= 8; continue; }
+
+                const safeLine = line.replace(/[^\x20-\x7E]/g, '') || '-';
+                const textWidth = fontRegular.widthOfTextAtSize(safeLine, 11);
+                const numLines = Math.ceil(textWidth / (width - margin * 2));
+                const neededSpace = numLines * 16;
+                
+                checkPage(neededSpace);
 
                 try {
                     page.drawText(line, {
@@ -374,22 +390,19 @@ async function generateSuratPDF(doc, setting) {
                         lineHeight: 14
                     });
                 } catch (drawErr) {
-                    // Fallback: strip any remaining problematic chars
-                    const safeLine = line.replace(/[^\x20-\x7E]/g, '');
-                    page.drawText(safeLine || '-', {
+                    page.drawText(safeLine, {
                         x: margin, y, size: 11, font: fontRegular,
                         maxWidth: width - margin * 2,
                         lineHeight: 14
                     });
                 }
 
-                const textWidth = fontRegular.widthOfTextAtSize(line.replace(/[^\x20-\x7E]/g, '') || '-', 11);
-                const numLines = Math.ceil(textWidth / (width - margin * 2));
-                y -= (numLines * 16);
+                y -= neededSpace;
             }
         }
 
         // === TANDA TANGAN ===
+        checkPage(150);
         y -= 30;
         const sigX = width - margin - 180;
         const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -427,9 +440,18 @@ async function generateBASTMouPDF(doc, setting) {
     const fontRegular = await pdfDoc.embedFont(StandardFonts.TimesRoman);
     const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
     const fontItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+    const kopImages = await embedKopSuratImages(pdfDoc);
 
-    const startY = await drawKopSurat(page, fontBold, fontRegular);
     const margin = 56;
+    const bottomMargin = 60;
+    const checkPage = (needed = 30) => {
+        if (y - needed < bottomMargin) {
+            page = pdfDoc.addPage([595.28, 841.89]);
+            y = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
+        }
+    };
+
+    const startY = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
     let y = startY;
 
     // Judul
@@ -468,40 +490,50 @@ async function generateBASTMouPDF(doc, setting) {
     const openingText = `Pada hari ini, ${days[docDate.getDay()]}, tanggal ${docDate.getDate()} bulan ${months[docDate.getMonth()]} tahun ${docDate.getFullYear()} (${formattedDateNum}), bertempat di ${bastLocation}, kami yang bertanda tangan di bawah ini:`;
     const openingLines = wrapText(openingText, width - margin * 2, fontRegular, 11);
     openingLines.forEach(line => {
+        checkPage(18);
         page.drawText(line, { x: margin, y, size: 11, font: fontRegular });
         y -= 15;
     });
     y -= 10;
 
     // Bagian I: PARA PIHAK
+    checkPage(30);
     page.drawText('I. PARA PIHAK', { x: margin, y, size: 11, font: fontBold });
     y -= 15;
 
     // Pihak 1
+    checkPage(20);
     page.drawText('1.', { x: margin + 10, y, size: 11, font: fontRegular });
     page.drawText('Nama', { x: margin + 25, y, size: 11, font: fontBold });
     page.drawText(`: ${doc.party1Name || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
     y -= 15;
+    checkPage(20);
     page.drawText('Jabatan', { x: margin + 25, y, size: 11, font: fontBold });
     page.drawText(`: ${doc.party1Title || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
     y -= 15;
+    checkPage(20);
     page.drawText('Alamat', { x: margin + 25, y, size: 11, font: fontBold });
     page.drawText(`: ${doc.party1Address || '-'}`, { x: margin + 75, y, size: 11, font: fontBold, maxWidth: width - margin - 125 });
     y -= 30; // space for multiline address if any
+    checkPage(35);
     page.drawText(`Dalam hal ini bertindak untuk dan atas nama ${doc.party1Org || '-'}, selanjutnya disebut sebagai PIHAK PERTAMA (YANG MENYERAHKAN).`, { x: margin + 25, y, size: 11, font: fontRegular, maxWidth: width - margin * 2 - 25, lineHeight: 15 });
     y -= 35;
 
     // Pihak 2
+    checkPage(20);
     page.drawText('2.', { x: margin + 10, y, size: 11, font: fontRegular });
     page.drawText('Nama', { x: margin + 25, y, size: 11, font: fontBold });
     page.drawText(`: ${doc.party2Name || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
     y -= 15;
+    checkPage(20);
     page.drawText('Jabatan', { x: margin + 25, y, size: 11, font: fontBold });
     page.drawText(`: ${doc.party2Title || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
     y -= 15;
+    checkPage(20);
     page.drawText('Alamat', { x: margin + 25, y, size: 11, font: fontBold });
     page.drawText(`: ${doc.party2Address || '-'}`, { x: margin + 75, y, size: 11, font: fontBold, maxWidth: width - margin - 125 });
     y -= 30;
+    checkPage(35);
     page.drawText(`Dalam hal ini bertindak untuk dan atas nama ${doc.party2Org || '-'}, selanjutnya disebut sebagai PIHAK KEDUA (YANG MENERIMA).`, { x: margin + 25, y, size: 11, font: fontRegular, maxWidth: width - margin * 2 - 25, lineHeight: 15 });
     y -= 45;
 
@@ -510,6 +542,7 @@ async function generateBASTMouPDF(doc, setting) {
     y -= 10;
 
     // Bagian II: OBJEK SERAH TERIMA
+    checkPage(40);
     page.drawText('II. OBJEK SERAH TERIMA', { x: margin, y, size: 11, font: fontBold });
     y -= 15;
     page.drawText('PIHAK PERTAMA menyerahkan kepada PIHAK KEDUA, dan PIHAK KEDUA menyatakan telah menerima dari PIHAK PERTAMA berupa:', {
@@ -548,10 +581,7 @@ async function generateBASTMouPDF(doc, setting) {
         for (let i = 0; i < items.length; i++) {
             const item = items[i];
 
-            // Basic check for space
-            if (y < 120) {
-                // Future multipage handling
-            }
+            checkPage(40);
 
             page.drawText(`${i + 1}`, { x: colNoX + 5, y, size: 10, font: fontRegular });
             page.drawText(item.name || '-', { x: colNamaX + 5, y, size: 10, font: fontRegular, maxWidth: 160 });
@@ -562,19 +592,22 @@ async function generateBASTMouPDF(doc, setting) {
             page.drawLine({ start: { x: margin, y: y + 15 }, end: { x: width - margin, y: y + 15 }, thickness: 0.5, color: rgb(0.9, 0.9, 0.9) });
         }
         y -= 10;
-        y -= 25;
+        // y -= 25; // Removed redundant decrement
     } else {
+        checkPage(30);
         page.drawText('(Tidak ada rincian barang)', { x: margin, y, size: 11, font: fontItalic });
         y -= 25;
     }
 
     // Penutup
+    checkPage(50);
     page.drawText('Demikian Berita Acara Serah Terima ini dibuat dalam keadaan sadar dan tanpa paksaan dari pihak manapun untuk dapat dipergunakan sebagaimana mestinya.', {
         x: margin, y, size: 11, font: fontRegular, maxWidth: width - margin * 2, lineHeight: 15
     });
     y -= 60;
 
     // Tanda Tangan
+    checkPage(150);
     const col2X = margin + 20; // Pihak Kedua (Kiri)
     const col1X = width - margin - 180; // Pihak Pertama (Kanan)
 
@@ -648,7 +681,17 @@ async function generateSuratTugasPDF(doc, setting) {
     const fontBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
 
     const startY = await drawKopSurat(page, fontBold, fontRegular);
+    const kopImages = await embedKopSuratImages(pdfDoc);
+
     const margin = 70;
+    const bottomMargin = 60;
+    const checkPage = (needed = 30) => {
+        if (y - needed < bottomMargin) {
+            page = pdfDoc.addPage([595.28, 841.89]);
+            y = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
+        }
+    };
+
     let y = startY;
 
     // Judul
@@ -696,6 +739,8 @@ async function generateSuratTugasPDF(doc, setting) {
 
     const drawListSection = (label, list) => {
         if (!list || list.length === 0 || (list.length === 1 && !list[0])) return;
+        
+        checkPage(25);
         page.drawText(label, { x: margin, y, size: 11, font: fontBold });
 
         const contentX = margin + 80;
@@ -703,6 +748,12 @@ async function generateSuratTugasPDF(doc, setting) {
             if (!item) return;
             const prefix = list.length > 1 ? `${idx + 1}. ` : ': ';
             const fullText = prefix + item;
+
+            const textWidth = fontRegular.widthOfTextAtSize(fullText, 11);
+            const numLines = Math.ceil(textWidth / (width - margin - 100));
+            const needed = numLines * 15;
+            
+            checkPage(needed);
 
             page.drawText(fullText, {
                 x: contentX,
@@ -712,9 +763,7 @@ async function generateSuratTugasPDF(doc, setting) {
                 maxWidth: width - margin - 100
             });
 
-            const textWidth = fontRegular.widthOfTextAtSize(fullText, 11);
-            const numLines = Math.ceil(textWidth / (width - margin - 100));
-            y -= (numLines * 15);
+            y -= needed;
         });
         y -= 8;
     };
@@ -742,12 +791,18 @@ async function generateSuratTugasPDF(doc, setting) {
             const maxWidth = width - valueX - margin;
 
             // Nama
+            const nameLines = Math.ceil(fontBold.widthOfTextAtSize(`: ${p.name || '-'}`, 11) / maxWidth);
+            const posLines = p.position ? Math.ceil(fontRegular.widthOfTextAtSize(`: ${p.position}`, 10) / maxWidth) : 0;
+            const nipLines = p.nip ? Math.ceil(fontRegular.widthOfTextAtSize(`: ${p.nip}`, 10) / maxWidth) : 0;
+            
+            const needed = (nameLines * 14) + (posLines * 13) + (nipLines * 13) + 10;
+            checkPage(needed);
+
             page.drawText(`${prefix}Nama`, { x: pX, y, size: 11, font: fontRegular });
             page.drawText(`: ${p.name || '-'}`, {
                 x: valueX, y, size: 11, font: fontBold,
                 maxWidth: maxWidth
             });
-            const nameLines = Math.ceil(fontBold.widthOfTextAtSize(`: ${p.name || '-'}`, 11) / maxWidth);
             y -= (nameLines * 14);
 
             // Jabatan
@@ -757,7 +812,6 @@ async function generateSuratTugasPDF(doc, setting) {
                     x: valueX, y, size: 10, font: fontRegular,
                     maxWidth: maxWidth
                 });
-                const posLines = Math.ceil(fontRegular.widthOfTextAtSize(`: ${p.position}`, 10) / maxWidth);
                 y -= (posLines * 13);
             }
 
@@ -768,7 +822,6 @@ async function generateSuratTugasPDF(doc, setting) {
                     x: valueX, y, size: 10, font: fontRegular,
                     maxWidth: maxWidth
                 });
-                const nipLines = Math.ceil(fontRegular.widthOfTextAtSize(`: ${p.nip}`, 10) / maxWidth);
                 y -= (nipLines * 13);
             }
             y -= 8; // Space between personnel entries
@@ -806,6 +859,7 @@ async function generateSuratTugasPDF(doc, setting) {
     });
 
     // Signature Area
+    checkPage(180);
     y -= 50;
     const sigX = width - margin - 180;
     const docDate = new Date(doc.date);
@@ -849,6 +903,17 @@ async function generateSuratTugasPDF(doc, setting) {
 async function generateSuratPesananPDF(doc) {
     const { pdfDoc, page, fontRegular, fontBold, fontItalic, margin, width, height, rgb } = await createBasePDF();
     const startY = await drawKopSurat(page, fontBold, fontRegular);
+    const kopImages = await embedKopSuratImages(pdfDoc);
+
+    const bottomMargin = 80;
+    const checkPage = (needed = 30) => {
+        if (y - needed < bottomMargin) {
+            page = pdfDoc.addPage([595.28, 841.89]);
+            y = drawKopSuratSync(page, fontBold, fontRegular, kopImages);
+            return true;
+        }
+        return false;
+    };
 
     let y = startY;
     const centerX = width / 2;
@@ -906,21 +971,28 @@ async function generateSuratPesananPDF(doc) {
         total: margin + 420
     };
 
-    page.drawRectangle({ x: margin, y: y - 5, width: width - margin * 2, height: 20, color: rgb(0.95, 0.95, 0.95) });
-    page.drawText('NO', { x: cols.no + 5, y, size: 8, font: fontBold });
-    page.drawText('NAMA BARANG & SPESIFIKASI', { x: cols.desc + 5, y, size: 8, font: fontBold });
-    page.drawText('QTY', { x: cols.qty + 5, y, size: 8, font: fontBold });
-    page.drawText('SAT', { x: cols.unit + 5, y, size: 8, font: fontBold });
-    
-    if (isPriceDetermined) {
-        page.drawText('HARGA (Rp)', { x: cols.price + 5, y, size: 8, font: fontBold });
-        page.drawText('TOTAL (Rp)', { x: cols.total + 5, y, size: 8, font: fontBold });
-    }
-    y -= 20;
+    const drawTableHeader = (currentY) => {
+        page.drawRectangle({ x: margin, y: currentY - 5, width: width - margin * 2, height: 20, color: rgb(0.95, 0.95, 0.95) });
+        page.drawText('NO', { x: cols.no + 5, y: currentY, size: 8, font: fontBold });
+        page.drawText('NAMA BARANG & SPESIFIKASI', { x: cols.desc + 5, y: currentY, size: 8, font: fontBold });
+        page.drawText('QTY', { x: cols.qty + 5, y: currentY, size: 8, font: fontBold });
+        page.drawText('SAT', { x: cols.unit + 5, y: currentY, size: 8, font: fontBold });
+        
+        if (isPriceDetermined) {
+            page.drawText('HARGA (Rp)', { x: cols.price + 5, y: currentY, size: 8, font: fontBold });
+            page.drawText('TOTAL (Rp)', { x: cols.total + 5, y: currentY, size: 8, font: fontBold });
+        }
+        return currentY - 20;
+    };
+
+    y = drawTableHeader(y);
 
     let grandTotal = 0;
     for (let i = 0; i < items.length; i++) {
-        const item = items[i];
+        if (checkPage(50)) {
+            y = drawTableHeader(y);
+        }
+
         page.drawText(String(i + 1), { x: cols.no + 5, y, size: 9, font: fontRegular });
         
         // Name & Spec
@@ -948,10 +1020,6 @@ async function generateSuratPesananPDF(doc) {
         }
         
         y -= 35; // Row spacing
-        if (y < 120) {
-            // Very simple new page if space runs out
-            y = height - 100;
-        }
     }
 
     // Grand Total
@@ -977,7 +1045,7 @@ async function generateSuratPesananPDF(doc) {
     y = drawJustifiedText(page, closingText, margin, y, width - margin * 2, 11, fontRegular);
 
     y -= 30;
-    // Signatures
+    checkPage(180);
     const sigX = width - margin - 180;
 
     page.drawText('Hormat Kami,', { x: sigX, y, size: 11, font: fontBold });
