@@ -154,7 +154,8 @@ const ListView = ({
     isSuperAdmin,
     handleDelete,
     handleSendWA,
-    sendingWA
+    sendingWA,
+    handleTogglePaymentStatus
 }) => (
     <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -250,6 +251,15 @@ const ListView = ({
                                             {sendingWA === doc.id ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                                         </button>
                                     )}
+                                    {(doc.type === 'INVOICE' || doc.category === 'Invoice') && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleTogglePaymentStatus(doc.id, getPaymentStatus(doc)); }}
+                                            className={`p-2 rounded-lg transition-all ${getPaymentStatus(doc) === 'PAID' ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                                            title={getPaymentStatus(doc) === 'PAID' ? 'Tandai Belum Lunas' : 'Tandai Lunas'}
+                                        >
+                                            {getPaymentStatus(doc) === 'PAID' ? <XCircle size={18} /> : <CheckCircle size={18} />}
+                                        </button>
+                                    )}
                                     {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
                                         <button onClick={() => { setEditingDoc(doc); setIsFormOpen(true); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Edit"><Edit2 size={18} /></button>
                                     )}
@@ -337,7 +347,7 @@ const InfoGroup = ({ label, value, icon, full }) => {
     );
 };
 
-const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, handleSendWA, sendingWA }) => {
+const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, handleSendWA, sendingWA, handleTogglePaymentStatus }) => {
     if (!viewingDoc) return null;
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
@@ -939,6 +949,18 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                 {sendingWA === viewingDoc.id ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />} Kirim Notifikasi WA
                             </button>
                         )}
+                        {(viewingDoc.type === 'INVOICE' || viewingDoc.category === 'Invoice') && (
+                            <button
+                                onClick={() => handleTogglePaymentStatus(viewingDoc.id, getPaymentStatus(viewingDoc))}
+                                className={`flex-1 sm:flex-none px-4 sm:px-5 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg ${getPaymentStatus(viewingDoc) === 'PAID'
+                                        ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                        : 'bg-green-600 text-white hover:bg-green-700'
+                                    }`}
+                            >
+                                {getPaymentStatus(viewingDoc) === 'PAID' ? <XCircle size={18} /> : <CheckCircle size={18} />}
+                                {getPaymentStatus(viewingDoc) === 'PAID' ? 'Tandai Belum Lunas' : 'Tandai Lunas'}
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1132,6 +1154,7 @@ const EOffice = () => {
                 handleDelete={handleDelete}
                 handleSendWA={handleSendWA}
                 sendingWA={sendingWA}
+                handleTogglePaymentStatus={handleTogglePaymentStatus}
             />
         );
     };
@@ -1189,6 +1212,7 @@ const EOffice = () => {
                 formatDate={formatDate} 
                 handleSendWA={handleSendWA}
                 sendingWA={sendingWA}
+                handleTogglePaymentStatus={handleTogglePaymentStatus}
             />
             <FormModal
                 isOpen={isFormOpen}
