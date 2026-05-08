@@ -989,6 +989,7 @@ async function generateSuratPesananPDF(doc) {
 
     let grandTotal = 0;
     for (let i = 0; i < items.length; i++) {
+        const item = items[i];
         if (checkPage(50)) {
             y = drawTableHeader(y);
         }

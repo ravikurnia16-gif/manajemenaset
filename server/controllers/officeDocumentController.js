@@ -1049,3 +1049,142 @@ exports.uploadFinalFile = async (req, res) => {
         res.status(500).json({ error: 'Gagal mengunggah file final' });
     }
 };
+
+// ==================== SEND DOCUMENT VIA WHATSAPP ====================
+
+/**
+ * POST /api/office-documents/:id/send-doc-wa
+ * Send any document via WhatsApp to internal users or external contacts
+ * Body: { targets: [{ type: 'internal', userId: 1 } | { type: 'external', name: string, phone: string }], customMessage?: string }
+ */
+exports.sendDocumentWA = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { targets, customMessage } = req.body;
+
+        if (!targets || targets.length === 0) {
+            return res.status(400).json({ error: 'Minimal satu penerima harus dipilih.' });
+        }
+
+        const doc = await prisma.officeDocument.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                author: { select: { id: true, name: true } },
+                signedBy: { select: { id: true, name: true, nip: true, position: true } },
+            },
+        });
+
+        if (!doc) return res.status(404).json({ error: 'Dokumen tidak ditemukan.' });
+
+        const setting = await prisma.setting.findUnique({ where: { id: 1 } });
+        const orgName = setting?.orgName || 'Manajemen Aset Sarpras';
+
+        // Build verification/download link
+        const publicUrl = `https://sarpras.dareliman.or.id/api/office-documents/verify/${doc.uuid}/pdf`;
+        const verifyUrl = `https://sarpras.dareliman.or.id/verify/${doc.uuid}`;
+
+        const docTypeLabels = {
+            'SURAT_MASUK': 'Surat Masuk',
+            'SURAT_KELUAR': 'Surat Keluar',
+            'SURAT_PESANAN': 'Surat Pesanan',
+            'INVOICE': 'Invoice',
+            'BAST': 'Berita Acara',
+            'MOU': 'MOU',
+            'LAINNYA': 'Dokumen',
+        };
+        const typeLabel = docTypeLabels[doc.type] || doc.category || 'Dokumen';
+
+        let sentCount = 0;
+        const errors = [];
+
+        for (const target of targets) {
+            let phone = '';
+            let recipientName = '';
+
+            if (target.type === 'internal') {
+                // Lookup user by ID
+                const user = await prisma.user.findUnique({
+                    where: { id: parseInt(target.userId) },
+                    select: { name: true, phone: true },
+                });
+                if (!user || !user.phone) {
+                    errors.push(`User ID ${target.userId}: nomor HP tidak ditemukan.`);
+                    continue;
+                }
+                phone = user.phone;
+                recipientName = user.name;
+            } else if (target.type === 'external') {
+                phone = target.phone;
+                recipientName = target.name || 'Bapak/Ibu';
+                if (!phone) {
+                    errors.push(`Penerima eksternal "${recipientName}": nomor HP kosong.`);
+                    continue;
+                }
+            }
+
+            // Compose message
+            let message = `*📄 ${typeLabel.toUpperCase()} - ${orgName}*\n\n`;
+            message += `Halo *${recipientName}*,\n`;
+            message += `Berikut kami sampaikan dokumen resmi dari ${orgName}:\n\n`;
+            message += `▫️ *Jenis:* ${typeLabel}\n`;
+            message += `▫️ *Perihal:* ${doc.subject}\n`;
+            if (doc.number) message += `▫️ *Nomor:* ${doc.number}\n`;
+            message += `▫️ *Status:* ${doc.status === 'SIGNED' ? '✅ Ditandatangani' : doc.status === 'DRAFT' ? '📝 Draft' : doc.status}\n`;
+            if (doc.signedBy) message += `▫️ *Ditandatangani oleh:* ${doc.signedBy.name}\n`;
+
+            if (customMessage) {
+                message += `\n💬 *Pesan:*\n${customMessage}\n`;
+            }
+
+            if (doc.status === 'SIGNED') {
+                message += `\n📥 *Unduh Dokumen:*\n${publicUrl}\n`;
+                message += `\n🔍 *Verifikasi Keaslian:*\n${verifyUrl}\n`;
+            }
+
+            message += `\n_Dikirim melalui Sistem E-Office ${orgName}_`;
+
+            try {
+                await whatsappService.sendMessage(phone, message);
+                sentCount++;
+            } catch (err) {
+                errors.push(`${recipientName} (${phone}): ${err.message}`);
+            }
+        }
+
+        let responseMessage = `✅ Notifikasi berhasil dikirim ke ${sentCount} penerima.`;
+        if (errors.length > 0) {
+            responseMessage += ` ⚠️ ${errors.length} gagal: ${errors.join('; ')}`;
+        }
+
+        res.json({ message: responseMessage, sent: sentCount, errors });
+    } catch (error) {
+        console.error('sendDocumentWA error:', error);
+        res.status(500).json({ error: 'Gagal mengirim dokumen via WhatsApp: ' + error.message });
+    }
+};
+
+/**
+ * GET /api/office-documents/internal-users
+ * Get list of internal users with phone numbers for WA sending
+ */
+exports.getInternalUsers = async (req, res) => {
+    try {
+        const users = await prisma.user.findMany({
+            where: {
+                phone: { not: null },
+            },
+            select: {
+                id: true,
+                name: true,
+                phone: true,
+                position: true,
+                role: true,
+            },
+            orderBy: { name: 'asc' },
+        });
+        res.json(users);
+    } catch (error) {
+        console.error('getInternalUsers error:', error);
+        res.status(500).json({ error: 'Gagal memuat daftar pengguna internal' });
+    }
+};

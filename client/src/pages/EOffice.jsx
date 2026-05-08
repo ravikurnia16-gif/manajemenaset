@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../lib/axios';
-import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, LayoutDashboard, Inbox, Send, FileText, Tag, Archive, X, ArrowRight, ShieldCheck, Search, ChevronRight, Download, FileSignature, Filter, MoreVertical, Eye, Printer, Trash, Clock, QrCode, AlertCircle, Paperclip, Edit2, Calendar, Save } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, LayoutDashboard, Inbox, Send, FileText, Tag, Archive, X, ArrowRight, ShieldCheck, Search, ChevronRight, Download, FileSignature, Filter, MoreVertical, Eye, Printer, Trash, Clock, QrCode, AlertCircle, Paperclip, Edit2, Calendar, Save, MessageSquare, Phone, Users } from 'lucide-react';
 import SignaturePad from '../components/SignaturePad';
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const BULAN_FULL = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -155,7 +155,8 @@ const ListView = ({
     handleDelete,
     handleSendWA,
     sendingWA,
-    handleTogglePaymentStatus
+    handleTogglePaymentStatus,
+    setSendDocWATarget
 }) => (
     <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -246,11 +247,18 @@ const ListView = ({
                                             onClick={(e) => { e.stopPropagation(); handleSendWA(doc.id); }}
                                             disabled={sendingWA === doc.id}
                                             className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                                            title="Kirim WA"
+                                            title="Kirim WA Invoice"
                                         >
                                             {sendingWA === doc.id ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                                         </button>
                                     )}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setSendDocWATarget(doc); }}
+                                        className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                                        title="Kirim Surat via WA"
+                                    >
+                                        <MessageSquare size={18} />
+                                    </button>
                                     {(doc.type === 'INVOICE' || doc.category === 'Invoice') && (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleTogglePaymentStatus(doc.id, getPaymentStatus(doc)); }}
@@ -325,6 +333,13 @@ const ListView = ({
                                     {sendingWA === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                                 </button>
                             )}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setSendDocWATarget(doc); }}
+                                className="p-1.5 text-slate-400 hover:text-green-600 rounded-lg"
+                                title="Kirim via WA"
+                            >
+                                <MessageSquare size={14} />
+                            </button>
                             {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
                                 <button onClick={(e) => { e.stopPropagation(); setEditingDoc(doc); setIsFormOpen(true); }} className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg"><Edit2 size={14} /></button>
                             )}
@@ -347,7 +362,7 @@ const InfoGroup = ({ label, value, icon, full }) => {
     );
 };
 
-const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, handleSendWA, sendingWA, handleTogglePaymentStatus }) => {
+const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, handleSendWA, sendingWA, handleTogglePaymentStatus, setSendDocWATarget }) => {
     if (!viewingDoc) return null;
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
@@ -949,6 +964,12 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                 {sendingWA === viewingDoc.id ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />} Kirim Notifikasi WA
                             </button>
                         )}
+                        <button
+                            onClick={() => setSendDocWATarget(viewingDoc)}
+                            className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-green-700 transition-all shadow-lg shadow-green-900/20"
+                        >
+                            <MessageSquare size={18} /> Kirim via WA
+                        </button>
                         {(viewingDoc.type === 'INVOICE' || viewingDoc.category === 'Invoice') && (
                             <button
                                 onClick={() => handleTogglePaymentStatus(viewingDoc.id, getPaymentStatus(viewingDoc))}
@@ -962,6 +983,234 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                             </button>
                         )}
                     </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const SendDocWAModal = ({ doc, isOpen, onClose }) => {
+    const [activeTab, setActiveTab] = useState('internal');
+    const [internalUsers, setInternalUsers] = useState([]);
+    const [selectedUserIds, setSelectedUserIds] = useState([]);
+    const [externalTargets, setExternalTargets] = useState([{ name: '', phone: '' }]);
+    const [customMessage, setCustomMessage] = useState('');
+    const [sending, setSending] = useState(false);
+    const [searchUser, setSearchUser] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchInternalUsers();
+            setSelectedUserIds([]);
+            setExternalTargets([{ name: '', phone: '' }]);
+            setCustomMessage('');
+            setSearchUser('');
+        }
+    }, [isOpen]);
+
+    const fetchInternalUsers = async () => {
+        try {
+            const res = await api.get('/office-documents/internal-users');
+            setInternalUsers(res.data);
+        } catch (err) {
+            console.error('Failed to load internal users:', err);
+        }
+    };
+
+    const toggleUser = (userId) => {
+        setSelectedUserIds(prev =>
+            prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+        );
+    };
+
+    const handleSend = async () => {
+        const targets = [];
+        if (activeTab === 'internal') {
+            selectedUserIds.forEach(uid => targets.push({ type: 'internal', userId: uid }));
+        } else {
+            externalTargets.forEach(t => {
+                if (t.phone.trim()) targets.push({ type: 'external', name: t.name.trim(), phone: t.phone.trim() });
+            });
+        }
+        if (targets.length === 0) {
+            alert('Pilih minimal satu penerima!');
+            return;
+        }
+        setSending(true);
+        try {
+            const res = await api.post(`/office-documents/${doc.id}/send-doc-wa`, { targets, customMessage: customMessage.trim() || undefined });
+            alert(res.data.message);
+            onClose();
+        } catch (err) {
+            alert('Gagal mengirim: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setSending(false);
+        }
+    };
+
+    const filteredUsers = internalUsers.filter(u =>
+        u.name.toLowerCase().includes(searchUser.toLowerCase()) ||
+        (u.position || '').toLowerCase().includes(searchUser.toLowerCase())
+    );
+
+    if (!isOpen || !doc) return null;
+
+    const docTypeLabels = { 'SURAT_MASUK': 'Surat Masuk', 'SURAT_KELUAR': 'Surat Keluar', 'SURAT_PESANAN': 'Surat Pesanan', 'INVOICE': 'Invoice', 'BAST': 'Berita Acara', 'MOU': 'MOU', 'LAINNYA': 'Dokumen' };
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg overflow-hidden animate-in fade-in slide-in-from-bottom-4 sm:zoom-in duration-200 max-h-[95vh] sm:max-h-[85vh] flex flex-col">
+                {/* Header */}
+                <div className="p-5 border-b border-slate-100 bg-gradient-to-r from-emerald-50 to-green-50">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-200">
+                                <MessageSquare size={20} />
+                            </div>
+                            <div>
+                                <h3 className="font-black text-slate-900 text-lg leading-none">Kirim via WhatsApp</h3>
+                                <p className="text-xs text-slate-500 mt-1 font-medium">{docTypeLabels[doc.type] || doc.category} • {doc.subject?.substring(0, 40)}{doc.subject?.length > 40 ? '...' : ''}</p>
+                            </div>
+                        </div>
+                        <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 transition-colors"><X size={22} /></button>
+                    </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex border-b border-slate-100">
+                    <button
+                        onClick={() => setActiveTab('internal')}
+                        className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-all border-b-2 ${activeTab === 'internal' ? 'border-emerald-600 text-emerald-700 bg-emerald-50/50' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                    >
+                        <Users size={16} /> Internal
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('external')}
+                        className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-all border-b-2 ${activeTab === 'external' ? 'border-blue-600 text-blue-700 bg-blue-50/50' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                    >
+                        <Phone size={16} /> Eksternal
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {activeTab === 'internal' ? (
+                        <div className="space-y-3">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                <input
+                                    type="text"
+                                    placeholder="Cari nama atau jabatan..."
+                                    className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-sm"
+                                    value={searchUser}
+                                    onChange={(e) => setSearchUser(e.target.value)}
+                                />
+                            </div>
+                            {selectedUserIds.length > 0 && (
+                                <div className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg">
+                                    {selectedUserIds.length} penerima dipilih
+                                </div>
+                            )}
+                            <div className="space-y-1.5 max-h-[35vh] overflow-y-auto">
+                                {filteredUsers.length === 0 ? (
+                                    <div className="text-center text-slate-400 text-sm italic py-6">
+                                        {internalUsers.length === 0 ? 'Memuat...' : 'Tidak ditemukan'}
+                                    </div>
+                                ) : filteredUsers.map(u => (
+                                    <button
+                                        key={u.id}
+                                        onClick={() => toggleUser(u.id)}
+                                        className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all border ${selectedUserIds.includes(u.id)
+                                            ? 'bg-emerald-50 border-emerald-300 ring-1 ring-emerald-200'
+                                            : 'bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200'
+                                            }`}
+                                    >
+                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-black shrink-0 ${selectedUserIds.includes(u.id) ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                            {selectedUserIds.includes(u.id) ? <CheckCircle2 size={18} /> : u.name?.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-bold text-slate-800 text-sm truncate">{u.name}</div>
+                                            <div className="text-[10px] text-slate-400 font-medium truncate">{u.position || u.role}</div>
+                                        </div>
+                                        <div className="text-[10px] text-slate-300 font-mono shrink-0">{u.phone?.slice(-4)}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Penerima Eksternal</div>
+                            {externalTargets.map((t, idx) => (
+                                <div key={idx} className="flex items-start gap-2">
+                                    <div className="flex-1 space-y-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Nama penerima"
+                                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                            value={t.name}
+                                            onChange={(e) => {
+                                                const upd = [...externalTargets];
+                                                upd[idx].name = e.target.value;
+                                                setExternalTargets(upd);
+                                            }}
+                                        />
+                                        <input
+                                            type="tel"
+                                            placeholder="No. WhatsApp (mis: 08123456789)"
+                                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none font-mono"
+                                            value={t.phone}
+                                            onChange={(e) => {
+                                                const upd = [...externalTargets];
+                                                upd[idx].phone = e.target.value;
+                                                setExternalTargets(upd);
+                                            }}
+                                        />
+                                    </div>
+                                    {externalTargets.length > 1 && (
+                                        <button
+                                            onClick={() => setExternalTargets(externalTargets.filter((_, i) => i !== idx))}
+                                            className="p-2 text-slate-300 hover:text-red-500 transition-colors mt-1"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                            <button
+                                onClick={() => setExternalTargets([...externalTargets, { name: '', phone: '' }])}
+                                className="w-full py-2 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-xs font-bold hover:border-blue-300 hover:text-blue-500 transition-all flex items-center justify-center gap-1.5"
+                            >
+                                <Plus size={14} /> Tambah Penerima
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Custom Message */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Pesan Tambahan (opsional)</label>
+                        <textarea
+                            placeholder="Tuliskan pesan tambahan jika diperlukan..."
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none"
+                            rows={2}
+                            value={customMessage}
+                            onChange={(e) => setCustomMessage(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center gap-3">
+                    <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-100 transition-all">
+                        Batal
+                    </button>
+                    <button
+                        onClick={handleSend}
+                        disabled={sending}
+                        className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                        {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                        {sending ? 'Mengirim...' : 'Kirim WhatsApp'}
+                    </button>
                 </div>
             </div>
         </div>
@@ -982,6 +1231,7 @@ const EOffice = () => {
     const [signatureRequest, setSignatureRequest] = useState(null);
     const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
     const [sendingWA, setSendingWA] = useState(null);
+    const [sendDocWATarget, setSendDocWATarget] = useState(null);
 
     const user = JSON.parse(localStorage.getItem('user'));
     const isKabidSarpras = user?.role === 'KABID_SARPRAS' || user?.role === 'SUPER_ADMIN';
@@ -1155,6 +1405,7 @@ const EOffice = () => {
                 handleSendWA={handleSendWA}
                 sendingWA={sendingWA}
                 handleTogglePaymentStatus={handleTogglePaymentStatus}
+                setSendDocWATarget={setSendDocWATarget}
             />
         );
     };
@@ -1213,6 +1464,12 @@ const EOffice = () => {
                 handleSendWA={handleSendWA}
                 sendingWA={sendingWA}
                 handleTogglePaymentStatus={handleTogglePaymentStatus}
+                setSendDocWATarget={setSendDocWATarget}
+            />
+            <SendDocWAModal
+                doc={sendDocWATarget}
+                isOpen={!!sendDocWATarget}
+                onClose={() => setSendDocWATarget(null)}
             />
             <FormModal
                 isOpen={isFormOpen}

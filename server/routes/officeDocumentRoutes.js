@@ -20,6 +20,9 @@ router.get('/categories', ctrl.getCategories);
 // Docx extraction
 router.post('/extract-docx', handleBulkUpload('files', 1, 'e-office/temp'), ctrl.extractDocx);
 
+// Internal Users for WA sending
+router.get('/internal-users', ctrl.getInternalUsers);
+
 // Surat Masuk (Incoming Mail)
 router.get('/incoming', ctrl.getIncomingMail);
 router.post('/incoming', handleBulkUpload('files', 5, 'e-office/surat-masuk'), ctrl.createIncomingMail);
@@ -51,6 +54,9 @@ router.post('/:id/sign-party', ctrl.signAsParty);
 // Invoice Payment Status
 router.patch('/:id/payment-status', ctrl.updatePaymentStatus);
 router.post('/:id/send-wa', ctrl.sendInvoiceWA);
+
+// Send document via WhatsApp (generic, for all document types)
+router.post('/:id/send-doc-wa', ctrl.sendDocumentWA);
 
 // PDF generation
 router.get('/:id/pdf', ctrl.generatePDF);
