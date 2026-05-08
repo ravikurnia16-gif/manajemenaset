@@ -1007,23 +1007,6 @@ const AssetList = ({ validationMode = false }) => {
                                 </div>
                             )
                         })}
-                        {summary.categories.slice(0, 3).map((c, i) => (
-                            <div key={`cat-${i}`} className="snap-start">
-                                <SummaryCard 
-                                    icon={Tag} 
-                                    label={c.name} 
-                                    count={c.count} 
-                                    isActive={selectedCategory === c.id.toString()}
-                                    onClick={() => {
-                                        if (selectedCategory === c.id.toString()) setSelectedCategory('');
-                                        else {
-                                            setSelectedCategory(c.id.toString());
-                                            setSearchTerm('');
-                                        }
-                                    }}
-                                />
-                            </div>
-                        ))}
                     </div>
                 </div>
             )}
