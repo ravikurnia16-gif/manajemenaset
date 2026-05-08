@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin, Printer, QrCode, CheckCircle, XCircle, AlertCircle, ArrowLeftRight, Store, Tag } from 'lucide-react';
+import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin, Printer, QrCode, CheckCircle, XCircle, AlertCircle, ArrowLeftRight, Store, Tag, Snowflake, Fan, Laptop, Monitor, Table2, User, Projector, Droplets, LayoutGrid } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { LabelPrint, BatchLabelPrint } from '../components/LabelPrint';
@@ -32,6 +32,10 @@ const AssetList = ({ validationMode = false }) => {
     const [selectedIds, setSelectedIds] = useState([]);
     const kirRef = useRef();
     const [assetsForKIR, setAssetsForKIR] = useState([]);
+    const [summary, setSummary] = useState({ total: 0, categories: [], keywordCounts: [] });
+    const [summaryLoading, setSummaryLoading] = useState(true);
+    const [selectedCategory, setSelectedCategory] = useState('');
+    const [masterCategories, setMasterCategories] = useState([]);
 
     // Validation Feature State
     const [validationFilter, setValidationFilter] = useState(validationMode ? 'UNVERIFIED' : 'ALL'); // ALL, UNVERIFIED, VALIDATED, NEEDS_UPDATE
@@ -95,6 +99,22 @@ const AssetList = ({ validationMode = false }) => {
     };
 
     // Fetch Data from Backend
+    const fetchSummary = async () => {
+        try {
+            setSummaryLoading(true);
+            const params = {
+                unitId: selectedUnit || undefined,
+                roomId: selectedRoom || undefined
+            };
+            const response = await api.get('/assets/summary', { params });
+            setSummary(response.data);
+        } catch (error) {
+            console.error('Fetch Summary Error:', error);
+        } finally {
+            setSummaryLoading(false);
+        }
+    };
+
     const fetchData = async () => {
         try {
             setLoading(true);
@@ -107,14 +127,16 @@ const AssetList = ({ validationMode = false }) => {
                 validationStatus: validationFilter,
                 unitId: selectedUnit,
                 roomId: selectedRoom,
-                condition: selectedCondition
+                condition: selectedCondition,
+                categoryId: selectedCategory
             };
 
-            const [respAssets, respUnits, respRooms, respSettings] = await Promise.all([
+            const [respAssets, respUnits, respRooms, respSettings, respCats] = await Promise.all([
                 api.get('/assets', { params }).catch(err => { throw new Error(`Data Aset: ${err.message}`); }),
                 api.get('/master/units').catch(err => { throw new Error(`Data Unit: ${err.message}`); }),
                 api.get('/master/rooms').catch(err => { throw new Error(`Data Ruangan: ${err.message}`); }),
-                api.get('/settings').catch(err => { console.warn("Failed to fetch settings"); return { data: null }; })
+                api.get('/settings').catch(err => { console.warn("Failed to fetch settings"); return { data: null }; }),
+                api.get('/master/categories').catch(err => { console.warn("Failed to fetch categories"); return { data: [] }; })
             ]);
 
             // Handle new response structure (data + pagination)
@@ -122,14 +144,17 @@ const AssetList = ({ validationMode = false }) => {
                 setAssets(Array.isArray(respAssets.data.data) ? respAssets.data.data : []);
                 setTotalItems(respAssets.data.pagination.total || 0);
             } else {
-                // Fallback for old API style (just in case)
                 setAssets(Array.isArray(respAssets.data) ? respAssets.data : []);
                 setTotalItems(Array.isArray(respAssets.data) ? respAssets.data.length : 0);
             }
 
             setUnits(respUnits.data);
             setRooms(respRooms.data);
+            setMasterCategories(respCats.data || []);
             if (respSettings && respSettings.data) setSettings(respSettings.data);
+            
+            // Also fetch summary when basic filters change
+            fetchSummary();
         } catch (error) {
             console.error('Fetch error:', error);
             if (!error.message.includes('401') && !error.message.includes('403')) {
@@ -151,12 +176,13 @@ const AssetList = ({ validationMode = false }) => {
 
     // Triggers for filters/pagination
     useEffect(() => {
+        setCurrentPage(1);
         fetchData();
         // Force selection if not global admin
         if (!isGlobalAdmin && currentUser.unitId) {
             setSelectedUnit(currentUser.unitId.toString());
         }
-    }, [currentPage, itemsPerPage, validationFilter, selectedUnit, selectedRoom, selectedCondition, currentUser]);
+    }, [itemsPerPage, selectedUnit, selectedRoom, selectedCondition, validationFilter, selectedCategory]);
 
     // Ref for Print
     const [printAsset, setPrintAsset] = useState(null);
@@ -488,6 +514,38 @@ const AssetList = ({ validationMode = false }) => {
         XLSX.utils.book_append_sheet(wb, ws, "Data Aset & Penyusutan");
         XLSX.writeFile(wb, `Laporan_Aset_Unit_${targetUnitId || 'All'}_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
+
+    const iconMap = {
+        'AC': Snowflake,
+        'Kipas Angin': Fan,
+        'Laptop': Laptop,
+        'Komputer': Monitor,
+        'Meja': Table2,
+        'Kursi': User, 
+        'Proyektor': Projector,
+        'Dispenser': Droplets,
+    };
+
+    const SummaryCard = ({ icon: Icon, label, count, onClick, isActive }) => (
+        <button
+            onClick={onClick}
+            className={`flex-shrink-0 flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all ${
+                isActive 
+                ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200' 
+                : 'bg-white border-slate-100 text-slate-600 hover:border-blue-200 hover:bg-blue-50/30'
+            }`}
+        >
+            <div className={`p-2 rounded-xl ${isActive ? 'bg-white/20' : 'bg-blue-50 text-blue-600'}`}>
+                {Icon ? <Icon size={18} /> : <LayoutGrid size={18} />}
+            </div>
+            <div className="text-left">
+                <p className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-blue-100' : 'text-slate-400'}`}>
+                    {label}
+                </p>
+                <p className="text-lg font-black leading-none">{count}</p>
+            </div>
+        </button>
+    );
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -921,6 +979,55 @@ const AssetList = ({ validationMode = false }) => {
                 )
             }
 
+            {/* Summary Dashboard */}
+            {!summaryLoading && (summary.keywordCounts.length > 0 || summary.categories.length > 0) && (
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                    <div className="flex items-center gap-2 mb-3">
+                        <LayoutGrid size={16} className="text-slate-400" />
+                        <h3 className="text-sm font-bold text-slate-700">Ringkasan Aset Populer</h3>
+                    </div>
+                    <div className="flex overflow-x-auto pb-2 gap-3 snap-x hide-scrollbar">
+                        {summary.keywordCounts.map((k, i) => {
+                            const IconComponent = iconMap[k.icon] || LayoutGrid;
+                            return (
+                                <div key={`kw-${i}`} className="snap-start">
+                                    <SummaryCard 
+                                        icon={IconComponent} 
+                                        label={k.label} 
+                                        count={k.count} 
+                                        isActive={searchTerm === k.label}
+                                        onClick={() => {
+                                            if (searchTerm === k.label) setSearchTerm('');
+                                            else {
+                                                setSearchTerm(k.label);
+                                                setSelectedCategory('');
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            )
+                        })}
+                        {summary.categories.slice(0, 3).map((c, i) => (
+                            <div key={`cat-${i}`} className="snap-start">
+                                <SummaryCard 
+                                    icon={Tag} 
+                                    label={c.name} 
+                                    count={c.count} 
+                                    isActive={selectedCategory === c.id.toString()}
+                                    onClick={() => {
+                                        if (selectedCategory === c.id.toString()) setSelectedCategory('');
+                                        else {
+                                            setSelectedCategory(c.id.toString());
+                                            setSearchTerm('');
+                                        }
+                                    }}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                 {/* Advanced Filter Bar */}
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4">
@@ -976,6 +1083,18 @@ const AssetList = ({ validationMode = false }) => {
                         </select>
                     </div>
 
+                    <div className="lg:col-span-2 relative">
+                        <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><Tag size={16} /></div>
+                        <select
+                            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer shadow-sm"
+                            value={selectedCategory}
+                            onChange={e => setSelectedCategory(e.target.value)}
+                        >
+                            <option value="">Semua Kategori</option>
+                            {masterCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                    </div>
+
                     <div className="lg:col-span-2 flex gap-2">
                         <select
                             className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer shadow-sm"
@@ -988,7 +1107,7 @@ const AssetList = ({ validationMode = false }) => {
                             <option value="RUSAK_BERAT">Rusak Berat</option>
                             <option value="DISPOSED">Disposed</option>
                         </select>
-                        <button onClick={() => { setSearchTerm(''); setSelectedCondition(''); if (isGlobalAdmin) setSelectedUnit(''); setSelectedRoom(''); }} className="w-10 h-10 flex items-center justify-center border border-slate-200 bg-white rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm" title="Reset Filter">
+                        <button onClick={() => { setSearchTerm(''); setSelectedCondition(''); setSelectedCategory(''); if (isGlobalAdmin) setSelectedUnit(''); setSelectedRoom(''); }} className="w-10 h-10 flex items-center justify-center border border-slate-200 bg-white rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm" title="Reset Filter">
                             <XCircle size={18} />
                         </button>
                     </div>

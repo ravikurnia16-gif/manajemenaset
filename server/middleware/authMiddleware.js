@@ -52,8 +52,8 @@ exports.authorizeEOfficeAccess = () => {
     return (req, res, next) => {
         const role = req.user.role;
         
-        // Only Super Admin, IT, and Admin Aset can access E-Office
-        const isAllowed = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(role);
+        // Super Admin, IT, Admin Aset, and Kabids can access E-Office
+        const isAllowed = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS', 'KEPALA_BIDANG'].includes(role);
 
         if (!isAllowed) {
             return res.status(403).json({ error: 'Akses E-Office terbatas hanya untuk Super Admin dan Admin Aset' });

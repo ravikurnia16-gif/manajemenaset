@@ -496,7 +496,7 @@ const Settings = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">NIP / NIY</label>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">NIY</label>
                                     <input
                                         type="text"
                                         value={settings.orgHeadNip || ''}
@@ -586,7 +586,7 @@ const Settings = () => {
                         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                             <input
                                 type="text"
-                                placeholder="Cari nama, nip, username..."
+                                placeholder="Cari nama, NIY, username..."
                                 className="w-full sm:w-64 border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 value={userSearch}
                                 onChange={e => setUserSearch(e.target.value)}
@@ -667,7 +667,7 @@ const Settings = () => {
                                                         <div>
                                                             <div className="font-bold text-slate-800 font-mono tracking-tighter">{user.username}</div>
                                                             <div className="text-[10px] text-slate-400">
-                                                                {user.nip ? `NIP: ${user.nip}` : 'NIY Login'}
+                                                                {user.nip ? `NIY: ${user.nip}` : 'NIY Login'}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -792,7 +792,7 @@ const Settings = () => {
                                             className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-mono"
                                             placeholder="Gunakan NIY"
                                         />
-                                        <p className="text-[10px] text-slate-400 mt-1">*Digunakan untuk Log In & NIP secara otomatis</p>
+                                        <p className="text-[10px] text-slate-400 mt-1">*Digunakan untuk Log In & NIY secara otomatis</p>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nama Lengkap</label>

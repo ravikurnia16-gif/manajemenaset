@@ -877,7 +877,7 @@ async function generateSuratTugasPDF(doc, setting) {
     page.drawText(signerName, { x: sigX, y, size: 11, font: fontBold });
     if (doc.signedBy?.nip) {
         y -= 14;
-        page.drawText(`NIP. ${doc.signedBy.nip}`, { x: sigX, y, size: 11, font: fontRegular });
+        page.drawText(`NIY. ${doc.signedBy.nip}`, { x: sigX, y, size: 11, font: fontRegular });
     }
 
     // Tembusan

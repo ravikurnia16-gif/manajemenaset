@@ -836,7 +836,7 @@ const completeBusBooking = async (req, res) => {
                 });
 
                 if (finStaffs.length > 0) {
-                    const finMsg = `Bismillah.\n💰 *PENDAPATAN BUS MASUK (LUNAS)*\n\n` +
+                    const finMsg = `Bismillah.\n💰 *PENDAPATAN BUS MASUK*\n\n` +
                         `Bismillah, pemberitahuan tagihan baru untuk penggunaan bus:\n\n` +
                         `👤 *Pemesan*: ${booking.requesterName}\n` +
                         `🏢 *Unit*: ${booking.unit || '-'}\n` +

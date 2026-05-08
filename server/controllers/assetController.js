@@ -295,11 +295,11 @@ exports.getAllAssets = async (req, res) => {
                 where,
                 skip,
                 take,
-                include: { 
-                    category: true, 
-                    room: { include: { unit: true } }, 
-                    unit: true, 
-                    validatedBy: { select: { username: true } } 
+                include: {
+                    category: true,
+                    room: { include: { unit: true } },
+                    unit: true,
+                    validatedBy: { select: { username: true } }
                 },
                 orderBy: { createdAt: 'desc' }
             })
@@ -669,11 +669,11 @@ exports.batchImportAssets = async (req, res) => {
 
                 // 3. Room Lookup/Create (Scoped by Unit)
                 const roomName = String(item['Ruangan Aset']).trim();
-                let room = await tx.room.findFirst({ 
-                    where: { 
+                let room = await tx.room.findFirst({
+                    where: {
                         name: { equals: roomName },
                         unitId: unit.id
-                    } 
+                    }
                 });
 
                 if (!room) {
@@ -947,5 +947,100 @@ exports.getMediaAssets = async (req, res) => {
     } catch (error) {
         console.error('Media Assets API Error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+exports.getAssetSummary = async (req, res) => {
+    try {
+        const { role, unitId } = req.user;
+        const { unitId: filterUnitId, roomId: filterRoomId } = req.query;
+
+        let where = {
+            condition: { not: 'DISPOSED' }
+        };
+
+        const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'BIDANG_IT', 'KABID_SARPRAS'].includes(role) || req.user.position === 'Kepala Bidang Sarana dan Prasarana';
+
+        if (!isGlobalAdmin) {
+            where.unitId = unitId;
+        } else if (filterUnitId) {
+            where.unitId = parseInt(filterUnitId);
+        }
+
+        if (filterRoomId) {
+            where.roomId = parseInt(filterRoomId);
+        }
+
+        // 1. Get Categories Aggregation
+        const categoryStats = await prisma.category.findMany({
+            include: {
+                _count: {
+                    select: {
+                        assets: {
+                            where
+                        }
+                    }
+                }
+            }
+        });
+
+        const categories = categoryStats
+            .map(c => ({
+                id: c.id,
+                name: c.name,
+                count: c._count.assets
+            }))
+            .filter(c => c.count > 0)
+            .sort((a, b) => b.count - a.count);
+
+        // 2. Get Keyword Statistics
+        const keywords = [
+            { label: 'AC', query: { contains: 'AC' }, exclude: 'Outdoor' },
+            { label: 'Kipas Angin', query: { contains: 'Kipas' } },
+            { label: 'Laptop', query: { contains: 'Laptop' } },
+            { label: 'Komputer', query: { OR: [{ name: { contains: 'Komputer' } }, { name: { contains: 'PC' } }], exclude: 'Meja' } },
+            { label: 'Meja', query: { contains: 'Meja' } },
+            { label: 'Kursi', query: { contains: 'Kursi' } },
+            { label: 'Proyektor', query: { contains: 'Proyektor' } },
+            { label: 'Dispenser', query: { contains: 'Dispenser' } },
+        ];
+
+        const keywordCounts = await Promise.all(keywords.map(async (k) => {
+            let keywordWhere = { ...where };
+
+            if (k.query.OR) {
+                keywordWhere.OR = k.query.OR;
+            } else {
+                keywordWhere.name = k.query;
+            }
+
+            if (k.exclude) {
+                const excludeCondition = { NOT: { name: { contains: k.exclude } } };
+                if (keywordWhere.AND) {
+                    keywordWhere.AND.push(excludeCondition);
+                } else {
+                    const originalCondition = keywordWhere.OR ? { OR: keywordWhere.OR } : { name: keywordWhere.name };
+                    delete keywordWhere.OR;
+                    delete keywordWhere.name;
+                    keywordWhere.AND = [originalCondition, excludeCondition];
+                }
+            }
+
+            const count = await prisma.asset.count({ where: keywordWhere });
+            return {
+                label: k.label,
+                count: count,
+                icon: k.label
+            };
+        }));
+
+        res.json({
+            total: await prisma.asset.count({ where }),
+            categories,
+            keywordCounts: keywordCounts.filter(k => k.count > 0)
+        });
+    } catch (error) {
+        console.error('Get Asset Summary Error:', error);
+        res.status(500).json({ error: error.message });
     }
 };

@@ -46,7 +46,7 @@ exports.createUser = async (req, res) => {
         res.json({ message: 'User created successfully', user: { id: user.id, username: user.username, role: user.role } });
     } catch (error) {
         if (error.code === 'P2002') {
-            return res.status(400).json({ error: 'Username, Email, atau NIP sudah terdaftar' });
+            return res.status(400).json({ error: 'Username, Email, atau NIY sudah terdaftar' });
         }
         res.status(500).json({ error: error.message });
     }

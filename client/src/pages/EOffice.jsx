@@ -1268,7 +1268,7 @@ const EOffice = () => {
     const [sendDocWATarget, setSendDocWATarget] = useState(null);
 
     const user = JSON.parse(localStorage.getItem('user'));
-    const isKabidSarpras = user?.role === 'KABID_SARPRAS' || user?.role === 'SUPER_ADMIN';
+    const isKabidSarpras = user?.role === 'KABID_SARPRAS' || user?.role === 'KEPALA_BIDANG' || user?.role === 'SUPER_ADMIN';
     const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
     useEffect(() => {
@@ -3490,47 +3490,9 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
 
 const SignatureModal = ({ signatureRequest, onClose, onSuccess }) => {
     const { doc, party } = signatureRequest || {};
-    const canvasRef = useRef(null);
-    const [isDrawing, setIsDrawing] = useState(false);
     const [approvalNote, setApprovalNote] = useState('');
 
-    useEffect(() => {
-        if (!doc || !canvasRef.current) return;
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 3;
-        ctx.lineCap = 'round';
-        // Clear canvas
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }, [doc, party]);
-
     if (!doc) return null;
-
-    const startDrawing = (e) => {
-        setIsDrawing(true);
-        const { offsetX, offsetY } = e.nativeEvent;
-        const ctx = canvasRef.current.getContext('2d');
-        ctx.beginPath();
-        ctx.moveTo(offsetX, offsetY);
-    };
-
-    const draw = (e) => {
-        if (!isDrawing) return;
-        const { offsetX, offsetY } = e.nativeEvent;
-        const ctx = canvasRef.current.getContext('2d');
-        ctx.lineTo(offsetX, offsetY);
-        ctx.stroke();
-    };
-
-    const stopDrawing = () => setIsDrawing(false);
-
-    const clearCanvas = () => {
-        if (!canvasRef.current) return;
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    };
 
     const handleSign = async (dataUrl = null) => {
         try {

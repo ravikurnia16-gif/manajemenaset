@@ -2,7 +2,8 @@ const express = require('express');
 const {
     createAsset, getAllAssets, getAssetById, updateAsset, deleteAsset,
     batchImportAssets, deleteMultipleAssets, getFundingSources,
-    validateAsset, validateMultipleAssets, getAssetPublic, getMediaAssets
+    validateAsset, validateMultipleAssets, getAssetPublic, getMediaAssets,
+    getAssetSummary
 } = require('../controllers/assetController');
 const {
     requestMutation, approveMutation, rejectMutation,
@@ -15,6 +16,7 @@ const router = express.Router();
 router.get('/public/media', getMediaAssets);
 router.get('/public/:id', getAssetPublic);
 router.get('/funding-sources', verifyToken, getFundingSources);
+router.get('/summary', verifyToken, getAssetSummary);
 router.post('/', verifyToken, handleUpload('image', 'assets'), createAsset);
 router.get('/', verifyToken, getAllAssets);
 
