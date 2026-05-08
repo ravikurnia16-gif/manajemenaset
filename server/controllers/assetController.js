@@ -993,16 +993,24 @@ exports.getAssetSummary = async (req, res) => {
             .filter(c => c.count > 0)
             .sort((a, b) => b.count - a.count);
 
+        // Helper to match exact words (preventing 'rACun' from matching 'AC')
+        const exactWord = (word) => ([
+            { name: word },
+            { name: { startsWith: `${word} ` } },
+            { name: { endsWith: ` ${word}` } },
+            { name: { contains: ` ${word} ` } }
+        ]);
+
         // 2. Get Keyword Statistics
         const keywords = [
-            { label: 'AC', query: { contains: 'AC' }, exclude: 'Outdoor' },
-            { label: 'Kipas Angin', query: { contains: 'Kipas' } },
-            { label: 'Laptop', query: { contains: 'Laptop' } },
-            { label: 'Komputer', query: { OR: [{ name: { contains: 'Komputer' } }, { name: { contains: 'PC' } }], exclude: 'Meja' } },
-            { label: 'Meja', query: { contains: 'Meja' } },
-            { label: 'Kursi', query: { contains: 'Kursi' } },
-            { label: 'Proyektor', query: { contains: 'Proyektor' } },
-            { label: 'Dispenser', query: { contains: 'Dispenser' } },
+            { label: 'AC', query: { OR: exactWord('AC') }, exclude: 'Outdoor' },
+            { label: 'Kipas Angin', query: { OR: exactWord('Kipas') } },
+            { label: 'Laptop', query: { OR: exactWord('Laptop') } },
+            { label: 'Komputer', query: { OR: [...exactWord('Komputer'), ...exactWord('PC'), ...exactWord('Computer')] }, exclude: 'Meja' },
+            { label: 'Meja', query: { OR: exactWord('Meja') } },
+            { label: 'Kursi', query: { OR: exactWord('Kursi') } },
+            { label: 'Proyektor', query: { OR: exactWord('Proyektor') } },
+            { label: 'Dispenser', query: { OR: exactWord('Dispenser') } },
         ];
 
         const keywordCounts = await Promise.all(keywords.map(async (k) => {
