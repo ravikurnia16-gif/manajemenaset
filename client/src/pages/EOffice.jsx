@@ -362,7 +362,7 @@ const InfoGroup = ({ label, value, icon, full }) => {
     );
 };
 
-const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, handleSendWA, sendingWA, handleTogglePaymentStatus, setSendDocWATarget }) => {
+const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, handleSendWA, sendingWA, handleTogglePaymentStatus, setSendDocWATarget, handleSubmitForApproval, setSignatureRequest, isKabidSarpras }) => {
     if (!viewingDoc) return null;
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-sm">
@@ -982,6 +982,40 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                 {getPaymentStatus(viewingDoc) === 'PAID' ? 'Tandai Belum Lunas' : 'Tandai Lunas'}
                             </button>
                         )}
+                        {viewingDoc.type !== 'SURAT_MASUK' && viewingDoc.status === 'DRAFT' && (
+                            <button
+                                onClick={() => handleSubmitForApproval(viewingDoc.id)}
+                                className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-900/20"
+                            >
+                                <FileSignature size={18} /> Ajukan TTE
+                            </button>
+                        )}
+                        {viewingDoc.status === 'PENDING_APPROVAL' && isKabidSarpras && (
+                            <>
+                                <button
+                                    onClick={() => setSignatureRequest({ doc: viewingDoc, party: 'approve' })}
+                                    className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-900/20"
+                                >
+                                    <ShieldCheck size={18} /> Tanda Tangani
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        const reason = prompt('Alasan penolakan:');
+                                        if (!reason) return;
+                                        try {
+                                            await api.post(`/office-documents/${viewingDoc.id}/reject`, { rejectionReason: reason });
+                                            alert('Dokumen ditolak.');
+                                            setViewingDoc(null);
+                                        } catch (err) {
+                                            alert('Gagal menolak: ' + (err.response?.data?.error || err.message));
+                                        }
+                                    }}
+                                    className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-red-100 text-red-700 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-red-200 transition-all"
+                                >
+                                    <XCircle size={18} /> Tolak
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1465,6 +1499,9 @@ const EOffice = () => {
                 sendingWA={sendingWA}
                 handleTogglePaymentStatus={handleTogglePaymentStatus}
                 setSendDocWATarget={setSendDocWATarget}
+                handleSubmitForApproval={handleSubmitForApproval}
+                setSignatureRequest={setSignatureRequest}
+                isKabidSarpras={isKabidSarpras}
             />
             <SendDocWAModal
                 doc={sendDocWATarget}
