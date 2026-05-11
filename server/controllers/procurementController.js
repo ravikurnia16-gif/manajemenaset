@@ -125,7 +125,11 @@ exports.getProcurementById = async (req, res) => {
                 items: true,
                 offers: true,
                 unit: true,
-                user: { select: { username: true, email: true } }
+                user: { select: { username: true, email: true } },
+                progress: {
+                    include: { user: { select: { id: true, name: true, username: true } } },
+                    orderBy: { createdAt: 'desc' }
+                }
             }
         });
         if (!procurement) return res.status(404).json({ error: 'Data not found' });
@@ -1004,6 +1008,99 @@ exports.notifyAssignees = async (req, res) => {
         res.json({ message: `Notifikasi telah dikirim ke ${assigneeIds.length} petugas.` });
     } catch (error) {
         console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// ==================== PROGRESS TIMELINE ====================
+
+/**
+ * POST /api/procurements/:id/progress
+ * Add a progress update to a procurement
+ */
+exports.addProgress = async (req, res) => {
+    const { id } = req.params;
+    const { message, stage } = req.body;
+    const user = req.user;
+
+    try {
+        if (!message || !message.trim()) {
+            return res.status(400).json({ error: 'Pesan progress tidak boleh kosong.' });
+        }
+
+        const procurement = await prisma.procurement.findUnique({
+            where: { id: parseInt(id) },
+            include: { items: true }
+        });
+        if (!procurement) return res.status(404).json({ error: 'Pengadaan tidak ditemukan.' });
+
+        const progress = await prisma.procurementProgress.create({
+            data: {
+                procurementId: parseInt(id),
+                userId: user.id,
+                message: message.trim(),
+                type: 'MANUAL',
+                stage: stage ? parseInt(stage) : null
+            },
+            include: {
+                user: { select: { id: true, name: true, username: true } }
+            }
+        });
+
+        res.status(201).json(progress);
+
+        // --- WhatsApp Notification to Submitter (Async) ---
+        (async () => {
+            try {
+                if (procurement.userId === user.id) return; // Don't notify self
+                const submitter = await prisma.user.findUnique({ where: { id: procurement.userId } });
+                if (!submitter || !submitter.phone) return;
+
+                const stageLabels = { 1: 'Verifikasi', 2: 'Penugasan', 3: 'Pemilihan Vendor', 4: 'Finalisasi', 5: 'Serah Terima' };
+                const stageLabel = stage ? stageLabels[stage] || '' : '';
+
+                const msg = `Bismillah.\n*Update Progress Pengadaan*\n\n` +
+                    `Ustadz/Ustadzah *${submitter.name || submitter.username}*,\n\n` +
+                    `Ada update terbaru untuk pengadaan *"${procurement.title || procurement.code}"*` +
+                    (stageLabel ? ` (Tahap: ${stageLabel})` : '') + `:\n\n` +
+                    `💬 _"${message.trim()}"_\n` +
+                    `— ${user.name || user.username}\n\n` +
+                    `Silakan cek aplikasi untuk detail lebih lanjut.`;
+
+                setTimeout(async () => {
+                    try {
+                        await whatsappService.sendMessage(submitter.phone, msg);
+                    } catch (e) {
+                        console.error('[WA] Progress notification error:', e);
+                    }
+                }, 10000);
+            } catch (err) {
+                console.error('Progress WA Error:', err);
+            }
+        })();
+    } catch (error) {
+        console.error('addProgress error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * GET /api/procurements/:id/progress
+ * Get all progress updates for a procurement
+ */
+exports.getProgress = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const progress = await prisma.procurementProgress.findMany({
+            where: { procurementId: parseInt(id) },
+            include: {
+                user: { select: { id: true, name: true, username: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(progress);
+    } catch (error) {
+        console.error('getProgress error:', error);
         res.status(500).json({ error: error.message });
     }
 };

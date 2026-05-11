@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     CheckCircle, XCircle, FileText, Upload, DollarSign, Store,
     ArrowLeft, Plus, Trash2, ShoppingCart, UserCheck, Camera,
-    Image, MapPin, ChevronRight, AlertCircle, Package, QrCode
+    Image, MapPin, ChevronRight, AlertCircle, Package, QrCode,
+    MessageSquare, Clock
 } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
@@ -370,6 +371,9 @@ const ProcurementDetail = () => {
     const [selectedUnits, setSelectedUnits] = useState({});
     const [activeTab, setActiveTab] = useState(1);
     const [savingItems, setSavingItems] = useState({}); // { itemId: boolean }
+    const [progressLogs, setProgressLogs] = useState([]);
+    const [newProgressMessage, setNewProgressMessage] = useState('');
+    const [isSubmittingProgress, setIsSubmittingProgress] = useState(false);
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user?.role);
@@ -450,6 +454,9 @@ const ProcurementDetail = () => {
                     };
                 });
                 setAssetDetails(initDetails);
+            }
+            if (data.progress) {
+                setProgressLogs(data.progress);
             }
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
@@ -560,6 +567,23 @@ const ProcurementDetail = () => {
         const catCode = category?.code || '???';
         const year = new Date(bastDate).getFullYear();
         return `${prefix}.${unitCode}.${catCode}.${year}.xxxx`;
+    };
+
+    const handleAddProgress = async () => {
+        if (!newProgressMessage.trim()) return;
+        setIsSubmittingProgress(true);
+        try {
+            const res = await api.post(`/procurements/${id}/progress`, {
+                message: newProgressMessage,
+                stage: activeTab
+            });
+            setProgressLogs([res.data, ...progressLogs]);
+            setNewProgressMessage('');
+        } catch (e) {
+            alert('Gagal menambahkan catatan progress: ' + (e.response?.data?.error || e.message));
+        } finally {
+            setIsSubmittingProgress(false);
+        }
     };
 
     /* ── Loading / Error ── */
@@ -689,6 +713,75 @@ const ProcurementDetail = () => {
                     }}
                 />
             </div>
+
+            {/* ── PROGRESS TIMELINE ── */}
+            {req.status !== 'SUBMITTED' && req.status !== 'REJECTED' && (
+                <div style={{ marginBottom: 24 }}>
+                    <Card>
+                        <CardHeader icon={MessageSquare} title="Log Progress & Catatan" />
+                        <div style={{ padding: '24px 28px', background: T.cream }}>
+                            {/* Input Area */}
+                            {(isAdmin || isAssignedToAny) && activeTab >= 3 && req.status !== 'COMPLETED' && (
+                                <div style={{ marginBottom: 24 }}>
+                                    <Label>Tambah Catatan Progress Baru</Label>
+                                    <div style={{ display: 'flex', gap: 12 }}>
+                                        <Textarea
+                                            placeholder="Cth: Vendor sedang memproses pesanan, estimasi tiba hari Jumat..."
+                                            rows={2}
+                                            value={newProgressMessage}
+                                            onChange={(e) => setNewProgressMessage(e.target.value)}
+                                            style={{ flex: 1 }}
+                                        />
+                                        <Btn
+                                            variant="primary"
+                                            onClick={handleAddProgress}
+                                            disabled={isSubmittingProgress || !newProgressMessage.trim()}
+                                            style={{ height: 'fit-content' }}
+                                        >
+                                            {isSubmittingProgress ? 'Menyimpan...' : 'Kirim Catatan'}
+                                        </Btn>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Timeline Items */}
+                            {progressLogs.length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    {progressLogs.map((log, idx) => (
+                                        <div key={log.id || idx} style={{ display: 'flex', gap: 16 }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                <div style={{ width: 12, height: 12, borderRadius: '50%', background: T.navy, border: `2px solid ${T.goldSoft}` }} />
+                                                {idx !== progressLogs.length - 1 && <div style={{ flex: 1, width: 2, background: T.border, margin: '4px 0' }} />}
+                                            </div>
+                                            <div style={{ background: T.white, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, flex: 1 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                                    <span style={{ fontWeight: 700, fontSize: 13, color: T.navy }}>{log.user?.name || log.user?.username || 'Sistem'}</span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: T.slate, fontSize: 11 }}>
+                                                        <Clock size={12} />
+                                                        {new Date(log.createdAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                </div>
+                                                <p style={{ margin: 0, fontSize: 13, color: T.text, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                                                    {log.message}
+                                                </p>
+                                                {log.stage && (
+                                                    <div style={{ marginTop: 8, display: 'inline-block', padding: '2px 8px', background: T.creamDk, borderRadius: 4, fontSize: 10, color: T.slate, fontWeight: 600 }}>
+                                                        Tahap {log.stage}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div style={{ textAlign: 'center', color: T.slate, fontSize: 13, fontStyle: 'italic', padding: '20px 0' }}>
+                                    Belum ada log progress untuk pengadaan ini.
+                                </div>
+                            )}
+                        </div>
+                    </Card>
+                </div>
+            )}
 
             {/* ════════════════════════════════════════
                 STAGE 1 – VERIFIKASI

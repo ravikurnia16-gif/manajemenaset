@@ -27,6 +27,10 @@ router.post('/:id/bast', verifyToken, handleUpload('bastFile', 'procurement'), p
 // Notify Assignees
 router.post('/:id/notify-assignees', verifyToken, procurementController.notifyAssignees);
 
+// Progress Timeline
+router.post('/:id/progress', verifyToken, procurementController.addProgress);
+router.get('/:id/progress', verifyToken, procurementController.getProgress);
+
 // Delete
 router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.deleteProcurement);
 router.post('/bulk-delete', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), procurementController.bulkDeleteProcurements);

@@ -95,6 +95,9 @@ model User {
   officeDocumentsAuthored OfficeDocument[] @relation("OfficeDocumentAuthor")
   officeDocumentsSigned   OfficeDocument[] @relation("OfficeDocumentSigner")
 
+  // Procurement Progress
+  procurementProgress ProcurementProgress[]
+
 
   // Driver Extensions
   licenseNumber    String?
@@ -483,8 +486,9 @@ model Procurement {
   bastDate DateTime?
   bastFile String?   @db.LongText
 
-  items  ProcurementItem[]
-  offers VendorOffer[]
+  items    ProcurementItem[]
+  offers   VendorOffer[]
+  progress ProcurementProgress[]
 
   isDirectOrder Boolean @default(false)
 
@@ -523,6 +527,20 @@ model ProcurementItem {
 
   categoryId Int?
   category   Category? @relation(fields: [categoryId], references: [id])
+}
+
+model ProcurementProgress {
+  id            Int         @id @default(autoincrement())
+  procurementId Int
+  procurement   Procurement @relation(fields: [procurementId], references: [id], onDelete: Cascade)
+  userId        Int?
+  user          User?       @relation(fields: [userId], references: [id])
+  message       String      @db.Text
+  type          String      @default("MANUAL") // MANUAL, SYSTEM
+  stage         Int?        // 1-5, nullable for general progress
+  createdAt     DateTime    @default(now())
+
+  @@index([procurementId])
 }
 
 model VendorOffer {
