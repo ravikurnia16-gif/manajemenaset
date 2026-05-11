@@ -1016,6 +1016,15 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                 </button>
                             </>
                         )}
+                        {/* TTD Pihak Ke 2 for BAST */}
+                        {(['BAST', 'MOU'].includes(viewingDoc.type) || (viewingDoc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(viewingDoc.category))) && viewingDoc.status === 'SIGNED' && !viewingDoc.party2SignedAt && !viewingDoc.party2Signature && (
+                            <button
+                                onClick={() => setSignatureRequest({ doc: viewingDoc, party: 'party2' })}
+                                className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20"
+                            >
+                                <UserCheck size={18} /> TTD Pihak Ke-2
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
