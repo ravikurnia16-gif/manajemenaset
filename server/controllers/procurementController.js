@@ -1064,7 +1064,7 @@ exports.addProgress = async (req, res) => {
                     `Ada update terbaru untuk pengadaan *"${procurement.title || procurement.code}"*` +
                     (stageLabel ? ` (Tahap: ${stageLabel})` : '') + `:\n\n` +
                     `💬 _"${message.trim()}"_\n` +
-                    `— ${user.name || user.username}\n\n` +
+                    `— ${progress.user.name || progress.user.username}\n\n` +
                     `Silakan cek aplikasi untuk detail lebih lanjut.`;
 
                 setTimeout(async () => {
