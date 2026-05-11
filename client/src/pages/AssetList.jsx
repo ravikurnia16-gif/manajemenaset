@@ -987,7 +987,9 @@ const AssetList = ({ validationMode = false }) => {
                         <h3 className="text-sm font-bold text-slate-700">Ringkasan Aset Populer</h3>
                     </div>
                     <div className="flex overflow-x-auto pb-2 gap-3 snap-x hide-scrollbar">
-                        {summary.keywordCounts.map((k, i) => {
+                        {summary.keywordCounts
+                            .filter(k => !['Meja', 'Kursi', 'Proyektor', 'Dispenser'].includes(k.label)) // Ditutup sementara sesuai request
+                            .map((k, i) => {
                             const IconComponent = iconMap[k.icon] || LayoutGrid;
                             return (
                                 <div key={`kw-${i}`} className="snap-start">
