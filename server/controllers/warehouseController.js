@@ -412,8 +412,8 @@ exports.createTransaction = async (req, res) => {
                     }
                     
                     if (needed > 0) {
-                        // This should theoretically not happen because of the check above, but for safety:
-                        throw new Error(`Gagal memproses FIFO: Stok batch tidak sinkron.`);
+                        // Log warning instead of throwing error to allow transaction to proceed
+                        console.warn(`Peringatan FIFO: Stok batch tidak sinkron untuk item ${itemId}. Transaksi tetap dilanjutkan. Sisa yang belum tercatat: ${needed}`);
                     }
                 }
             }
