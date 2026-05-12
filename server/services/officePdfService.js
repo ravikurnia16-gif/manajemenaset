@@ -1574,8 +1574,22 @@ async function generateKeputusanPDF(doc, setting) {
             checkPage(30);
             page.drawText(`${item.label} :`, { x: margin + 30, y, size: 11, font: fontBold });
             y -= 15;
-            drawJustified(item.text, margin + 30, contentWidth - 30, fontRegular, 11, 1.4, isLastItem ? 150 : 0);
+            
+            const hasSubs = item.subs && Array.isArray(item.subs) && item.subs.length > 0;
+            drawJustified(item.text, margin + 30, contentWidth - 30, fontRegular, 11, 1.4, (isLastItem && !hasSubs) ? 150 : 0);
             y -= 10;
+            
+            if (hasSubs) {
+                item.subs.forEach((sub, sIdx) => {
+                    if (!sub) return;
+                    const isLastSub = sIdx === item.subs.length - 1;
+                    checkPage(20);
+                    const subLabel = `${String.fromCharCode(97 + sIdx)}. `;
+                    page.drawText(subLabel, { x: margin + 50, y, size: 11, font: fontRegular });
+                    drawJustified(sub, margin + 70, contentWidth - 70, fontRegular, 11, 1.4, (isLastItem && isLastSub) ? 150 : 0);
+                    y -= 5;
+                });
+            }
         });
         y -= 20;
 

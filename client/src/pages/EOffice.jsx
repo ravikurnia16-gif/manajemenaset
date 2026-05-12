@@ -786,6 +786,16 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                                             <div key={idx}>
                                                                 <div className="font-black text-slate-900 uppercase text-[9px] mb-1">{item.label}:</div>
                                                                 <div className="text-slate-700 leading-relaxed text-justify pl-4">{item.text}</div>
+                                                                {item.subs && item.subs.length > 0 && (
+                                                                    <div className="pl-8 mt-1 space-y-1">
+                                                                        {item.subs.map((sub, sIdx) => (
+                                                                            <div key={sIdx} className="flex gap-2">
+                                                                                <span className="font-bold text-slate-500 shrink-0">{String.fromCharCode(97 + sIdx)}.</span>
+                                                                                <span className="text-slate-700 leading-relaxed text-justify">{sub}</span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         ))}
                                                     </div>
@@ -1621,7 +1631,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     const [keputusanData, setKeputusanData] = useState({
         menimbang: [''],
         mengingat: [''],
-        menetapkan: [{ label: 'PERTAMA', text: '' }, { label: 'KEDUA', text: '' }],
+        menetapkan: [{ label: 'PERTAMA', text: '', subs: [] }, { label: 'KEDUA', text: '', subs: [] }],
         tembusan: ['']
     });
     const [pemberitahuanData, setPemberitahuanData] = useState({
@@ -2704,7 +2714,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         <button type="button" onClick={() => {
                                             const dictums = ["PERTAMA", "KEDUA", "KETIGA", "KEEMPAT", "KELIMA", "KEENAM", "KETUJUH", "KEDELAPAN", "KESEMBILAN", "KESEPULUH"];
                                             const nextLabel = dictums[keputusanData.menetapkan.length] || `POIN ${keputusanData.menetapkan.length + 1}`;
-                                            setKeputusanData({ ...keputusanData, menetapkan: [...keputusanData.menetapkan, { label: nextLabel, text: '' }] });
+                                            setKeputusanData({ ...keputusanData, menetapkan: [...keputusanData.menetapkan, { label: nextLabel, text: '', subs: [] }] });
                                         }} className="text-[10px] font-black text-blue-600 flex items-center gap-1 uppercase">
                                             <Plus size={12} /> Tambah Diktum
                                         </button>
@@ -2738,6 +2748,43 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                     setKeputusanData({ ...keputusanData, menetapkan: newList });
                                                 }}
                                             />
+                                            {/* Sub-dictums */}
+                                            <div className="ml-6 space-y-2 pt-2 border-t border-slate-100">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Sub-Diktum</span>
+                                                    <button type="button" onClick={() => {
+                                                        const newList = [...keputusanData.menetapkan];
+                                                        newList[idx].subs = [...(newList[idx].subs || []), ''];
+                                                        setKeputusanData({ ...keputusanData, menetapkan: newList });
+                                                    }} className="text-[9px] font-bold text-blue-500 flex items-center gap-0.5">
+                                                        <Plus size={10} /> Sub
+                                                    </button>
+                                                </div>
+                                                {(item.subs || []).map((sub, sIdx) => (
+                                                    <div key={sIdx} className="flex gap-2">
+                                                        <div className="w-6 h-6 rounded bg-slate-50 flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0">{String.fromCharCode(97 + sIdx)}</div>
+                                                        <input
+                                                            className="flex-1 px-3 py-1.5 rounded-lg border border-slate-100 outline-none text-xs"
+                                                            placeholder={`Sub-diktum ${String.fromCharCode(97 + sIdx)}...`}
+                                                            value={sub}
+                                                            onChange={(e) => {
+                                                                const newList = [...keputusanData.menetapkan];
+                                                                const newSubs = [...(newList[idx].subs || [])];
+                                                                newSubs[sIdx] = e.target.value;
+                                                                newList[idx].subs = newSubs;
+                                                                setKeputusanData({ ...keputusanData, menetapkan: newList });
+                                                            }}
+                                                        />
+                                                        <button type="button" onClick={() => {
+                                                            const newList = [...keputusanData.menetapkan];
+                                                            newList[idx].subs = newList[idx].subs.filter((_, i) => i !== sIdx);
+                                                            setKeputusanData({ ...keputusanData, menetapkan: newList });
+                                                        }} className="p-1 text-red-400 hover:bg-red-50 rounded shrink-0">
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
