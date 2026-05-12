@@ -1002,15 +1002,35 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                             </button>
                         )}
                         {(viewingDoc.category === 'Lainnya' || viewingDoc.status === 'SIGNED') && (
-                            <button
-                                onClick={() => {
-                                    const input = document.getElementById('upload-final-file') || document.getElementById('upload-final-file-alt');
-                                    input?.click();
-                                }}
-                                className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-violet-700 transition-all shadow-lg shadow-violet-900/20"
-                            >
-                                <Paperclip size={18} /> {viewingDoc.fileUrl ? 'Update File Final' : 'Unggah File Final'}
-                            </button>
+                            <>
+                                <input
+                                    type="file"
+                                    id="global-upload-final-file"
+                                    className="hidden"
+                                    accept=".pdf,application/pdf"
+                                    onChange={async (e) => {
+                                        const file = e.target.files[0];
+                                        if (!file) return;
+                                        try {
+                                            const fd = new FormData();
+                                            fd.append('files', file);
+                                            await api.put(`/office-documents/${viewingDoc.id}/final-file`, fd, {
+                                                headers: { 'Content-Type': 'multipart/form-data' }
+                                            });
+                                            alert('File final berhasil diunggah!');
+                                            window.location.reload();
+                                        } catch (err) {
+                                            alert('Gagal mengunggah file: ' + (err.response?.data?.error || err.message));
+                                        }
+                                    }}
+                                />
+                                <button
+                                    onClick={() => document.getElementById('global-upload-final-file')?.click()}
+                                    className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-violet-700 transition-all shadow-lg shadow-violet-900/20"
+                                >
+                                    <Paperclip size={18} /> {viewingDoc.fileUrl ? 'Update File Final' : 'Unggah File Final'}
+                                </button>
+                            </>
                         )}
                         {viewingDoc.type === 'INVOICE' && (
                             <button
@@ -2097,7 +2117,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             />
                         </div>
 
-                        {formData.category === 'Umum' && (
+                        {!formData.isManual && formData.category === 'Umum' && (
                             <div className="col-span-full animate-in slide-in-from-left duration-300">
                                 <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-2 block">Jenis Surat (Header)</label>
                                 <input
@@ -3437,7 +3457,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {formData.category === 'Umum' && (
+                        {!formData.isManual && formData.category === 'Umum' && (
                             <div className="col-span-full animate-in zoom-in duration-300">
                                 <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 flex items-center gap-2">
                                     <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
