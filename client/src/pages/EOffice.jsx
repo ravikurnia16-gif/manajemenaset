@@ -1061,7 +1061,10 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                         )}
                         {viewingDoc.type !== 'SURAT_MASUK' && viewingDoc.status === 'DRAFT' && (
                             <button
-                                onClick={() => handleSubmitForApproval(viewingDoc.id)}
+                                onClick={() => {
+                                    const isManual = viewingDoc.content && typeof viewingDoc.content === 'string' && viewingDoc.content.includes('"isManual":true');
+                                    handleSubmitForApproval(viewingDoc.id, isManual);
+                                }}
                                 className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-900/20"
                             >
                                 <FileSignature size={18} /> Ajukan TTE
@@ -1349,6 +1352,7 @@ const EOffice = () => {
     const [editingDoc, setEditingDoc] = useState(null);
     const [viewingDoc, setViewingDoc] = useState(null);
     const [signatureRequest, setSignatureRequest] = useState(null);
+    const [submitApprovalData, setSubmitApprovalData] = useState(null);
     const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
     const [sendingWA, setSendingWA] = useState(null);
     const [sendDocWATarget, setSendDocWATarget] = useState(null);
@@ -1486,14 +1490,26 @@ const EOffice = () => {
         }
     };
 
-    const handleSubmitForApproval = async (id) => {
+    const handleSubmitForApproval = async (id, isManual) => {
+        if (isManual) {
+            setSubmitApprovalData({ id });
+            return;
+        }
         if (!window.confirm('Ajukan dokumen ini untuk ditandatangani oleh pimpinan?')) {
             return;
         }
+        await executeSubmitApproval(id);
+    };
+
+    const executeSubmitApproval = async (id, category = null) => {
         try {
+            if (category) {
+                await api.put(`/office-documents/${id}`, { category });
+            }
             await api.post(`/office-documents/${id}/submit`);
             alert('Berhasil diajukan!');
             setViewingDoc(null);
+            setSubmitApprovalData(null);
             fetchDocuments();
             fetchStats();
         } catch (err) {
@@ -1623,6 +1639,32 @@ const EOffice = () => {
                     setIsFormOpen(true);
                 }}
             />
+
+            {submitApprovalData && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-6 text-center animate-in zoom-in duration-200">
+                        <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <FileSignature size={32} />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-900 mb-2">Pilih Kategori Surat</h3>
+                        <p className="text-sm text-slate-500 mb-6">Untuk penomoran otomatis, silakan pilih kategori dokumen manual Anda:</p>
+                        
+                        <div className="grid grid-cols-2 gap-3 mb-6">
+                            {['Tugas', 'Keputusan', 'Pemberitahuan', 'BAST', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
+                                <button
+                                    key={c}
+                                    onClick={() => executeSubmitApproval(submitApprovalData.id, c)}
+                                    className="px-4 py-3 rounded-xl text-xs font-bold border border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all"
+                                >
+                                    {c}
+                                </button>
+                            ))}
+                        </div>
+                        
+                        <button onClick={() => setSubmitApprovalData(null)} className="px-6 py-2 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-100">Batal</button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
