@@ -2059,6 +2059,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                             {c}
                                         </button>
                                     ))}
+                                    </div>
                                 </div>
                             </div>
                         )}
