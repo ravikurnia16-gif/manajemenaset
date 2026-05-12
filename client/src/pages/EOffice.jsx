@@ -416,14 +416,22 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                     </div>
 
                     {viewingDoc.status === 'SIGNED' && (
-                        <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-6">
-                            <div className="p-4 bg-white rounded-xl shadow-sm border border-emerald-100 shrink-0">
-                                <QrCode size={48} className="text-emerald-600" />
-                            </div>
-                            <div>
-                                <div className="font-black text-emerald-900 text-lg">Dokumen Terverifikasi</div>
-                                <div className="text-emerald-700 text-sm font-medium leading-relaxed">
-                                    Ditandatangani oleh <span className="font-bold underline">{viewingDoc.signedBy?.name}</span> pada {formatDate(viewingDoc.signedAt, 'datetime')}.
+                        <div className="flex flex-col gap-4">
+                            <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-6">
+                                <div className="p-4 bg-white rounded-xl shadow-sm border border-emerald-100 shrink-0">
+                                    <QrCode size={48} className="text-emerald-600" />
+                                </div>
+                                <div>
+                                    <div className="font-black text-emerald-900 text-lg">Dokumen Terverifikasi</div>
+                                    <div className="text-emerald-700 text-sm font-medium leading-relaxed">
+                                        Ditandatangani oleh <span className="font-bold underline">{viewingDoc.signedBy?.name}</span> pada {formatDate(viewingDoc.signedAt, 'datetime')}.
+                                    </div>
+                                    <button
+                                        onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/tte-asset?token=${localStorage.getItem('token')}`, '_blank')}
+                                        className="mt-2 text-xs font-bold text-blue-600 flex items-center gap-1 hover:underline"
+                                    >
+                                        <Download size={14} /> Unduh Gambar TTE (QR Code) untuk Ms. Word
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -883,14 +891,14 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                     }
                                 })()}
                             </div>
-                        ) : viewingDoc.category === 'Lainnya' ? (
+                        ) : viewingDoc.category === 'Lainnya' || (viewingDoc.content && typeof viewingDoc.content === 'string' && viewingDoc.content.includes('"isManual":true')) ? (
                             <div className="p-6 bg-violet-50 rounded-2xl border border-violet-100">
                                 <div className="text-center mb-6">
                                     <div className="w-12 h-12 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mx-auto mb-3">
                                         <FileText size={24} />
                                     </div>
-                                    <h3 className="text-lg font-black text-violet-900 mb-1">Dokumen Kategori Khusus</h3>
-                                    <p className="text-sm font-medium text-violet-700">Dokumen ini disusun di luar sistem (Ms. Word).</p>
+                                    <h3 className="text-lg font-black text-violet-900 mb-1">Penyusunan Manual (Ms. Word)</h3>
+                                    <p className="text-sm font-medium text-violet-700">Konten dokumen dikelola secara manual di luar sistem.</p>
                                 </div>
                                 <div className="bg-white p-5 rounded-xl border border-violet-100 shadow-sm space-y-3 text-sm font-medium text-slate-700">
                                     <div className="flex justify-between border-b border-slate-100 pb-3">
@@ -923,7 +931,6 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                                             headers: { 'Content-Type': 'multipart/form-data' }
                                                         });
                                                         alert('File final berhasil diunggah!');
-                                                        // Close modal and refresh (we don't have direct access to fetchDocuments here so we reload)
                                                         window.location.reload();
                                                     } catch (err) {
                                                         alert('Gagal mengunggah file: ' + (err.response?.data?.error || err.message));
@@ -939,6 +946,43 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                         </div>
                                     )}
                                 </div>
+                            </div>
+                        ) : (viewingDoc.category !== 'Lainnya' && viewingDoc.status === 'SIGNED' && viewingDoc.fileUrl && (viewingDoc.fileUrl.toLowerCase().endsWith('.pdf'))) ? (
+                            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col items-center gap-4 text-center">
+                                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
+                                    <CheckCircle2 size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-slate-900">File Final Tersedia</h3>
+                                    <p className="text-sm text-slate-500">Gunakan tombol "Lihat Dokumen Final" untuk membuka file.</p>
+                                </div>
+                                <button
+                                    onClick={() => document.getElementById('upload-final-file-alt')?.click()}
+                                    className="text-xs font-bold text-blue-600 hover:underline"
+                                >
+                                    Ganti File Final?
+                                </button>
+                                <input
+                                    type="file"
+                                    id="upload-final-file-alt"
+                                    className="hidden"
+                                    accept=".pdf,application/pdf"
+                                    onChange={async (e) => {
+                                        const file = e.target.files[0];
+                                        if (!file) return;
+                                        try {
+                                            const fd = new FormData();
+                                            fd.append('files', file);
+                                            await api.put(`/office-documents/${viewingDoc.id}/final-file`, fd, {
+                                                headers: { 'Content-Type': 'multipart/form-data' }
+                                            });
+                                            alert('File final berhasil diperbarui!');
+                                            window.location.reload();
+                                        } catch (err) {
+                                            alert('Gagal mengunggah: ' + (err.response?.data?.error || err.message));
+                                        }
+                                    }}
+                                />
                             </div>
                         ) : (
                             <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 text-slate-700 whitespace-pre-wrap leading-relaxed font-medium">
@@ -957,12 +1001,15 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                 <Printer size={18} /> {viewingDoc.category === 'Lainnya' ? 'Lihat Dokumen Final' : 'Cetak PDF'}
                             </button>
                         )}
-                        {viewingDoc.category === 'Lainnya' && viewingDoc.status === 'SIGNED' && (
+                        {(viewingDoc.category === 'Lainnya' || viewingDoc.status === 'SIGNED') && (
                             <button
-                                onClick={() => document.getElementById('upload-final-file').click()}
+                                onClick={() => {
+                                    const input = document.getElementById('upload-final-file') || document.getElementById('upload-final-file-alt');
+                                    input?.click();
+                                }}
                                 className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-violet-700 transition-all shadow-lg shadow-violet-900/20"
                             >
-                                <Paperclip size={18} /> Unggah File Final
+                                <Paperclip size={18} /> {viewingDoc.fileUrl ? 'Update File Final' : 'Unggah File Final'}
                             </button>
                         )}
                         {viewingDoc.type === 'INVOICE' && (
@@ -1974,10 +2021,32 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
 
                     <div className="p-4 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 overflow-y-auto flex-1">
                         {formData.type === 'SURAT_KELUAR' && (
-                            <div className="col-span-full bg-blue-50/50 p-6 rounded-2xl border border-blue-100 mb-2">
-                                <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 block">1. Pilih Kategori Surat Keluar</label>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                    {['Tugas', 'Keputusan', 'Pemberitahuan', 'BAST', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
+                            <div className="col-span-full space-y-4 mb-2">
+                                <div className="bg-violet-50 p-4 rounded-2xl border border-violet-100 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-violet-600 text-white rounded-lg">
+                                            <FileText size={18} />
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-black text-slate-900">Gunakan Microsoft Word (Manual)?</div>
+                                            <div className="text-[10px] text-violet-600 font-bold uppercase tracking-wider">Aktifkan jika surat disusun manual di Word</div>
+                                        </div>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={formData.isManual}
+                                            onChange={(e) => setFormData({ ...formData, isManual: e.target.checked })}
+                                        />
+                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                                    </label>
+                                </div>
+
+                                <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
+                                    <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 block">1. Pilih Kategori Surat Keluar</label>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                        {['Tugas', 'Keputusan', 'Pemberitahuan', 'BAST', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
                                         <button
                                             key={c}
                                             type="button"
@@ -2102,7 +2171,22 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </>
                         )}
 
-                        {formData.category === 'Pesanan' && (
+                        {formData.isManual && (
+                            <div className="col-span-full p-8 bg-violet-50/30 rounded-2xl border border-dashed border-violet-200 text-center space-y-3">
+                                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm">
+                                    <FileText className="text-violet-500" size={24} />
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-slate-900 uppercase text-xs tracking-widest">Penyusunan Manual Aktif</h4>
+                                    <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                                        Anda hanya perlu mengisi **Perihal** dan **Kategori** untuk mendapatkan nomor surat. 
+                                        Setelah surat disetujui, Anda dapat mendownload QR Code TTE untuk ditempel di Word.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {!formData.isManual && formData.category === 'Pesanan' && (
                             <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100">
                                 <label className="col-span-full text-xs font-black text-emerald-600 uppercase tracking-widest block mb-2">3. Informasi Vendor / Penerima Pesanan</label>
                                 <div className="col-span-full">
@@ -2129,7 +2213,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {formData.type === 'INVOICE' && (
+                        {!formData.isManual && formData.type === 'INVOICE' && (
                             <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-amber-50/50 p-6 rounded-2xl border border-amber-100">
                                 <div className="col-span-full flex items-center justify-between">
                                     <label className="text-xs font-black text-amber-600 uppercase tracking-widest block">3. Informasi Penagihan (Bill To)</label>
@@ -2202,7 +2286,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {formData.type === 'SURAT_KELUAR' && !['Pesanan', 'BAST', 'Berita Acara', 'Serah Terima Barang', 'Berita Acara Kunjungan', 'Tugas', 'Keputusan', 'Pemberitahuan'].includes(formData.category) && (
+                        {!formData.isManual && formData.type === 'SURAT_KELUAR' && !['Pesanan', 'BAST', 'Berita Acara', 'Serah Terima Barang', 'Berita Acara Kunjungan', 'Tugas', 'Keputusan', 'Pemberitahuan'].includes(formData.category) && (
                             <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
                                 <label className="col-span-full text-xs font-black text-slate-600 uppercase tracking-widest block mb-2">3. Tujuan / Penerima Surat</label>
 
@@ -2641,7 +2725,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {formData.category === 'Keputusan' && (
+                        {!formData.isManual && formData.category === 'Keputusan' && (
                             <div className="col-span-full space-y-6 bg-amber-50/30 p-6 rounded-2xl border border-amber-100">
                                 <label className="text-xs font-black text-amber-700 uppercase tracking-widest block mb-2">3. Struktur Surat Keputusan</label>
 
@@ -2820,7 +2904,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                             </div>
                         )}
 
-                        {formData.category === 'Pemberitahuan' && (
+                        {!formData.isManual && formData.category === 'Pemberitahuan' && (
                             <div className="col-span-full space-y-6 bg-green-50/30 p-6 rounded-2xl border border-green-100">
                                 <label className="text-xs font-black text-green-700 uppercase tracking-widest block mb-2">3. Isi Surat Pemberitahuan</label>
 

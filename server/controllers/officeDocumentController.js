@@ -4,6 +4,7 @@ const { generateDocumentNumber, getCategoryCodes } = require('../services/docume
 const { generateVerificationQR, generateSuratPDF, generateBASTMouPDF, generateSuratTugasPDF, generateSuratPesananPDF, generateInvoicePDF, generateSuratEdaranPDF, generateKeputusanPDF, generatePemberitahuanPDF, generateSuratUmumPDF, generateBeritaAcaraKunjunganPDF, generateSuratLainnyaPDF } = require('../services/officePdfService');
 const mammoth = require('mammoth');
 const crypto = require('crypto');
+const axios = require('axios');
 const whatsappService = require('../services/whatsappService');
 const sharp = require('sharp');
 const path = require('path');
@@ -554,6 +555,29 @@ exports.generatePDF = async (req, res) => {
         const setting = await prisma.setting.findUnique({ where: { id: 1 } });
 
         let pdfBytes;
+        
+        // Serve uploaded final file directly if available (for Manual Workflow)
+        if (doc.fileUrl && doc.status === 'SIGNED') {
+            const fileUrls = doc.fileUrl.split(',').filter(u => u.trim());
+            const pdfFile = fileUrls.find(u => u.toLowerCase().endsWith('.pdf'));
+            const docFile = fileUrls[0]; // fallback to first file
+            const targetUrl = pdfFile || docFile;
+            if (targetUrl) {
+                try {
+                    // Fix URL if it's a relative path starting with /
+                    const finalUrl = targetUrl.startsWith('http') ? targetUrl : `http://localhost:${process.env.PORT || 5000}${targetUrl}`;
+                    const fileRes = await axios.get(finalUrl, { responseType: 'arraybuffer' });
+                    const contentType = pdfFile ? 'application/pdf' : 'application/octet-stream';
+                    const ext = targetUrl.split('.').pop().toLowerCase();
+                    res.setHeader('Content-Type', contentType);
+                    res.setHeader('Content-Disposition', `inline; filename="${doc.number || 'dokumen'}.${ext}"`);
+                    return res.send(Buffer.from(fileRes.data));
+                } catch (dlErr) {
+                    console.error('Failed to download uploaded file:', dlErr.message);
+                }
+            }
+        }
+
         if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category))) {
             pdfBytes = await generateBASTMouPDF(doc, setting);
         } else if (doc.type === 'SURAT_PESANAN' || doc.category === 'Pesanan') {
@@ -573,26 +597,6 @@ exports.generatePDF = async (req, res) => {
         } else if (doc.category === 'Berita Acara Kunjungan') {
             pdfBytes = await generateBeritaAcaraKunjunganPDF(doc, setting);
         } else if (doc.category === 'Lainnya' || doc.type === 'LAINNYA') {
-            // Lainnya: serve the uploaded file directly instead of generating
-            if (doc.fileUrl) {
-                const fileUrls = doc.fileUrl.split(',').filter(u => u.trim());
-                const pdfFile = fileUrls.find(u => u.toLowerCase().endsWith('.pdf'));
-                const docFile = fileUrls[0]; // fallback to first file
-                const targetUrl = pdfFile || docFile;
-                if (targetUrl) {
-                    try {
-                        const fileRes = await axios.get(targetUrl, { responseType: 'arraybuffer' });
-                        const contentType = pdfFile ? 'application/pdf' : 'application/octet-stream';
-                        const ext = targetUrl.split('.').pop().toLowerCase();
-                        res.setHeader('Content-Type', contentType);
-                        res.setHeader('Content-Disposition', `inline; filename="${doc.number || 'dokumen'}.${ext}"`);
-                        return res.send(Buffer.from(fileRes.data));
-                    } catch (dlErr) {
-                        console.error('Failed to download uploaded file:', dlErr.message);
-                    }
-                }
-            }
-            // Fallback: generate basic PDF if no file uploaded
             pdfBytes = await generateSuratLainnyaPDF(doc, setting);
         } else {
             pdfBytes = await generateSuratPDF(doc, setting);
@@ -878,6 +882,29 @@ exports.generatePublicPDF = async (req, res) => {
         const setting = await prisma.setting.findUnique({ where: { id: 1 } });
 
         let pdfBytes;
+        
+        // Serve uploaded final file directly if available (for Manual Workflow)
+        if (doc.fileUrl && doc.status === 'SIGNED') {
+            const fileUrls = doc.fileUrl.split(',').filter(u => u.trim());
+            const pdfFile = fileUrls.find(u => u.toLowerCase().endsWith('.pdf'));
+            const docFile = fileUrls[0]; // fallback to first file
+            const targetUrl = pdfFile || docFile;
+            if (targetUrl) {
+                try {
+                    // Fix URL if it's a relative path starting with /
+                    const finalUrl = targetUrl.startsWith('http') ? targetUrl : `http://localhost:${process.env.PORT || 5000}${targetUrl}`;
+                    const fileRes = await axios.get(finalUrl, { responseType: 'arraybuffer' });
+                    const contentType = pdfFile ? 'application/pdf' : 'application/octet-stream';
+                    const ext = targetUrl.split('.').pop().toLowerCase();
+                    res.setHeader('Content-Type', contentType);
+                    res.setHeader('Content-Disposition', `inline; filename="${doc.number || 'dokumen'}.${ext}"`);
+                    return res.send(Buffer.from(fileRes.data));
+                } catch (dlErr) {
+                    console.error('Failed to download uploaded file:', dlErr.message);
+                }
+            }
+        }
+
         if (['BAST', 'MOU'].includes(doc.type) || (doc.type === 'SURAT_KELUAR' && ['Berita Acara', 'Serah Terima Barang', 'BAST'].includes(doc.category))) {
             pdfBytes = await generateBASTMouPDF(doc, setting);
         } else if (doc.type === 'SURAT_PESANAN' || doc.category === 'Pesanan') {
