@@ -3202,14 +3202,13 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
 
                         {formData.type !== 'SURAT_MASUK' && !['Berita Acara', 'Serah Terima Barang', 'BAST', 'Pesanan', 'Tugas', 'Edaran', 'Keputusan', 'Pemberitahuan', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].includes(formData.category) && !['BAST', 'MOU'].includes(formData.type) && (
                             <div className="col-span-full">
-                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Isi Dokumen / Pesan</label>
+                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Isi Dokumen / Pesan (Opsional)</label>
                                 <textarea
-                                    required={formData.type !== 'INVOICE'}
                                     rows={6}
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-medium leading-relaxed"
                                     value={formData.content}
                                     onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                                    placeholder={formData.type === 'INVOICE' ? 'Opsional: catatan tambahan untuk invoice...' : 'Tuliskan isi surat secara lengkap di sini...'}
+                                    placeholder={formData.type === 'INVOICE' ? 'Opsional: catatan tambahan untuk invoice...' : 'Opsional: Tuliskan isi surat atau keterangan tambahan di sini...'}
                                 />
                             </div>
                         )}
@@ -3451,12 +3450,11 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     </p>
                                 </div>
                                 <textarea
-                                    required
                                     rows={10}
                                     className="w-full px-5 py-4 rounded-2xl border-2 border-blue-100 focus:border-blue-500 focus:ring-0 outline-none font-medium leading-relaxed text-sm shadow-sm"
                                     value={umumData.body}
                                     onChange={(e) => setUmumData({ ...umumData, body: e.target.value })}
-                                    placeholder="Tuliskan inti surat di sini (tanpa perlu salam pembuka/penutup)..."
+                                    placeholder="Opsional: Tuliskan inti surat di sini (tanpa perlu salam pembuka/penutup)..."
                                 />
                                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4 opacity-60">
                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Penutup (Otomatis):</div>
