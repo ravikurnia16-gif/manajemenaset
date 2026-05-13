@@ -2695,18 +2695,16 @@ const VehicleBooking = () => {
 
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Posisi Terakhir Kendaraan</label>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
+                                        <select
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none mb-2 text-slate-700"
+                                            value={actionData.returnLocation || ''}
+                                            onChange={e => setActionData({ ...actionData, returnLocation: e.target.value })}
+                                        >
+                                            <option value="" disabled>-- Pilih Lokasi Terakhir --</option>
                                             {['Lapai', 'Islamic', 'Pondok Putra', 'SD 2', 'Suratu TV/Deiped', 'MIT', 'SD 3', 'Limapuluh Kota', 'Lainnya'].map(loc => (
-                                                <button
-                                                    key={loc}
-                                                    type="button"
-                                                    onClick={() => setActionData({ ...actionData, returnLocation: loc })}
-                                                    className={`py-2 rounded-xl border text-xs font-bold transition-all ${actionData.returnLocation === loc ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
-                                                >
-                                                    {loc}
-                                                </button>
+                                                <option key={loc} value={loc}>{loc}</option>
                                             ))}
-                                        </div>
+                                        </select>
                                         {actionData.returnLocation === 'Lainnya' && (
                                             <input
                                                 type="text"
