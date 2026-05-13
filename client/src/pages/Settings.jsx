@@ -864,6 +864,7 @@ const Settings = () => {
                                                 { label: 'Kepala Bidang Sarana dan Prasarana', role: 'KABID_SARPRAS', scope: 'GLOBAL' },
                                                 { label: 'Staff Keuangan dan Administrasi (Sarpras)', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                                 { label: 'Staff Manajemen Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
+                                                { label: 'Staff Teknisi Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                                 { label: 'Staff Gudang dan Logistik', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                                 { label: 'Staff Kendaraan', role: 'ADMIN_ASET', scope: 'GLOBAL' },
 
