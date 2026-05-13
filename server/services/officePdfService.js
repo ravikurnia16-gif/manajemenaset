@@ -1894,7 +1894,7 @@ async function drawLampiranSection(pdfDoc, doc, fontBold, fontRegular) {
                 
                 const imgDims = img.scale(1);
                 const maxWidth = contentWidth;
-                const maxHeight = y - 100;
+                const maxPageHeight = height - 120;
                 
                 let finalWidth = imgDims.width;
                 let finalHeight = imgDims.height;
@@ -1905,12 +1905,13 @@ async function drawLampiranSection(pdfDoc, doc, fontBold, fontRegular) {
                     finalHeight = finalHeight * ratio;
                 }
                 
-                if (finalHeight > maxHeight) {
-                    const ratio = maxHeight / finalHeight;
-                    finalHeight = maxHeight;
+                if (finalHeight > maxPageHeight) {
+                    const ratio = maxPageHeight / finalHeight;
+                    finalHeight = maxPageHeight;
                     finalWidth = finalWidth * ratio;
                 }
 
+                // Check if it fits on the current page, if not, add a new page
                 if (y - finalHeight < 60) {
                     page = pdfDoc.addPage([595.28, 841.89]);
                     y = height - 60;
