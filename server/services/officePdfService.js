@@ -1855,6 +1855,16 @@ async function drawLampiranSection(pdfDoc, doc, fontBold, fontRegular) {
     }
 
     if (hasPhotoLampiran) {
+        const colCount = 2;
+        const rowCount = 3;
+        const gapX = 15;
+        const gapY = 20;
+        const colWidth = (contentWidth - gapX) / colCount;
+        const maxRowHeight = (height - 120 - (gapY * (rowCount - 1))) / rowCount;
+
+        let currentImgIndex = 0;
+        let pageStartY = y;
+
         for (const url of photoUrls) {
             try {
                 let imgBytes;
@@ -1889,46 +1899,58 @@ async function drawLampiranSection(pdfDoc, doc, fontBold, fontRegular) {
                     }
                 }
 
-            if (imgBytes) {
-                const img = (fileExt === '.png') ? await pdfDoc.embedPng(imgBytes) : await pdfDoc.embedJpg(imgBytes);
-                
-                const imgDims = img.scale(1);
-                const maxWidth = contentWidth;
-                const maxPageHeight = height - 120;
-                
-                let finalWidth = imgDims.width;
-                let finalHeight = imgDims.height;
-                
-                if (finalWidth > maxWidth) {
-                    const ratio = maxWidth / finalWidth;
-                    finalWidth = maxWidth;
-                    finalHeight = finalHeight * ratio;
-                }
-                
-                if (finalHeight > maxPageHeight) {
-                    const ratio = maxPageHeight / finalHeight;
-                    finalHeight = maxPageHeight;
-                    finalWidth = finalWidth * ratio;
-                }
+                if (imgBytes) {
+                    const img = (fileExt === '.png') ? await pdfDoc.embedPng(imgBytes) : await pdfDoc.embedJpg(imgBytes);
+                    
+                    const indexOnPage = currentImgIndex % (colCount * rowCount);
 
-                // Check if it fits on the current page, if not, add a new page
-                if (y - finalHeight < 60) {
-                    page = pdfDoc.addPage([595.28, 841.89]);
-                    y = height - 60;
-                }
+                    // Handle pagination
+                    if (currentImgIndex > 0 && indexOnPage === 0) {
+                        page = pdfDoc.addPage([595.28, 841.89]);
+                        pageStartY = height - 60;
+                    } else if (currentImgIndex === 0 && pageStartY - maxRowHeight < 60) {
+                        // If the first page doesn't even have space for one row
+                        page = pdfDoc.addPage([595.28, 841.89]);
+                        pageStartY = height - 60;
+                    }
 
-                page.drawImage(img, {
-                    x: margin + (contentWidth - finalWidth) / 2,
-                    y: y - finalHeight,
-                    width: finalWidth,
-                    height: finalHeight
-                });
-                
-                y -= finalHeight + 20; // Add spacing below each image
+                    const col = indexOnPage % colCount;
+                    const row = Math.floor(indexOnPage / colCount);
+
+                    const imgDims = img.scale(1);
+                    let finalWidth = imgDims.width;
+                    let finalHeight = imgDims.height;
+                    
+                    if (finalWidth > colWidth) {
+                        const ratio = colWidth / finalWidth;
+                        finalWidth = colWidth;
+                        finalHeight = finalHeight * ratio;
+                    }
+                    
+                    if (finalHeight > maxRowHeight) {
+                        const ratio = maxRowHeight / finalHeight;
+                        finalHeight = maxRowHeight;
+                        finalWidth = finalWidth * ratio;
+                    }
+
+                    const xPos = margin + col * (colWidth + gapX);
+                    const centeredX = xPos + (colWidth - finalWidth) / 2;
+
+                    const rowTopY = pageStartY - row * (maxRowHeight + gapY);
+                    const centeredY = rowTopY - (maxRowHeight - finalHeight) / 2 - finalHeight;
+
+                    page.drawImage(img, {
+                        x: centeredX,
+                        y: centeredY,
+                        width: finalWidth,
+                        height: finalHeight
+                    });
+
+                    currentImgIndex++;
+                }
+            } catch (e) {
+                console.error('Failed to draw photo lampiran:', e);
             }
-        } catch (e) {
-            console.error('Failed to draw photo lampiran:', e);
-        }
         }
     }
 }
