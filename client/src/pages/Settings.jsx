@@ -929,6 +929,7 @@ const Settings = () => {
                                             <option value="Kepala Bidang Sarana dan Prasarana">Kepala Bidang Sarana dan Prasarana (Super Admin)</option>
                                             <option value="Staff Keuangan dan Administrasi (Sarpras)">Staff Keuangan & Adm (Admin Aset)</option>
                                             <option value="Staff Manajemen Aset">Staff Manajemen Aset (Admin Aset)</option>
+                                            <option value="Staff Teknisi Aset">Staff Teknisi Aset (Admin Aset)</option>
                                             <option value="Staff Gudang dan Logistik">Staff Gudang dan Logistik (Admin Aset)</option>
                                             <option value="Staff Kendaraan">Staff Kendaraan (Admin Aset)</option>
                                             <option value="Kepala Bidang IT">Kepala Bidang IT (Super Admin)</option>
