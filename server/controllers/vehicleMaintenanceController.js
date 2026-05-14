@@ -103,12 +103,15 @@ exports.createMaintenanceLog = async (req, res) => {
         });
 
         // 3. Update Vehicle Odometer if provided
+        // NOTE: Di-comment agar tidak mempengaruhi km terakhir kendaraan
+        /*
         if (odometer) {
             await prisma.vehicle.update({
                 where: { id: parseInt(vehicleId) },
                 data: { odometer: parseInt(odometer) }
             });
         }
+        */
 
         // 4. Auto-update reminders for routine items
         if (items && Array.isArray(items)) {
