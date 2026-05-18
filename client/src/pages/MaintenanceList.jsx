@@ -97,6 +97,23 @@ const MaintenanceList = () => {
         }
     };
 
+    const fetchSchedule = async () => {
+        try {
+            setLoading(true);
+            const params = {};
+            if (debouncedSearch) params.search = debouncedSearch;
+            if (unitFilter) params.unitId = unitFilter;
+            if (categoryFromUrl) params.category = categoryFromUrl;
+            const res = await api.get('/maintenance/schedule', { params });
+            setSchedule(res.data || []);
+        } catch (err) {
+            console.error('Fetch schedule error:', err);
+            setSchedule([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const fetchUnits = async () => {
         try {
             const res = await api.get('/master/units');
