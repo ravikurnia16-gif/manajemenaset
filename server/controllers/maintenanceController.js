@@ -382,7 +382,10 @@ exports.createReport = async (req, res) => {
                 // 1. In-App Notification (Dynamic based on targetDept)
                 const inAppRoles = [{ position: { contains: 'Staff Manajemen Aset' } }];
                 if (targetDept === 'PEMBANGUNAN') {
-                    inAppRoles.push({ position: { contains: 'Kepala Bidang Pembangunan' } });
+                    inAppRoles.push(
+                        { position: { contains: 'Staff Pembangunan' } },
+                        { nip: '22101471' }
+                    );
                 }
 
                 const notifRecipients = await prisma.user.findMany({
@@ -429,7 +432,10 @@ exports.createReport = async (req, res) => {
                 // 2. WhatsApp Notification (Dynamic based on targetDept)
                 const waRoles = [{ position: { contains: 'Manajemen Aset' } }];
                 if (targetDept === 'PEMBANGUNAN') {
-                    waRoles.push({ position: { contains: 'Kepala Bidang Pembangunan' } });
+                    waRoles.push(
+                        { position: { contains: 'Staff Pembangunan' } },
+                        { nip: '22101471' }
+                    );
                 }
 
                 const waRecipients = await prisma.user.findMany({

@@ -1007,10 +1007,10 @@ exports.getAssetSummary = async (req, res) => {
             { label: 'Kipas Angin', query: { OR: exactWord('Kipas') } },
             { label: 'Laptop', query: { OR: exactWord('Laptop') } },
             { label: 'Komputer', query: { OR: [...exactWord('Komputer'), ...exactWord('PC'), ...exactWord('Computer')] }, exclude: 'Meja' },
-            { label: 'Meja', query: { OR: exactWord('Meja') } },
-            { label: 'Kursi', query: { OR: exactWord('Kursi') } },
-            { label: 'Proyektor', query: { OR: exactWord('Proyektor') } },
-            { label: 'Dispenser', query: { OR: exactWord('Dispenser') } },
+        //    { label: 'Meja', query: { OR: exactWord('Meja') } },
+        //    { label: 'Kursi', query: { OR: exactWord('Kursi') } },
+        //    { label: 'Proyektor', query: { OR: exactWord('Proyektor') } },
+        //    { label: 'Dispenser', query: { OR: exactWord('Dispenser') } },
         ];
 
         const keywordCounts = await Promise.all(keywords.map(async (k) => {
