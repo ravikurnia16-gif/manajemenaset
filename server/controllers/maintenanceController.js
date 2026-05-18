@@ -674,13 +674,45 @@ exports.updateStatus = async (req, res) => {
                             const isExternal = !techUser;
                             const baseUrl = process.env.BASE_URL || 'https://sarpras.dareliman.or.id';
                             const maintenanceUrl = `${baseUrl}/pemeliharaan/${report.id}`;
+
+                            // Build photo URLs for external technician
+                            let externalExtra = '';
+                            if (isExternal) {
+                                const formatMediaUrl = (url) => {
+                                    if (!url) return '';
+                                    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+                                    return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+                                };
+
+                                const photoUrls = [];
+                                if (report.photo) photoUrls.push(formatMediaUrl(report.photo));
+                                if (Array.isArray(report.media)) {
+                                    report.media.forEach(m => {
+                                        if (m.type === 'IMAGE' && m.url) {
+                                            const fullUrl = formatMediaUrl(m.url);
+                                            if (!photoUrls.includes(fullUrl)) photoUrls.push(fullUrl);
+                                        }
+                                    });
+                                }
+
+                                externalExtra += `📍 *Lokasi* : ${report.location || '-'}\n`;
+                                externalExtra += `🏢 *Unit* : ${report.unit?.name || '-'}\n`;
+                                if (photoUrls.length > 0) {
+                                    externalExtra += `\n🖼️ *Foto Laporan* :\n`;
+                                    photoUrls.forEach((url, i) => {
+                                        externalExtra += `${i + 1}. ${url}\n`;
+                                    });
+                                }
+                                externalExtra += '\n';
+                            }
+
                             const msgTech = `Bismillah.\n🛠 *PENUGASAN PEMELIHARAAN*\n\n` +
                                 `Halo *${techUser?.name || techUser?.username || technician}*,\n` +
                                 `Anda ditugaskan untuk memperbaiki: *${report.title}*.\n\n` +
                                 `📜 *Kode* : ${report.code}\n` +
                                 `📋 *Judul* : ${report.title}\n` +
                                 `📝 *Masalah* : ${report.description}\n\n` +
-                                (isExternal ? `` : `🚀 *MULAI PENGERJAAN*:\n${maintenanceUrl}\n\n`) +
+                                (isExternal ? externalExtra : `🚀 *MULAI PENGERJAAN*:\n${maintenanceUrl}\n\n`) +
                                 `Syukron jazakumullahu khairan.`;
 
                             setTimeout(async () => {
