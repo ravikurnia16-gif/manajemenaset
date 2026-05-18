@@ -148,6 +148,9 @@ const ListView = ({
     filteredDocs,
     searchQuery,
     setSearchQuery,
+    categoryFilter,
+    setCategoryFilter,
+    showCategoryFilter,
     setViewingDoc,
     setEditingDoc,
     setIsFormOpen,
@@ -160,15 +163,40 @@ const ListView = ({
 }) => (
     <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input
-                    type="text"
-                    placeholder="Cari subjek, nomor..."
-                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                />
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+                <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Cari subjek, nomor..."
+                        className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm font-semibold text-slate-800"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+                {showCategoryFilter && (
+                    <div className="relative shrink-0">
+                        <select
+                            className="pl-3 pr-8 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white text-sm font-bold text-slate-700 appearance-none cursor-pointer hover:border-slate-300 transition-all min-w-[160px]"
+                            value={categoryFilter}
+                            onChange={(e) => setCategoryFilter(e.target.value)}
+                        >
+                            <option value="">📁 Semua Kategori</option>
+                            <option value="Tugas">📋 Tugas</option>
+                            <option value="Keputusan">⚖️ Keputusan</option>
+                            <option value="Pemberitahuan">📢 Pemberitahuan</option>
+                            <option value="BAST">📦 BAST</option>
+                            <option value="Pesanan">🛒 Pesanan</option>
+                            <option value="Edaran">📄 Edaran</option>
+                            <option value="Umum">🏢 Umum</option>
+                            <option value="Berita Acara Kunjungan">🚗 Kunjungan</option>
+                            <option value="Lainnya">📎 Lainnya</option>
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                            <Filter size={14} />
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
 
@@ -1439,6 +1467,7 @@ const EOffice = () => {
     const [loading, setLoading] = useState(true);
     const [documents, setDocuments] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('');
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingDoc, setEditingDoc] = useState(null);
     const [viewingDoc, setViewingDoc] = useState(null);
@@ -1455,6 +1484,7 @@ const EOffice = () => {
     useEffect(() => {
         fetchStats();
         fetchDocuments();
+        setCategoryFilter(''); // Reset category filter on tab switch
 
         if (location.state?.autoCreate) {
             const s = location.state;
@@ -1530,9 +1560,11 @@ const EOffice = () => {
 
     const filteredDocs = (documents || []).filter(doc => {
         if (!doc) return false;
-        return (doc.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        const matchesSearch = (doc.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             (doc.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             (doc.senderName || '').toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = !categoryFilter || doc.category === categoryFilter;
+        return matchesSearch && matchesCategory;
     });
 
 
@@ -1624,6 +1656,9 @@ const EOffice = () => {
                 filteredDocs={filteredDocs}
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
+                categoryFilter={categoryFilter}
+                setCategoryFilter={setCategoryFilter}
+                showCategoryFilter={tab === 'surat-keluar'}
                 setViewingDoc={setViewingDoc}
                 setEditingDoc={setEditingDoc}
                 setIsFormOpen={setIsFormOpen}
