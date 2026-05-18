@@ -7,8 +7,7 @@ import MaintenanceDashboard from '../components/MaintenanceDashboard';
 
 const statusColors = {
     SUBMITTED: 'bg-blue-100 text-blue-700',
-    APPROVED: 'bg-cyan-100 text-cyan-700',
-    VALIDATED: 'bg-indigo-100 text-indigo-700',
+    APPROVED: 'bg-yellow-100 text-yellow-700',
     ASSIGNED: 'bg-yellow-100 text-yellow-700',
     IN_PROGRESS: 'bg-orange-100 text-orange-700',
     COMPLETED: 'bg-green-100 text-green-700',
@@ -17,7 +16,6 @@ const statusColors = {
 
 const statusLabels = {
     SUBMITTED: 'Diajukan',
-    APPROVED: 'Disetujui & Ditugaskan',
     ASSIGNED: 'Disetujui & Ditugaskan',
     IN_PROGRESS: 'Sedang Dikerjakan',
     COMPLETED: 'Selesai',
