@@ -221,6 +221,20 @@ async function createBasePDF() {
 }
 
 /**
+ * Helper to sanitize text for WinAnsi encoding (standard PDF fonts)
+ */
+function sanitizeTextForWinAnsi(text) {
+    if (text === null || text === undefined) return text;
+    return String(text)
+        .replace(/[\u2018\u2019]/g, "'")
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/\u2013/g, '-')
+        .replace(/\u2014/g, '--')
+        .replace(/\u2026/g, '...')
+        .replace(/[^\x00-\xFF]/g, '');
+}
+
+/**
  * Helper to format date to Indonesian locale string
  */
 function formatDate(date) {
@@ -479,6 +493,14 @@ async function generateBASTMouPDF(doc, setting) {
         } catch (e) {}
     }
 
+    // Sanitize document fields to prevent WinAnsi encoding errors
+    const sDoc = { ...doc };
+    const fieldsToSanitize = ['number', 'party1Name', 'party1Title', 'party1Address', 'party1Org', 'party2Name', 'party2Title', 'party2Address', 'party2Org'];
+    fieldsToSanitize.forEach(field => {
+        if (sDoc[field]) sDoc[field] = sanitizeTextForWinAnsi(sDoc[field]);
+    });
+
+
     // Tanggal Teks Pembuka
     const docDate = new Date(doc.date);
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -486,7 +508,7 @@ async function generateBASTMouPDF(doc, setting) {
     
     const formattedDateNum = `${String(docDate.getDate()).padStart(2, '0')}/${String(docDate.getMonth() + 1).padStart(2, '0')}/${docDate.getFullYear()}`;
 
-    const bastLocation = contentData.location || doc.party1Address || 'Padang';
+    const bastLocation = sanitizeTextForWinAnsi(contentData.location) || sDoc.party1Address || 'Padang';
     const openingText = `Pada hari ini, ${days[docDate.getDay()]}, tanggal ${docDate.getDate()} bulan ${months[docDate.getMonth()]} tahun ${docDate.getFullYear()} (${formattedDateNum}), bertempat di ${bastLocation}, kami yang bertanda tangan di bawah ini:`;
     const openingLines = wrapText(openingText, width - margin * 2, fontRegular, 11);
     openingLines.forEach(line => {
@@ -505,36 +527,36 @@ async function generateBASTMouPDF(doc, setting) {
     checkPage(20);
     page.drawText('1.', { x: margin + 10, y, size: 11, font: fontRegular });
     page.drawText('Nama', { x: margin + 25, y, size: 11, font: fontBold });
-    page.drawText(`: ${doc.party1Name || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
+    page.drawText(`: ${sDoc.party1Name || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
     y -= 15;
     checkPage(20);
     page.drawText('Jabatan', { x: margin + 25, y, size: 11, font: fontBold });
-    page.drawText(`: ${doc.party1Title || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
+    page.drawText(`: ${sDoc.party1Title || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
     y -= 15;
     checkPage(20);
     page.drawText('Alamat', { x: margin + 25, y, size: 11, font: fontBold });
-    page.drawText(`: ${doc.party1Address || '-'}`, { x: margin + 75, y, size: 11, font: fontBold, maxWidth: width - margin - 125 });
+    page.drawText(`: ${sDoc.party1Address || '-'}`, { x: margin + 75, y, size: 11, font: fontBold, maxWidth: width - margin - 125 });
     y -= 30; // space for multiline address if any
     checkPage(35);
-    page.drawText(`Dalam hal ini bertindak untuk dan atas nama ${doc.party1Org || '-'}, selanjutnya disebut sebagai PIHAK PERTAMA (YANG MENYERAHKAN).`, { x: margin + 25, y, size: 11, font: fontRegular, maxWidth: width - margin * 2 - 25, lineHeight: 15 });
+    page.drawText(`Dalam hal ini bertindak untuk dan atas nama ${sDoc.party1Org || '-'}, selanjutnya disebut sebagai PIHAK PERTAMA (YANG MENYERAHKAN).`, { x: margin + 25, y, size: 11, font: fontRegular, maxWidth: width - margin * 2 - 25, lineHeight: 15 });
     y -= 35;
 
     // Pihak 2
     checkPage(20);
     page.drawText('2.', { x: margin + 10, y, size: 11, font: fontRegular });
     page.drawText('Nama', { x: margin + 25, y, size: 11, font: fontBold });
-    page.drawText(`: ${doc.party2Name || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
+    page.drawText(`: ${sDoc.party2Name || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
     y -= 15;
     checkPage(20);
     page.drawText('Jabatan', { x: margin + 25, y, size: 11, font: fontBold });
-    page.drawText(`: ${doc.party2Title || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
+    page.drawText(`: ${sDoc.party2Title || '-'}`, { x: margin + 75, y, size: 11, font: fontBold });
     y -= 15;
     checkPage(20);
     page.drawText('Alamat', { x: margin + 25, y, size: 11, font: fontBold });
-    page.drawText(`: ${doc.party2Address || '-'}`, { x: margin + 75, y, size: 11, font: fontBold, maxWidth: width - margin - 125 });
+    page.drawText(`: ${sDoc.party2Address || '-'}`, { x: margin + 75, y, size: 11, font: fontBold, maxWidth: width - margin - 125 });
     y -= 30;
     checkPage(35);
-    page.drawText(`Dalam hal ini bertindak untuk dan atas nama ${doc.party2Org || '-'}, selanjutnya disebut sebagai PIHAK KEDUA (YANG MENERIMA).`, { x: margin + 25, y, size: 11, font: fontRegular, maxWidth: width - margin * 2 - 25, lineHeight: 15 });
+    page.drawText(`Dalam hal ini bertindak untuk dan atas nama ${sDoc.party2Org || '-'}, selanjutnya disebut sebagai PIHAK KEDUA (YANG MENERIMA).`, { x: margin + 25, y, size: 11, font: fontRegular, maxWidth: width - margin * 2 - 25, lineHeight: 15 });
     y -= 45;
 
     // Garis Pemisah (Opsional, di screenshot ada garis horizontal kecil)
@@ -583,10 +605,14 @@ async function generateBASTMouPDF(doc, setting) {
 
             checkPage(40);
 
+            const itemName = sanitizeTextForWinAnsi(item.name || '-');
+            const itemSpec = sanitizeTextForWinAnsi(item.spec || '-');
+            const itemQty = sanitizeTextForWinAnsi(String(item.qty || '-'));
+
             page.drawText(`${i + 1}`, { x: colNoX + 5, y, size: 10, font: fontRegular });
-            page.drawText(item.name || '-', { x: colNamaX + 5, y, size: 10, font: fontRegular, maxWidth: 160 });
-            page.drawText(item.spec || '-', { x: colSpecX + 5, y, size: 10, font: fontRegular, maxWidth: 160 });
-            page.drawText(String(item.qty || '-'), { x: colQtyX + 5, y, size: 10, font: fontRegular });
+            page.drawText(itemName, { x: colNamaX + 5, y, size: 10, font: fontRegular, maxWidth: 160 });
+            page.drawText(itemSpec, { x: colSpecX + 5, y, size: 10, font: fontRegular, maxWidth: 160 });
+            page.drawText(itemQty, { x: colQtyX + 5, y, size: 10, font: fontRegular });
 
             y -= 25;
             page.drawLine({ start: { x: margin, y: y + 15 }, end: { x: width - margin, y: y + 15 }, thickness: 0.5, color: rgb(0.9, 0.9, 0.9) });
@@ -614,8 +640,8 @@ async function generateBASTMouPDF(doc, setting) {
     page.drawText('PIHAK PERTAMA,', { x: col1X, y, size: 11, font: fontBold });
     page.drawText('PIHAK KEDUA,', { x: col2X, y, size: 11, font: fontBold });
     y -= 15;
-    page.drawText(doc.party1Title || '', { x: col1X, y, size: 10, font: fontRegular });
-    page.drawText(doc.party2Title || '', { x: col2X, y, size: 10, font: fontRegular });
+    page.drawText(sDoc.party1Title || '', { x: col1X, y, size: 10, font: fontRegular });
+    page.drawText(sDoc.party2Title || '', { x: col2X, y, size: 10, font: fontRegular });
 
     y -= 85; // Increased space for signature to avoid overlap
 
@@ -664,8 +690,8 @@ async function generateBASTMouPDF(doc, setting) {
 
     // Names
     y -= 5;
-    page.drawText(doc.party1Name || '____________________', { x: col1X, y, size: 11, font: fontBold });
-    page.drawText(doc.party2Name || '____________________', { x: col2X, y, size: 11, font: fontBold });
+    page.drawText(sDoc.party1Name || '____________________', { x: col1X, y, size: 11, font: fontBold });
+    page.drawText(sDoc.party2Name || '____________________', { x: col2X, y, size: 11, font: fontBold });
 
     await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
     const pdfBytes = await pdfDoc.save();
@@ -702,7 +728,7 @@ async function generateSuratTugasPDF(doc, setting) {
 
     // Nomor
     if (doc.number) {
-        const numText = `Nomor: ${doc.number}`;
+        const numText = sanitizeTextForWinAnsi(`Nomor: ${doc.number}`);
         const numWidth = fontRegular.widthOfTextAtSize(numText, 11);
         page.drawText(numText, { x: (width - numWidth) / 2, y, size: 11, font: fontRegular });
         y -= 25;
@@ -747,7 +773,7 @@ async function generateSuratTugasPDF(doc, setting) {
         list.forEach((item, idx) => {
             if (!item) return;
             const prefix = list.length > 1 ? `${idx + 1}. ` : ': ';
-            const fullText = prefix + item;
+            const fullText = sanitizeTextForWinAnsi(prefix + item);
 
             const textWidth = fontRegular.widthOfTextAtSize(fullText, 11);
             const numLines = Math.ceil(textWidth / (width - margin - 100));
@@ -791,24 +817,28 @@ async function generateSuratTugasPDF(doc, setting) {
             const maxWidth = width - valueX - margin;
 
             // Nama
-            const nameLines = Math.ceil(fontBold.widthOfTextAtSize(`: ${p.name || '-'}`, 11) / maxWidth);
-            const posLines = p.position ? Math.ceil(fontRegular.widthOfTextAtSize(`: ${p.position}`, 10) / maxWidth) : 0;
-            const nipLines = p.nip ? Math.ceil(fontRegular.widthOfTextAtSize(`: ${p.nip}`, 10) / maxWidth) : 0;
+            const safeName = sanitizeTextForWinAnsi(p.name || '-');
+            const safePos = sanitizeTextForWinAnsi(p.position || '');
+            const safeNip = sanitizeTextForWinAnsi(p.nip || '');
+
+            const nameLines = Math.ceil(fontBold.widthOfTextAtSize(`: ${safeName}`, 11) / maxWidth);
+            const posLines = safePos ? Math.ceil(fontRegular.widthOfTextAtSize(`: ${safePos}`, 10) / maxWidth) : 0;
+            const nipLines = safeNip ? Math.ceil(fontRegular.widthOfTextAtSize(`: ${safeNip}`, 10) / maxWidth) : 0;
             
             const needed = (nameLines * 14) + (posLines * 13) + (nipLines * 13) + 10;
             checkPage(needed);
 
             page.drawText(`${prefix}Nama`, { x: pX, y, size: 11, font: fontRegular });
-            page.drawText(`: ${p.name || '-'}`, {
+            page.drawText(`: ${safeName}`, {
                 x: valueX, y, size: 11, font: fontBold,
                 maxWidth: maxWidth
             });
             y -= (nameLines * 14);
 
             // Jabatan
-            if (p.position) {
+            if (safePos) {
                 page.drawText('Jabatan', { x: pX + indent, y, size: 10, font: fontRegular });
-                page.drawText(`: ${p.position}`, {
+                page.drawText(`: ${safePos}`, {
                     x: valueX, y, size: 10, font: fontRegular,
                     maxWidth: maxWidth
                 });
@@ -816,9 +846,9 @@ async function generateSuratTugasPDF(doc, setting) {
             }
 
             // NIY
-            if (p.nip) {
+            if (safeNip) {
                 page.drawText('NIY', { x: pX + indent, y, size: 10, font: fontRegular });
-                page.drawText(`: ${p.nip}`, {
+                page.drawText(`: ${safeNip}`, {
                     x: valueX, y, size: 10, font: fontRegular,
                     maxWidth: maxWidth
                 });
@@ -850,7 +880,7 @@ async function generateSuratTugasPDF(doc, setting) {
 
     const timeInfo = `${formatPeriod()}${task.timeRange ? ' (' + task.timeRange + ')' : ''}`;
     if (timeInfo) drawListSection('Waktu', [timeInfo]);
-    if (task.location) drawListSection('Tempat', [task.location]);
+    if (task.location) drawListSection('Tempat', [sanitizeTextForWinAnsi(task.location)]);
 
     y -= 25;
     const closing = 'Demikian surat tugas ini diberikan untuk dapat dilaksanakan dengan penuh tanggung jawab.';
