@@ -1072,6 +1072,29 @@ async function generateSuratPesananPDF(doc) {
     }
 
     y -= 40;
+
+    // Deadline Selesai
+    const deadlineVal = content.deadline;
+    if (deadlineVal) {
+        let formattedDeadline = deadlineVal;
+        try {
+            const parts = deadlineVal.split('-');
+            if (parts.length === 3) {
+                const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+                formattedDeadline = `${parseInt(parts[2])} ${months[parseInt(parts[1]) - 1]} ${parts[0]}`;
+            }
+        } catch (e) {}
+        checkPage(40);
+        page.drawText(`Deadline Penyelesaian Pekerjaan / Pengiriman Barang: ${formattedDeadline}`, {
+            x: margin,
+            y,
+            size: 10,
+            font: fontBold,
+            color: rgb(0.7, 0.15, 0.15)
+        });
+        y -= 20;
+    }
+
     const closingText = 'Demikianlah surat pesanan ini kami buat untuk dapat dipergunakan sebagaimana mestinya. Atas perhatian dan kerjasamanya kami ucapkan terima kasih.';
     y = drawJustifiedText(page, closingText, margin, y, width - margin * 2, 11, fontRegular);
 

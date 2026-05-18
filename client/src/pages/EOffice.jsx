@@ -222,6 +222,21 @@ const ListView = ({
                                         )}
                                     </div>
                                 )}
+                                {doc.category === 'Pesanan' && (() => {
+                                    try {
+                                        const pc = JSON.parse(doc.content || '{}');
+                                        const cd = Array.isArray(pc) ? {} : pc;
+                                        const os = cd.orderStatus || 'PENDING';
+                                        const dl = cd.deadline || '';
+                                        const colors = { PENDING: 'bg-amber-100 text-amber-700', PROCESSING: 'bg-blue-100 text-blue-700', COMPLETED: 'bg-green-100 text-green-700', CANCELLED: 'bg-red-100 text-red-700' };
+                                        return (
+                                            <div className="mt-1 flex flex-col gap-0.5">
+                                                <span className={`px-2 py-0.5 ${colors[os] || colors.PENDING} rounded-full text-[10px] font-black uppercase tracking-widest w-fit`}>{os}</span>
+                                                {dl && <span className="text-[9px] font-bold text-slate-400">DL: {dl}</span>}
+                                            </div>
+                                        );
+                                    } catch (e) { return null; }
+                                })()}
                             </td>
                             <td className="px-6 py-4 text-right">
                                 <div className="flex items-center justify-end gap-2">
@@ -305,6 +320,21 @@ const ListView = ({
                                         ? <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[9px] font-black">LUNAS</span>
                                         : <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[9px] font-black">BELUM LUNAS</span>
                                 )}
+                                {doc.category === 'Pesanan' && (() => {
+                                    try {
+                                        const pc = JSON.parse(doc.content || '{}');
+                                        const cd = Array.isArray(pc) ? {} : pc;
+                                        const os = cd.orderStatus || 'PENDING';
+                                        const dl = cd.deadline || '';
+                                        const colors = { PENDING: 'bg-amber-100 text-amber-700', PROCESSING: 'bg-blue-100 text-blue-700', COMPLETED: 'bg-green-100 text-green-700', CANCELLED: 'bg-red-100 text-red-700' };
+                                        return (
+                                            <>
+                                                <span className={`px-2 py-0.5 ${colors[os] || colors.PENDING} rounded-full text-[9px] font-black`}>{os}</span>
+                                                {dl && <span className="text-[8px] font-bold text-slate-400">DL: {dl}</span>}
+                                            </>
+                                        );
+                                    } catch (e) { return null; }
+                                })()}
                             </div>
                         </div>
                         <div className="flex flex-col gap-1 shrink-0">
@@ -619,6 +649,66 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Pesanan Perihal</div>
                                     <div className="text-sm font-black text-slate-900 leading-relaxed max-w-md mx-auto">{viewingDoc.subject}</div>
                                 </div>
+                                {/* Deadline & Order Status Inline Edit */}
+                                {(() => {
+                                    try {
+                                        const parsedContent = JSON.parse(viewingDoc.content || '{}');
+                                        const contentData = Array.isArray(parsedContent) ? { items: parsedContent } : parsedContent;
+                                        const curDeadline = contentData.deadline || '';
+                                        const curOrderStatus = contentData.orderStatus || 'PENDING';
+                                        const statusColors = {
+                                            PENDING: { bg: 'bg-amber-50', border: 'border-amber-100', text: 'text-amber-600', selectBorder: 'border-amber-200' },
+                                            PROCESSING: { bg: 'bg-blue-50', border: 'border-blue-100', text: 'text-blue-600', selectBorder: 'border-blue-200' },
+                                            COMPLETED: { bg: 'bg-green-50', border: 'border-green-100', text: 'text-green-600', selectBorder: 'border-green-200' },
+                                            CANCELLED: { bg: 'bg-red-50', border: 'border-red-100', text: 'text-red-600', selectBorder: 'border-red-200' }
+                                        };
+                                        const sc = statusColors[curOrderStatus] || statusColors.PENDING;
+                                        return (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
+                                                    <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Deadline Selesai</span>
+                                                    <input
+                                                        type="date"
+                                                        className="bg-transparent border border-slate-200 rounded-lg px-2 py-1.5 text-sm font-bold text-red-600 outline-none w-full focus:ring-2 focus:ring-red-200 transition-all"
+                                                        defaultValue={curDeadline}
+                                                        onBlur={async (e) => {
+                                                            if (e.target.value !== curDeadline) {
+                                                                try {
+                                                                    const res = await api.patch(`/office-documents/${viewingDoc.id}/order-status`, { orderStatus: curOrderStatus, deadline: e.target.value });
+                                                                    alert(res.data.message);
+                                                                    setViewingDoc(res.data.doc);
+                                                                } catch (err) {
+                                                                    alert('Gagal memperbarui deadline: ' + (err.response?.data?.error || err.message));
+                                                                }
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div className={`p-4 rounded-xl border flex flex-col justify-between ${sc.bg} ${sc.border}`}>
+                                                    <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Status Pesanan (Progress)</span>
+                                                    <select
+                                                        className={`bg-white border rounded-lg px-2 py-1.5 text-xs font-bold outline-none cursor-pointer w-full ${sc.text} ${sc.selectBorder} focus:ring-2 transition-all`}
+                                                        defaultValue={curOrderStatus}
+                                                        onChange={async (e) => {
+                                                            try {
+                                                                const res = await api.patch(`/office-documents/${viewingDoc.id}/order-status`, { orderStatus: e.target.value, deadline: curDeadline });
+                                                                alert(res.data.message);
+                                                                setViewingDoc(res.data.doc);
+                                                            } catch (err) {
+                                                                alert('Gagal memperbarui status: ' + (err.response?.data?.error || err.message));
+                                                            }
+                                                        }}
+                                                    >
+                                                        <option value="PENDING">🟡 PENDING (Menunggu)</option>
+                                                        <option value="PROCESSING">🔵 PROCESSING (Proses)</option>
+                                                        <option value="COMPLETED">🟢 COMPLETED (Selesai)</option>
+                                                        <option value="CANCELLED">🔴 CANCELLED (Batal)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        );
+                                    } catch (e) { return null; }
+                                })()}
                                 <div className="border border-slate-200 rounded-xl overflow-hidden">
                                     <table className="w-full text-left border-collapse text-xs">
                                         <thead className="bg-slate-50 text-slate-600 font-bold uppercase">
@@ -633,7 +723,8 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                         <tbody>
                                             {(() => {
                                                 try {
-                                                    const items = JSON.parse(viewingDoc.content || '[]');
+                                                    const parsed = JSON.parse(viewingDoc.content || '{}');
+                                                    const items = Array.isArray(parsed) ? parsed : (parsed.items || []);
                                                     const hasUnknownPrice = items.some(it => !(parseFloat(it.price) > 0));
                                                     const grandTotal = items.reduce((acc, curr) => acc + ((parseFloat(curr.qty) || 0) * (parseFloat(curr.price) || 0)), 0);
 
@@ -1702,6 +1793,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
     const [bastItems, setBastItems] = useState([]);
     const [purchasingItems, setPurchasingItems] = useState([]);
     const [priceDetermined, setPriceDetermined] = useState(true);
+    const [deadline, setDeadline] = useState('');
+    const [orderStatus, setOrderStatus] = useState('PENDING');
     const [staffList, setStaffList] = useState([]);
     const [lampiranText, setLampiranText] = useState('');
     const [taskData, setTaskData] = useState({
@@ -1819,6 +1912,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                     const parsed = JSON.parse(doc.content);
                     setPurchasingItems(Array.isArray(parsed) ? parsed : (parsed.items || []));
                     setPriceDetermined(parsed.priceDetermined !== undefined ? parsed.priceDetermined : true);
+                    setDeadline(parsed.deadline || '');
+                    setOrderStatus(parsed.orderStatus || 'PENDING');
                 } catch (e) {
                     console.error('Failed to parse Purchasing content JSON', e);
                 }
@@ -1962,6 +2057,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             });
             setBastItems([{ name: '', qty: '', condition: 'Baik' }]);
             setPurchasingItems([{ name: '', spec: '', qty: '', unit: 'Pcs', price: '', total: 0 }]);
+            setDeadline('');
+            setOrderStatus('PENDING');
             setTaskData({
                 basisList: [''],
                 personnelList: [{ name: '', position: '', nip: '' }],
@@ -1995,7 +2092,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
             if (formData.type === 'BAST' || (formData.type === 'SURAT_KELUAR' && ['Serah Terima Barang', 'BAST'].includes(formData.category))) {
                 contentObj = { items: bastItems, location: formData.location };
             } else if (formData.category === 'Pesanan') {
-                contentObj = { items: purchasingItems, priceDetermined };
+                contentObj = { items: purchasingItems, priceDetermined, deadline, orderStatus };
             } else if (formData.type === 'INVOICE' || formData.category === 'Invoice') {
                 contentObj = { items: purchasingItems, bankInfo: invoiceData, dueDate: invoiceData.dueDate, notes: invoiceData.notes, paymentStatus: invoiceData.paymentStatus };
             } else if (formData.type === 'SURAT_KELUAR' && formData.category === 'Tugas') {
@@ -2272,6 +2369,28 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                         onChange={(e) => setFormData({ ...formData, party2Address: e.target.value })}
                                         placeholder="Alamat lengkap vendor..."
                                     />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Deadline Selesai</label>
+                                    <input
+                                        type="date"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold text-red-600"
+                                        value={deadline}
+                                        onChange={(e) => setDeadline(e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Status Pesanan</label>
+                                    <select
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none font-bold text-slate-800"
+                                        value={orderStatus}
+                                        onChange={(e) => setOrderStatus(e.target.value)}
+                                    >
+                                        <option value="PENDING">PENDING (Menunggu)</option>
+                                        <option value="PROCESSING">PROCESSING (Dalam Proses)</option>
+                                        <option value="COMPLETED">COMPLETED (Selesai)</option>
+                                        <option value="CANCELLED">CANCELLED (Batal)</option>
+                                    </select>
                                 </div>
                             </div>
                         )}

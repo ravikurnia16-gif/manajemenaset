@@ -808,6 +808,48 @@ exports.updatePaymentStatus = async (req, res) => {
 };
 
 /**
+ * PATCH /api/office-documents/:id/order-status
+ * Update order status & deadline for Pesanan documents (bypasses signature lock)
+ */
+exports.updateOrderStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { orderStatus, deadline } = req.body;
+
+        const doc = await prisma.officeDocument.findUnique({ where: { id: parseInt(id) } });
+        if (!doc) {
+            return res.status(404).json({ error: 'Dokumen tidak ditemukan' });
+        }
+        if (doc.category !== 'Pesanan') {
+            return res.status(400).json({ error: 'Dokumen bukan kategori Pesanan' });
+        }
+
+        let content = {};
+        try {
+            content = JSON.parse(doc.content || '{}');
+        } catch (e) {}
+
+        // Normalize legacy array-only format
+        if (Array.isArray(content)) {
+            content = { items: content };
+        }
+
+        if (orderStatus !== undefined) content.orderStatus = orderStatus;
+        if (deadline !== undefined) content.deadline = deadline;
+
+        const updated = await prisma.officeDocument.update({
+            where: { id: parseInt(id) },
+            data: { content: JSON.stringify(content) }
+        });
+
+        const statusLabels = { PENDING: 'Menunggu', PROCESSING: 'Dalam Proses', COMPLETED: 'Selesai', CANCELLED: 'Batal' };
+        res.json({ message: `Status pesanan diperbarui: ${statusLabels[orderStatus] || orderStatus || 'OK'}`, doc: updated });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
  * POST /api/office-documents/:id/send-wa
  * Manually send invoice notification via WhatsApp
  */

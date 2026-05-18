@@ -53,6 +53,10 @@ router.post('/:id/sign-party', ctrl.signAsParty);
 
 // Invoice Payment Status
 router.patch('/:id/payment-status', ctrl.updatePaymentStatus);
+
+// Order Status & Deadline (Pesanan category - bypasses draft constraint)
+router.patch('/:id/order-status', ctrl.updateOrderStatus);
+
 router.post('/:id/send-wa', ctrl.sendInvoiceWA);
 
 // Send document via WhatsApp (generic, for all document types)
