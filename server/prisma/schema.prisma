@@ -1313,3 +1313,59 @@ model AuditItem {
   @@index([sessionId])
   @@index([assetId])
 }
+
+// --- MODULE MANAJEMEN PRASARANA (PEMBANGUNAN) ---
+
+model ConstructionProject {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique // PRJ/2026/001
+  name          String
+  description   String?  @db.Text
+  location      String?
+
+  status        String   @default("PLANNING") // PLANNING, IN_PROGRESS, ON_HOLD, COMPLETED, CANCELLED
+  priority      String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  progress      Float    @default(0) // 0-100 percentage
+
+  // Timeline
+  startDate     DateTime?
+  endDate       DateTime?
+
+  // Budget
+  budgetAmount  Float    @default(0)
+  actualCost    Float    @default(0)
+  fundingSource String?
+
+  // PIC
+  picName       String?
+
+  // Contractor
+  contractorId  Int?
+  contractor    Contractor? @relation(fields: [contractorId], references: [id])
+
+  // Media & Docs
+  photo         String?  @db.LongText
+  media         Json?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Contractor {
+  id            Int      @id @default(autoincrement())
+  name          String
+  phone         String?
+  address       String?  @db.Text
+  specialty     String?  // Bangunan, Listrik, Plumbing, Cat, dll
+  rating        Float    @default(0) // 0-5
+  totalProjects Int      @default(0)
+  photo         String?  @db.LongText
+  idCardUrl     String?
+  notes         String?  @db.Text
+  isActive      Boolean  @default(true)
+
+  projects      ConstructionProject[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

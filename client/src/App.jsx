@@ -62,6 +62,8 @@ import AssetStandardCatalog from './pages/AssetStandardCatalog';
 import AssetStandardForm from './pages/AssetStandardForm';
 import AuditList from './pages/AuditList';
 import AuditSessionDetail from './pages/AuditSessionDetail';
+import ConstructionDashboard from './pages/ConstructionDashboard';
+import ContractorList from './pages/ContractorList';
 
 
 // Komponen untuk melindungi route yang butuh login
@@ -132,6 +134,8 @@ function App() {
           <Route path="procurements/new" element={<ProcurementForm />} />
           <Route path="procurements/:id" element={<ProcurementDetail />} />
           <Route path="vendors" element={<VendorManagement />} />
+          <Route path="prasarana/proyek" element={<ConstructionDashboard />} />
+          <Route path="prasarana/tukang" element={<ContractorList />} />
           <Route path="pemeliharaan" element={<MaintenanceList />} />
           <Route path="pemeliharaan/input" element={<MaintenanceForm />} />
           <Route path="pemeliharaan/:id" element={<MaintenanceDetail />} />

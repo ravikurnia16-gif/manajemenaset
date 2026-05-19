@@ -659,7 +659,7 @@ const publicConfirmBooking = async (req, res) => {
         // Notify Staff Kendaraan
         const staffKendaraan = await prisma.user.findMany({
             where: {
-                position: { contains: 'Staff Manajemen aset' },
+                position: { contains: 'Staff Kendaraan' },
                 phone: { not: null, not: '' }
             }
         });

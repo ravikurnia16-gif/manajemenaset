@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const Sidebar = ({ isOpen = true }) => {
@@ -10,6 +10,7 @@ const Sidebar = ({ isOpen = true }) => {
     // State for collapsible menus
     const [openMenus, setOpenMenus] = useState({
         assets: false,
+        construction: false,
         vehicles: false,
         warehouse: false,
         personnel: false,
@@ -62,6 +63,7 @@ const Sidebar = ({ isOpen = true }) => {
     const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user?.role);
 
     const isKabidSarpras = user?.position?.toLowerCase() === 'kepala bidang sarana dan prasarana';
+    const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS'].includes(user?.role);
 
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">
@@ -175,7 +177,26 @@ const Sidebar = ({ isOpen = true }) => {
                     </>
                 ))}
 
-                {/* 2. Manajemen Kendaraan - Category visible to all, but items filtered */}
+                {/* 2. Manajemen Prasarana (Pembangunan) */}
+                {renderCollapsible('construction', <Building2 size={18} />, 'Manajemen Prasarana', (
+                    <>
+                        {isPembangunanFull && (
+                            <Link to="/prasarana/proyek" className={subNavItemClass('/prasarana/proyek')}>
+                                <ClipboardList size={16} /> Manajemen Proyek
+                            </Link>
+                        )}
+                        <Link to="/pemeliharaan?targetDept=PEMBANGUNAN" className={subNavItemClass('/pemeliharaan?targetDept=PEMBANGUNAN')}>
+                            <Wrench size={16} /> Pemeliharaan
+                        </Link>
+                        {isPembangunanFull && (
+                            <Link to="/prasarana/tukang" className={subNavItemClass('/prasarana/tukang')}>
+                                <HardHat size={16} /> Database Tukang
+                            </Link>
+                        )}
+                    </>
+                ))}
+
+                {/* 3. Manajemen Kendaraan - Category visible to all, but items filtered */}
                 {renderCollapsible('vehicles', <Truck size={18} />, 'Manajemen Kendaraan', (
                     <>
                         {isVehicleAdmin && (

@@ -49,6 +49,8 @@ app.use('/api/push', require('./routes/pushRoutes'));
 app.use('/api/office-documents', require('./routes/officeDocumentRoutes'));
 app.use('/api/asset-standards', require('./routes/assetStandardRoutes'));
 app.use('/api/audit', require('./routes/auditRoutes'));
+app.use('/api/construction', require('./routes/constructionRoutes'));
+app.use('/api/contractors', require('./routes/contractorRoutes'));
 
 
 // Serve Static Files
