@@ -1055,7 +1055,7 @@ exports.downloadTTEAsset = async (req, res) => {
         const qrBuffer = Buffer.from(qrBase64, 'base64');
 
         // Composite logo onto the center of the QR code
-        const logoPath = path.join(__dirname, '../assets/logo_yayasan.jpg');
+        const logoPath = path.join(__dirname, '../assets/sarpras.jpeg');
         let finalBuffer = qrBuffer;
         
         if (fs.existsSync(logoPath)) {
