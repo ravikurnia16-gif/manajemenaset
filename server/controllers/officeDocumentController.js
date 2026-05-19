@@ -560,7 +560,7 @@ exports.generatePDF = async (req, res) => {
         const isLainnya = doc.category === 'Lainnya' || doc.type === 'LAINNYA';
 
         // Serve uploaded final file directly if available (for Manual Workflow or Lainnya category)
-        if (doc.fileUrl && doc.status === 'SIGNED' && (isManual || isLainnya)) {
+        if (doc.fileUrl && (isManual || isLainnya)) {
             const fileUrls = doc.fileUrl.split(',').filter(u => u.trim());
             const pdfFile = fileUrls.find(u => u.toLowerCase().endsWith('.pdf'));
             const docFile = fileUrls[0]; // fallback to first file
@@ -932,7 +932,7 @@ exports.generatePublicPDF = async (req, res) => {
         const isLainnya = doc.category === 'Lainnya' || doc.type === 'LAINNYA';
 
         // Serve uploaded final file directly if available (for Manual Workflow or Lainnya category)
-        if (doc.fileUrl && doc.status === 'SIGNED' && (isManual || isLainnya)) {
+        if (doc.fileUrl && (isManual || isLainnya)) {
             const fileUrls = doc.fileUrl.split(',').filter(u => u.trim());
             const pdfFile = fileUrls.find(u => u.toLowerCase().endsWith('.pdf'));
             const docFile = fileUrls[0]; // fallback to first file
