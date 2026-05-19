@@ -1207,7 +1207,7 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                                     onClick={() => setSignatureRequest({ doc: viewingDoc, party: null })}
                                     className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-900/20"
                                 >
-                                    <ShieldCheck size={18} /> Tanda Tangani
+                                    <ShieldCheck size={18} /> Pengesahan TTE
                                 </button>
                                 <button
                                     onClick={async () => {
