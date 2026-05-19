@@ -357,7 +357,8 @@ exports.reviewBooking = async (req, res) => {
                     `Waktu: ${startStr} - ${endStr}\n` +
                     `Tujuan: ${booking.destination}\n` +
                     `Disetujui oleh: ${adminName}\n\n` +
-                    `Silakan mulai perjalanan melalui aplikasi SARPRAS saat akan memulai Perjalanan`;
+                    `Silakan mulai perjalanan melalui aplikasi SARPRAS saat akan memulai Perjalanan:\n` +
+                    `🔗 ${process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id'}/kendaraan/${termSmall}`;
 
                 if (adminNote) msg += `\n\nCatatan: ${adminNote}`;
             } else {
@@ -863,6 +864,7 @@ exports.checkOverdueVehicleBookings = async () => {
                     `Apakah perjalanan Anda sudah selesai?\n\n` +
                     `⚠️ Mohon segera selesaikan perjalanan melalui aplikasi Sarpras dengan menginputkan Kilometer Akhir agar armada dapat digunakan oleh pengguna lain.\n\n` +
                     `💡 _Tips: Jika Anda mengalami kendala di perjalanan (contoh: macet), Anda dapat menekan tombol *Perpanjang* di aplikasi agar jadwal Anda diperbarui._\n\n` +
+                    `🔗 Akses menu peminjaman di sini:\n${process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id'}/kendaraan/peminjaman\n\n` +
                     `Terima kasih.`;
 
                 await sendMessage(booking.user.phone, waMsg);
@@ -939,6 +941,7 @@ exports.checkUpcomingVehicleBookings = async () => {
                         `📍 *Tujuan*: ${booking.destination}\n` +
                         `📅 *Jadwal*: ${formatWAWaktu(booking.startDate)}\n\n` +
                         `Keberangkatan dijadwalkan dalam *${diffMins} menit lagi*. Mohon bersiap.\n\n` +
+                        `🔗 Akses menu peminjaman di sini:\n${process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id'}/kendaraan/peminjaman\n\n` +
                         `_Syukron Jazakumullah Khairan._`;
                     await sendMessage(booking.user.phone, msg);
                 }
@@ -987,6 +990,7 @@ exports.checkUpcomingVehicleBookings = async () => {
                     `Jadwal Keberangkatan: ${formatWAWaktu(booking.startDate)}\n` +
                     `Keterlambatan: *${diffMins} menit*\n\n` +
                     `⚠️ Mohon segera input *KM AWAL* di aplikasi SARPRAS jika Anda sudah mulai menggunakan armada.\n\n` +
+                    `🔗 Akses menu peminjaman di sini:\n${process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id'}/kendaraan/peminjaman\n\n` +
                     `_Notifikasi ini akan dikirim setiap 1 jam sampai perjalanan dimulai._`;
                 await sendMessage(booking.user.phone, msg);
             }
