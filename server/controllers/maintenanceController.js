@@ -343,11 +343,21 @@ exports.createReport = async (req, res) => {
             }
         }
 
+        let finalUnitId = user.unitId;
+        if (!finalUnitId) {
+            const fallbackUnit = await prisma.unit.findFirst();
+            finalUnitId = fallbackUnit ? fallbackUnit.id : null;
+        }
+
+        if (!finalUnitId) {
+            return res.status(400).json({ error: 'Gagal membuat laporan: User tidak memiliki Unit dan tidak ada Unit default di sistem.' });
+        }
+
         const report = await prisma.maintenance.create({
             data: {
                 code,
                 userId: user.id,
-                unitId: user.unitId,
+                unitId: finalUnitId,
                 type: type || 'NON_ASSET',
                 category: category || 'INCIDENTAL',
                 urgency: urgency || 'NORMAL',
