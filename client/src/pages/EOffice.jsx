@@ -50,6 +50,18 @@ const getPaymentStatus = (doc) => {
     }
 };
 
+const handleOpenDocument = (doc) => {
+    const isManual = doc.category === 'Lainnya' || (typeof doc.content === 'string' && doc.content.includes('"isManual":true'));
+    const hasPdfUrl = doc.fileUrl && doc.fileUrl.toLowerCase().includes('.pdf');
+    if ((isManual && doc.fileUrl) || hasPdfUrl) {
+        const fileList = doc.fileUrl.split(',');
+        const firstFile = fileList.find(u => u.toLowerCase().endsWith('.pdf')) || fileList[0];
+        window.open(firstFile.startsWith('http') || firstFile.startsWith('/') ? firstFile : `/api/media/${firstFile}`, '_blank');
+    } else {
+        window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank');
+    }
+};
+
 const DashboardView = ({ stats, navigate, setViewingDoc }) => (
     <div className="space-y-6">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">
@@ -283,7 +295,7 @@ const ListView = ({
                                             </button>
                                         ) : null
                                     ) : (
-                                        <button onClick={() => window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cetak PDF"><Printer size={18} /></button>
+                                        <button onClick={() => handleOpenDocument(doc)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cetak PDF"><Printer size={18} /></button>
                                     )}
                                     {doc.type === 'INVOICE' && (
                                         <button
@@ -380,7 +392,7 @@ const ListView = ({
                                     </button>
                                 )
                             ) : (
-                                <button onClick={(e) => { e.stopPropagation(); window.open(`/api/office-documents/${doc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank'); }} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg"><Printer size={14} /></button>
+                                <button onClick={(e) => { e.stopPropagation(); handleOpenDocument(doc); }} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg"><Printer size={14} /></button>
                             )}
                             {doc.type === 'INVOICE' && (
                                 <button
@@ -1114,10 +1126,10 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                     <div className="flex flex-wrap items-center gap-2">
                         {viewingDoc.type !== 'SURAT_MASUK' && (
                             <button
-                                onClick={() => window.open(`/api/office-documents/${viewingDoc.id}/pdf?token=${localStorage.getItem('token')}`, '_blank')}
+                                onClick={() => handleOpenDocument(viewingDoc)}
                                 className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20"
                             >
-                                <Printer size={18} /> {viewingDoc.category === 'Lainnya' ? 'Lihat Dokumen Final' : 'Cetak PDF'}
+                                <Printer size={18} /> {viewingDoc.category === 'Lainnya' || (typeof viewingDoc.content === 'string' && viewingDoc.content.includes('"isManual":true')) ? 'Lihat Dokumen Final' : 'Cetak PDF'}
                             </button>
                         )}
                         {(viewingDoc.category === 'Lainnya' || viewingDoc.status === 'SIGNED') && (
