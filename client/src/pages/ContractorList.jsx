@@ -278,7 +278,7 @@ const ContractorFormModal = ({ contractor, onSave, onClose }) => {
         name: contractor?.name || '',
         phone: contractor?.phone || '',
         address: contractor?.address || '',
-        specialty: contractor?.specialty || '',
+        specialty: contractor?.specialty ? contractor.specialty.split(',').map(s => s.trim()) : [],
         rating: contractor?.rating || 0,
         notes: contractor?.notes || '',
         isActive: contractor?.isActive !== false,
@@ -289,7 +289,10 @@ const ContractorFormModal = ({ contractor, onSave, onClose }) => {
         e.preventDefault();
         if (!form.name.trim()) return alert('Nama wajib diisi');
         setSaving(true);
-        try { await onSave(form); } finally { setSaving(false); }
+        try { 
+            const submitData = { ...form, specialty: form.specialty.join(', ') };
+            await onSave(submitData); 
+        } finally { setSaving(false); }
     };
 
     const inputClass = "w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none";
@@ -306,17 +309,39 @@ const ContractorFormModal = ({ contractor, onSave, onClose }) => {
                         <label className={labelClass}>Nama *</label>
                         <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputClass} placeholder="Nama lengkap..." />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className={labelClass}>No. Telepon</label>
                             <input type="text" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className={inputClass} placeholder="08xx..." />
                         </div>
-                        <div>
-                            <label className={labelClass}>Keahlian</label>
-                            <select value={form.specialty} onChange={e => setForm(f => ({ ...f, specialty: e.target.value }))} className={inputClass}>
-                                <option value="">— Pilih —</option>
-                                {specialtyOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
+                    </div>
+                    <div>
+                        <label className={labelClass}>Keahlian (Bisa pilih lebih dari satu)</label>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                            {specialtyOptions.map(s => (
+                                <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => {
+                                        setForm(f => {
+                                            const current = f.specialty;
+                                            return {
+                                                ...f,
+                                                specialty: current.includes(s) 
+                                                    ? current.filter(item => item !== s)
+                                                    : [...current, s]
+                                            };
+                                        });
+                                    }}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                                        form.specialty.includes(s)
+                                            ? 'bg-orange-100 border-orange-300 text-orange-700 shadow-sm'
+                                            : 'bg-white border-slate-200 text-slate-500 hover:border-orange-300 hover:text-orange-600'
+                                    }`}
+                                >
+                                    {s}
+                                </button>
+                            ))}
                         </div>
                     </div>
                     <div>
