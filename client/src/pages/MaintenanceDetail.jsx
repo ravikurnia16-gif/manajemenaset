@@ -29,6 +29,7 @@ const MaintenanceDetail = () => {
     const navigate = useNavigate();
     const [report, setReport] = useState(null);
     const [users, setUsers] = useState([]);
+    const [contractors, setContractors] = useState([]);
     const [loading, setLoading] = useState(true);
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(user.role);
@@ -72,9 +73,21 @@ const MaintenanceDetail = () => {
         }
     };
 
+    const fetchContractors = async () => {
+        try {
+            const res = await api.get('/contractors', { params: { limit: 'all' } });
+            setContractors(res.data.data || []);
+        } catch (err) {
+            console.error("Failed to fetch contractors:", err);
+        }
+    };
+
     useEffect(() => {
         fetchReport();
-        if (isAdmin) fetchUsers();
+        if (isAdmin) {
+            fetchUsers();
+            fetchContractors();
+        }
     }, [id]);
 
     useEffect(() => {
@@ -526,7 +539,7 @@ const MaintenanceDetail = () => {
                                         onClick={() => { setTechnicianType('external'); setTechnicianName(''); setTechnicianPhone(''); }}
                                         className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${technicianType === 'external' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                     >
-                                        Eksternal / Vendor
+                                        {report?.targetDept === 'PEMBANGUNAN' ? 'Database Tukang' : 'Eksternal / Vendor'}
                                     </button>
                                     <button
                                         type="button"
@@ -568,16 +581,39 @@ const MaintenanceDetail = () => {
                                         </select>
                                     ) : (
                                         <div className="space-y-3">
-                                            <input
-                                                type="text"
-                                                value={technicianName}
-                                                onChange={e => setTechnicianName(e.target.value)}
-                                                placeholder="Misal: Pak Ahmad / CV Maju Jaya"
-                                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                            />
+                                            {report?.targetDept === 'PEMBANGUNAN' ? (
+                                                <select
+                                                    value={technicianName}
+                                                    onChange={e => {
+                                                        const selectedName = e.target.value;
+                                                        setTechnicianName(selectedName);
+                                                        const c = contractors.find(ct => ct.name === selectedName);
+                                                        if (c && c.phone) {
+                                                            setTechnicianPhone(c.phone);
+                                                        } else {
+                                                            setTechnicianPhone('');
+                                                        }
+                                                    }}
+                                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                >
+                                                    <option value="">-- Pilih Tukang dari Database --</option>
+                                                    {contractors.map(c => (
+                                                        <option key={c.id} value={c.name}>{c.name} {c.specialty ? `(${c.specialty})` : ''}</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <input
+                                                    type="text"
+                                                    value={technicianName}
+                                                    onChange={e => setTechnicianName(e.target.value)}
+                                                    placeholder="Misal: Pak Ahmad / CV Maju Jaya"
+                                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                                />
+                                            )}
+                                            
                                             <div>
                                                 <label className="block text-xs font-semibold text-slate-600 mb-1">
-                                                    Nomor WA Vendor / Teknisi
+                                                    Nomor WA {report?.targetDept === 'PEMBANGUNAN' ? 'Tukang' : 'Vendor / Teknisi'}
                                                 </label>
                                                 <input
                                                     type="text"
