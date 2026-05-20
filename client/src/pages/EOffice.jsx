@@ -1606,7 +1606,7 @@ const EOffice = () => {
         setLoading(true);
         try {
             let endpoint = '/office-documents/outgoing';
-            let params = {};
+            let params = { limit: 100000 };
 
             if (tab === 'surat-masuk') {
                 endpoint = '/office-documents/incoming';
