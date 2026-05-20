@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
  */
 
 const CATEGORY_CODES = {
-    'Undangan': 'UND',
+    'Undangan': 'UN',
     'Tugas': 'ST',
     'Keputusan': 'SK',
     'Keterangan': 'SKet',
@@ -20,9 +20,13 @@ const CATEGORY_CODES = {
     'Rekomendasi': 'RK',
     'Pengumuman': 'PGM',
     'BAST': 'BA',
-    'MOU': 'MOU',
+    'MOU': 'MoU',
+    'MoU': 'MoU',
     'Pesanan': 'PO',
     'Umum': 'UMM',
+    'Surat Teguran': 'STg',
+    'Surat Peringatan': 'SPt',
+    'SOP': 'SOP',
     'Lainnya': 'UM',
     'Berita Acara Kunjungan': 'BA',
 };
@@ -49,8 +53,8 @@ async function generateDocumentNumber(category, type) {
     let catCode;
     if (type === 'BAST') {
         catCode = 'BA';
-    } else if (type === 'MOU') {
-        catCode = 'MOU';
+    } else if (type === 'MOU' || type === 'MoU') {
+        catCode = 'MoU';
     } else if (type === 'SURAT_PESANAN') {
         catCode = 'PO';
     } else if (type === 'INVOICE') {

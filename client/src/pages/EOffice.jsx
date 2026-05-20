@@ -207,10 +207,17 @@ const ListView = ({
                                 onChange={(e) => setCategoryFilter(e.target.value)}
                             >
                                 <option value="">📁 Semua Kategori</option>
+                                <option value="Undangan">✉️ Undangan</option>
                                 <option value="Tugas">📋 Tugas</option>
                                 <option value="Keputusan">⚖️ Keputusan</option>
+                                <option value="Keterangan">📝 Keterangan</option>
                                 <option value="Pemberitahuan">📢 Pemberitahuan</option>
+                                <option value="Rekomendasi">🏅 Rekomendasi</option>
+                                <option value="SOP">📖 SOP</option>
+                                <option value="Surat Teguran">⚠️ Surat Teguran</option>
+                                <option value="Surat Peringatan">🚫 Surat Peringatan</option>
                                 <option value="BAST">📦 BAST</option>
+                                <option value="MOU">🤝 MOU / MoU</option>
                                 <option value="Pesanan">🛒 Pesanan</option>
                                 <option value="Edaran">📄 Edaran</option>
                                 <option value="Umum">🏢 Umum</option>
@@ -1895,7 +1902,7 @@ const EOffice = () => {
                         <p className="text-sm text-slate-500 mb-6">Untuk penomoran otomatis, silakan pilih kategori dokumen manual Anda:</p>
                         
                         <div className="grid grid-cols-2 gap-3 mb-6">
-                            {['Tugas', 'Keputusan', 'Pemberitahuan', 'BAST', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
+                            {['Undangan', 'Tugas', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'Rekomendasi', 'SOP', 'Surat Teguran', 'Surat Peringatan', 'BAST', 'MOU', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
                                 <button
                                     key={c}
                                     onClick={() => executeSubmitApproval(submitApprovalData.id, c)}
@@ -2359,7 +2366,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
                                     <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 block">1. Pilih Kategori Surat Keluar</label>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                        {['Tugas', 'Keputusan', 'Pemberitahuan', 'BAST', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
+                                        {['Undangan', 'Tugas', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'Rekomendasi', 'SOP', 'Surat Teguran', 'Surat Peringatan', 'BAST', 'MOU', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
                                         <button
                                             key={c}
                                             type="button"

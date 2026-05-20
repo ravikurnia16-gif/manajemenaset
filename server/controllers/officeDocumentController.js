@@ -967,6 +967,10 @@ exports.generatePublicPDF = async (req, res) => {
             pdfBytes = await generatePemberitahuanPDF(doc, setting);
         } else if (doc.type === 'SURAT_KELUAR' && doc.category === 'Tugas') {
             pdfBytes = await generateSuratTugasPDF(doc, setting);
+        } else if (doc.category === 'Umum') {
+            pdfBytes = await generateSuratUmumPDF(doc, setting);
+        } else if (doc.category === 'Berita Acara Kunjungan') {
+            pdfBytes = await generateBeritaAcaraKunjunganPDF(doc, setting);
         } else if (doc.category === 'Lainnya' || doc.type === 'LAINNYA') {
             pdfBytes = await generateSuratLainnyaPDF(doc, setting);
         } else {
