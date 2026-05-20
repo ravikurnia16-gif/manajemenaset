@@ -2199,7 +2199,7 @@ async function generateBeritaAcaraKunjunganPDF(doc, setting) {
     cursor.y -= 15;
 
     if (doc.number) {
-        const numberText = `Nomor: ${doc.number}`;
+        const numberText = sanitizeTextForWinAnsi(`Nomor: ${doc.number}`);
         const numWidth = fontRegular.widthOfTextAtSize(numberText, 11);
         page.drawText(numberText, { x: (width - numWidth) / 2, y: cursor.y, size: 11, font: fontRegular });
         cursor.y -= 30;
@@ -2215,7 +2215,8 @@ async function generateBeritaAcaraKunjunganPDF(doc, setting) {
     };
 
     const drawTextWrapped = (text, xOffset, size, font, lineHeight = 15) => {
-        const lines = wrapText(text, contentWidth - xOffset, font, size);
+        const safeText = sanitizeTextForWinAnsi(text || '-');
+        const lines = wrapText(safeText, contentWidth - xOffset, font, size);
         lines.forEach(line => {
             checkPage(lineHeight);
             page.drawText(line, { x: margin + xOffset, y: cursor.y, size, font });
@@ -2224,7 +2225,8 @@ async function generateBeritaAcaraKunjunganPDF(doc, setting) {
     };
 
     const drawJustified = (text, x, w, font, size) => {
-        const lines = wrapText(text, w, font, size);
+        const safeText = sanitizeTextForWinAnsi(text || '-');
+        const lines = wrapText(safeText, w, font, size);
         lines.forEach((line, i) => {
             const isLast = i === lines.length - 1;
             checkPage(20);
@@ -2262,9 +2264,9 @@ async function generateBeritaAcaraKunjunganPDF(doc, setting) {
     cursor.y -= 20;
 
     checkPage(40);
-    drawTextWrapped(content.locationName || '-', 20, 11, fontBold);
+    drawTextWrapped(content.locationName, 20, 11, fontBold);
     cursor.y -= 5;
-    drawTextWrapped(content.locationAddress || '-', 20, 11, fontRegular);
+    drawTextWrapped(content.locationAddress, 20, 11, fontRegular);
     cursor.y -= 15;
 
     // Bagian II: URAIAN
@@ -2276,6 +2278,7 @@ async function generateBeritaAcaraKunjunganPDF(doc, setting) {
 
     if (Array.isArray(content.activities)) {
         content.activities.forEach((act, i) => {
+            if (!act) return;
             checkPage(20);
             page.drawText(`${i + 1}.`, { x: margin + 20, y: cursor.y, size: 11, font: fontRegular });
             drawJustified(act, margin + 35, contentWidth - 35, fontRegular, 11);
@@ -2296,11 +2299,12 @@ async function generateBeritaAcaraKunjunganPDF(doc, setting) {
     if (Array.isArray(content.results)) {
         content.results.forEach((res, i) => {
             checkPage(30);
-            page.drawText(res.title || '-', { x: margin + 20, y: cursor.y, size: 11, font: fontBold });
+            page.drawText(sanitizeTextForWinAnsi(res.title || '-'), { x: margin + 20, y: cursor.y, size: 11, font: fontBold });
             cursor.y -= 15;
             
             if (res.items && Array.isArray(res.items)) {
                 res.items.forEach(it => {
+                    if (!it) return;
                     checkPage(20);
                     page.drawText("-", { x: margin + 35, y: cursor.y, size: 11, font: fontRegular });
                     drawJustified(it, margin + 45, contentWidth - 45, fontRegular, 11);
@@ -2323,19 +2327,21 @@ async function generateBeritaAcaraKunjunganPDF(doc, setting) {
     const sigX = width - 250;
     checkPage(120);
     
-    page.drawText(`Dibuat di: ${doc.location || 'Padang'}`, { x: margin, y: cursor.y, size: 11, font: fontRegular });
+    // Fix location string to use content.locationName as fallback since doc.location doesn't exist
+    const docLocation = content.locationName || 'Padang';
+    page.drawText(sanitizeTextForWinAnsi(`Dibuat di: ${docLocation}`), { x: margin, y: cursor.y, size: 11, font: fontRegular });
     cursor.y -= 20;
     
-    page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana dan Prasarana,', { x: sigX, y: cursor.y, size: 10, font: fontBold });
+    page.drawText(sanitizeTextForWinAnsi(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana dan Prasarana,'), { x: sigX, y: cursor.y, size: 10, font: fontBold });
     cursor.y -= 65;
 
     await drawDigitalSignature(page, doc, sigX, cursor.y, 60);
     cursor.y -= 10;
 
-    page.drawText(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia', { x: sigX, y: cursor.y, size: 10, font: fontBold });
+    page.drawText(sanitizeTextForWinAnsi(doc.signedBy?.name || doc.party1Name || 'Ravi Kurnia'), { x: sigX, y: cursor.y, size: 10, font: fontBold });
     cursor.y -= 14;
     if (doc.signedBy?.nip || doc.party1Nip) {
-        page.drawText(`NIY. ${doc.signedBy?.nip || doc.party1Nip}`, { x: sigX, y: cursor.y, size: 10, font: fontRegular });
+        page.drawText(sanitizeTextForWinAnsi(`NIY. ${doc.signedBy?.nip || doc.party1Nip}`), { x: sigX, y: cursor.y, size: 10, font: fontRegular });
     }
 
     await drawLampiranSection(pdfDoc, doc, fontBold, fontRegular);
