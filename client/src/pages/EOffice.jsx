@@ -171,255 +171,332 @@ const ListView = ({
     handleSendWA,
     sendingWA,
     handleTogglePaymentStatus,
-    setSendDocWATarget
-}) => (
-    <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
-                <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input
-                        type="text"
-                        placeholder="Cari subjek, nomor..."
-                        className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm font-semibold text-slate-800"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+    setSendDocWATarget,
+    limitFilter,
+    setLimitFilter,
+    startDateFilter,
+    setStartDateFilter,
+    endDateFilter,
+    setEndDateFilter
+}) => {
+    const slicedDocs = limitFilter === 'all' ? filteredDocs : filteredDocs.slice(0, Number(limitFilter));
+
+    return (
+        <div className="space-y-4">
+            {/* Filter and Limit Controls */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 flex-wrap">
+                    {/* Search */}
+                    <div className="relative flex-1 min-w-[240px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Cari subjek, nomor..."
+                            className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm font-semibold text-slate-800"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+
+                    {/* Category Filter */}
+                    {showCategoryFilter && (
+                        <div className="relative shrink-0 min-w-[160px]">
+                            <select
+                                className="pl-3 pr-8 py-2 w-full rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white text-sm font-bold text-slate-700 appearance-none cursor-pointer hover:border-slate-300 transition-all"
+                                value={categoryFilter}
+                                onChange={(e) => setCategoryFilter(e.target.value)}
+                            >
+                                <option value="">📁 Semua Kategori</option>
+                                <option value="Tugas">📋 Tugas</option>
+                                <option value="Keputusan">⚖️ Keputusan</option>
+                                <option value="Pemberitahuan">📢 Pemberitahuan</option>
+                                <option value="BAST">📦 BAST</option>
+                                <option value="Pesanan">🛒 Pesanan</option>
+                                <option value="Edaran">📄 Edaran</option>
+                                <option value="Umum">🏢 Umum</option>
+                                <option value="Berita Acara Kunjungan">🚗 Kunjungan</option>
+                                <option value="Lainnya">📎 Lainnya</option>
+                            </select>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                <Filter size={14} />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Date Range Filter */}
+                    <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shrink-0">
+                        <Calendar className="text-slate-400 ml-1.5 shrink-0" size={16} />
+                        <input
+                            type="date"
+                            className="bg-transparent border-none text-xs font-bold text-slate-700 outline-none cursor-pointer w-[115px]"
+                            value={startDateFilter}
+                            onChange={(e) => setStartDateFilter(e.target.value)}
+                            title="Tanggal Mulai"
+                        />
+                        <span className="text-slate-400 text-xs font-bold shrink-0">s/d</span>
+                        <input
+                            type="date"
+                            className="bg-transparent border-none text-xs font-bold text-slate-700 outline-none cursor-pointer w-[115px]"
+                            value={endDateFilter}
+                            onChange={(e) => setEndDateFilter(e.target.value)}
+                            title="Tanggal Akhir"
+                        />
+                        {(startDateFilter || endDateFilter) && (
+                            <button
+                                onClick={() => { setStartDateFilter(''); setEndDateFilter(''); }}
+                                className="p-1 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 shrink-0"
+                                title="Hapus filter tanggal"
+                            >
+                                <X size={12} />
+                            </button>
+                        )}
+                    </div>
                 </div>
-                {showCategoryFilter && (
-                    <div className="relative shrink-0">
+
+                {/* Display Limit Dropdown */}
+                <div className="flex items-center gap-2 shrink-0 lg:ml-auto">
+                    <span className="text-xs font-bold text-slate-500">Tampilkan:</span>
+                    <div className="relative">
                         <select
-                            className="pl-3 pr-8 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white text-sm font-bold text-slate-700 appearance-none cursor-pointer hover:border-slate-300 transition-all min-w-[160px]"
-                            value={categoryFilter}
-                            onChange={(e) => setCategoryFilter(e.target.value)}
+                            className="pl-3 pr-8 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white text-sm font-bold text-slate-700 appearance-none cursor-pointer hover:border-slate-300 transition-all min-w-[90px]"
+                            value={limitFilter}
+                            onChange={(e) => setLimitFilter(e.target.value)}
                         >
-                            <option value="">📁 Semua Kategori</option>
-                            <option value="Tugas">📋 Tugas</option>
-                            <option value="Keputusan">⚖️ Keputusan</option>
-                            <option value="Pemberitahuan">📢 Pemberitahuan</option>
-                            <option value="BAST">📦 BAST</option>
-                            <option value="Pesanan">🛒 Pesanan</option>
-                            <option value="Edaran">📄 Edaran</option>
-                            <option value="Umum">🏢 Umum</option>
-                            <option value="Berita Acara Kunjungan">🚗 Kunjungan</option>
-                            <option value="Lainnya">📎 Lainnya</option>
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="all">Semua</option>
                         </select>
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                            <Filter size={14} />
+                            <ChevronRight className="rotate-90" size={14} />
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th className="px-6 py-4 font-bold text-slate-700">Dokumen</th>
+                            <th className="px-6 py-4 font-bold text-slate-700">Kategori</th>
+                            <th className="px-6 py-4 font-bold text-slate-700">Tanggal</th>
+                            <th className="px-6 py-4 font-bold text-slate-700">Status</th>
+                            <th className="px-6 py-4 font-bold text-slate-700 text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {loading ? (
+                            <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">Memuat data...</td></tr>
+                        ) : filteredDocs.length === 0 ? (
+                            <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">Tidak ada dokumen ditemukan</td></tr>
+                        ) : slicedDocs.map(doc => (
+                            <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors group">
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded-lg ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                            {doc.type === 'SURAT_MASUK' ? <Inbox size={18} /> : <Send size={18} />}
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-slate-800 line-clamp-1">{doc.subject}</div>
+                                            <div className="text-[11px] text-slate-500 font-medium">
+                                                {doc.number || 'Draft'} {doc.senderName && `• Dari: ${doc.senderName}`}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-1.5 text-slate-600">
+                                        <Tag size={14} className="text-slate-400" />
+                                        {doc.category || '-'}
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4 text-slate-600 font-medium">{formatDate(doc.date)}</td>
+                                <td className="px-6 py-4">
+                                    <StatusBadge status={doc.status} />
+                                    {doc.type === 'INVOICE' && (
+                                        <div className="mt-1">
+                                            {getPaymentStatus(doc) === 'PAID' ? (
+                                                <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-black uppercase tracking-widest">LUNAS</span>
+                                            ) : (
+                                                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest">BELUM LUNAS</span>
+                                            )}
+                                        </div>
+                                    )}
+                                    {doc.category === 'Pesanan' && (() => {
+                                        try {
+                                            const pc = JSON.parse(doc.content || '{}');
+                                            const cd = Array.isArray(pc) ? {} : pc;
+                                            const os = cd.orderStatus || 'PENDING';
+                                            const dl = cd.deadline || '';
+                                            const colors = { PENDING: 'bg-amber-100 text-amber-700', PROCESSING: 'bg-blue-100 text-blue-700', COMPLETED: 'bg-green-100 text-green-700', CANCELLED: 'bg-red-100 text-red-700' };
+                                            return (
+                                                <div className="mt-1 flex flex-col gap-0.5">
+                                                    <span className={`px-2 py-0.5 ${colors[os] || colors.PENDING} rounded-full text-[10px] font-black uppercase tracking-widest w-fit`}>{os}</span>
+                                                    {dl && <span className="text-[9px] font-bold text-slate-400">DL: {dl}</span>}
+                                                </div>
+                                            );
+                                        } catch (e) { return null; }
+                                    })()}
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <button onClick={() => setViewingDoc(doc)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Lihat Detail"><Eye size={18} /></button>
+                                        {doc.type === 'SURAT_MASUK' ? (
+                                            doc.fileUrl ? (
+                                                <button
+                                                    onClick={() => {
+                                                        const firstFile = doc.fileUrl.split(',')[0];
+                                                        window.open(firstFile.startsWith('http') || firstFile.startsWith('/') ? firstFile : `/api/media/${firstFile}`, '_blank');
+                                                    }}
+                                                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block"
+                                                    title="Lihat File"
+                                                >
+                                                    <Download size={18} />
+                                                </button>
+                                            ) : null
+                                        ) : (
+                                            <button onClick={() => handleOpenDocument(doc)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cetak PDF"><Printer size={18} /></button>
+                                        )}
+                                        {doc.type === 'INVOICE' && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleSendWA(doc.id); }}
+                                                disabled={sendingWA === doc.id}
+                                                className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                                title="Kirim WA Invoice"
+                                            >
+                                                {sendingWA === doc.id ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setSendDocWATarget(doc); }}
+                                            className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                                            title="Kirim Surat via WA"
+                                        >
+                                            <MessageSquare size={18} />
+                                        </button>
+                                        {(doc.type === 'INVOICE' || doc.category === 'Invoice') && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleTogglePaymentStatus(doc.id, getPaymentStatus(doc)); }}
+                                                className={`p-2 rounded-lg transition-all ${getPaymentStatus(doc) === 'PAID' ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                                                title={getPaymentStatus(doc) === 'PAID' ? 'Tandai Belum Lunas' : 'Tandai Lunas'}
+                                            >
+                                                {getPaymentStatus(doc) === 'PAID' ? <XCircle size={18} /> : <CheckCircle size={18} />}
+                                            </button>
+                                        )}
+                                        {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
+                                            <button onClick={() => { setEditingDoc(doc); setIsFormOpen(true); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Edit"><Edit2 size={18} /></button>
+                                        )}
+                                        {isSuperAdmin && (
+                                            <button onClick={() => handleDelete(doc.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Hapus"><Trash2 size={18} /></button>
+                                        )}
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Mobile Card List */}
+            <div className="md:hidden space-y-3">
+                {loading ? (
+                    <div className="p-8 text-center text-slate-400 italic bg-white rounded-xl border">Memuat data...</div>
+                ) : filteredDocs.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 italic bg-white rounded-xl border">Tidak ada dokumen</div>
+                ) : slicedDocs.map(doc => (
+                    <div key={doc.id} className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm" onClick={() => setViewingDoc(doc)}>
+                        <div className="flex items-start gap-3">
+                            <div className={`p-2 rounded-lg shrink-0 ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                {doc.type === 'SURAT_MASUK' ? <Inbox size={16} /> : <Send size={16} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="font-bold text-slate-800 text-sm line-clamp-2">{doc.subject}</div>
+                                <div className="text-[10px] text-slate-500 mt-0.5">{doc.number || 'Draft'} • {formatDate(doc.date)}</div>
+                                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                    <StatusBadge status={doc.status} />
+                                    {doc.category && <span className="text-[10px] text-slate-400 font-medium">{doc.category}</span>}
+                                    {doc.type === 'INVOICE' && (
+                                        getPaymentStatus(doc) === 'PAID'
+                                            ? <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[9px] font-black">LUNAS</span>
+                                            : <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[9px] font-black">BELUM LUNAS</span>
+                                    )}
+                                    {doc.category === 'Pesanan' && (() => {
+                                        try {
+                                            const pc = JSON.parse(doc.content || '{}');
+                                            const cd = Array.isArray(pc) ? {} : pc;
+                                            const os = cd.orderStatus || 'PENDING';
+                                            const dl = cd.deadline || '';
+                                            const colors = { PENDING: 'bg-amber-100 text-amber-700', PROCESSING: 'bg-blue-100 text-blue-700', COMPLETED: 'bg-green-100 text-green-700', CANCELLED: 'bg-red-100 text-red-700' };
+                                            return (
+                                                <>
+                                                    <span className={`px-2 py-0.5 ${colors[os] || colors.PENDING} rounded-full text-[9px] font-black`}>{os}</span>
+                                                    {dl && <span className="text-[8px] font-bold text-slate-400">DL: {dl}</span>}
+                                                </>
+                                            );
+                                        } catch (e) { return null; }
+                                    })()}
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-1 shrink-0">
+                                {doc.type === 'SURAT_MASUK' ? (
+                                    doc.fileUrl && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const firstFile = doc.fileUrl.split(',')[0];
+                                                window.open(firstFile.startsWith('http') || firstFile.startsWith('/') ? firstFile : `/api/media/${firstFile}`, '_blank');
+                                            }}
+                                            className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg"
+                                        >
+                                            <Download size={14} />
+                                        </button>
+                                    )
+                                ) : (
+                                    <button onClick={(e) => { e.stopPropagation(); handleOpenDocument(doc); }} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg"><Printer size={14} /></button>
+                                )}
+                                {doc.type === 'INVOICE' && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleSendWA(doc.id); }}
+                                        disabled={sendingWA === doc.id}
+                                        className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg"
+                                    >
+                                        {sendingWA === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                                    </button>
+                                )}
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setSendDocWATarget(doc); }}
+                                    className="p-1.5 text-slate-400 hover:text-green-600 rounded-lg"
+                                    title="Kirim via WA"
+                                >
+                                    <MessageSquare size={14} />
+                                </button>
+                                {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
+                                    <button onClick={(e) => { e.stopPropagation(); setEditingDoc(doc); setIsFormOpen(true); }} className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg"><Edit2 size={14} /></button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Footer / Pagination Info */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-bold text-slate-500 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div>
+                    Menampilkan {slicedDocs.length} dari {filteredDocs.length} dokumen
+                </div>
+                {limitFilter !== 'all' && filteredDocs.length > Number(limitFilter) && (
+                    <button
+                        onClick={() => setLimitFilter('all')}
+                        className="text-blue-600 hover:text-blue-700 hover:underline transition-all"
+                    >
+                        Tampilkan Semua Dokumen
+                    </button>
                 )}
             </div>
         </div>
-
-        {/* Desktop Table */}
-        <div className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                        <th className="px-6 py-4 font-bold text-slate-700">Dokumen</th>
-                        <th className="px-6 py-4 font-bold text-slate-700">Kategori</th>
-                        <th className="px-6 py-4 font-bold text-slate-700">Tanggal</th>
-                        <th className="px-6 py-4 font-bold text-slate-700">Status</th>
-                        <th className="px-6 py-4 font-bold text-slate-700 text-right">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                    {loading ? (
-                        <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">Memuat data...</td></tr>
-                    ) : filteredDocs.length === 0 ? (
-                        <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-400 italic">Tidak ada dokumen ditemukan</td></tr>
-                    ) : filteredDocs.map(doc => (
-                        <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors group">
-                            <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-lg ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                        {doc.type === 'SURAT_MASUK' ? <Inbox size={18} /> : <Send size={18} />}
-                                    </div>
-                                    <div>
-                                        <div className="font-bold text-slate-800 line-clamp-1">{doc.subject}</div>
-                                        <div className="text-[11px] text-slate-500 font-medium">
-                                            {doc.number || 'Draft'} {doc.senderName && `• Dari: ${doc.senderName}`}
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-6 py-4">
-                                <div className="flex items-center gap-1.5 text-slate-600">
-                                    <Tag size={14} className="text-slate-400" />
-                                    {doc.category || '-'}
-                                </div>
-                            </td>
-                            <td className="px-6 py-4 text-slate-600 font-medium">{formatDate(doc.date)}</td>
-                            <td className="px-6 py-4">
-                                <StatusBadge status={doc.status} />
-                                {doc.type === 'INVOICE' && (
-                                    <div className="mt-1">
-                                        {getPaymentStatus(doc) === 'PAID' ? (
-                                            <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-black uppercase tracking-widest">LUNAS</span>
-                                        ) : (
-                                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest">BELUM LUNAS</span>
-                                        )}
-                                    </div>
-                                )}
-                                {doc.category === 'Pesanan' && (() => {
-                                    try {
-                                        const pc = JSON.parse(doc.content || '{}');
-                                        const cd = Array.isArray(pc) ? {} : pc;
-                                        const os = cd.orderStatus || 'PENDING';
-                                        const dl = cd.deadline || '';
-                                        const colors = { PENDING: 'bg-amber-100 text-amber-700', PROCESSING: 'bg-blue-100 text-blue-700', COMPLETED: 'bg-green-100 text-green-700', CANCELLED: 'bg-red-100 text-red-700' };
-                                        return (
-                                            <div className="mt-1 flex flex-col gap-0.5">
-                                                <span className={`px-2 py-0.5 ${colors[os] || colors.PENDING} rounded-full text-[10px] font-black uppercase tracking-widest w-fit`}>{os}</span>
-                                                {dl && <span className="text-[9px] font-bold text-slate-400">DL: {dl}</span>}
-                                            </div>
-                                        );
-                                    } catch (e) { return null; }
-                                })()}
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                    <button onClick={() => setViewingDoc(doc)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Lihat Detail"><Eye size={18} /></button>
-                                    {doc.type === 'SURAT_MASUK' ? (
-                                        doc.fileUrl ? (
-                                            <button
-                                                onClick={() => {
-                                                    const firstFile = doc.fileUrl.split(',')[0];
-                                                    window.open(firstFile.startsWith('http') || firstFile.startsWith('/') ? firstFile : `/api/media/${firstFile}`, '_blank');
-                                                }}
-                                                className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all inline-block"
-                                                title="Lihat File"
-                                            >
-                                                <Download size={18} />
-                                            </button>
-                                        ) : null
-                                    ) : (
-                                        <button onClick={() => handleOpenDocument(doc)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cetak PDF"><Printer size={18} /></button>
-                                    )}
-                                    {doc.type === 'INVOICE' && (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleSendWA(doc.id); }}
-                                            disabled={sendingWA === doc.id}
-                                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                                            title="Kirim WA Invoice"
-                                        >
-                                            {sendingWA === doc.id ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setSendDocWATarget(doc); }}
-                                        className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
-                                        title="Kirim Surat via WA"
-                                    >
-                                        <MessageSquare size={18} />
-                                    </button>
-                                    {(doc.type === 'INVOICE' || doc.category === 'Invoice') && (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleTogglePaymentStatus(doc.id, getPaymentStatus(doc)); }}
-                                            className={`p-2 rounded-lg transition-all ${getPaymentStatus(doc) === 'PAID' ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
-                                            title={getPaymentStatus(doc) === 'PAID' ? 'Tandai Belum Lunas' : 'Tandai Lunas'}
-                                        >
-                                            {getPaymentStatus(doc) === 'PAID' ? <XCircle size={18} /> : <CheckCircle size={18} />}
-                                        </button>
-                                    )}
-                                    {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
-                                        <button onClick={() => { setEditingDoc(doc); setIsFormOpen(true); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Edit"><Edit2 size={18} /></button>
-                                    )}
-                                    {isSuperAdmin && (
-                                        <button onClick={() => handleDelete(doc.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Hapus"><Trash2 size={18} /></button>
-                                    )}
-                                </div>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-
-        {/* Mobile Card List */}
-        <div className="md:hidden space-y-3">
-            {loading ? (
-                <div className="p-8 text-center text-slate-400 italic bg-white rounded-xl border">Memuat data...</div>
-            ) : filteredDocs.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 italic bg-white rounded-xl border">Tidak ada dokumen</div>
-            ) : filteredDocs.map(doc => (
-                <div key={doc.id} className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm" onClick={() => setViewingDoc(doc)}>
-                    <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg shrink-0 ${doc.type === 'SURAT_MASUK' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                            {doc.type === 'SURAT_MASUK' ? <Inbox size={16} /> : <Send size={16} />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <div className="font-bold text-slate-800 text-sm line-clamp-2">{doc.subject}</div>
-                            <div className="text-[10px] text-slate-500 mt-0.5">{doc.number || 'Draft'} • {formatDate(doc.date)}</div>
-                            <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                <StatusBadge status={doc.status} />
-                                {doc.category && <span className="text-[10px] text-slate-400 font-medium">{doc.category}</span>}
-                                {doc.type === 'INVOICE' && (
-                                    getPaymentStatus(doc) === 'PAID'
-                                        ? <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[9px] font-black">LUNAS</span>
-                                        : <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-[9px] font-black">BELUM LUNAS</span>
-                                )}
-                                {doc.category === 'Pesanan' && (() => {
-                                    try {
-                                        const pc = JSON.parse(doc.content || '{}');
-                                        const cd = Array.isArray(pc) ? {} : pc;
-                                        const os = cd.orderStatus || 'PENDING';
-                                        const dl = cd.deadline || '';
-                                        const colors = { PENDING: 'bg-amber-100 text-amber-700', PROCESSING: 'bg-blue-100 text-blue-700', COMPLETED: 'bg-green-100 text-green-700', CANCELLED: 'bg-red-100 text-red-700' };
-                                        return (
-                                            <>
-                                                <span className={`px-2 py-0.5 ${colors[os] || colors.PENDING} rounded-full text-[9px] font-black`}>{os}</span>
-                                                {dl && <span className="text-[8px] font-bold text-slate-400">DL: {dl}</span>}
-                                            </>
-                                        );
-                                    } catch (e) { return null; }
-                                })()}
-                            </div>
-                        </div>
-                        <div className="flex flex-col gap-1 shrink-0">
-                            {doc.type === 'SURAT_MASUK' ? (
-                                doc.fileUrl && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            const firstFile = doc.fileUrl.split(',')[0];
-                                            window.open(firstFile.startsWith('http') || firstFile.startsWith('/') ? firstFile : `/api/media/${firstFile}`, '_blank');
-                                        }}
-                                        className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg"
-                                    >
-                                        <Download size={14} />
-                                    </button>
-                                )
-                            ) : (
-                                <button onClick={(e) => { e.stopPropagation(); handleOpenDocument(doc); }} className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg"><Printer size={14} /></button>
-                            )}
-                            {doc.type === 'INVOICE' && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); handleSendWA(doc.id); }}
-                                    disabled={sendingWA === doc.id}
-                                    className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg"
-                                >
-                                    {sendingWA === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                                </button>
-                            )}
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setSendDocWATarget(doc); }}
-                                className="p-1.5 text-slate-400 hover:text-green-600 rounded-lg"
-                                title="Kirim via WA"
-                            >
-                                <MessageSquare size={14} />
-                            </button>
-                            {(doc.status === 'DRAFT' || doc.status === 'REJECTED' || doc.status === 'PENDING_APPROVAL') && (
-                                <button onClick={(e) => { e.stopPropagation(); setEditingDoc(doc); setIsFormOpen(true); }} className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg"><Edit2 size={14} /></button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            ))}
-        </div>
-    </div>
-);
+    );
+};
 
 const InfoGroup = ({ label, value, icon, full }) => {
     return (
@@ -1480,6 +1557,9 @@ const EOffice = () => {
     const [documents, setDocuments] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
+    const [limitFilter, setLimitFilter] = useState(10);
+    const [startDateFilter, setStartDateFilter] = useState('');
+    const [endDateFilter, setEndDateFilter] = useState('');
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingDoc, setEditingDoc] = useState(null);
     const [viewingDoc, setViewingDoc] = useState(null);
@@ -1497,6 +1577,9 @@ const EOffice = () => {
         fetchStats();
         fetchDocuments();
         setCategoryFilter(''); // Reset category filter on tab switch
+        setLimitFilter(10);
+        setStartDateFilter('');
+        setEndDateFilter('');
 
         if (location.state?.autoCreate) {
             const s = location.state;
@@ -1576,7 +1659,25 @@ const EOffice = () => {
             (doc.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             (doc.senderName || '').toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCategory = !categoryFilter || doc.category === categoryFilter;
-        return matchesSearch && matchesCategory;
+        
+        let matchesDate = true;
+        if (doc.date) {
+            const docDate = new Date(doc.date).getTime();
+            if (startDateFilter) {
+                const start = new Date(startDateFilter);
+                start.setHours(0, 0, 0, 0);
+                if (docDate < start.getTime()) matchesDate = false;
+            }
+            if (endDateFilter) {
+                const end = new Date(endDateFilter);
+                end.setHours(23, 59, 59, 999);
+                if (docDate > end.getTime()) matchesDate = false;
+            }
+        } else {
+            if (startDateFilter || endDateFilter) matchesDate = false;
+        }
+
+        return matchesSearch && matchesCategory && matchesDate;
     });
 
 
@@ -1680,6 +1781,12 @@ const EOffice = () => {
                 sendingWA={sendingWA}
                 handleTogglePaymentStatus={handleTogglePaymentStatus}
                 setSendDocWATarget={setSendDocWATarget}
+                limitFilter={limitFilter}
+                setLimitFilter={setLimitFilter}
+                startDateFilter={startDateFilter}
+                setStartDateFilter={setStartDateFilter}
+                endDateFilter={endDateFilter}
+                setEndDateFilter={setEndDateFilter}
             />
         );
     };
