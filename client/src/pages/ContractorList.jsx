@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, HardHat, Phone, MapPin, Star, Wrench, Edit3, Trash2, ChevronLeft, ChevronRight, X, Building2 } from 'lucide-react';
 import api from '../lib/axios';
 
-const specialtyOptions = ['Bangunan', 'Listrik', 'Plumbing', 'Cat', 'Las', 'Kayu', 'Keramik', 'Atap', 'Taman', 'AC & Pendingin', 'Lainnya'];
+const specialtyOptions = ['Bangunan', 'Batu', 'Listrik', 'Plumbing', 'Cat', 'Las', 'Kayu', 'Keramik', 'Atap', 'Taman', 'AC & Pendingin', 'Lainnya'];
 
 const ContractorList = () => {
     const [contractors, setContractors] = useState([]);
