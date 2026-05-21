@@ -345,7 +345,17 @@ exports.createReport = async (req, res) => {
 
         let finalUnitId = user.unitId;
         if (!finalUnitId) {
-            const fallbackUnit = await prisma.unit.findFirst();
+            let fallbackUnit = await prisma.unit.findFirst({
+                where: { name: { contains: 'Kantor Yayasan' } }
+            });
+            if (!fallbackUnit) {
+                fallbackUnit = await prisma.unit.findFirst({
+                    where: { name: { contains: 'Yayasan' } }
+                });
+            }
+            if (!fallbackUnit) {
+                fallbackUnit = await prisma.unit.findFirst();
+            }
             finalUnitId = fallbackUnit ? fallbackUnit.id : null;
         }
 

@@ -106,6 +106,13 @@ const syncExternalUser = async (niy, externalData, password) => {
         if (unit) unitId = unit.id;
     }
 
+    if (!unitId) {
+        const yayasanUnit = await prisma.unit.findFirst({
+            where: { name: { contains: 'Kantor Yayasan' } }
+        });
+        if (yayasanUnit) unitId = yayasanUnit.id;
+    }
+
     if (!user) {
         // Scenario: First time login (Auto-Register)
         user = await prisma.user.create({
