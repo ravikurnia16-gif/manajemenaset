@@ -39,7 +39,7 @@ const ConstructionDashboard = () => {
     const [contractors, setContractors] = useState([]);
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const canManage = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(user.role);
+    const canManage = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(user.role) || ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user.position);
 
     useEffect(() => {
         const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 500);

@@ -61,3 +61,18 @@ exports.authorizeEOfficeAccess = () => {
         next();
     };
 };
+
+exports.authorizePembangunanAccess = () => {
+    return (req, res, next) => {
+        const role = req.user.role;
+        const pos = req.user.position || '';
+        
+        const isAllowedRole = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(role);
+        const isPembangunanTeam = ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(pos);
+
+        if (!isAllowedRole && !isPembangunanTeam) {
+            return res.status(403).json({ error: 'Forbidden: Khusus Staff/Kepala Bidang Pembangunan' });
+        }
+        next();
+    };
+};
