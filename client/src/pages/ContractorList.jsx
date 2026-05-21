@@ -274,15 +274,24 @@ const ContractorList = () => {
 
 // ==================== FORM MODAL ====================
 const ContractorFormModal = ({ contractor, onSave, onClose }) => {
+    const existingSpecialties = contractor?.specialty ? contractor.specialty.split(',').map(s => s.trim()) : [];
+    const customExisting = existingSpecialties.filter(s => !specialtyOptions.includes(s) && s !== 'Lainnya');
+    const initialSpecialty = existingSpecialties.filter(s => specialtyOptions.includes(s));
+    
+    if (customExisting.length > 0 && !initialSpecialty.includes('Lainnya')) {
+        initialSpecialty.push('Lainnya');
+    }
+
     const [form, setForm] = useState({
         name: contractor?.name || '',
         phone: contractor?.phone || '',
         address: contractor?.address || '',
-        specialty: contractor?.specialty ? contractor.specialty.split(',').map(s => s.trim()) : [],
+        specialty: initialSpecialty,
         rating: contractor?.rating || 0,
         notes: contractor?.notes || '',
         isActive: contractor?.isActive !== false,
     });
+    const [customSpecialty, setCustomSpecialty] = useState(customExisting.join(', '));
     const [saving, setSaving] = useState(false);
 
     const handleSubmit = async (e) => {
@@ -290,7 +299,11 @@ const ContractorFormModal = ({ contractor, onSave, onClose }) => {
         if (!form.name.trim()) return alert('Nama wajib diisi');
         setSaving(true);
         try { 
-            const submitData = { ...form, specialty: form.specialty.join(', ') };
+            let finalSpecialties = form.specialty.filter(s => s !== 'Lainnya');
+            if (form.specialty.includes('Lainnya') && customSpecialty.trim()) {
+                finalSpecialties.push(customSpecialty.trim());
+            }
+            const submitData = { ...form, specialty: finalSpecialties.join(', ') };
             await onSave(submitData); 
         } finally { setSaving(false); }
     };
@@ -343,6 +356,18 @@ const ContractorFormModal = ({ contractor, onSave, onClose }) => {
                                 </button>
                             ))}
                         </div>
+                        {form.specialty.includes('Lainnya') && (
+                            <div className="mt-3">
+                                <input 
+                                    type="text" 
+                                    value={customSpecialty} 
+                                    onChange={e => setCustomSpecialty(e.target.value)} 
+                                    className={inputClass} 
+                                    placeholder="Masukkan keahlian lainnya (pisahkan dengan koma jika lebih dari satu)..." 
+                                    autoFocus
+                                />
+                            </div>
+                        )}
                     </div>
                     <div>
                         <label className={labelClass}>Alamat</label>
