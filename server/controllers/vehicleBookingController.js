@@ -215,7 +215,7 @@ exports.requestBooking = async (req, res) => {
             if (initialStatus === 'BERLANGSUNG') statusText = `*Status*: BERLANGSUNG (Perjalanan sudah dimulai)`;
 
             let msg = `${msgHeader}\n\n` +
-                `Pemohon: ${booking.user.name}\n` +
+                `Pemohon: ${booking.user.name} (${booking.user.phone || '-'})\n` +
                 `Armada: ${vehicle.name} (${vehicle.plateNumber})\n` +
                 `Driver: ${driverName}\n` +
                 `Jadwal: ${startStr} - ${endStr}\n` +
@@ -256,7 +256,7 @@ exports.requestBooking = async (req, res) => {
                 const startStr = formatWAWaktu(startDate);
                 const endStr = formatWAWaktu(endDate);
                 const msgHead = `📢 *INFO PRIORITAS PIMPINAN YAYASAN*\n\n` +
-                    `Ustadz *${booking.user.name}* akan menggunakan kendaraan:\n\n` +
+                    `Ustadz *${booking.user.name}* (${booking.user.phone || '-'}) akan menggunakan kendaraan:\n\n` +
                     `Armada: ${vehicle.name} (${vehicle.plateNumber})\n` +
                     `Jadwal: ${startStr} - ${endStr}\n` +
                     `Tujuan: ${destination}\n\n` +
