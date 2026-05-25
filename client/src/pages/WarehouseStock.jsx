@@ -154,7 +154,8 @@ const WarehouseStock = () => {
         const isSeragam = item.category?.name?.toLowerCase().includes('seragam');
         if (isSeragam) {
             const displayGender = item.gender === 'L' ? 'Ikhwan' : item.gender === 'P' ? 'Akhwat' : (item.gender || 'Umum');
-            const groupKey = `${item.name}-${displayGender}`;
+            const displayUnit = item.itemUnit || '-';
+            const groupKey = `${item.name}-${displayGender}-${displayUnit}`;
             
             if (!seragamGroups[groupKey]) {
                 seragamGroups[groupKey] = {
@@ -162,6 +163,7 @@ const WarehouseStock = () => {
                     id: groupKey,
                     name: item.name,
                     gender: displayGender,
+                    unit: displayUnit,
                     category: item.category,
                     items: [],
                     totalStock: 0,
@@ -299,7 +301,12 @@ const WarehouseStock = () => {
                                                             )}
                                                             <div className="flex flex-col">
                                                                 <span className="font-bold text-slate-800 text-[15px]">{group.name}</span>
-                                                                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 w-fit mt-0.5">{group.gender}</span>
+                                                                <div className="flex gap-1.5 mt-0.5">
+                                                                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 w-fit">{group.gender}</span>
+                                                                    {group.unit !== '-' && (
+                                                                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 w-fit">{group.unit}</span>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </td>
