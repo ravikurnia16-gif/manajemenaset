@@ -24,6 +24,8 @@ const VehicleBooking = () => {
     const [vSearch, setVSearch] = useState('');
     const [vTypeFilter, setVTypeFilter] = useState('ALL');
 
+    const [currentUserProfile, setCurrentUserProfile] = useState(null);
+
     // Driver States
     const [driverSubTab, setDriverSubTab] = useState('DATABASE');
     const [selectedDriverForEdit, setSelectedDriverForEdit] = useState(null);
@@ -34,7 +36,13 @@ const VehicleBooking = () => {
     const [historyYear, setHistoryYear] = useState(new Date().getFullYear());
 
     const [driverViolations, setDriverViolations] = useState([]);
+    const [sanctionedUsers, setSanctionedUsers] = useState([]);
     const [showViolationAddModal, setShowViolationAddModal] = useState(false);
+    const [showSanctionProposeModal, setShowSanctionProposeModal] = useState(false);
+    const [sanctionProposeReason, setSanctionProposeReason] = useState('');
+    const [showSanctionReviewModal, setShowSanctionReviewModal] = useState(null);
+    const [sanctionReviewAction, setSanctionReviewAction] = useState({ approved: true, reviewNotes: '' });
+    const [currentUserProfile, setCurrentUserProfile] = useState(null);
 
     const showToast = (message, type = 'success') => {
         const id = Date.now();
@@ -133,7 +141,17 @@ const VehicleBooking = () => {
         fetchVehicles();
         fetchStaff();
         fetchDrivers();
+        fetchCurrentUser();
     }, []);
+
+    const fetchCurrentUser = async () => {
+        try {
+            const res = await api.get('/auth/me'); // Assuming this returns the full user including isSanctioned
+            setCurrentUserProfile(res.data);
+        } catch (err) {
+            console.error('Error fetching current user:', err);
+        }
+    };
 
     useEffect(() => {
         // Determine if user is PIC of any vehicle
@@ -206,6 +224,12 @@ const VehicleBooking = () => {
             if (driverSubTab === 'PELANGGARAN') {
                 fetchDriverViolations();
             }
+        } else if (activeTab === 'USER_VIOLATIONS') {
+            fetchDriverViolations();
+            fetchDrivers();
+            if (isSuperAdmin || isAdminAset) {
+                fetchSanctionedUsers();
+            }
         }
     }, [activeTab, driverSubTab, filterVehicle, filterStartDate, filterEndDate, filterType, calMonth, calYear]);
 
@@ -251,6 +275,24 @@ const VehicleBooking = () => {
             setDriverViolations(res.data);
         } catch (err) { console.error(err); }
     };
+
+    const fetchSanctionedUsers = async () => {
+        try {
+            const res = await api.get('personnel/sanctions');
+            setSanctionedUsers(res.data);
+        } catch (err) { console.error('Error fetching sanctioned users:', err); }
+    };
+
+    const fetchCurrentUser = async () => {
+        try {
+            const res = await api.get('/users/profile');
+            setCurrentUserProfile(res.data);
+        } catch (err) { console.error('Error fetching current user:', err); }
+    };
+
+    useEffect(() => {
+        fetchCurrentUser();
+    }, []);
 
     const handleToggleDriver = async (userId, isCurrentlyDriver) => {
         try {
@@ -484,6 +526,49 @@ const VehicleBooking = () => {
         finally { setSubmitting(false); }
     };
 
+    const handleProposeSanctionLift = async () => {
+        if (!sanctionProposeReason.trim()) {
+            showToast('Alasan pencabutan sanksi wajib diisi', 'error');
+            return;
+        }
+        try {
+            setSubmitting(true);
+            await api.post('/personnel/sanctions/propose', { reason: sanctionProposeReason });
+            showToast('Usulan pencabutan sanksi berhasil dikirim', 'success');
+            setShowSanctionProposeModal(false);
+            setSanctionProposeReason('');
+            fetchCurrentUser();
+        } catch (err) {
+            showToast('Gagal mengirim usulan: ' + (err.response?.data?.error || err.message), 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleReviewSanctionLift = async () => {
+        if (!sanctionReviewAction.reviewNotes.trim()) {
+            showToast('Catatan reviu wajib diisi', 'error');
+            return;
+        }
+        try {
+            setSubmitting(true);
+            await api.post('/personnel/sanctions/review', {
+                userId: showSanctionReviewModal.id,
+                approved: sanctionReviewAction.approved,
+                reviewNotes: sanctionReviewAction.reviewNotes
+            });
+            showToast('Review sanksi berhasil disimpan', 'success');
+            setShowSanctionReviewModal(null);
+            setSanctionReviewAction({ approved: true, reviewNotes: '' });
+            fetchSanctionedUsers();
+            fetchCurrentUser();
+        } catch (err) {
+            showToast('Gagal menyimpan review: ' + (err.response?.data?.error || err.message), 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     // Sort & Pagination Logic
     const sortedBookings = [...bookings].sort((a, b) => {
         if (activeTab === 'MY_REQUESTS') {
@@ -548,6 +633,7 @@ const VehicleBooking = () => {
         { id: 'CALENDAR', label: 'Kalender', icon: <Calendar size={16} /> },
         ...(canApprove ? [{ id: 'APPROVAL', label: 'Persetujuan', icon: <CheckCircle size={16} />, count: bookings.filter(b => b.status === 'PENDING').length }] : []),
         { id: 'MY_REQUESTS', label: 'Permohonan Saya', icon: <User size={16} /> },
+        { id: 'USER_VIOLATIONS', label: 'Pelanggaran User', icon: <AlertCircle size={16} /> },
         ...(canApprove ? [{ id: 'HISTORY', label: 'Riwayat Seluruhnya', icon: <Clock size={16} /> }] : []),
         ...((isSuperAdmin || isAdminAset) ? [{ id: 'DRIVERS', label: 'Driver', icon: <Navigation2 size={16} /> }] : [])
     ];
@@ -561,6 +647,38 @@ const VehicleBooking = () => {
                 </h1>
                 <p className="text-slate-500">Alur peminjaman armada operasional.</p>
             </div>
+
+            {/* Sanction Banner */}
+            {currentUserProfile?.isSanctioned && (
+                <div className="bg-red-50 border border-red-200 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-center gap-4 justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                            <AlertCircle size={20} />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-bold text-red-800">Akun Anda Sedang Disanksi</h4>
+                            <p className="text-xs text-red-600">
+                                Anda telah melakukan pelanggaran (tidak memulai/mengakhiri perjalanan lebih dari 10 kali). 
+                                Anda tidak dapat melakukan peminjaman kendaraan sampai sanksi dicabut.
+                            </p>
+                        </div>
+                    </div>
+                    <div>
+                        {currentUserProfile?.sanctionProposedLift ? (
+                            <div className="px-4 py-2 bg-red-100 text-red-700 rounded-xl text-xs font-bold text-center border border-red-200">
+                                Usulan Pencabutan Sedang Direviu
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setShowSanctionProposeModal(true)}
+                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-red-200 whitespace-nowrap"
+                            >
+                                Usulkan Pencabutan Sanksi
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Navigation Tabs */}
             <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
@@ -581,7 +699,7 @@ const VehicleBooking = () => {
                 </div>
 
                 {/* Sub-Filter Toggle (Show for non-fleet tabs) */}
-                {activeTab !== 'CURRENT_FLEET' && activeTab !== 'DRIVERS' && (
+                {activeTab !== 'CURRENT_FLEET' && activeTab !== 'DRIVERS' && activeTab !== 'USER_VIOLATIONS' && (
                     <div className="flex bg-slate-100 p-1 rounded-xl w-full md:w-auto">
                         {[
                             { id: 'ALL', label: 'SEMUA' },
@@ -802,8 +920,12 @@ const VehicleBooking = () => {
 
                                             {v.status === 'ACTIVE' || v.status === 'INACTIVE' ? (
                                                 <button
-                                                    disabled={submitting || v.isBorrowed || v.status !== 'ACTIVE'}
+                                                    disabled={submitting || v.isBorrowed || v.status !== 'ACTIVE' || currentUserProfile?.isSanctioned}
                                                     onClick={() => {
+                                                        if (currentUserProfile?.isSanctioned) {
+                                                            showToast('Akun Anda sedang disanksi. Tidak dapat melakukan peminjaman.', 'error');
+                                                            return;
+                                                        }
                                                         setSelectedVehicle(v);
                                                         const now = new Date();
                                                         setFormData({
@@ -814,14 +936,22 @@ const VehicleBooking = () => {
                                                         });
                                                         setShowBorrowModal(true);
                                                     }}
-                                                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all group/btn active:scale-[0.98] disabled:opacity-70 ${v.isBorrowed
+                                                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all group/btn active:scale-[0.98] disabled:opacity-70 ${
+                                                        currentUserProfile?.isSanctioned 
+                                                        ? 'bg-red-50 text-red-500 cursor-not-allowed border border-red-100'
+                                                        : v.isBorrowed
                                                         ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300'
                                                         : v.status !== 'ACTIVE'
                                                             ? 'bg-red-50 text-red-400 cursor-not-allowed border border-red-100'
                                                             : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200'
                                                         }`}
                                                 >
-                                                    {v.isBorrowed ? (
+                                                    {currentUserProfile?.isSanctioned ? (
+                                                        <>
+                                                            <AlertCircle size={16} />
+                                                            Akun Disanksi
+                                                        </>
+                                                    ) : v.isBorrowed ? (
                                                         <>
                                                             <Lock size={16} />
                                                             Sedang Digunakan
@@ -2395,6 +2525,343 @@ const VehicleBooking = () => {
                         )}
                     </div>
                 )}
+
+                {activeTab === 'USER_VIOLATIONS' && (
+                    <div className="p-6 space-y-6 animate-in fade-in duration-300">
+                        {/* Header Section */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800">Pelanggaran User</h3>
+                                <p className="text-sm text-slate-500">
+                                    {isSuperAdmin || isAdminAset
+                                        ? 'Daftar pelanggaran disiplin penggunaan kendaraan oleh seluruh user.'
+                                        : 'Daftar pelanggaran disiplin penggunaan kendaraan Anda.'}
+                                </p>
+                            </div>
+                            {(isSuperAdmin || isAdminAset) && (
+                                <button
+                                    onClick={() => setShowViolationAddModal(true)}
+                                    className="px-4 py-2.5 bg-red-600 text-white text-xs font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-200 flex items-center gap-2 whitespace-nowrap active:scale-[0.98]"
+                                >
+                                    <Plus size={16} /> Tambah Pelanggaran
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Statistics Section */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {isSuperAdmin || isAdminAset ? (
+                                // Admin Stats
+                                <>
+                                    <div className="bg-gradient-to-br from-red-50 to-red-100/50 border border-red-100 p-5 rounded-2xl shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-xl bg-red-500 text-white flex items-center justify-center shadow-md shadow-red-200">
+                                            <AlertCircle size={24} />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] font-black text-red-600 uppercase tracking-wider">Total Pelanggaran</div>
+                                            <div className="text-2xl font-black text-slate-800 mt-1">{driverViolations.length} Kasus</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-100 p-5 rounded-2xl shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-200">
+                                            <Users size={24} />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] font-black text-amber-600 uppercase tracking-wider">User Pelanggar Terbanyak</div>
+                                            <div className="text-sm font-black text-slate-800 mt-1.5 truncate max-w-[180px]">
+                                                {(() => {
+                                                    const counts = {};
+                                                    driverViolations.forEach(v => {
+                                                        const name = v.driver?.name || 'Unknown';
+                                                        counts[name] = (counts[name] || 0) + 1;
+                                                    });
+                                                    let maxName = '-';
+                                                    let maxVal = 0;
+                                                    Object.entries(counts).forEach(([name, count]) => {
+                                                        if (count > maxVal) {
+                                                            maxVal = count;
+                                                            maxName = name;
+                                                        }
+                                                    });
+                                                    return maxVal > 0 ? `${maxName} (${maxVal}x)` : '-';
+                                                })()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-100 p-5 rounded-2xl shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-xl bg-blue-500 text-white flex items-center justify-center shadow-md shadow-blue-200">
+                                            <Car size={24} />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] font-black text-blue-600 uppercase tracking-wider">Kategori Paling Sering</div>
+                                            <div className="text-sm font-black text-slate-800 mt-1.5 truncate max-w-[180px]">
+                                                {(() => {
+                                                    const counts = {};
+                                                    driverViolations.forEach(v => {
+                                                        counts[v.category] = (counts[v.category] || 0) + 1;
+                                                    });
+                                                    let maxCat = '-';
+                                                    let maxVal = 0;
+                                                    Object.entries(counts).forEach(([cat, count]) => {
+                                                        if (count > maxVal) {
+                                                            maxVal = count;
+                                                            maxCat = cat;
+                                                        }
+                                                    });
+                                                    return maxVal > 0 ? `${maxCat} (${maxVal}x)` : '-';
+                                                })()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                // Regular User Stats
+                                <>
+                                    <div className="bg-gradient-to-br from-red-50 to-red-100/50 border border-red-100 p-5 rounded-2xl shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-xl bg-red-500 text-white flex items-center justify-center shadow-md shadow-red-200">
+                                            <AlertCircle size={24} />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] font-black text-red-600 uppercase tracking-wider">Pelanggaran Saya</div>
+                                            <div className="text-2xl font-black text-slate-800 mt-1">
+                                                {driverViolations.filter(v => v.driverId === user.id).length} Kasus
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-100 p-5 rounded-2xl shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-200">
+                                            <Calendar size={24} />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] font-black text-amber-600 uppercase tracking-wider">Pelanggaran Bulan Ini</div>
+                                            <div className="text-2xl font-black text-slate-800 mt-1">
+                                                {(() => {
+                                                    const curMonth = new Date().getMonth();
+                                                    const curYear = new Date().getFullYear();
+                                                    return driverViolations.filter(v => {
+                                                        if (v.driverId !== user.id) return false;
+                                                        const d = new Date(v.date);
+                                                        return d.getMonth() === curMonth && d.getFullYear() === curYear;
+                                                    }).length;
+                                                })()} Kasus
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-green-50 to-green-100/50 border border-green-100 p-5 rounded-2xl shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-xl bg-green-600 text-white flex items-center justify-center shadow-md shadow-green-200">
+                                            <CheckCircle size={24} />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] font-black text-green-600 uppercase tracking-wider">Status Akumulasi</div>
+                                            <div className="text-sm font-black text-slate-800 mt-1.5 uppercase">
+                                                {(() => {
+                                                    const count = driverViolations.filter(v => v.driverId === user.id).length;
+                                                    if (count === 0) return <span className="text-green-600">Sangat Baik</span>;
+                                                    if (count <= 2) return <span className="text-amber-600">Peringatan</span>;
+                                                    return <span className="text-red-600">Sanksi Berat</span>;
+                                                })()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* List Section */}
+                        <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+                            {(() => {
+                                const displayedViolations = isSuperAdmin || isAdminAset
+                                    ? driverViolations
+                                    : driverViolations.filter(v => v.driverId === user.id);
+
+                                if (displayedViolations.length === 0) {
+                                    return (
+                                        <div className="py-20 text-center bg-slate-50/50">
+                                            <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-green-100">
+                                                <CheckCircle size={32} />
+                                            </div>
+                                            <p className="text-slate-500 font-bold text-base">Tidak ada catatan pelanggaran.</p>
+                                            <p className="text-xs text-slate-400 mt-1">Sistem kedisiplinan berjalan dengan baik dan patuh aturan.</p>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <>
+                                        {/* Mobile View */}
+                                        <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
+                                            {displayedViolations.map((v) => (
+                                                <div key={v.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-3">
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="text-[10px] font-bold text-slate-400">
+                                                            {new Date(v.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                        </div>
+                                                        {(isSuperAdmin || isAdminAset) && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (window.confirm('Hapus histori pelanggaran ini?')) {
+                                                                        api.delete(`/personnel/violations/${v.id}`).then(() => {
+                                                                            showToast('Pelanggaran berhasil dihapus');
+                                                                            fetchDriverViolations();
+                                                                        }).catch(() => showToast('Gagal menghapus', 'error'));
+                                                                    }
+                                                                }}
+                                                                className="p-1 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    
+                                                    {(isSuperAdmin || isAdminAset) && (
+                                                        <div className="text-sm font-bold text-slate-800">
+                                                            User: <span className="text-blue-600">{v.driver?.name || 'Unknown'}</span>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border border-red-100">
+                                                        <AlertCircle size={10} /> {v.category}
+                                                    </div>
+
+                                                    <div className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                                        <strong>Detail:</strong> {v.description}
+                                                    </div>
+
+                                                    <div className="text-xs text-slate-700 flex items-center gap-1">
+                                                        <strong>Sanksi:</strong> <span className="text-red-600 font-bold bg-red-50 border border-red-100 px-2 py-0.5 rounded-md">{v.sanction}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Desktop View */}
+                                        <div className="hidden md:block overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                                        <th className="p-4 pl-6">Tanggal</th>
+                                                        {(isSuperAdmin || isAdminAset) && <th className="p-4">User / Driver</th>}
+                                                        <th className="p-4">Kategori</th>
+                                                        <th className="p-4">Keterangan / Kejadian</th>
+                                                        <th className="p-4">Sanksi / Tindakan</th>
+                                                        {(isSuperAdmin || isAdminAset) && <th className="p-4 pr-6 text-right">Aksi</th>}
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 text-sm">
+                                                    {displayedViolations.map((v) => (
+                                                        <tr key={v.id} className="hover:bg-slate-50/50 transition-colors">
+                                                            <td className="p-4 pl-6 whitespace-nowrap font-medium text-slate-600">
+                                                                {new Date(v.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                            </td>
+                                                            {(isSuperAdmin || isAdminAset) && (
+                                                                <td className="p-4">
+                                                                    <div className="font-bold text-slate-800">{v.driver?.name || 'Unknown'}</div>
+                                                                    <div className="text-[10px] text-slate-400 font-bold uppercase">{v.driver?.nip ? `NIP: ${v.driver.nip}` : 'No NIP'}</div>
+                                                                </td>
+                                                            )}
+                                                            <td className="p-4 whitespace-nowrap">
+                                                                <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-700 px-2.5 py-1 rounded-full text-xs font-bold border border-red-100 shadow-sm">
+                                                                    <AlertCircle size={12} /> {v.category}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-4 max-w-sm">
+                                                                <div className="text-slate-700 leading-relaxed break-words">{v.description}</div>
+                                                            </td>
+                                                            <td className="p-4 whitespace-nowrap">
+                                                                <span className="inline-block px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-black uppercase shadow-inner">
+                                                                    {v.sanction}
+                                                                </span>
+                                                            </td>
+                                                            {(isSuperAdmin || isAdminAset) && (
+                                                                <td className="p-4 pr-6 text-right">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (window.confirm('Hapus histori pelanggaran ini?')) {
+                                                                                api.delete(`/personnel/violations/${v.id}`).then(() => {
+                                                                                    showToast('Pelanggaran berhasil dihapus');
+                                                                                    fetchDriverViolations();
+                                                                                }).catch(() => showToast('Gagal menghapus', 'error'));
+                                                                            }
+                                                                        }}
+                                                                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all active:scale-95"
+                                                                        title="Hapus Pelanggaran"
+                                                                    >
+                                                                        <Trash2 size={16} />
+                                                                    </button>
+                                                                </td>
+                                                            )}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Daftar User Disanksi (Admins Only) */}
+                        {(isSuperAdmin || isAdminAset) && (
+                            <div className="mt-8">
+                                <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                    <AlertCircle className="text-red-600" /> Daftar User Disanksi
+                                </h4>
+                                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+                                    {sanctionedUsers.length === 0 ? (
+                                        <div className="py-12 text-center bg-slate-50/50">
+                                            <p className="text-slate-500 font-bold">Tidak ada user yang sedang disanksi.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                                        <th className="p-4 pl-6">User</th>
+                                                        <th className="p-4">Unit</th>
+                                                        <th className="p-4">Status Pencabutan</th>
+                                                        <th className="p-4 pr-6 text-right">Aksi</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 text-sm">
+                                                    {sanctionedUsers.map(su => (
+                                                        <tr key={su.id} className="hover:bg-slate-50/50 transition-colors">
+                                                            <td className="p-4 pl-6">
+                                                                <div className="font-bold text-slate-800">{su.name || su.username}</div>
+                                                                <div className="text-[10px] text-slate-400 font-bold uppercase">NIP: {su.nip || '-'}</div>
+                                                            </td>
+                                                            <td className="p-4 text-slate-600">{su.unit?.name || '-'}</td>
+                                                            <td className="p-4">
+                                                                {su.sanctionProposedLift ? (
+                                                                    <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full text-xs font-bold border border-amber-200">
+                                                                        <Clock size={12} /> Menunggu Reviu
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-700 px-2.5 py-1 rounded-full text-xs font-bold border border-red-200">
+                                                                        Belum Ada Usulan
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                            <td className="p-4 pr-6 text-right">
+                                                                {su.sanctionProposedLift && (
+                                                                    <button
+                                                                        onClick={() => setShowSanctionReviewModal(su)}
+                                                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
+                                                                    >
+                                                                        Reviu
+                                                                    </button>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Driver Edit Modal */}
@@ -3026,6 +3493,98 @@ const VehicleBooking = () => {
                                     Siap, Sudah Dikembalikan!
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Sanction Propose Modal */}
+            {showSanctionProposeModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8">
+                        <div className="flex justify-between items-start mb-6">
+                            <h3 className="text-xl font-bold text-slate-800">Usulan Pencabutan Sanksi</h3>
+                            <button onClick={() => setShowSanctionProposeModal(false)} className="text-slate-400 hover:text-slate-600">
+                                <XCircle size={24} />
+                            </button>
+                        </div>
+                        <div className="p-4 bg-amber-50 text-amber-700 rounded-xl flex gap-3 text-sm mb-6">
+                            <AlertCircle className="shrink-0" size={20} />
+                            <p>Admin akan meninjau alasan Anda sebelum mencabut sanksi pembatasan peminjaman.</p>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Alasan & Komitmen</label>
+                                <textarea
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                                    rows={4}
+                                    placeholder="Jelaskan alasan pencabutan sanksi dan komitmen Anda..."
+                                    value={sanctionProposeReason}
+                                    onChange={e => setSanctionProposeReason(e.target.value)}
+                                />
+                            </div>
+                            <button
+                                disabled={submitting || !sanctionProposeReason.trim()}
+                                onClick={handleProposeSanctionLift}
+                                className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-50 transition-all shadow-lg shadow-red-200"
+                            >
+                                {submitting ? 'Mengirim...' : 'Kirim Usulan Pencabutan'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Sanction Review Modal */}
+            {showSanctionReviewModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8">
+                        <div className="flex justify-between items-start mb-6">
+                            <h3 className="text-xl font-bold text-slate-800">Reviu Pencabutan Sanksi</h3>
+                            <button onClick={() => setShowSanctionReviewModal(null)} className="text-slate-400 hover:text-slate-600">
+                                <XCircle size={24} />
+                            </button>
+                        </div>
+                        <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-xs font-bold text-slate-500 uppercase">User / Driver</div>
+                            <div className="font-bold text-slate-800 text-lg">{showSanctionReviewModal.name}</div>
+                            <div className="text-sm text-slate-500 mt-2">
+                                <div className="text-xs font-bold text-slate-400 uppercase">Alasan Usulan:</div>
+                                <div className="italic">"{showSanctionReviewModal.sanctionLiftReason}"</div>
+                            </div>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="flex gap-4">
+                                <button
+                                    className={`flex-1 py-3 rounded-xl font-bold transition-all border ${sanctionReviewAction.approved ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}
+                                    onClick={() => setSanctionReviewAction({ ...sanctionReviewAction, approved: true })}
+                                >
+                                    Terima & Cabut
+                                </button>
+                                <button
+                                    className={`flex-1 py-3 rounded-xl font-bold transition-all border ${!sanctionReviewAction.approved ? 'bg-red-50 border-red-500 text-red-700' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}
+                                    onClick={() => setSanctionReviewAction({ ...sanctionReviewAction, approved: false })}
+                                >
+                                    Tolak Pencabutan
+                                </button>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Catatan Reviu</label>
+                                <textarea
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    rows={3}
+                                    placeholder="Berikan catatan terkait keputusan..."
+                                    value={sanctionReviewAction.reviewNotes}
+                                    onChange={e => setSanctionReviewAction({ ...sanctionReviewAction, reviewNotes: e.target.value })}
+                                />
+                            </div>
+                            <button
+                                disabled={submitting || !sanctionReviewAction.reviewNotes.trim()}
+                                onClick={handleReviewSanctionLift}
+                                className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-200"
+                            >
+                                {submitting ? 'Menyimpan...' : 'Simpan Keputusan'}
+                            </button>
                         </div>
                     </div>
                 </div>

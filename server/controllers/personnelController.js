@@ -2126,3 +2126,344 @@ exports.getPersonnelAISummary = async (req, res) => {
         res.status(500).json({ error: 'Gagal menghasilkan ringkasan AI: ' + err.message });
     }
 };
+
+// --- SANCTION LIFTING ---
+
+exports.proposeSanctionLift = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { reason } = req.body;
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user.isSanctioned) {
+            return res.status(400).json({ error: 'Akun Anda tidak dalam masa sanksi.' });
+        }
+        if (user.sanctionProposedLift) {
+            return res.status(400).json({ error: 'Anda sudah mengajukan pencabutan sanksi sebelumnya. Mohon tunggu proses review.' });
+        }
+        if (!reason) {
+            return res.status(400).json({ error: 'Alasan pencabutan sanksi wajib diisi.' });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                sanctionProposedLift: true,
+                sanctionLiftReason: reason
+            }
+        });
+
+        // Notify Admins
+        const admins = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { role: 'SUPER_ADMIN' },
+                    { role: 'ADMIN_ASET' }
+                ]
+            }
+        });
+
+        for (const admin of admins) {
+            await createNotification(
+                admin.id,
+                'Pengajuan Pencabutan Sanksi',
+                `${updatedUser.name} mengajukan pencabutan sanksi. Alasan: ${reason}`,
+                'INFO',
+                '/kendaraan'
+            );
+            if (admin.phone) {
+                const msg = `📢 *PENGAJUAN PENCABUTAN SANKSI*\n\n` +
+                    `User: ${updatedUser.name}\n` +
+                    `Alasan: ${reason}\n\n` +
+                    `Mohon untuk di-review di menu Pelanggaran User aplikasi SARPRAS.`;
+                await whatsappService.sendMessage(admin.phone, msg);
+            }
+        }
+
+        res.json({ message: 'Pengajuan pencabutan sanksi berhasil dikirim.' });
+    } catch (err) {
+        console.error('[Propose Sanction Lift Error]', err.message);
+        res.status(500).json({ error: 'Gagal mengajukan pencabutan sanksi: ' + err.message });
+    }
+};
+
+exports.reviewSanctionLift = async (req, res) => {
+    try {
+        const { userId, isApproved } = req.body;
+        const adminId = req.user.id;
+
+        const admin = await prisma.user.findUnique({ where: { id: adminId } });
+        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(admin.role) && !admin.position?.toLowerCase().includes('kepala bidang')) {
+            return res.status(403).json({ error: 'Akses ditolak.' });
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
+        if (!user || !user.isSanctioned) {
+            return res.status(404).json({ error: 'User tidak ditemukan atau tidak sedang disanksi.' });
+        }
+
+        if (isApproved) {
+            // Un-sanction and reset warnings for bookings? Actually just reset user isSanctioned flag
+            await prisma.user.update({
+                where: { id: parseInt(userId) },
+                data: {
+                    isSanctioned: false,
+                    sanctionProposedLift: false,
+                    sanctionLiftReason: null
+                }
+            });
+
+            // Also reset warning counts on any active/recent bookings to prevent immediate re-sanction if loop triggers again.
+            // Wait, the late loops only trigger if tripStartTime is null or tripEndTime is null. 
+            // If we completed or cancelled the trip, it won't be processed again by those loops.
+            // So just un-sanctioning the user is enough.
+
+            if (user.phone) {
+                const msg = `✅ *PENCABUTAN SANKSI DISETUJUI*\n\n` +
+                    `Bismillah Ustadz ${user.name},\n\n` +
+                    `Pengajuan pencabutan sanksi Anda telah disetujui oleh ${admin.name}. Hak akses peminjaman kendaraan Anda telah dikembalikan.\n\n` +
+                    `Mohon untuk tertib dalam memulai dan mengakhiri perjalanan ke depannya. Syukron.`;
+                await whatsappService.sendMessage(user.phone, msg);
+            }
+            await createNotification(user.id, 'Sanksi Dicabut', 'Pengajuan pencabutan sanksi Anda telah disetujui. Anda dapat melakukan peminjaman kembali.', 'SUCCESS', '/kendaraan');
+            
+            res.json({ message: 'Sanksi berhasil dicabut.' });
+        } else {
+            // Reject lift
+            await prisma.user.update({
+                where: { id: parseInt(userId) },
+                data: {
+                    sanctionProposedLift: false
+                }
+            });
+
+            if (user.phone) {
+                const msg = `❌ *PENCABUTAN SANKSI DITOLAK*\n\n` +
+                    `Bismillah Ustadz ${user.name},\n\n` +
+                    `Maaf, pengajuan pencabutan sanksi Anda ditolak oleh ${admin.name}.`;
+const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const userPosition = (currentUser?.position || '').toLowerCase();
+
+        // Lenient matching for AISummary
+        const isKabidTitle = userPosition.includes('kepala bidang');
+        const isSarprasUnit = userPosition.includes('sarana dan prasarana') || userPosition.includes('sarpras');
+        const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || (isKabidTitle && isSarprasUnit) || currentUser?.role === 'KEPALA_BIDANG';
+
+        if (!isAuthorized) {
+            console.warn(`[AUTH-AI] Unauthorized: User=${currentUser?.username}, Pos=[${currentUser?.position}]`);
+            return res.status(403).json({
+                error: `Akses ditolak. Jabatan Di database: "${currentUser?.position || 'Kosong'}".`
+            });
+        }
+
+        // 1. Fetch Data for Context
+        const last7Days = new Date();
+        last7Days.setDate(last7Days.getDate() - 7);
+
+        // A. Recent Assignments
+        const assignments = await prisma.personnelAssignment.findMany({
+            where: {
+                createdAt: { gte: last7Days },
+                routineId: null // Skip routines here, handle separately
+            },
+            include: { assignee: { select: { name: true } } },
+            orderBy: { createdAt: 'desc' },
+            take: 15
+        });
+
+        // B. Recent Plans (Weekly Reports with isPlan: true)
+        const plans = await prisma.personnelReport.findMany({
+            where: {
+                type: 'WEEKLY',
+                date: { gte: last7Days },
+                metadata: { path: ['isPlan'], equals: true }
+            },
+            include: { user: { select: { name: true } } },
+            orderBy: { date: 'desc' },
+            take: 10
+        });
+
+        // C. Active Routines
+        const routines = await prisma.personnelRoutine.findMany({
+            where: { isActive: true },
+            include: { assignee: { select: { name: true } } },
+            take: 10
+        });
+
+        // D. Recent Daily Logs
+        const dailyLogs = await prisma.personnelReport.findMany({
+            where: {
+                type: 'DAILY',
+                date: { gte: last7Days }
+            },
+            include: { user: { select: { name: true } } },
+            orderBy: { date: 'desc' },
+            take: 15
+        });
+
+        // 2. Map data for AI
+        const context = {
+            tasks: assignments,
+            plans,
+            routines,
+            dailyLogs: dailyLogs.map(l => ({
+                user: l.user,
+                content: l.content || (l.metadata?.items ? l.metadata.items.map(i => i.activity).join(', ') : 'Laporan rutin')
+            }))
+        };
+
+        // 3. Generate Summary
+        const summary = await aiService.generatePersonnelSummary(context);
+
+        res.json({ summary });
+    } catch (err) {
+        console.error('[AI Summary Error]', err.message);
+        res.status(500).json({ error: 'Gagal menghasilkan ringkasan AI: ' + err.message });
+    }
+};
+
+// --- SANCTION LIFTING ---
+
+exports.proposeSanctionLift = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { reason } = req.body;
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user.isSanctioned) {
+            return res.status(400).json({ error: 'Akun Anda tidak dalam masa sanksi.' });
+        }
+        if (user.sanctionProposedLift) {
+            return res.status(400).json({ error: 'Anda sudah mengajukan pencabutan sanksi sebelumnya. Mohon tunggu proses review.' });
+        }
+        if (!reason) {
+            return res.status(400).json({ error: 'Alasan pencabutan sanksi wajib diisi.' });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                sanctionProposedLift: true,
+                sanctionLiftReason: reason
+            }
+        });
+
+        // Notify Admins
+        const admins = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { role: 'SUPER_ADMIN' },
+                    { role: 'ADMIN_ASET' }
+                ]
+            }
+        });
+
+        for (const admin of admins) {
+            await createNotification(
+                admin.id,
+                'Pengajuan Pencabutan Sanksi',
+                `${updatedUser.name} mengajukan pencabutan sanksi. Alasan: ${reason}`,
+                'INFO',
+                '/kendaraan'
+            );
+            if (admin.phone) {
+                const msg = `📢 *PENGAJUAN PENCABUTAN SANKSI*\n\n` +
+                    `User: ${updatedUser.name}\n` +
+                    `Alasan: ${reason}\n\n` +
+                    `Mohon untuk di-review di menu Pelanggaran User aplikasi SARPRAS.`;
+                await whatsappService.sendMessage(admin.phone, msg);
+            }
+        }
+
+        res.json({ message: 'Pengajuan pencabutan sanksi berhasil dikirim.' });
+    } catch (err) {
+        console.error('[Propose Sanction Lift Error]', err.message);
+        res.status(500).json({ error: 'Gagal mengajukan pencabutan sanksi: ' + err.message });
+    }
+};
+
+exports.reviewSanctionLift = async (req, res) => {
+    try {
+        const { userId, isApproved } = req.body;
+        const adminId = req.user.id;
+
+        const admin = await prisma.user.findUnique({ where: { id: adminId } });
+        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(admin.role) && !admin.position?.toLowerCase().includes('kepala bidang')) {
+            return res.status(403).json({ error: 'Akses ditolak.' });
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
+        if (!user || !user.isSanctioned) {
+            return res.status(404).json({ error: 'User tidak ditemukan atau tidak sedang disanksi.' });
+        }
+
+        if (isApproved) {
+            // Un-sanction and reset warnings for bookings? Actually just reset user isSanctioned flag
+            await prisma.user.update({
+                where: { id: parseInt(userId) },
+                data: {
+                    isSanctioned: false,
+                    sanctionProposedLift: false,
+                    sanctionLiftReason: null
+                }
+            });
+
+            // Also reset warning counts on any active/recent bookings to prevent immediate re-sanction if loop triggers again.
+            // Wait, the late loops only trigger if tripStartTime is null or tripEndTime is null. 
+            // If we completed or cancelled the trip, it won't be processed again by those loops.
+            // So just un-sanctioning the user is enough.
+
+            if (user.phone) {
+                const msg = `✅ *PENCABUTAN SANKSI DISETUJUI*\n\n` +
+                    `Bismillah Ustadz ${user.name},\n\n` +
+                    `Pengajuan pencabutan sanksi Anda telah disetujui oleh ${admin.name}. Hak akses peminjaman kendaraan Anda telah dikembalikan.\n\n` +
+                    `Mohon untuk tertib dalam memulai dan mengakhiri perjalanan ke depannya. Syukron.`;
+                await whatsappService.sendMessage(user.phone, msg);
+            }
+            await createNotification(user.id, 'Sanksi Dicabut', 'Pengajuan pencabutan sanksi Anda telah disetujui. Anda dapat melakukan peminjaman kembali.', 'SUCCESS', '/kendaraan');
+            
+            res.json({ message: 'Sanksi berhasil dicabut.' });
+        } else {
+            // Reject lift
+            await prisma.user.update({
+                where: { id: parseInt(userId) },
+                data: {
+                    sanctionProposedLift: false
+                }
+            });
+
+            if (user.phone) {
+                const msg = `❌ *PENCABUTAN SANKSI DITOLAK*\n\n` +
+                    `Bismillah Ustadz ${user.name},\n\n` +
+                    `Maaf, pengajuan pencabutan sanksi Anda ditolak oleh ${admin.name}.`;
+                await whatsappService.sendMessage(user.phone, msg);
+            }
+            await createNotification(user.id, 'Pencabutan Sanksi Ditolak', 'Pengajuan pencabutan sanksi Anda ditolak.', 'WARNING', '/kendaraan');
+
+            res.json({ message: 'Pengajuan pencabutan sanksi ditolak.' });
+        }
+    } catch (err) {
+        console.error('[Review Sanction Lift Error]', err.message);
+        res.status(500).json({ error: 'Gagal memproses pencabutan sanksi: ' + err.message });
+    }
+};
+
+exports.getSanctionedUsers = async (req, res) => {
+    try {
+        const users = await prisma.user.findMany({
+            where: { isSanctioned: true },
+            select: {
+                id: true,
+                name: true,
+                phone: true,
+                position: true,
+                isSanctioned: true,
+                sanctionProposedLift: true,
+                sanctionLiftReason: true
+            }
+        });
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

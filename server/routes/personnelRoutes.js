@@ -50,4 +50,9 @@ router.get('/staff', personnelController.getStaffSarpras);
 // All Users for Selection
 router.get('/all-users', personnelController.getAllUsersForSelection);
 
+// Sanctions
+router.get('/sanctions', personnelController.getSanctionedUsers);
+router.post('/sanctions/propose', personnelController.proposeSanctionLift);
+router.post('/sanctions/review', personnelController.reviewSanctionLift);
+
 module.exports = router;

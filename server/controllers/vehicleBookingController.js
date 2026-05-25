@@ -50,6 +50,10 @@ exports.requestBooking = async (req, res) => {
             });
         }
 
+        if (currentUser.isSanctioned) {
+            return res.status(403).json({ error: 'Akun Anda sedang disanksi dan tidak dapat melakukan peminjaman. Silakan ajukan pencabutan sanksi pada menu Pelanggaran User.' });
+        }
+
         const vehicle = await prisma.vehicle.findUnique({
             where: { id: parseInt(vehicleId) },
             include: { pics: true }
@@ -845,11 +849,54 @@ exports.checkOverdueVehicleBookings = async () => {
             const diffMs = now - new Date(booking.endDate);
             const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
 
+            // Increment warning count
+            const updatedBooking = await prisma.vehicleBooking.update({
+                where: { id: booking.id },
+                data: { endWarningCount: { increment: 1 } }
+            });
+
+            if (updatedBooking.endWarningCount >= 10) {
+                // Auto-complete trip and apply sanction
+                await prisma.vehicleBooking.update({
+                    where: { id: booking.id },
+                    data: {
+                        status: 'COMPLETED',
+                        endKm: booking.startKm,
+                        tripEndTime: new Date(),
+                        tripNotes: 'Diselesaikan Otomatis Sistem: Tidak mengakhiri perjalanan setelah 10 kali peringatan',
+                    }
+                });
+
+                await prisma.user.update({
+                    where: { id: booking.userId },
+                    data: { isSanctioned: true }
+                });
+
+                await createNotification(
+                    booking.userId,
+                    'Sanksi Pelanggaran: Peminjaman Kendaraan',
+                    `Akun Anda disanksi karena tidak mengakhiri perjalanan ${booking.vehicle.name} setelah 10 kali peringatan.`,
+                    'URGENT',
+                    '/kendaraan/peminjaman'
+                );
+
+                if (booking.user.phone) {
+                    const sanctionMsg = `🚨 *PEMBERITAHUAN SANKSI PELANGGARAN* 🚨\n\n` +
+                        `Bismillah Ustadz ${booking.user.name},\n\n` +
+                        `Perjalanan Anda dengan armada *${booking.vehicle.name}* telah diselesaikan secara otomatis oleh sistem karena Anda mengabaikan 10 kali peringatan pengakhiran perjalanan.\n\n` +
+                        `Sebagai sanksi, hak akses peminjaman kendaraan Anda *DIBEKUKAN*.\n\n` +
+                        `Silakan ajukan pencabutan sanksi melalui menu *Pelanggaran User* di aplikasi SARPRAS.\n\n` +
+                        `_Sistem Manajemen Aset_`;
+                    await sendMessage(booking.user.phone, sanctionMsg);
+                }
+                continue;
+            }
+
             // 1. Notifikasi Sistem (Lonceng) ke Peminjam
             await createNotification(
                 booking.userId,
                 'Pengingat: Selesaikan Perjalanan',
-                `Perjalanan dengan ${booking.vehicle.name} ke ${booking.destination} seharusnya selesai pada ${new Date(booking.endDate).toLocaleString('id-ID')}.`,
+                `Perjalanan dengan ${booking.vehicle.name} ke ${booking.destination} seharusnya selesai pada ${new Date(booking.endDate).toLocaleString('id-ID')}. (Peringatan ke-${updatedBooking.endWarningCount})`,
                 'WARNING',
                 '/kendaraan/peminjaman'
             );
@@ -973,11 +1020,52 @@ exports.checkUpcomingVehicleBookings = async () => {
             const diffMs = now - new Date(booking.startDate);
             const diffMins = Math.floor(diffMs / (1000 * 60));
 
+            // Increment warning count
+            const updatedBooking = await prisma.vehicleBooking.update({
+                where: { id: booking.id },
+                data: { startWarningCount: { increment: 1 } }
+            });
+
+            if (updatedBooking.startWarningCount >= 10) {
+                // Auto-cancel trip and apply sanction
+                await prisma.vehicleBooking.update({
+                    where: { id: booking.id },
+                    data: {
+                        status: 'CANCELLED',
+                        adminNote: 'Dibatalkan Otomatis Sistem: Tidak memulai perjalanan setelah 10 kali peringatan'
+                    }
+                });
+
+                await prisma.user.update({
+                    where: { id: booking.userId },
+                    data: { isSanctioned: true }
+                });
+
+                await createNotification(
+                    booking.userId,
+                    'Sanksi Pelanggaran: Peminjaman Kendaraan',
+                    `Akun Anda disanksi karena tidak memulai perjalanan ${booking.vehicle.name} setelah 10 kali peringatan.`,
+                    'URGENT',
+                    '/kendaraan/peminjaman'
+                );
+
+                if (booking.user.phone) {
+                    const sanctionMsg = `🚨 *PEMBERITAHUAN SANKSI PELANGGARAN* 🚨\n\n` +
+                        `Bismillah Ustadz ${booking.user.name},\n\n` +
+                        `Peminjaman armada *${booking.vehicle.name}* Anda telah dibatalkan secara otomatis oleh sistem karena Anda mengabaikan 10 kali peringatan memulai perjalanan.\n\n` +
+                        `Sebagai sanksi, hak akses peminjaman kendaraan Anda *DIBEKUKAN*.\n\n` +
+                        `Silakan ajukan pencabutan sanksi melalui menu *Pelanggaran User* di aplikasi SARPRAS.\n\n` +
+                        `_Sistem Manajemen Aset_`;
+                    await sendMessage(booking.user.phone, sanctionMsg);
+                }
+                continue;
+            }
+
             // Notifikasi Sistem (Lonceng)
             await createNotification(
                 booking.userId,
                 '⚠️ Pengingat: Segera Mulai Perjalanan',
-                `Jadwal armada ${booking.vehicle.name} Anda sudah dimulai pada ${formatWAWaktu(booking.startDate)}. Mohon segera klik 'Mulai Perjalanan'.`,
+                `Jadwal armada ${booking.vehicle.name} Anda sudah dimulai pada ${formatWAWaktu(booking.startDate)}. Mohon segera klik 'Mulai Perjalanan'. (Peringatan ke-${updatedBooking.startWarningCount})`,
                 'WARNING',
                 '/kendaraan/peminjaman'
             );

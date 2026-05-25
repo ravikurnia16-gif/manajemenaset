@@ -105,6 +105,11 @@ model User {
   licenseExpiry    DateTime?
   driverStatus     String   @default("AVAILABLE") // AVAILABLE, ON_TRIP, OFF
   driverViolations DriverViolation[]
+
+  // Sanction Fields (Vehicle Booking)
+  isSanctioned         Boolean @default(false)
+  sanctionProposedLift Boolean @default(false)
+  sanctionLiftReason   String? @db.Text
 }
 
 model DriverViolation {
@@ -678,6 +683,10 @@ model VehicleBooking {
   tripStartTime DateTime?
   tripEndTime   DateTime?
   returnLocation String?   // Posisi terakhir kendaraan saat dikembalikan
+
+  // Infraction Warnings
+  startWarningCount Int @default(0)
+  endWarningCount   Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
