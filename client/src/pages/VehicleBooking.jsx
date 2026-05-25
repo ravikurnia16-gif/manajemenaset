@@ -95,6 +95,8 @@ const VehicleBooking = () => {
 
     // Head of Sarpras
     const isKabidSarpras = user.position === 'Kepala Bidang Sarana dan Prasarana';
+    const isStaffKendaraan = user.position === 'Staff Kendaraan' || user.position?.toLowerCase().includes('staff kendaraan');
+    const canManageBooking = isAdminAset || isSuperAdmin || isKabidSarpras || isStaffKendaraan;
 
     const [isPIC, setIsPIC] = useState(false);
 
@@ -1473,7 +1475,7 @@ const VehicleBooking = () => {
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
-                                                {b.status === 'APPROVED' && !b.startKm && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
+                                                {b.status === 'APPROVED' && !b.startKm && (b.userId === user?.id || canManageBooking) && (
                                                     <button
                                                         disabled={submitting}
                                                         onClick={() => {
@@ -1485,7 +1487,7 @@ const VehicleBooking = () => {
                                                         <LogIn size={16} /> Start Trip
                                                     </button>
                                                 )}
-                                                {b.status === 'BERLANGSUNG' && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
+                                                {b.status === 'BERLANGSUNG' && (b.userId === user?.id || canManageBooking) && (
                                                     <button
                                                         disabled={submitting}
                                                         onClick={() => {
@@ -1497,7 +1499,7 @@ const VehicleBooking = () => {
                                                         <Clock size={16} /> Perpanjang
                                                     </button>
                                                 )}
-                                                {b.status === 'BERLANGSUNG' && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
+                                                {b.status === 'BERLANGSUNG' && (b.userId === user?.id || canManageBooking) && (
                                                     <button
                                                         disabled={submitting}
                                                         onClick={() => {
@@ -1509,7 +1511,7 @@ const VehicleBooking = () => {
                                                         <LogOut size={16} /> End Trip
                                                     </button>
                                                 )}
-                                                {['PENDING', 'APPROVED'].includes(b.status) && !b.startKm && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
+                                                {['PENDING', 'APPROVED'].includes(b.status) && !b.startKm && (b.userId === user?.id || canManageBooking) && (
                                                     <button
                                                         disabled={submitting}
                                                         onClick={() => handleCancelClick(b)}
@@ -1578,7 +1580,7 @@ const VehicleBooking = () => {
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex justify-center gap-2">
-                                                            {b.status === 'APPROVED' && !b.startKm && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
+                                                            {b.status === 'APPROVED' && !b.startKm && (b.userId === user?.id || canManageBooking) && (
                                                                 <button
                                                                     disabled={submitting}
                                                                     onClick={() => {
@@ -1590,7 +1592,7 @@ const VehicleBooking = () => {
                                                                     <LogIn size={14} /> Start Trip
                                                                 </button>
                                                             )}
-                                                            {b.status === 'BERLANGSUNG' && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
+                                                            {b.status === 'BERLANGSUNG' && (b.userId === user?.id || canManageBooking) && (
                                                                 <button
                                                                     disabled={submitting}
                                                                     onClick={() => {
@@ -1602,7 +1604,7 @@ const VehicleBooking = () => {
                                                                     <Clock size={14} /> Perpanjang
                                                                 </button>
                                                             )}
-                                                            {b.status === 'BERLANGSUNG' && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
+                                                            {b.status === 'BERLANGSUNG' && (b.userId === user?.id || canManageBooking) && (
                                                                 <button
                                                                     disabled={submitting}
                                                                     onClick={() => {
@@ -1614,7 +1616,7 @@ const VehicleBooking = () => {
                                                                     <LogOut size={14} /> End Trip
                                                                 </button>
                                                             )}
-                                                            {['PENDING', 'APPROVED'].includes(b.status) && !b.startKm && (b.userId === user?.id || isAdminAset || isSuperAdmin) && (
+                                                            {['PENDING', 'APPROVED'].includes(b.status) && !b.startKm && (b.userId === user?.id || canManageBooking) && (
                                                                 <button
                                                                     disabled={submitting}
                                                                     onClick={() => handleCancelClick(b)}

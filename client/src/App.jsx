@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -76,6 +77,30 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
+        if (['e', 'E', '+', '-'].includes(e.key)) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    const handleWheel = (e) => {
+      if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
+        e.target.blur();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
+
   let user = {};
   try {
     const storedUser = localStorage.getItem('user');
