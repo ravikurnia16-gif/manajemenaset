@@ -144,7 +144,7 @@ const ReportPage = () => {
                 if (kat.includes('elektronik')) persentaseKategori = 0.15;
                 else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
                 
-                const marketValue = Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori);
+                const marketValue = Math.min(bookValue, Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori));
 
                 return {
                     Kode: a.code,
@@ -351,7 +351,7 @@ const ReportPage = () => {
                                     if (kat.includes('elektronik')) persentaseKategori = 0.15;
                                     else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
                                     
-                                    const marketValue = Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori);
+                                    const marketValue = Math.min(bookValue, Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori));
 
                                     return { ...a, accumulated, bookValue, marketValue };
                                 });

@@ -888,7 +888,7 @@ exports.getAssetPublic = async (req, res) => {
         else if (kat.includes('furniture') || kat.includes('furnitur') || kat.includes('inventaris') || kat.includes('operasional')) persentaseKategori = 0.10;
         
         const nilaiMinimum = asset.price * persentaseKategori;
-        const marketValue = Math.max(nilaiKalkulasi, nilaiMinimum);
+        const marketValue = Math.min(currentBookValue, Math.max(nilaiKalkulasi, nilaiMinimum));
 
         // Remaining Life
         const remainingMonthsTotal = Math.max(0, totalMonths - monthsElapsed);

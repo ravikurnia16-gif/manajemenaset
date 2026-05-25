@@ -485,7 +485,7 @@ const AssetList = ({ validationMode = false }) => {
             if (kat.includes('elektronik')) persentaseKategori = 0.15;
             else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
             
-            const marketValue = Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori);
+            const marketValue = Math.min(bookValue, Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori));
 
 
             return {
@@ -1226,7 +1226,7 @@ const AssetList = ({ validationMode = false }) => {
                                                 if (kat.includes('elektronik')) persentaseKategori = 0.15;
                                                 else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
                                                 
-                                                const marketValue = Math.max(bookValue * nilaiKondisi, asset.price * persentaseKategori);
+                                                const marketValue = Math.min(bookValue, Math.max(bookValue * nilaiKondisi, asset.price * persentaseKategori));
 
                                                 return (
                                                     <div className="flex flex-col gap-0.5">
@@ -1346,7 +1346,7 @@ const AssetList = ({ validationMode = false }) => {
                                             if (kat.includes('elektronik')) persentaseKategori = 0.15;
                                             else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
                                             
-                                            const marketValue = Math.max(bookValue * nilaiKondisi, asset.price * persentaseKategori);
+                                            const marketValue = Math.min(bookValue, Math.max(bookValue * nilaiKondisi, asset.price * persentaseKategori));
 
                                             return (
                                                 <div className="flex flex-col gap-1 w-full max-w-[150px] ml-auto">
