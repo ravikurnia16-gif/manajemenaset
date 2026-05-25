@@ -283,7 +283,12 @@ const WarehouseStock = () => {
                                         const group = row;
                                         const isExpanded = expandedGroups.has(group.id);
                                         const uniqueSizes = isExpanded ? [...new Set(group.items.map(i => i.size || '-'))].sort(sortSizes) : [];
-                                        const uniqueTypeYears = isExpanded ? [...new Set(group.items.map(i => `${i.type || '-'}::${i.purchaseYear || '-'}`))].sort() : [];
+                                        const uniqueYears = isExpanded ? [...new Set(group.items.map(i => i.purchaseYear || '-'))].sort((a, b) => {
+                                            if (a === '-') return 1;
+                                            if (b === '-') return -1;
+                                            return a.localeCompare(b);
+                                        }) : [];
+                                        const uniqueTypes = isExpanded ? [...new Set(group.items.map(i => i.type || '-'))].sort() : [];
 
                                         return (
                                             <Fragment key={`group-${group.id}`}>
@@ -329,48 +334,59 @@ const WarehouseStock = () => {
                                                                     <span className="text-[10px] text-slate-400 font-semibold bg-slate-200/50 px-2 py-1 rounded-md">Arahkan kursor ke angka stok untuk Edit/Hapus</span>
                                                                 </div>
                                                                 <div className="overflow-x-auto p-4">
-                                                                    <table className="min-w-full text-sm border-collapse">
+                                                                    <table className="min-w-full text-sm border-collapse border border-slate-200">
                                                                         <thead>
                                                                             <tr>
-                                                                                <th className="border-b-2 border-slate-200 p-2 text-left bg-white text-slate-400 font-black tracking-wider text-[10px] uppercase w-48">Tipe & Tahun</th>
+                                                                                <th rowSpan={2} className="border border-slate-200 p-2 text-left bg-slate-50 text-slate-500 font-black tracking-wider text-[10px] uppercase w-32">Tipe</th>
                                                                                 {uniqueSizes.map(sz => (
-                                                                                    <th key={sz} className="border-b-2 border-slate-200 p-2 text-center bg-white text-slate-600 font-black tracking-wider text-[11px] uppercase min-w-16">{sz === '-' ? 'No Size' : sz}</th>
+                                                                                    <th key={sz} colSpan={uniqueYears.length} className="border border-slate-200 p-2 text-center bg-slate-50 text-slate-600 font-black tracking-wider text-[11px] uppercase min-w-16">
+                                                                                        {sz === '-' ? 'No Size' : sz}
+                                                                                    </th>
                                                                                 ))}
-                                                                                <th className="border-b-2 border-indigo-100 p-2 text-center bg-indigo-50/50 text-indigo-700 font-black tracking-wider text-[10px] uppercase min-w-20">Total</th>
+                                                                                <th rowSpan={2} className="border border-slate-200 p-2 text-center bg-indigo-50/50 text-indigo-700 font-black tracking-wider text-[10px] uppercase w-20">Total</th>
+                                                                            </tr>
+                                                                            <tr>
+                                                                                {uniqueSizes.map(sz => 
+                                                                                    uniqueYears.map(yr => (
+                                                                                        <th key={`${sz}-${yr}`} className="border border-slate-200 p-1 text-center bg-slate-50/30 text-slate-400 font-bold text-[9px]">
+                                                                                            {yr === '-' ? 'TBA' : yr}
+                                                                                        </th>
+                                                                                    ))
+                                                                                )}
                                                                             </tr>
                                                                         </thead>
                                                                         <tbody>
-                                                                            {uniqueTypeYears.map((ty, idx) => {
-                                                                                const [type, year] = ty.split('::');
-                                                                                const typeItems = group.items.filter(i => `${i.type || '-'}::${i.purchaseYear || '-'}` === ty);
-                                                                                const rowTotal = typeItems.reduce((sum, i) => sum + i.stock, 0);
+                                                                            {uniqueTypes.map((type, idx) => {
+                                                                                const rowTotal = group.items.filter(i => (i.type || '-') === type).reduce((sum, i) => sum + i.stock, 0);
                                                                                 
                                                                                 return (
-                                                                                    <tr key={ty} className={`hover:bg-slate-50 ${idx !== uniqueTypeYears.length - 1 ? 'border-b border-slate-100' : ''}`}>
-                                                                                        <td className="p-2.5 font-semibold text-slate-700">
-                                                                                            {type === '-' ? 'Lainnya' : type} {year !== '-' ? <span className="text-slate-400 text-xs ml-1.5 bg-slate-100 px-1.5 py-0.5 rounded">[{year}]</span> : ''}
+                                                                                    <tr key={type} className={`hover:bg-slate-50/70 ${idx !== uniqueTypes.length - 1 ? 'border-b border-slate-200' : ''}`}>
+                                                                                        <td className="border border-slate-200 p-2.5 font-semibold text-slate-700 bg-slate-50/10">
+                                                                                            {type === '-' ? 'Lainnya' : type}
                                                                                         </td>
-                                                                                        {uniqueSizes.map(sz => {
-                                                                                            const item = typeItems.find(i => (i.size || '-') === sz);
-                                                                                            return (
-                                                                                                <td key={sz} className="p-2 text-center relative group/cell hover:bg-slate-100 transition-colors rounded">
-                                                                                                    {item ? (
-                                                                                                        <div className="flex flex-col items-center justify-center">
-                                                                                                            <span className={`font-black text-base ${item.stock <= item.minStock ? 'text-red-500' : 'text-slate-700'}`}>
-                                                                                                                {item.stock}
-                                                                                                            </span>
-                                                                                                            <div className="absolute inset-0 bg-white/95 backdrop-blur-[2px] flex items-center justify-center gap-2 opacity-0 group-hover/cell:opacity-100 transition-opacity rounded border border-slate-200 shadow-sm">
-                                                                                                                <button onClick={(e) => { e.stopPropagation(); navigate(`/gudang/stok/edit/${item.id}`); }} className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors" title="Edit Item"><Edit size={13}/></button>
-                                                                                                                <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors" title="Hapus Item"><Trash2 size={13}/></button>
+                                                                                        {uniqueSizes.map(sz => 
+                                                                                            uniqueYears.map(yr => {
+                                                                                                const item = group.items.find(i => (i.type || '-') === type && (i.size || '-') === sz && (i.purchaseYear || '-') === yr);
+                                                                                                return (
+                                                                                                    <td key={`${sz}-${yr}`} className="border border-slate-200 p-2 text-center relative group/cell hover:bg-slate-100 transition-colors">
+                                                                                                        {item ? (
+                                                                                                            <div className="flex flex-col items-center justify-center">
+                                                                                                                <span className={`font-black text-base ${item.stock <= item.minStock ? 'text-red-500' : 'text-slate-700'}`}>
+                                                                                                                    {item.stock}
+                                                                                                                </span>
+                                                                                                                <div className="absolute inset-0 bg-white/95 backdrop-blur-[2px] flex items-center justify-center gap-1.5 opacity-0 group-hover/cell:opacity-100 transition-opacity rounded border border-slate-200 shadow-sm">
+                                                                                                                    <button onClick={(e) => { e.stopPropagation(); navigate(`/gudang/stok/edit/${item.id}`); }} className="p-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors" title="Edit Item"><Edit size={12}/></button>
+                                                                                                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="p-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors" title="Hapus Item"><Trash2 size={12}/></button>
+                                                                                                                </div>
                                                                                                             </div>
-                                                                                                        </div>
-                                                                                                    ) : (
-                                                                                                        <span className="text-slate-200">-</span>
-                                                                                                    )}
-                                                                                                </td>
-                                                                                            );
-                                                                                        })}
-                                                                                        <td className="p-2.5 text-center font-black text-indigo-600 bg-indigo-50/30">
+                                                                                                        ) : (
+                                                                                                            <span className="text-slate-200">-</span>
+                                                                                                        )}
+                                                                                                    </td>
+                                                                                                );
+                                                                                            })
+                                                                                        )}
+                                                                                        <td className="border border-slate-200 p-2.5 text-center font-black text-indigo-600 bg-indigo-50/30">
                                                                                             {rowTotal}
                                                                                         </td>
                                                                                     </tr>
