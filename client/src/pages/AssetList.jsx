@@ -476,7 +476,7 @@ const AssetList = ({ validationMode = false }) => {
             const daysElapsed = Math.max(0, Math.floor((now - purchaseDate) / (24 * 60 * 60 * 1000)));
 
             let nilaiKondisi = 0;
-            if (a.condition === 'BAIK') nilaiKondisi = 0.9;
+            if (a.condition === 'BAIK') nilaiKondisi = 1;
             else if (a.condition === 'RUSAK_RINGAN') nilaiKondisi = 0.5;
             else if (a.condition === 'RUSAK_BERAT') nilaiKondisi = 0.2;
             
@@ -485,7 +485,7 @@ const AssetList = ({ validationMode = false }) => {
             if (kat.includes('elektronik')) persentaseKategori = 0.15;
             else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
             
-            const marketValue = Math.min(bookValue, Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori));
+            const marketValue = Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori);
 
 
             return {
@@ -1217,7 +1217,7 @@ const AssetList = ({ validationMode = false }) => {
                                                 const bookValue = Math.max(0, asset.price - accumulatedDepreciation);
                                                 
                                                 let nilaiKondisi = 0;
-                                                if (asset.condition === 'BAIK') nilaiKondisi = 0.9;
+                                                if (asset.condition === 'BAIK') nilaiKondisi = 1;
                                                 else if (asset.condition === 'RUSAK_RINGAN') nilaiKondisi = 0.5;
                                                 else if (asset.condition === 'RUSAK_BERAT') nilaiKondisi = 0.2;
                                                 
@@ -1226,7 +1226,7 @@ const AssetList = ({ validationMode = false }) => {
                                                 if (kat.includes('elektronik')) persentaseKategori = 0.15;
                                                 else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
                                                 
-                                                const marketValue = Math.min(bookValue, Math.max(bookValue * nilaiKondisi, asset.price * persentaseKategori));
+                                                const marketValue = Math.max(bookValue * nilaiKondisi, asset.price * persentaseKategori);
 
                                                 return (
                                                     <div className="flex flex-col gap-0.5">
@@ -1337,7 +1337,7 @@ const AssetList = ({ validationMode = false }) => {
                                             const bookValue = Math.max(0, asset.price - accumulatedDepreciation);
 
                                             let nilaiKondisi = 0;
-                                            if (asset.condition === 'BAIK') nilaiKondisi = 0.9;
+                                            if (asset.condition === 'BAIK') nilaiKondisi = 1;
                                             else if (asset.condition === 'RUSAK_RINGAN') nilaiKondisi = 0.5;
                                             else if (asset.condition === 'RUSAK_BERAT') nilaiKondisi = 0.2;
                                             
@@ -1346,7 +1346,7 @@ const AssetList = ({ validationMode = false }) => {
                                             if (kat.includes('elektronik')) persentaseKategori = 0.15;
                                             else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
                                             
-                                            const marketValue = Math.min(bookValue, Math.max(bookValue * nilaiKondisi, asset.price * persentaseKategori));
+                                            const marketValue = Math.max(bookValue * nilaiKondisi, asset.price * persentaseKategori);
 
                                             return (
                                                 <div className="flex flex-col gap-1 w-full max-w-[150px] ml-auto">

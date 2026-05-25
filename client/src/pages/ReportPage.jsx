@@ -135,7 +135,7 @@ const ReportPage = () => {
                 const bookValue = Math.max(0, a.price - accumulatedDepreciation);
 
                 let nilaiKondisi = 0;
-                if (a.condition === 'BAIK') nilaiKondisi = 0.9;
+                if (a.condition === 'BAIK') nilaiKondisi = 1;
                 else if (a.condition === 'RUSAK_RINGAN') nilaiKondisi = 0.5;
                 else if (a.condition === 'RUSAK_BERAT') nilaiKondisi = 0.2;
                 
@@ -144,7 +144,7 @@ const ReportPage = () => {
                 if (kat.includes('elektronik')) persentaseKategori = 0.15;
                 else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
                 
-                const marketValue = Math.min(bookValue, Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori));
+                const marketValue = Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori);
 
                 return {
                     Kode: a.code,
@@ -342,7 +342,7 @@ const ReportPage = () => {
                                     const bookValue = Math.max(0, a.price - accumulated);
 
                                     let nilaiKondisi = 0;
-                                    if (a.condition === 'BAIK') nilaiKondisi = 0.9;
+                                    if (a.condition === 'BAIK') nilaiKondisi = 1;
                                     else if (a.condition === 'RUSAK_RINGAN') nilaiKondisi = 0.5;
                                     else if (a.condition === 'RUSAK_BERAT') nilaiKondisi = 0.2;
                                     
@@ -351,7 +351,7 @@ const ReportPage = () => {
                                     if (kat.includes('elektronik')) persentaseKategori = 0.15;
                                     else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
                                     
-                                    const marketValue = Math.min(bookValue, Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori));
+                                    const marketValue = Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori);
 
                                     return { ...a, accumulated, bookValue, marketValue };
                                 });
