@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, Search, Download, Upload, Trash2, Edit } from 'lucide-react';
+import { Package, Plus, Search, Download, Upload, Trash2, Edit, ChevronDown, ChevronRight } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
@@ -16,6 +16,16 @@ const WarehouseStock = () => {
     const [typeFilter, setTypeFilter] = useState('');
     const [yearFilter, setYearFilter] = useState('');
     const navigate = useNavigate();
+
+    const [expandedGroups, setExpandedGroups] = useState(new Set());
+    const toggleGroup = (groupId) => {
+        setExpandedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(groupId)) next.delete(groupId);
+            else next.add(groupId);
+            return next;
+        });
+    };
 
     const fetchData = async () => {
         try {
@@ -123,6 +133,52 @@ const WarehouseStock = () => {
 
     const years = [...new Set(items.map(i => i.purchaseYear).filter(Boolean))].sort((a, b) => b - a);
 
+    // --- DATA TRANSFORMATION ---
+    const displayItems = [];
+    const seragamGroups = {};
+
+    const sizeOrder = {
+        'SS': 1, 'S': 2, 'M': 3, 'L': 4, 'XL': 5, 'XXL': 6, 'XXXL': 7, '4XL': 8,
+        '38': 20, '40': 21, '42': 22, '44': 23, '46': 24, '48': 25, '50': 26,
+        '50/20': 30, '50/22': 31, '50/24': 32, '52/20': 33, '52/22': 34, '52/24': 35, '54/20': 36, '54/22': 37, '54/24': 38
+    };
+    
+    const sortSizes = (a, b) => {
+        const orderA = sizeOrder[a] || 999;
+        const orderB = sizeOrder[b] || 999;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.localeCompare(b);
+    };
+
+    filtered.forEach(item => {
+        const isSeragam = item.category?.name?.toLowerCase().includes('seragam');
+        if (isSeragam) {
+            const displayGender = item.gender === 'L' ? 'Ikhwan' : item.gender === 'P' ? 'Akhwat' : (item.gender || 'Umum');
+            const groupKey = `${item.name}-${displayGender}`;
+            
+            if (!seragamGroups[groupKey]) {
+                seragamGroups[groupKey] = {
+                    isGroup: true,
+                    id: groupKey,
+                    name: item.name,
+                    gender: displayGender,
+                    category: item.category,
+                    items: [],
+                    totalStock: 0,
+                    firstImage: item.image
+                };
+                displayItems.push(seragamGroups[groupKey]);
+            }
+            seragamGroups[groupKey].items.push(item);
+            seragamGroups[groupKey].totalStock += item.stock;
+        } else {
+            displayItems.push({
+                isGroup: false,
+                ...item
+            });
+        }
+    });
+
     return (
         <div className="p-4 md:p-6 space-y-6">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -189,37 +245,140 @@ const WarehouseStock = () => {
                                 <th className="text-center p-3 font-semibold text-slate-600">Aksi</th>
                             </tr></thead>
                             <tbody>
-                                {filtered.map(item => {
-                                    const displayGender = item.gender === 'L' ? 'Ikhwan' : item.gender === 'P' ? 'Akhwat' : item.gender;
-                                    const isSeragam = item.category?.name?.toLowerCase().includes('seragam');
-                                    let parts = isSeragam ? [item.type, item.name, displayGender, item.itemUnit ? <span key="unit" className="text-slate-500 font-bold">({item.itemUnit})</span> : null, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear ? `[${item.purchaseYear}]` : null].filter(Boolean) : [item.name, item.type, displayGender, item.itemUnit ? <span key="unit" className="text-slate-500 font-bold">({item.itemUnit})</span> : null, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear ? `[${item.purchaseYear}]` : null].filter(Boolean);
+                                {displayItems.map((row) => {
+                                    if (!row.isGroup) {
+                                        const item = row;
+                                        const displayGender = item.gender === 'L' ? 'Ikhwan' : item.gender === 'P' ? 'Akhwat' : item.gender;
+                                        let parts = [item.name, item.type, displayGender, item.itemUnit ? <span key="unit" className="text-slate-500 font-bold">({item.itemUnit})</span> : null, item.size ? `Ukuran ${item.size}` : null, item.purchaseYear ? `[${item.purchaseYear}]` : null].filter(Boolean);
 
-                                    return (
-                                        <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                                            <td className="p-3 font-mono text-xs">{item.code}</td>
-                                            <td className="p-3">
-                                                <div className="flex items-center gap-3">
-                                                    {item.image && (
-                                                        <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
-                                                            <img src={getMediaUrl(item.image)} alt="" className="w-full h-full object-cover" />
+                                        return (
+                                            <tr key={`item-${item.id}`} className="border-b border-slate-100 hover:bg-slate-50">
+                                                <td className="p-3 font-mono text-xs">{item.code}</td>
+                                                <td className="p-3">
+                                                    <div className="flex items-center gap-3">
+                                                        {item.image && (
+                                                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
+                                                                <img src={getMediaUrl(item.image)} alt="" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                        <div className="font-medium flex flex-wrap gap-1">
+                                                            {parts.map((p, i) => <span key={i}>{p}</span>)}
                                                         </div>
-                                                    )}
-                                                    <div className="font-medium flex flex-wrap gap-1">
-                                                        {parts.map((p, i) => <span key={i}>{p}</span>)}
                                                     </div>
-                                                </div>
-                                            </td>
-                                            <td className="p-3"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">{item.category?.name}</span></td>
-                                            <td className="p-3 text-sm text-slate-600">{item.location || '-'}</td>
-                                            <td className="p-3 text-center">
-                                                <span className={`font-bold ${item.stock <= item.minStock ? 'text-red-600' : 'text-green-600'}`}>{item.stock}</span>
-                                            </td>
-                                            <td className="p-3 text-center flex items-center justify-center gap-1">
-                                                <button onClick={() => navigate(`/gudang/stok/edit/${item.id}`)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="Edit"><Edit size={15} /></button>
-                                                <button onClick={() => handleDelete(item.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Hapus"><Trash2 size={15} /></button>
-                                            </td>
-                                        </tr>
-                                    );
+                                                </td>
+                                                <td className="p-3"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">{item.category?.name || '-'}</span></td>
+                                                <td className="p-3 text-sm text-slate-600">{item.location || '-'}</td>
+                                                <td className="p-3 text-center">
+                                                    <span className={`font-bold ${item.stock <= item.minStock ? 'text-red-600' : 'text-green-600'}`}>{item.stock}</span>
+                                                </td>
+                                                <td className="p-3 text-center flex items-center justify-center gap-1">
+                                                    <button onClick={() => navigate(`/gudang/stok/edit/${item.id}`)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="Edit"><Edit size={15} /></button>
+                                                    <button onClick={() => handleDelete(item.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Hapus"><Trash2 size={15} /></button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    } else {
+                                        const group = row;
+                                        const isExpanded = expandedGroups.has(group.id);
+                                        const uniqueSizes = isExpanded ? [...new Set(group.items.map(i => i.size || '-'))].sort(sortSizes) : [];
+                                        const uniqueTypeYears = isExpanded ? [...new Set(group.items.map(i => `${i.type || '-'}::${i.purchaseYear || '-'}`))].sort() : [];
+
+                                        return (
+                                            <Fragment key={`group-${group.id}`}>
+                                                <tr className={`border-b border-slate-100 hover:bg-slate-50 cursor-pointer ${isExpanded ? 'bg-indigo-50/20' : ''}`} onClick={() => toggleGroup(group.id)}>
+                                                    <td className="p-3 font-mono text-xs text-slate-400 font-semibold tracking-wider">GROUP</td>
+                                                    <td className="p-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-90 text-indigo-500' : ''}`}>
+                                                                <ChevronRight size={18}/>
+                                                            </div>
+                                                            {group.firstImage && (
+                                                                <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
+                                                                    <img src={getMediaUrl(group.firstImage)} alt="" className="w-full h-full object-cover" />
+                                                                </div>
+                                                            )}
+                                                            <div className="flex flex-col">
+                                                                <span className="font-bold text-slate-800 text-[15px]">{group.name}</span>
+                                                                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 w-fit mt-0.5">{group.gender}</span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3"><span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">{group.category?.name || 'Seragam'}</span></td>
+                                                    <td className="p-3 text-sm text-slate-600">-</td>
+                                                    <td className="p-3 text-center">
+                                                        <span className="font-black text-indigo-700 text-lg">{group.totalStock}</span>
+                                                    </td>
+                                                    <td className="p-3 text-center text-xs text-slate-400 font-semibold uppercase tracking-wider">
+                                                        {isExpanded ? 'Tutup Matriks' : 'Lihat Matriks'}
+                                                    </td>
+                                                </tr>
+                                                
+                                                {isExpanded && (
+                                                    <tr className="bg-slate-50/60 border-b-2 border-indigo-100">
+                                                        <td colSpan={6} className="p-4 md:px-8">
+                                                            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                                                <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                                                                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Matriks Stok Berdasarkan Ukuran & Tahun</span>
+                                                                    <span className="text-[10px] text-slate-400 font-semibold bg-slate-200/50 px-2 py-1 rounded-md">Arahkan kursor ke angka stok untuk Edit/Hapus</span>
+                                                                </div>
+                                                                <div className="overflow-x-auto p-4">
+                                                                    <table className="min-w-full text-sm border-collapse">
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th className="border-b-2 border-slate-200 p-2 text-left bg-white text-slate-400 font-black tracking-wider text-[10px] uppercase w-48">Tipe & Tahun</th>
+                                                                                {uniqueSizes.map(sz => (
+                                                                                    <th key={sz} className="border-b-2 border-slate-200 p-2 text-center bg-white text-slate-600 font-black tracking-wider text-[11px] uppercase min-w-16">{sz === '-' ? 'No Size' : sz}</th>
+                                                                                ))}
+                                                                                <th className="border-b-2 border-indigo-100 p-2 text-center bg-indigo-50/50 text-indigo-700 font-black tracking-wider text-[10px] uppercase min-w-20">Total</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {uniqueTypeYears.map((ty, idx) => {
+                                                                                const [type, year] = ty.split('::');
+                                                                                const typeItems = group.items.filter(i => `${i.type || '-'}::${i.purchaseYear || '-'}` === ty);
+                                                                                const rowTotal = typeItems.reduce((sum, i) => sum + i.stock, 0);
+                                                                                
+                                                                                return (
+                                                                                    <tr key={ty} className={`hover:bg-slate-50 ${idx !== uniqueTypeYears.length - 1 ? 'border-b border-slate-100' : ''}`}>
+                                                                                        <td className="p-2.5 font-semibold text-slate-700">
+                                                                                            {type === '-' ? 'Lainnya' : type} {year !== '-' ? <span className="text-slate-400 text-xs ml-1.5 bg-slate-100 px-1.5 py-0.5 rounded">[{year}]</span> : ''}
+                                                                                        </td>
+                                                                                        {uniqueSizes.map(sz => {
+                                                                                            const item = typeItems.find(i => (i.size || '-') === sz);
+                                                                                            return (
+                                                                                                <td key={sz} className="p-2 text-center relative group/cell hover:bg-slate-100 transition-colors rounded">
+                                                                                                    {item ? (
+                                                                                                        <div className="flex flex-col items-center justify-center">
+                                                                                                            <span className={`font-black text-base ${item.stock <= item.minStock ? 'text-red-500' : 'text-slate-700'}`}>
+                                                                                                                {item.stock}
+                                                                                                            </span>
+                                                                                                            <div className="absolute inset-0 bg-white/95 backdrop-blur-[2px] flex items-center justify-center gap-2 opacity-0 group-hover/cell:opacity-100 transition-opacity rounded border border-slate-200 shadow-sm">
+                                                                                                                <button onClick={(e) => { e.stopPropagation(); navigate(`/gudang/stok/edit/${item.id}`); }} className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors" title="Edit Item"><Edit size={13}/></button>
+                                                                                                                <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors" title="Hapus Item"><Trash2 size={13}/></button>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    ) : (
+                                                                                                        <span className="text-slate-200">-</span>
+                                                                                                    )}
+                                                                                                </td>
+                                                                                            );
+                                                                                        })}
+                                                                                        <td className="p-2.5 text-center font-black text-indigo-600 bg-indigo-50/30">
+                                                                                            {rowTotal}
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                );
+                                                                            })}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </Fragment>
+                                        );
+                                    }
                                 })}
                             </tbody>
                         </table>
