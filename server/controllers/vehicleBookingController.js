@@ -1025,3 +1025,59 @@ exports.checkUpcomingVehicleBookings = async () => {
         console.error('[Job Error] checkUpcomingVehicleBookings failed:', error);
     }
 };
+
+// 9. Update Booking History (Admin/Staff Only)
+exports.updateBookingHistory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { startKm, endKm, fuelLiters, fuelPrice, tripNotes, returnLocation } = req.body;
+
+        const booking = await prisma.vehicleBooking.findUnique({
+            where: { id: parseInt(id) },
+            include: { vehicle: true }
+        });
+
+        if (!booking) return res.status(404).json({ error: 'Peminjaman tidak ditemukan' });
+
+        // Check if user is Admin / SuperAdmin / KabidSarpras / Staff Kendaraan
+        const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role);
+        const isAdminAset = req.user.role === 'ADMIN_ASET';
+        const isKabidSarpras = req.user.position === 'Kepala Bidang Sarana dan Prasarana';
+        const isStaffKendaraan = req.user.position?.toLowerCase().includes('staff kendaraan') || req.user.position === 'Staff Kendaraan';
+
+        if (!isSuperAdmin && !isAdminAset && !isKabidSarpras && !isStaffKendaraan) {
+            return res.status(403).json({ error: 'Akses ditolak. Anda tidak memiliki izin untuk mengedit riwayat.' });
+        }
+
+        const parsedStartKm = startKm !== undefined && startKm !== '' ? parseInt(startKm) : booking.startKm;
+        const parsedEndKm = endKm !== undefined && endKm !== '' ? parseInt(endKm) : booking.endKm;
+
+        if (parsedEndKm !== null && parsedStartKm !== null && parsedEndKm < parsedStartKm) {
+            return res.status(400).json({ error: 'KM Akhir tidak boleh lebih kecil dari KM Awal.' });
+        }
+
+        const updated = await prisma.vehicleBooking.update({
+            where: { id: parseInt(id) },
+            data: {
+                startKm: parsedStartKm,
+                endKm: parsedEndKm,
+                fuelLiters: fuelLiters !== undefined && fuelLiters !== '' ? parseFloat(fuelLiters) : null,
+                fuelPrice: fuelPrice !== undefined && fuelPrice !== '' ? parseFloat(fuelPrice) : 0,
+                tripNotes: tripNotes !== undefined ? tripNotes : booking.tripNotes,
+                returnLocation: returnLocation !== undefined ? returnLocation : booking.returnLocation
+            }
+        });
+
+        // Update vehicle odometer if endKm is higher than current odometer
+        if (parsedEndKm && (!booking.vehicle.odometer || booking.vehicle.odometer < parsedEndKm)) {
+            await prisma.vehicle.update({
+                where: { id: booking.vehicleId },
+                data: { odometer: parsedEndKm }
+            });
+        }
+
+        res.json(updated);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

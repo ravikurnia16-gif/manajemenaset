@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
     Car, Calendar, MapPin, Info, CheckCircle, XCircle,
-    Clock, Gauge, Fuel, User, Plus, Search, X, Lock,
+    Clock, Gauge, Fuel, User, Plus, Search, X, Lock, Edit,
     ArrowRight, ChevronRight, ChevronLeft, AlertCircle, Trash2,
     Users, LogIn, LogOut, Receipt, Navigation2, Loader2
 } from 'lucide-react';
@@ -434,6 +434,30 @@ const VehicleBooking = () => {
         } finally {
             setSubmitting(false);
         }
+    };
+
+    const handleEditHistory = async () => {
+        if (submitting) return;
+        try {
+            if (actionData.endKm && actionData.startKm && parseInt(actionData.endKm) < parseInt(actionData.startKm)) {
+                showToast(`KM Akhir tidak boleh lebih kecil dari KM Awal`, 'error');
+                return;
+            }
+            setSubmitting(true);
+            await api.put(`/vehicles/booking/${showActionModal.data.id}/history`, {
+                startKm: actionData.startKm,
+                endKm: actionData.endKm,
+                fuelLiters: actionData.fuelLiters,
+                fuelPrice: actionData.fuelPrice,
+                tripNotes: actionData.tripNotes,
+                returnLocation: actionData.returnLocation
+            });
+            showToast('Riwayat peminjaman berhasil diperbarui!', 'success');
+            setShowActionModal(null);
+            fetchBookings();
+            fetchVehicles(); // refresh odometer
+        } catch (err) { showToast('Gagal mengedit riwayat: ' + (err.response?.data?.error || err.message), 'error'); }
+        finally { setSubmitting(false); }
     };
 
     const handleCancelClick = (booking) => {
@@ -1777,12 +1801,25 @@ const VehicleBooking = () => {
                                                     )}
                                                 </div>
                                             </div>
-                                            <button
-                                                onClick={() => setShowDetailModal(b)}
-                                                className="w-full py-2 bg-slate-50 text-slate-400 rounded-xl text-xs font-bold hover:bg-blue-50 hover:text-blue-600 transition-all border border-slate-100"
-                                            >
-                                                Tampilkan Detail
-                                            </button>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setShowDetailModal(b)}
+                                                    className="flex-1 py-2 bg-slate-50 text-slate-400 rounded-xl text-xs font-bold hover:bg-blue-50 hover:text-blue-600 transition-all border border-slate-100"
+                                                >
+                                                    Detail
+                                                </button>
+                                                {b.status === 'COMPLETED' && canManageBooking && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setActionData({ ...actionData, startKm: b.startKm || '', endKm: b.endKm || '', fuelLiters: b.fuelLiters || '', fuelPrice: b.fuelPrice || '', tripNotes: b.tripNotes || '', returnLocation: b.returnLocation || '' });
+                                                            setShowActionModal({ type: 'EDIT_HISTORY', data: b });
+                                                        }}
+                                                        className="flex-1 py-2 bg-amber-50 text-amber-500 rounded-xl text-xs font-bold hover:bg-amber-100 transition-all border border-amber-100"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -1850,6 +1887,17 @@ const VehicleBooking = () => {
                                                             >
                                                                 <Info size={16} />
                                                             </button>
+                                                            {b.status === 'COMPLETED' && canManageBooking && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setActionData({ ...actionData, startKm: b.startKm || '', endKm: b.endKm || '', fuelLiters: b.fuelLiters || '', fuelPrice: b.fuelPrice || '', tripNotes: b.tripNotes || '', returnLocation: b.returnLocation || '' });
+                                                                        setShowActionModal({ type: 'EDIT_HISTORY', data: b });
+                                                                    }}
+                                                                    className="p-1.5 text-slate-400 hover:text-amber-500 transition-colors"
+                                                                >
+                                                                    <Edit size={16} />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -2553,6 +2601,7 @@ const VehicleBooking = () => {
                                     {showActionModal.type === 'CANCEL' && 'Batalkan Peminjaman'}
                                     {showActionModal.type === 'START' && 'Mulai Perjalanan'}
                                     {showActionModal.type === 'END' && 'Selesai Perjalanan'}
+                                    {showActionModal.type === 'EDIT_HISTORY' && 'Edit Riwayat Perjalanan'}
                                     {showActionModal.type === 'EXTEND' && 'Perpanjang Jadwal'}
                                 </h3>
                                 <button onClick={() => setShowActionModal(null)} className="text-slate-400 hover:text-slate-600">
@@ -2735,6 +2784,89 @@ const VehicleBooking = () => {
                                         className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-all shadow-lg shadow-green-200"
                                     >
                                         Selesaikan Perjalanan
+                                    </button>
+                                </div>
+                            )}
+
+                            {showActionModal.type === 'EDIT_HISTORY' && (
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">KM Awal</label>
+                                            <div className="relative">
+                                                <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                <input
+                                                    type="number"
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    placeholder="0"
+                                                    value={actionData.startKm || ''}
+                                                    onChange={e => setActionData({ ...actionData, startKm: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">KM Akhir</label>
+                                            <div className="relative">
+                                                <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                <input
+                                                    type="number"
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold focus:ring-2 focus:ring-amber-500 outline-none"
+                                                    placeholder="0"
+                                                    value={actionData.endKm || ''}
+                                                    onChange={e => setActionData({ ...actionData, endKm: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">BBM (Liter)</label>
+                                            <input
+                                                type="number"
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                                placeholder="0"
+                                                value={actionData.fuelLiters || ''}
+                                                onChange={e => setActionData({ ...actionData, fuelLiters: e.target.value })}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Biaya BBM (Rp)</label>
+                                            <div className="relative">
+                                                <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                <input
+                                                    type="number"
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    placeholder="0"
+                                                    value={actionData.fuelPrice || ''}
+                                                    onChange={e => setActionData({ ...actionData, fuelPrice: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">Lokasi Akhir & Catatan</label>
+                                        <input
+                                            type="text"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2"
+                                            placeholder="Lokasi pengembalian..."
+                                            value={actionData.returnLocation || ''}
+                                            onChange={e => setActionData({ ...actionData, returnLocation: e.target.value })}
+                                        />
+                                        <textarea
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            placeholder="Catatan..."
+                                            rows="2"
+                                            value={actionData.tripNotes || ''}
+                                            onChange={e => setActionData({ ...actionData, tripNotes: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <button
+                                        disabled={submitting}
+                                        onClick={handleEditHistory}
+                                        className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 disabled:opacity-50 transition-all shadow-lg shadow-amber-200"
+                                    >
+                                        Simpan Perubahan
                                     </button>
                                 </div>
                             )}
