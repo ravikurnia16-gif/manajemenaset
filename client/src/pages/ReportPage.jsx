@@ -134,13 +134,26 @@ const ReportPage = () => {
                 const accumulatedDepreciation = Math.min(a.price, monthlyDepreciation * Math.max(0, monthsElapsed));
                 const bookValue = Math.max(0, a.price - accumulatedDepreciation);
 
+                let nilaiKondisi = 0;
+                if (a.condition === 'BAIK') nilaiKondisi = 0.9;
+                else if (a.condition === 'RUSAK_RINGAN') nilaiKondisi = 0.5;
+                else if (a.condition === 'RUSAK_BERAT') nilaiKondisi = 0.2;
+                
+                let persentaseKategori = 0.10;
+                const kat = (a.category?.name || '').toLowerCase();
+                if (kat.includes('elektronik')) persentaseKategori = 0.15;
+                else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
+                
+                const marketValue = Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori);
+
                 return {
                     Kode: a.code,
                     Nama: a.name,
                     Harga_Perolehan: a.price,
                     Masa_Manfaat: a.usefulLife,
                     Akumulasi_Penyusutan: Math.round(accumulatedDepreciation),
-                    Nilai_Buku: Math.round(bookValue)
+                    Nilai_Buku: Math.round(bookValue),
+                    Nilai_Pasar: Math.round(marketValue)
                 };
             });
             exportToCSV(exportData, `Laporan_Penyusutan_${new Date().toISOString().split('T')[0]}`);
@@ -327,7 +340,20 @@ const ReportPage = () => {
                                     const monthlyDepr = a.price / totalMonths;
                                     const accumulated = Math.min(a.price, monthlyDepr * Math.max(0, monthsElapsed));
                                     const bookValue = Math.max(0, a.price - accumulated);
-                                    return { ...a, accumulated, bookValue };
+
+                                    let nilaiKondisi = 0;
+                                    if (a.condition === 'BAIK') nilaiKondisi = 0.9;
+                                    else if (a.condition === 'RUSAK_RINGAN') nilaiKondisi = 0.5;
+                                    else if (a.condition === 'RUSAK_BERAT') nilaiKondisi = 0.2;
+                                    
+                                    let persentaseKategori = 0.10;
+                                    const kat = (a.category?.name || '').toLowerCase();
+                                    if (kat.includes('elektronik')) persentaseKategori = 0.15;
+                                    else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
+                                    
+                                    const marketValue = Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori);
+
+                                    return { ...a, accumulated, bookValue, marketValue };
                                 });
 
                                 const totalAcquisition = calculatedAssets.reduce((s, a) => s + a.price, 0);
@@ -373,7 +399,7 @@ const ReportPage = () => {
                                                             <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Perolehan</th>
                                                             <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Masa (Thn)</th>
                                                             <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Akumulasi Susut</th>
-                                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Nilai Buku</th>
+                                                            <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Nilai Buku & Pasar</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-50 text-sm">
@@ -401,7 +427,8 @@ const ReportPage = () => {
                                                                         Rp {Math.round(asset.accumulated).toLocaleString()}
                                                                     </td>
                                                                     <td className="px-6 py-4">
-                                                                        <div className="font-black text-emerald-600 text-xs text-nowrap">Rp {Math.round(asset.bookValue).toLocaleString()}</div>
+                                                                        <div className="font-black text-emerald-600 text-xs text-nowrap" title="Nilai Buku">B: Rp {Math.round(asset.bookValue).toLocaleString()}</div>
+                                                                        <div className="font-black text-blue-600 text-xs text-nowrap mt-1" title="Nilai Pasar">P: Rp {Math.round(asset.marketValue).toLocaleString()}</div>
                                                                         <div className="w-20 h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
                                                                             <div
                                                                                 className="h-full bg-emerald-500"

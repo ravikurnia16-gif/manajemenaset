@@ -475,6 +475,19 @@ const AssetList = ({ validationMode = false }) => {
             const bookValue = Math.max(0, a.price - accumulatedDepreciation);
             const daysElapsed = Math.max(0, Math.floor((now - purchaseDate) / (24 * 60 * 60 * 1000)));
 
+            let nilaiKondisi = 0;
+            if (a.condition === 'BAIK') nilaiKondisi = 0.9;
+            else if (a.condition === 'RUSAK_RINGAN') nilaiKondisi = 0.5;
+            else if (a.condition === 'RUSAK_BERAT') nilaiKondisi = 0.2;
+            
+            let persentaseKategori = 0.10;
+            const kat = (a.category?.name || '').toLowerCase();
+            if (kat.includes('elektronik')) persentaseKategori = 0.15;
+            else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
+            
+            const marketValue = Math.max(bookValue * nilaiKondisi, a.price * persentaseKategori);
+
+
             return {
                 'No': index + 1,
                 'Kode': a.code,
@@ -500,6 +513,7 @@ const AssetList = ({ validationMode = false }) => {
                 'Perkiraan Hari Penyusutan Terkini': daysElapsed,
                 'Jumlah Hari Penyusutan Terkini': daysElapsed,
                 'Nilai Buku': bookValue,
+                'Nilai Pasar': Math.round(marketValue),
                 'Status PHPP': '-',
                 'No. Bukti PHPP': '-',
                 'Nama Penerima/Pembeli': '-',
@@ -1119,7 +1133,7 @@ const AssetList = ({ validationMode = false }) => {
                                     <th className="px-6 py-4">Kondisi</th>
                                     <th className="px-6 py-4">PIC / Pengguna</th>
                                     <th className="px-6 py-4">Harga / Tanggal</th>
-                                    <th className="px-6 py-4">Nilai Buku</th>
+                                    <th className="px-6 py-4">Nilai Buku & Pasar</th>
                                     {!isReadOnlyUser && <th className="px-6 py-4 text-center">Aksi</th>}
                                 </tr>
                             </thead>
@@ -1201,10 +1215,30 @@ const AssetList = ({ validationMode = false }) => {
                                                 const monthlyDepreciation = Math.round(asset.price / totalMonths);
                                                 const accumulatedDepreciation = Math.min(asset.price, monthlyDepreciation * monthsElapsed);
                                                 const bookValue = Math.max(0, asset.price - accumulatedDepreciation);
+                                                
+                                                let nilaiKondisi = 0;
+                                                if (asset.condition === 'BAIK') nilaiKondisi = 0.9;
+                                                else if (asset.condition === 'RUSAK_RINGAN') nilaiKondisi = 0.5;
+                                                else if (asset.condition === 'RUSAK_BERAT') nilaiKondisi = 0.2;
+                                                
+                                                let persentaseKategori = 0.10;
+                                                const kat = (asset.category?.name || '').toLowerCase();
+                                                if (kat.includes('elektronik')) persentaseKategori = 0.15;
+                                                else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
+                                                
+                                                const marketValue = Math.max(bookValue * nilaiKondisi, asset.price * persentaseKategori);
+
                                                 return (
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs font-bold text-blue-700">Rp {bookValue.toLocaleString()}</span>
-                                                        <span className="text-[9px] text-slate-400 italic">Susut: Rp {accumulatedDepreciation.toLocaleString()}</span>
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <div className="flex justify-between items-center gap-2">
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase">Buku</span>
+                                                            <span className="text-xs font-bold text-blue-700">Rp {bookValue.toLocaleString()}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center gap-2">
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase">Pasar</span>
+                                                            <span className="text-xs font-bold text-emerald-600">Rp {Math.round(marketValue).toLocaleString()}</span>
+                                                        </div>
+                                                        <span className="text-[9px] text-slate-400 italic text-right mt-0.5 border-t border-slate-100 pt-0.5">Susut: Rp {accumulatedDepreciation.toLocaleString()}</span>
                                                     </div>
                                                 );
                                             })()}
@@ -1301,12 +1335,31 @@ const AssetList = ({ validationMode = false }) => {
                                             const monthlyDepreciation = Math.round(asset.price / totalMonths);
                                             const accumulatedDepreciation = Math.min(asset.price, monthlyDepreciation * monthsElapsed);
                                             const bookValue = Math.max(0, asset.price - accumulatedDepreciation);
+
+                                            let nilaiKondisi = 0;
+                                            if (asset.condition === 'BAIK') nilaiKondisi = 0.9;
+                                            else if (asset.condition === 'RUSAK_RINGAN') nilaiKondisi = 0.5;
+                                            else if (asset.condition === 'RUSAK_BERAT') nilaiKondisi = 0.2;
+                                            
+                                            let persentaseKategori = 0.10;
+                                            const kat = (asset.category?.name || '').toLowerCase();
+                                            if (kat.includes('elektronik')) persentaseKategori = 0.15;
+                                            else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
+                                            
+                                            const marketValue = Math.max(bookValue * nilaiKondisi, asset.price * persentaseKategori);
+
                                             return (
-                                                <>
-                                                    <span className="text-[8px] font-bold text-blue-500 uppercase leading-none mb-0.5">Nilai Buku Saat Ini</span>
-                                                    <span className="text-xs font-black text-blue-700">Rp {bookValue.toLocaleString()}</span>
-                                                    <span className="text-[9px] text-slate-400 italic">Akum. Susut: Rp {accumulatedDepreciation.toLocaleString()}</span>
-                                                </>
+                                                <div className="flex flex-col gap-1 w-full max-w-[150px] ml-auto">
+                                                    <div className="flex justify-between items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                                                        <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Buku</span>
+                                                        <span className="text-xs font-black text-blue-700">Rp {bookValue.toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center gap-2 bg-emerald-50/50 p-1.5 rounded-lg border border-emerald-100/50">
+                                                        <span className="text-[8px] font-bold text-emerald-600 uppercase tracking-wider">Pasar</span>
+                                                        <span className="text-xs font-black text-emerald-600">Rp {Math.round(marketValue).toLocaleString()}</span>
+                                                    </div>
+                                                    <span className="text-[9px] text-slate-400 italic mt-0.5">Susut: Rp {accumulatedDepreciation.toLocaleString()}</span>
+                                                </div>
                                             );
                                         })()}
                                     </div>

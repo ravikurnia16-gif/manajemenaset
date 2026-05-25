@@ -873,6 +873,23 @@ exports.getAssetPublic = async (req, res) => {
         const accumulatedDepreciation = Math.min(asset.price, monthlyDepreciation * monthsElapsed);
         const currentBookValue = Math.max(0, Math.round(asset.price - accumulatedDepreciation));
 
+        // Market Value Calculation
+        let nilaiKondisi = 0;
+        if (asset.condition === 'BAIK') nilaiKondisi = 0.9;
+        else if (asset.condition === 'RUSAK_RINGAN') nilaiKondisi = 0.5;
+        else if (asset.condition === 'RUSAK_BERAT') nilaiKondisi = 0.2;
+        
+        const nilaiKalkulasi = currentBookValue * nilaiKondisi;
+        
+        let persentaseKategori = 0.10; // Default
+        const kat = (asset.category?.name || '').toLowerCase();
+        if (kat.includes('elektronik')) persentaseKategori = 0.15;
+        else if (kat.includes('kendaraan')) persentaseKategori = 0.20;
+        else if (kat.includes('furniture') || kat.includes('furnitur') || kat.includes('inventaris') || kat.includes('operasional')) persentaseKategori = 0.10;
+        
+        const nilaiMinimum = asset.price * persentaseKategori;
+        const marketValue = Math.max(nilaiKalkulasi, nilaiMinimum);
+
         // Remaining Life
         const remainingMonthsTotal = Math.max(0, totalMonths - monthsElapsed);
         const remainingYears = Math.floor(remainingMonthsTotal / 12);
@@ -895,6 +912,7 @@ exports.getAssetPublic = async (req, res) => {
             building: asset.room?.building || '-',
             unit: asset.unit?.name || '-',
             bookValue: currentBookValue,
+            marketValue: Math.round(marketValue),
             image: asset.image,
             remainingLife: {
                 years: remainingYears,

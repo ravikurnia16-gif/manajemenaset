@@ -183,9 +183,13 @@ const PublicAssetView = () => {
                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Harga Perolehan</span>
                                 <span className="text-slate-400 font-bold shrink-0">Rp {asset.price?.toLocaleString()}</span>
                             </div>
-                            <div className="flex justify-between items-end">
+                            <div className="flex justify-between items-end pb-3 border-b border-slate-50">
                                 <span className="text-xs font-black text-slate-800 uppercase tracking-wider">Nilai Buku Saat Ini</span>
                                 <span className="text-blue-600 text-xl font-black shrink-0">Rp {asset.bookValue?.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-end">
+                                <span className="text-xs font-black text-slate-800 uppercase tracking-wider">Nilai Pasar / Market Value</span>
+                                <span className="text-green-600 text-xl font-black shrink-0">Rp {asset.marketValue?.toLocaleString()}</span>
                             </div>
                         </div>
                     </div>
