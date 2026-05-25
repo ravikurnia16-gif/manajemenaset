@@ -42,7 +42,6 @@ const VehicleBooking = () => {
     const [sanctionProposeReason, setSanctionProposeReason] = useState('');
     const [showSanctionReviewModal, setShowSanctionReviewModal] = useState(null);
     const [sanctionReviewAction, setSanctionReviewAction] = useState({ approved: true, reviewNotes: '' });
-    const [currentUserProfile, setCurrentUserProfile] = useState(null);
 
     const showToast = (message, type = 'success') => {
         const id = Date.now();
@@ -146,7 +145,7 @@ const VehicleBooking = () => {
 
     const fetchCurrentUser = async () => {
         try {
-            const res = await api.get('/auth/me'); // Assuming this returns the full user including isSanctioned
+            const res = await api.get('/users/profile');
             setCurrentUserProfile(res.data);
         } catch (err) {
             console.error('Error fetching current user:', err);
@@ -282,18 +281,6 @@ const VehicleBooking = () => {
             setSanctionedUsers(res.data);
         } catch (err) { console.error('Error fetching sanctioned users:', err); }
     };
-
-    const fetchCurrentUser = async () => {
-        try {
-            const res = await api.get('/users/profile');
-            setCurrentUserProfile(res.data);
-        } catch (err) { console.error('Error fetching current user:', err); }
-    };
-
-    useEffect(() => {
-        fetchCurrentUser();
-    }, []);
-
     const handleToggleDriver = async (userId, isCurrentlyDriver) => {
         try {
             await api.post('personnel/drivers/toggle', { userId, isDriver: !isCurrentlyDriver });
