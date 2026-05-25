@@ -147,7 +147,7 @@ const WarehouseStock = () => {
         const orderA = sizeOrder[a] || 999;
         const orderB = sizeOrder[b] || 999;
         if (orderA !== orderB) return orderA - orderB;
-        return a.localeCompare(b);
+        return String(a).localeCompare(String(b));
     };
 
     filtered.forEach(item => {
@@ -353,9 +353,9 @@ const WarehouseStock = () => {
                                                                                         {uniqueSizes.map(sz => {
                                                                                             const cellItems = group.items.filter(i => (i.type || '-') === type && (i.size || '-') === sz);
                                                                                             const sortedCellItems = [...cellItems].sort((a, b) => {
-                                                                                                const yrA = a.purchaseYear || '';
-                                                                                                const yrB = b.purchaseYear || '';
-                                                                                                return yrA.localeCompare(yrB);
+                                                                                                const yrA = a.purchaseYear ? Number(a.purchaseYear) : 9999;
+                                                                                                const yrB = b.purchaseYear ? Number(b.purchaseYear) : 9999;
+                                                                                                return yrA - yrB;
                                                                                             });
                                                                                             
                                                                                             return (
