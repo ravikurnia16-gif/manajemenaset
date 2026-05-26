@@ -183,17 +183,21 @@ const generateItemCode = async (categoryName, knownSequence = null) => {
     const prefix = categoryName?.toLowerCase().includes('seragam') ? 'GD/SRG' : 'GD/PLK';
     let nextSequence = knownSequence;
     if (nextSequence === null) {
-        const lastItem = await prisma.warehouseItem.findFirst({
-            where: { code: { startsWith: `${prefix}/` } }, orderBy: { code: 'desc' }
+        const items = await prisma.warehouseItem.findMany({
+            where: { code: { startsWith: `${prefix}/` } },
+            select: { code: true }
         });
-        nextSequence = 1;
-        if (lastItem) {
-            const parts = lastItem.code.split('/');
+        let maxSeq = 0;
+        for (const it of items) {
+            const parts = it.code.split('/');
             if (parts.length === 3) {
-                const lastSeq = parseInt(parts[2]);
-                if (!isNaN(lastSeq)) nextSequence = lastSeq + 1;
+                const seq = parseInt(parts[2], 10);
+                if (!isNaN(seq) && seq > maxSeq) {
+                    maxSeq = seq;
+                }
             }
         }
+        nextSequence = maxSeq + 1;
     }
     return `${prefix}/${nextSequence.toString().padStart(3, '0')}`;
 };
@@ -290,10 +294,21 @@ exports.importItems = async (req, res) => {
                     const category = await tx.warehouseCategory.findUnique({ where: { id: catId } });
                     const prefix = category.name.toLowerCase().includes('seragam') ? 'GD/SRG' : 'GD/PLK';
                     if (sequenceMap[prefix] === undefined) {
-                        const lastItem = await tx.warehouseItem.findFirst({
-                            where: { code: { startsWith: `${prefix}/` } }, orderBy: { code: 'desc' }
+                        const existingItems = await tx.warehouseItem.findMany({
+                            where: { code: { startsWith: `${prefix}/` } },
+                            select: { code: true }
                         });
-                        sequenceMap[prefix] = lastItem ? (parseInt(lastItem.code.split('/')[2]) || 0) + 1 : 1;
+                        let maxSeq = 0;
+                        for (const it of existingItems) {
+                            const parts = it.code.split('/');
+                            if (parts.length === 3) {
+                                const seq = parseInt(parts[2], 10);
+                                if (!isNaN(seq) && seq > maxSeq) {
+                                    maxSeq = seq;
+                                }
+                            }
+                        }
+                        sequenceMap[prefix] = maxSeq + 1;
                     }
                     const code = `${prefix}/${sequenceMap[prefix].toString().padStart(3, '0')}`;
                     await tx.warehouseItem.create({
@@ -318,11 +333,23 @@ exports.importItems = async (req, res) => {
 // ======================== TRANSACTIONS (FIFO) ========================
 const generateTxCode = async () => {
     const year = new Date().getFullYear();
-    const lastTx = await prisma.warehouseTransaction.findFirst({
-        where: { code: { startsWith: `TRX/${year}/` } }, orderBy: { code: 'desc' }
+    const prefix = `TRX/${year}/`;
+    const txs = await prisma.warehouseTransaction.findMany({
+        where: { code: { startsWith: prefix } },
+        select: { code: true }
     });
-    const nextSeq = lastTx ? (parseInt(lastTx.code.split('/')[2]) || 0) + 1 : 1;
-    return `TRX/${year}/${nextSeq.toString().padStart(3, '0')}`;
+    let maxSeq = 0;
+    for (const tx of txs) {
+        const parts = tx.code.split('/');
+        if (parts.length === 3) {
+            const seq = parseInt(parts[2], 10);
+            if (!isNaN(seq) && seq > maxSeq) {
+                maxSeq = seq;
+            }
+        }
+    }
+    const nextSeq = maxSeq + 1;
+    return `${prefix}${nextSeq.toString().padStart(3, '0')}`;
 };
 
 exports.getAllTransactions = async (req, res) => {
