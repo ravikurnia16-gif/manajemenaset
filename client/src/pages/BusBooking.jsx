@@ -613,31 +613,40 @@ const BusBooking = () => {
                                 <div>
                                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">Pilih Armada (Bisa pilih multi)</label>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        {vehicles.map(v => (
-                                            <div
-                                                key={v.id}
-                                                onClick={() => {
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        vehicleIds: prev.vehicleIds.includes(v.id)
-                                                            ? prev.vehicleIds.filter(id => id !== v.id)
-                                                            : [...prev.vehicleIds, v.id]
-                                                    }));
-                                                }}
-                                                className={`p-2.5 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-3 ${formData.vehicleIds.includes(v.id) ? 'border-blue-500 bg-blue-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}`}
-                                            >
-                                                <div className={`p-1.5 rounded-lg transition-colors ${formData.vehicleIds.includes(v.id) ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                                                    <Bus size={14} />
+                                        {vehicles.map(v => {
+                                            const isActive = v.status === 'ACTIVE';
+                                            return (
+                                                <div
+                                                    key={v.id}
+                                                    onClick={() => {
+                                                        if (!isActive) return;
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            vehicleIds: prev.vehicleIds.includes(v.id)
+                                                                ? prev.vehicleIds.filter(id => id !== v.id)
+                                                                : [...prev.vehicleIds, v.id]
+                                                        }));
+                                                    }}
+                                                    className={`p-2.5 rounded-xl border-2 transition-all flex items-center gap-3 relative overflow-hidden ${!isActive ? 'opacity-60 cursor-not-allowed bg-slate-100 border-slate-200 grayscale' : formData.vehicleIds.includes(v.id) ? 'border-blue-500 bg-blue-50 cursor-pointer' : 'border-slate-100 bg-slate-50 hover:border-slate-200 cursor-pointer'}`}
+                                                >
+                                                    <div className={`p-1.5 rounded-lg transition-colors ${formData.vehicleIds.includes(v.id) && isActive ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                                                        <Bus size={14} />
+                                                    </div>
+                                                    <div className="flex-1 truncate relative">
+                                                        <div className="text-[11px] font-bold text-slate-800 truncate">{v.name}</div>
+                                                        <div className="text-[9px] text-slate-400 font-mono italic uppercase truncate">{v.plateNumber}</div>
+                                                        {!isActive && (
+                                                            <div className="absolute top-1/2 -translate-y-1/2 right-0 text-[8px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded border border-red-200">
+                                                                TIDAK AKTIF
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${!isActive ? 'border-slate-200' : formData.vehicleIds.includes(v.id) ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
+                                                        {formData.vehicleIds.includes(v.id) && isActive && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                                                    </div>
                                                 </div>
-                                                <div className="flex-1 truncate">
-                                                    <div className="text-[11px] font-bold text-slate-800 truncate">{v.name}</div>
-                                                    <div className="text-[9px] text-slate-400 font-mono italic uppercase truncate">{v.plateNumber}</div>
-                                                </div>
-                                                <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${formData.vehicleIds.includes(v.id) ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
-                                                    {formData.vehicleIds.includes(v.id) && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
 

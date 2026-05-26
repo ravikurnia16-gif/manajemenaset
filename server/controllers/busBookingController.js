@@ -16,6 +16,13 @@ const createBusBooking = async (req, res) => {
             return res.status(400).json({ error: 'Pilih setidaknya satu armada' });
         }
 
+        for (const vId of vIds) {
+            const vehicle = await prisma.vehicle.findUnique({ where: { id: parseInt(vId) } });
+            if (vehicle && vehicle.status !== 'ACTIVE') {
+                return res.status(400).json({ error: `Armada ${vehicle.name} tidak aktif dan tidak bisa dibooking.` });
+            }
+        }
+
         // Generate a 6-character secret token
         const token = Math.random().toString(36).substring(2, 8).toUpperCase();
 
