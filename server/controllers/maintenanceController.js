@@ -555,8 +555,12 @@ exports.addMedia = async (req, res) => {
         if (newMedia.length === 0) {
             return res.status(400).json({ error: 'Tidak ada media yang diunggah.' });
         }
-        const { isReceipt } = req.query;
-        const taggedMedia = newMedia.map(m => ({ ...m, isReceipt: isReceipt === 'true' }));
+        const { isReceipt, isCompletion } = req.query;
+        const taggedMedia = newMedia.map(m => ({ 
+            ...m, 
+            isReceipt: isReceipt === 'true',
+            isCompletion: isCompletion === 'true'
+        }));
 
         let mergedMedia = [];
         const existingMedia = report.media;

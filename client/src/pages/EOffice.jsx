@@ -1266,8 +1266,8 @@ const ViewModal = ({ viewingDoc, setViewingDoc, localStorage, api, formatDate, h
                             <button
                                 onClick={() => handleTogglePaymentStatus(viewingDoc.id, getPaymentStatus(viewingDoc))}
                                 className={`flex-1 sm:flex-none px-4 sm:px-5 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg ${getPaymentStatus(viewingDoc) === 'PAID'
-                                        ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                                        : 'bg-green-600 text-white hover:bg-green-700'
+                                    ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                    : 'bg-green-600 text-white hover:bg-green-700'
                                     }`}
                             >
                                 {getPaymentStatus(viewingDoc) === 'PAID' ? <XCircle size={18} /> : <CheckCircle size={18} />}
@@ -1666,7 +1666,7 @@ const EOffice = () => {
             (doc.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             (doc.senderName || '').toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCategory = !categoryFilter || doc.category === categoryFilter;
-        
+
         let matchesDate = true;
         if (doc.date) {
             const docDate = new Date(doc.date).getTime();
@@ -1764,14 +1764,14 @@ const EOffice = () => {
 
     const renderContent = () => {
         if (tab === 'dashboard') return (
-            <DashboardView 
-                stats={stats} 
-                navigate={navigate} 
-                setViewingDoc={setViewingDoc} 
+            <DashboardView
+                stats={stats}
+                navigate={navigate}
+                setViewingDoc={setViewingDoc}
             />
         );
         return (
-            <ListView 
+            <ListView
                 loading={loading}
                 filteredDocs={filteredDocs}
                 searchQuery={searchQuery}
@@ -1843,12 +1843,12 @@ const EOffice = () => {
             {renderContent()}
 
             {/* Modals */}
-            <ViewModal 
-                viewingDoc={viewingDoc} 
-                setViewingDoc={setViewingDoc} 
-                localStorage={localStorage} 
-                api={api} 
-                formatDate={formatDate} 
+            <ViewModal
+                viewingDoc={viewingDoc}
+                setViewingDoc={setViewingDoc}
+                localStorage={localStorage}
+                api={api}
+                formatDate={formatDate}
                 handleSendWA={handleSendWA}
                 sendingWA={sendingWA}
                 handleTogglePaymentStatus={handleTogglePaymentStatus}
@@ -1900,7 +1900,7 @@ const EOffice = () => {
                         </div>
                         <h3 className="text-xl font-black text-slate-900 mb-2">Pilih Kategori Surat</h3>
                         <p className="text-sm text-slate-500 mb-6">Untuk penomoran otomatis, silakan pilih kategori dokumen manual Anda:</p>
-                        
+
                         <div className="grid grid-cols-2 gap-3 mb-6">
                             {['Undangan', 'Tugas', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'Rekomendasi', 'SOP', 'Surat Teguran', 'Surat Peringatan', 'BAST', 'MOU', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
                                 <button
@@ -1912,7 +1912,7 @@ const EOffice = () => {
                                 </button>
                             ))}
                         </div>
-                        
+
                         <button onClick={() => setSubmitApprovalData(null)} className="px-6 py-2 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-100">Batal</button>
                     </div>
                 </div>
@@ -1934,7 +1934,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
         referenceNumber: '',
         receivedDate: formatDate(new Date(), 'input'),
         party1Name: 'Ravi Kurnia',
-        party1Title: 'Bidang Sarana dan Prasarana',
+        party1Title: 'Bidang Sarana',
         party1Org: 'Yayasan Dar el-Iman',
         party1Address: 'Gunuang Juaro',
         party2Name: '',
@@ -2033,8 +2033,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 const overrides = {};
                 if (doc.type === 'INVOICE') {
                     overrides.category = 'Invoice';
-                    overrides.party1Name = 'Bidang Sarana dan Prasarana';
-                    overrides.party1Title = 'Kepala Bidang Sarpras';
+                    overrides.party1Name = 'Bidang Sarana';
+                    overrides.party1Title = 'Kepala Bidang Sarana';
                     overrides.party1Org = 'Yayasan Dar el-Iman';
                 }
                 setFormData(prev => ({
@@ -2207,7 +2207,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                 referenceNumber: '',
                 receivedDate: formatDate(new Date(), 'input'),
                 party1Name: 'Ravi Kurnia',
-                party1Title: 'Kepala Bidang Sarpras',
+                party1Title: 'Kepala Bidang Sarana',
                 party1Org: 'Yayasan Dar el-Iman',
                 party1Address: 'Komplek Islamic Center, Surau Gadang, Kec. Nanggalo, Kota Padang',
                 party2Name: '',
@@ -2367,18 +2367,18 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     <label className="text-xs font-black text-blue-600 uppercase tracking-widest mb-3 block">1. Pilih Kategori Surat Keluar</label>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                                         {['Undangan', 'Tugas', 'Keputusan', 'Keterangan', 'Pemberitahuan', 'Rekomendasi', 'SOP', 'Surat Teguran', 'Surat Peringatan', 'BAST', 'MOU', 'Pesanan', 'Edaran', 'Umum', 'Berita Acara Kunjungan', 'Lainnya'].map(c => (
-                                        <button
-                                            key={c}
-                                            type="button"
-                                            onClick={() => setFormData({ ...formData, category: c })}
-                                            className={`px-4 py-3 rounded-xl text-xs font-bold border transition-all text-center ${formData.category === c
-                                                ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                                                : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
-                                                }`}
-                                        >
-                                            {c}
-                                        </button>
-                                    ))}
+                                            <button
+                                                key={c}
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, category: c })}
+                                                className={`px-4 py-3 rounded-xl text-xs font-bold border transition-all text-center ${formData.category === c
+                                                    ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                                                    : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
+                                                    }`}
+                                            >
+                                                {c}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
@@ -2500,7 +2500,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                 <div>
                                     <h4 className="font-black text-slate-900 uppercase text-xs tracking-widest">Penyusunan Manual Aktif</h4>
                                     <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-                                        Anda hanya perlu mengisi **Perihal** dan **Kategori** untuk mendapatkan nomor surat. 
+                                        Anda hanya perlu mengisi **Perihal** dan **Kategori** untuk mendapatkan nomor surat.
                                         Setelah surat disetujui, Anda dapat mendownload QR Code TTE untuk ditempel di Word.
                                     </p>
                                 </div>
@@ -3279,7 +3279,7 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     <textarea
                                         rows={4}
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm leading-relaxed"
-                                        placeholder="Melalui surat ini, kami Bidang Sarana dan Prasarana ingin memberitahukan kepada seluruh pihak terkait mengenai..."
+                                        placeholder="Melalui surat ini, kami Bidang Sarana ingin memberitahukan kepada seluruh pihak terkait mengenai..."
                                         value={pemberitahuanData.pembukaan}
                                         onChange={(e) => setPemberitahuanData({ ...pemberitahuanData, pembukaan: e.target.value })}
                                     />
@@ -3643,8 +3643,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                                         <div className="flex items-center justify-between mb-4">
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">II. Uraian Kegiatan (Poin-poin)</label>
-                                            <button 
-                                                type="button" 
+                                            <button
+                                                type="button"
                                                 onClick={() => setKunjunganData({ ...kunjunganData, activities: [...kunjunganData.activities, ''] })}
                                                 className="text-[10px] font-bold text-blue-600 flex items-center gap-1 hover:underline"
                                             >
@@ -3667,8 +3667,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                         }}
                                                         required
                                                     />
-                                                    <button 
-                                                        type="button" 
+                                                    <button
+                                                        type="button"
                                                         disabled={kunjunganData.activities.length === 1}
                                                         onClick={() => {
                                                             const newAct = kunjunganData.activities.filter((_, i) => i !== idx);
@@ -3686,8 +3686,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                     <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                                         <div className="flex items-center justify-between mb-4">
                                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">III. Hasil & Catatan Kunjungan (Kategori & Poin)</label>
-                                            <button 
-                                                type="button" 
+                                            <button
+                                                type="button"
                                                 onClick={() => setKunjunganData({ ...kunjunganData, results: [...kunjunganData.results, { title: '', items: [''] }] })}
                                                 className="text-[10px] font-bold text-blue-600 flex items-center gap-1 hover:underline"
                                             >
@@ -3713,8 +3713,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                                 required
                                                             />
                                                         </div>
-                                                        <button 
-                                                            type="button" 
+                                                        <button
+                                                            type="button"
                                                             disabled={kunjunganData.results.length === 1}
                                                             onClick={() => {
                                                                 const newRes = kunjunganData.results.filter((_, i) => i !== resIdx);
@@ -3725,12 +3725,12 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                             <Trash2 size={18} />
                                                         </button>
                                                     </div>
-                                                    
+
                                                     <div className="pl-6 border-l-2 border-slate-100 space-y-3">
                                                         <div className="flex items-center justify-between mb-2">
                                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Sub Item / Catatan Detil</label>
-                                                            <button 
-                                                                type="button" 
+                                                            <button
+                                                                type="button"
                                                                 onClick={() => {
                                                                     const newRes = [...kunjunganData.results];
                                                                     newRes[resIdx].items.push('');
@@ -3756,8 +3756,8 @@ const FormModal = ({ isOpen, onClose, doc, onSuccess, defaultType }) => {
                                                                     }}
                                                                     required
                                                                 />
-                                                                <button 
-                                                                    type="button" 
+                                                                <button
+                                                                    type="button"
                                                                     disabled={res.items.length === 1}
                                                                     onClick={() => {
                                                                         const newRes = [...kunjunganData.results];

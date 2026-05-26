@@ -883,7 +883,7 @@ const Settings = () => {
 
                                                 // BIDANG PEMBANGUNAN
                                                 { label: 'Kepala Bidang Pembangunan', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
-                                                { label: 'Staff Pembangunan', role: 'USER', scope: 'UNIT' },
+                                                { label: 'Staff Pembangunan', role: 'ADMIN_PBG', scope: 'GLOBAL' },
 
                                                 // BIDANG K3
                                                 { label: 'Kepala Bidang K3', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
@@ -944,7 +944,7 @@ const Settings = () => {
 
                                             <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG PEMBANGUNAN & K3 --</option>
                                             <option value="Kepala Bidang Pembangunan">Kepala Bidang Pembangunan (Global Terbatas)</option>
-                                            <option value="Staff Pembangunan">Staff Pembangunan (User)</option>
+                                            <option value="Staff Pembangunan">Staff Pembangunan (Admin Pbg)</option>
                                             <option value="Kepala Bidang K3">Kepala Bidang K3 (Global Terbatas)</option>
                                             <option value="Staff K3">Staff K3 (User)</option>
  
@@ -963,7 +963,7 @@ const Settings = () => {
                                         Role System: <span className="font-bold text-blue-600">{newUser.role || '-'}</span>
                                         {newUser.role && (
                                             <span className="ml-1 text-slate-400">
-                                                ({['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(newUser.role) ? 'Akses Global' : 'Akses Terbatas Unit'})
+                                                ({['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(newUser.role) ? 'Akses Global' : 'Akses Terbatas Unit'})
                                             </span>
                                         )}
                                     </div>

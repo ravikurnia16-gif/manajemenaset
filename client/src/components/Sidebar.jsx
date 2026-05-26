@@ -63,7 +63,7 @@ const Sidebar = ({ isOpen = true }) => {
     const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user?.role);
 
     const isKabidSarpras = user?.position?.toLowerCase() === 'kepala bidang sarana dan prasarana';
-    const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS'].includes(user?.role) || ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user?.position);
+    const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(user?.role) || ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user?.position);
 
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">

@@ -32,7 +32,7 @@ const MaintenanceDetail = () => {
     const [contractors, setContractors] = useState([]);
     const [loading, setLoading] = useState(true);
     const user = JSON.parse(localStorage.getItem('user')) || {};
-    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG'].includes(user.role);
+    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_PBG'].includes(user.role);
     const [uploadingMedia, setUploadingMedia] = useState(false);
 
     // Modal state for actions
@@ -45,6 +45,7 @@ const MaintenanceDetail = () => {
     const [costItems, setCostItems] = useState([]); // [{ id: string, label: string, price: number, assetId: number|null }]
     const [bulkPrice, setBulkPrice] = useState('');
     const [receiptFile, setReceiptFile] = useState(null);
+    const [completionPhoto, setCompletionPhoto] = useState(null);
     const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
     const showToast = (message, type = 'success') => {
@@ -125,12 +126,21 @@ const MaintenanceDetail = () => {
             }
 
             // Upload receipt first if available and completing
-            if (actionModal.type === 'completion' && receiptFile) {
-                const formData = new FormData();
-                formData.append('media', receiptFile);
-                await api.post(`/maintenance/${id}/media?isReceipt=true`, formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
+            if (actionModal.type === 'completion') {
+                if (receiptFile) {
+                    const formData = new FormData();
+                    formData.append('media', receiptFile);
+                    await api.post(`/maintenance/${id}/media?isReceipt=true`, formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                }
+                if (completionPhoto) {
+                    const formData = new FormData();
+                    formData.append('media', completionPhoto);
+                    await api.post(`/maintenance/${id}/media?isCompletion=true`, formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                }
             }
 
             if (actionModal.nextStatus === 'COMPLETED') {
@@ -146,6 +156,7 @@ const MaintenanceDetail = () => {
             setCostItems([]);
             setBulkPrice('');
             setReceiptFile(null);
+            setCompletionPhoto(null);
             fetchReport();
             showToast('Pembaruan status berhasil disimpan!');
         } catch (err) {
@@ -422,6 +433,31 @@ const MaintenanceDetail = () => {
                                     />
                                 </a>
                                 <div className="absolute top-2 right-2 p-1 bg-amber-500 text-white rounded-full shadow-lg">
+                                    <CheckCircle size={10} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Foto Penyelesaian Section */}
+            {report.media?.some(m => m.isCompletion) && (
+                <div className="bg-green-50 rounded-xl border border-green-200 p-5 space-y-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <h3 className="text-sm font-semibold text-green-800 flex items-center gap-2">
+                        <CheckCircle2 size={18} /> Foto Penyelesaian Pekerjaan
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {report.media.filter(m => m.isCompletion).map((item, idx) => (
+                            <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-green-100 bg-white group shadow-sm">
+                                <a href={getMediaUrl(item.url)} target="_blank" rel="noreferrer" className="block w-full h-full">
+                                    <img
+                                        src={getMediaUrl(item.url)}
+                                        alt={`Selesai ${idx + 1}`}
+                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                    />
+                                </a>
+                                <div className="absolute top-2 right-2 p-1 bg-green-500 text-white rounded-full shadow-lg">
                                     <CheckCircle size={10} />
                                 </div>
                             </div>
@@ -762,17 +798,31 @@ const MaintenanceDetail = () => {
                                             </div>
                                         )}
 
-                                        {/* Nota Upload */}
-                                        <div className="mt-4">
-                                            <label className="block text-sm font-semibold text-slate-700 mb-1">Upload Bukti Nota / Kwitansi (Opsional)</label>
-                                            <div className="flex items-center gap-3">
-                                                <input 
-                                                    type="file" 
-                                                    accept="image/*"
-                                                    onChange={e => setReceiptFile(e.target.files[0])}
-                                                    className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                                                />
-                                                {receiptFile && <CheckCircle size={20} className="text-green-500 flex-shrink-0" />}
+                                        {/* Nota & Foto Penyelesaian Upload */}
+                                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-semibold text-slate-700 mb-1">Upload Nota (Opsional)</label>
+                                                <div className="flex items-center gap-3">
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*"
+                                                        onChange={e => setReceiptFile(e.target.files[0])}
+                                                        className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                                    />
+                                                    {receiptFile && <CheckCircle size={20} className="text-green-500 flex-shrink-0" />}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-slate-700 mb-1">Foto Bukti Selesai (Opsional)</label>
+                                                <div className="flex items-center gap-3">
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*,video/*"
+                                                        onChange={e => setCompletionPhoto(e.target.files[0])}
+                                                        className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                                                    />
+                                                    {completionPhoto && <CheckCircle size={20} className="text-green-500 flex-shrink-0" />}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

@@ -16,6 +16,7 @@ enum Role {
   AUDITOR
   USER
   KABID_SARPRAS
+  ADMIN_PBG
 }
 
 enum Condition {
