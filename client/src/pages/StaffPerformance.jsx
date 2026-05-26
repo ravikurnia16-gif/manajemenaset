@@ -977,29 +977,29 @@ const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignm
                             const isOpen = expanded.includes(`plan-${plan.id}`);
                             return (
                                 <div key={plan.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
-                                    <div className="p-5 flex items-center justify-between cursor-pointer gap-4" onClick={() => toggle(`plan-${plan.id}`)}>
-                                        <div className="flex items-center gap-4 flex-1 min-w-0">
-                                            <ProgressRing pct={pct} size={52} />
+                                    <div className="p-4 md:p-5 flex flex-wrap items-center justify-between cursor-pointer gap-y-3 gap-x-4" onClick={() => toggle(`plan-${plan.id}`)}>
+                                        <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1 min-w-[240px]">
+                                            <div className="shrink-0 mt-1 sm:mt-0"><ProgressRing pct={pct} size={48} /></div>
                                             <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
+                                                <div className="flex flex-wrap items-center gap-1.5 mb-1">
                                                     <Badge className={pct === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
                                                         {pct === 100 ? 'Selesai' : 'Berjalan'}
                                                     </Badge>
                                                     <Badge className="bg-indigo-50 text-indigo-500">Rencana</Badge>
                                                     {isKabid && <span className="text-[9px] font-bold text-slate-400 uppercase">{plan.user?.name}</span>}
                                                 </div>
-                                                <h3 className="text-sm font-black text-slate-800 uppercase italic truncate">{plan.metadata?.title || 'Rencana Kerja'}</h3>
-                                                <p className="text-[10px] font-bold text-slate-400 mt-0.5 flex items-center gap-2">
-                                                    <Calendar size={11} className="text-indigo-400" />
-                                                    {fmtDate(plan.metadata?.startDate, { day: '2-digit', month: 'short' })} – {fmtDate(plan.metadata?.endDate, { day: '2-digit', month: 'short' })}
-                                                    <span className="text-slate-300">•</span>
-                                                    <span>{completed}/{items.length} item</span>
+                                                <h3 className="text-sm font-black text-slate-800 uppercase italic leading-tight line-clamp-2 sm:truncate">{plan.metadata?.title || 'Rencana Kerja'}</h3>
+                                                <p className="text-[10px] font-bold text-slate-400 mt-1 flex flex-wrap items-center gap-1.5">
+                                                    <span className="flex items-center gap-1"><Calendar size={11} className="text-indigo-400" />
+                                                    {fmtDate(plan.metadata?.startDate, { day: '2-digit', month: 'short' })} – {fmtDate(plan.metadata?.endDate, { day: '2-digit', month: 'short' })}</span>
+                                                    <span className="text-slate-300 hidden sm:inline">•</span>
+                                                    <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{completed}/{items.length} item</span>
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={e => { e.stopPropagation(); onEditPlan(plan); }} className="p-2 hover:bg-indigo-50 rounded-lg text-slate-300 hover:text-indigo-600 transition-all"><FileText size={16} /></button>
-                                            <div className={`p-2 rounded-xl transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end border-t border-slate-50 sm:border-0 pt-2 sm:pt-0">
+                                            <button onClick={e => { e.stopPropagation(); onEditPlan(plan); }} className="flex items-center gap-1 px-3 py-1.5 hover:bg-indigo-50 rounded-xl text-[10px] font-black tracking-widest uppercase text-slate-400 hover:text-indigo-600 transition-all"><FileText size={14} /> <span className="sm:hidden">Edit</span></button>
+                                            <div className={`p-1.5 sm:p-2 rounded-xl transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                                 {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                             </div>
                                         </div>
@@ -1034,29 +1034,32 @@ const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignm
                             const isAssignee = String(a.assigneeId) === String(userId);
                             return (
                                 <div key={a.id} className={`border-b border-slate-50 ${idx % 2 ? 'bg-slate-50/30' : ''} transition-all`}>
-                                    <div className="p-4 md:p-5 flex items-center gap-4 cursor-pointer" onClick={() => toggle(`task-${a.id}`)}>
-                                        <ProgressRing pct={a.progressPercentage || 0} size={44} />
-                                        <div className="flex-1 min-w-0 space-y-1">
-                                            <div className="flex flex-wrap items-center gap-1.5">
-                                                <Badge className={pc.color}>{pc.label}</Badge>
-                                                <Badge className={sc.color}>{sc.label}</Badge>
-                                                <Badge className="bg-emerald-50 text-emerald-500">Tugas</Badge>
-                                            </div>
-                                            <h3 className="text-sm font-black text-slate-800 italic uppercase truncate">{a.title}</h3>
-                                            <div className="flex flex-wrap items-center gap-3 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                                                <span className="flex items-center gap-1"><Users size={11} className="text-indigo-400" />{a.assignee?.name}</span>
-                                                {a.location && <span className="flex items-center gap-1"><MapPin size={11} />{a.location}</span>}
-                                                {a.dueDate && <span className="flex items-center gap-1"><Clock size={11} />{fmtDate(a.dueDate, { day: '2-digit', month: 'short' })}</span>}
+                                    <div className="p-4 md:p-5 flex flex-wrap items-center justify-between cursor-pointer gap-y-3 gap-x-4" onClick={() => toggle(`task-${a.id}`)}>
+                                        <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1 min-w-[240px]">
+                                            <div className="shrink-0 mt-1 sm:mt-0"><ProgressRing pct={a.progressPercentage || 0} size={44} /></div>
+                                            <div className="flex-1 min-w-0 space-y-1">
+                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                    <Badge className={pc.color}>{pc.label}</Badge>
+                                                    <Badge className={sc.color}>{sc.label}</Badge>
+                                                    <Badge className="bg-emerald-50 text-emerald-500">Tugas</Badge>
+                                                </div>
+                                                <h3 className="text-sm font-black text-slate-800 italic uppercase leading-tight line-clamp-2 sm:truncate">{a.title}</h3>
+                                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">
+                                                    <span className="flex items-center gap-1"><Users size={11} className="text-indigo-400" />{a.assignee?.name}</span>
+                                                    {a.location && <span className="flex items-center gap-1"><MapPin size={11} />{a.location}</span>}
+                                                    {a.dueDate && <span className="flex items-center gap-1"><Clock size={11} />{fmtDate(a.dueDate, { day: '2-digit', month: 'short' })}</span>}
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end border-t border-slate-50 sm:border-0 pt-2 sm:pt-0">
                                             {a.status !== 'LIBUR' && a.status !== 'COMPLETED' && (isAssignee || isKabid) && (
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); setTaskToUpdate(a); setShowUpdateModal(true); }} 
                                                     className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 text-[10px] font-black text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl transition-all uppercase tracking-widest shadow-sm active:scale-95"
                                                 >
                                                     <TrendingUp size={12} />
-                                                    <span>Update Progres</span>
+                                                    <span className="hidden sm:inline">Update Progres</span>
+                                                    <span className="sm:hidden">Update</span>
                                                 </button>
                                             )}
                                             {a.status !== 'LIBUR' && a.status !== 'COMPLETED' && (isAssignee || isKabid) && (
@@ -1068,7 +1071,7 @@ const RencanaTugasTab = ({ plans, assignments, onUpdatePlanItem, onUpdateAssignm
                                                     <span>Libur</span>
                                                 </button>
                                             )}
-                                            <div className={`p-2 rounded-xl transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                            <div className={`p-1.5 sm:p-2 rounded-xl transition-all ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                                 {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                             </div>
                                         </div>
