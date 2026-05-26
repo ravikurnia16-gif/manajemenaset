@@ -556,10 +556,10 @@ exports.updateAssignmentStatus = async (req, res) => {
         // Handle logical items/checklist update
         if (items) {
             data.items = items;
-            // Calculate progress based on items
+            // Calculate progress based on sub-items
             if (Array.isArray(items) && items.length > 0) {
-                const completedItems = items.filter(it => it.status === 'COMPLETED').length;
-                const percentage = Math.round((completedItems / items.length) * 100);
+                const totalPct = items.reduce((acc, curr) => acc + (parseInt(curr.percentage) || (curr.status === 'COMPLETED' || curr.isDone ? 100 : 0)), 0);
+                const percentage = Math.round(totalPct / items.length);
                 data.progressPercentage = percentage;
 
                 if (percentage === 100) {
