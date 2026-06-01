@@ -2193,7 +2193,7 @@ exports.reviewSanctionLift = async (req, res) => {
         const adminId = req.user.id;
 
         const admin = await prisma.user.findUnique({ where: { id: adminId } });
-        if (!['SUPER_ADMIN', 'ADMIN_ASET'].includes(admin.role) && !admin.position?.toLowerCase().includes('kepala bidang')) {
+        if (!admin.position?.toLowerCase().includes('Staff Kendaraan')) {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
@@ -2226,7 +2226,7 @@ exports.reviewSanctionLift = async (req, res) => {
                 await whatsappService.sendMessage(user.phone, msg);
             }
             await createNotification(user.id, 'Sanksi Dicabut', 'Pengajuan pencabutan sanksi Anda telah disetujui. Anda dapat melakukan peminjaman kembali.', 'SUCCESS', '/kendaraan');
-            
+
             res.json({ message: 'Sanksi berhasil dicabut.' });
         } else {
             // Reject lift
@@ -2366,8 +2366,8 @@ exports.proposeSanctionLift = async (req, res) => {
         const admins = await prisma.user.findMany({
             where: {
                 OR: [
-                    { role: 'SUPER_ADMIN' },
-                    { role: 'ADMIN_ASET' }
+                    { position: 'Kepala Bidang Sarana dan Prasarana' },
+                    { position: 'Staff Kendaraan' }
                 ]
             }
         });
@@ -2435,7 +2435,7 @@ exports.reviewSanctionLift = async (req, res) => {
                 await whatsappService.sendMessage(user.phone, msg);
             }
             await createNotification(user.id, 'Sanksi Dicabut', 'Pengajuan pencabutan sanksi Anda telah disetujui. Anda dapat melakukan peminjaman kembali.', 'SUCCESS', '/kendaraan');
-            
+
             res.json({ message: 'Sanksi berhasil dicabut.' });
         } else {
             // Reject lift
