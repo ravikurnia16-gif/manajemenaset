@@ -541,7 +541,7 @@ const VehicleBooking = () => {
             setSubmitting(true);
             await api.post('/personnel/sanctions/review', {
                 userId: showSanctionReviewModal.id,
-                approved: sanctionReviewAction.approved,
+                isApproved: sanctionReviewAction.approved,
                 reviewNotes: sanctionReviewAction.reviewNotes
             });
             showToast('Review sanksi berhasil disimpan', 'success');
