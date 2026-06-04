@@ -235,26 +235,28 @@ exports.createOrder = async (req, res) => {
         // Auto-generate E-Office Document
         await generateSuratPesanan(newOrder, user);
 
-        // Notify Admins
-        const admins = await prisma.user.findMany({
-            where: {
-                OR: [
-                    { position: 'Kepala Bidang Sarana dan Prasarana' },
-                    { role: 'ADMIN_ASET' }
-                ],
-                phone: { not: null, not: '' }
-            }
-        });
+        // Notify Sarpras Unit with Workshop Unit ID
+        const targetUnitId = workshopUnitId ? parseInt(workshopUnitId) : null;
+        let recipients = [];
+        if (targetUnitId) {
+            recipients = await prisma.user.findMany({
+                where: {
+                    position: 'Sarpras Unit',
+                    unitId: targetUnitId,
+                    phone: { not: null, not: '' }
+                }
+            });
+        }
 
-        if (admins.length > 0) {
+        if (recipients.length > 0) {
             const msg = `Bismillah.\n*Request Workshop Baru* \u{1F6E0}\n\n` +
                 `Dari: *${user.name || user.username}*\n` +
                 `Order: *${title}*\n\n` +
-                `Mohon dicek di sistem dan Surat Pesanan menunggu TTE.`;
+                `Mohon dicek di sistem.`;
 
-            admins.forEach(admin => {
+            recipients.forEach(recipient => {
                 setTimeout(() => {
-                    whatsappService.sendMessage(admin.phone, msg).catch(console.error);
+                    whatsappService.sendMessage(recipient.phone, msg).catch(console.error);
                 }, 5000);
             });
         }
