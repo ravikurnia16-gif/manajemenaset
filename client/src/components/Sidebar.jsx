@@ -202,11 +202,8 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/workshop/dashboard" className={subNavItemClass('/workshop/dashboard')}>
                             <LayoutDashboard size={16} /> Dashboard
                         </Link>
-                        <Link to="/workshop/orders?type=KAYU" className={subNavItemClass('/workshop/orders?type=KAYU')}>
-                            <HardHat size={16} /> Workshop Kayu
-                        </Link>
-                        <Link to="/workshop/orders?type=BESI" className={subNavItemClass('/workshop/orders?type=BESI')}>
-                            <Cog size={16} /> Workshop Besi
+                        <Link to="/workshop/orders" className={subNavItemClass('/workshop/orders')}>
+                            <ClipboardList size={16} /> Daftar Pesanan
                         </Link>
                     </>
                 ))}
