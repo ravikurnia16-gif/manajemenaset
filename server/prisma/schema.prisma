@@ -1403,9 +1403,8 @@ enum WorkshopOrderStatus {
 model WorkshopOrder {
   id              Int                  @id @default(autoincrement())
   code            String               @unique // WS/KAYU/2026/001 atau WS/BESI/2026/001
-  workshopType    WorkshopType
+  workshopType    WorkshopType?
   title           String               // Judul ringkas pekerjaan
-  description     String?              @db.Text
   
   // Requestor Info
   requestedById   Int
@@ -1464,8 +1463,7 @@ model WorkshopOrderItem {
   spec            String?        @db.Text  // Spesifikasi detail
   qty             Int            @default(1)
   unit            String         @default("Unit") // pcs, set, unit, meter, dll
-  materialCost    Float          @default(0)
-  laborCost       Float          @default(0)
+  estimatedPrice  Float          @default(0)
   status          String         @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
   notes           String?        @db.Text
 }

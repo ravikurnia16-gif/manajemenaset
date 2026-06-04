@@ -11,6 +11,7 @@ router.post('/orders', workshopController.createOrder);
 router.post('/orders/from-procurement', workshopController.createFromProcurement);
 router.get('/orders/:id', workshopController.getOrderById);
 router.put('/orders/:id/status', workshopController.updateOrderStatus);
+router.put('/orders/:id/details', workshopController.updateOrderDetails);
 router.post('/orders/:id/progress', workshopController.addProgress);
 
 module.exports = router;

@@ -375,6 +375,13 @@ const ProcurementDetail = () => {
     const [newProgressMessage, setNewProgressMessage] = useState('');
     const [isSubmittingProgress, setIsSubmittingProgress] = useState(false);
 
+    // Workshop Integration States
+    const [showWorkshopModal, setShowWorkshopModal] = useState(false);
+    const [selectedWorkshopItems, setSelectedWorkshopItems] = useState({});
+    const [workshopOrderPriority, setWorkshopOrderPriority] = useState('NORMAL');
+    const [workshopOrderDeadline, setWorkshopOrderDeadline] = useState('');
+    const [workshopOrderNotes, setWorkshopOrderNotes] = useState('');
+
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user?.role);
     const isAssignedToAny = req?.items?.some(i => i.assignedToId === user?.id) || false;
@@ -583,6 +590,30 @@ const ProcurementDetail = () => {
             alert('Gagal menambahkan catatan progress: ' + (e.response?.data?.error || e.message));
         } finally {
             setIsSubmittingProgress(false);
+        }
+    };
+
+    const handleCreateWorkshopOrder = async (e) => {
+        e.preventDefault();
+        const itemIds = Object.keys(selectedWorkshopItems).filter(k => selectedWorkshopItems[k]).map(Number);
+        if (itemIds.length === 0) return alert('Pilih minimal 1 item untuk dikirim ke Workshop');
+        try {
+            setLoading(true);
+            await api.post('/workshop/orders/from-procurement', {
+                procurementId: id,
+                priority: workshopOrderPriority,
+                deadline: workshopOrderDeadline || null,
+                notes: workshopOrderNotes,
+                itemsIds: itemIds
+            });
+            alert('Pesanan workshop berhasil dibuat!');
+            setShowWorkshopModal(false);
+            // reset selection
+            setSelectedWorkshopItems({});
+        } catch (e) {
+            alert(e.response?.data?.error || e.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -1642,15 +1673,94 @@ const ProcurementDetail = () => {
                                         } 
                                     });
                                 }}>
-                                    <QrCode size={14} /> Buat Ulang / Lihat BAST Resmi di E-Office
-                                </Btn>
-                            </div>
-                        )}
-                    </div>
-                </Card>
-            )}
-        </div>
-    );
-};
+                                                            <QrCode size={14} /> Buat Ulang / Lihat BAST Resmi di E-Office
+                                                        </Btn>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </Card>
+                                    )}
 
-export default ProcurementDetail;
+                                    {/* Modal Kirim ke Workshop */}
+                                    {showWorkshopModal && (
+                                        <div style={{
+                                            position: 'fixed', inset: 0, zIndex: 9999,
+                                            background: 'rgba(15,31,61,0.6)', backdropFilter: 'blur(4px)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+                                        }}>
+                                            <div style={{
+                                                background: T.white, borderRadius: 16, width: '100%', maxWidth: 600,
+                                                maxHeight: '90vh', overflowY: 'auto', padding: 30, position: 'relative'
+                                            }}>
+                                                <button onClick={() => setShowWorkshopModal(false)} style={{
+                                                    position: 'absolute', top: 20, right: 20, background: 'none',
+                                                    border: 'none', cursor: 'pointer', color: T.slate
+                                                }}>
+                                                    <XCircle size={24} />
+                                                </button>
+                                                
+                                                <h2 style={{ fontSize: 20, color: T.navy, marginBottom: 8, fontFamily: "'Playfair Display', serif" }}>
+                                                    Buat Pesanan Workshop
+                                                </h2>
+                                                <p style={{ color: T.slate, fontSize: 13, marginBottom: 24 }}>
+                                                    Pilih item dari pengadaan ini untuk dikirimkan sebagai permintaan ke Unit Workshop.
+                                                </p>
+
+                                                <form onSubmit={handleCreateWorkshopOrder} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                                    <div>
+                                                        <Label>Pilih Item</Label>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, border: `1px solid ${T.border}`, borderRadius: 10, padding: 16, background: T.cream }}>
+                                                            {req.items.map((item, idx) => (
+                                                                <label key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                                                                    <input 
+                                                                        type="checkbox"
+                                                                        checked={!!selectedWorkshopItems[item.id]}
+                                                                        onChange={(e) => setSelectedWorkshopItems(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                                                                        style={{ marginTop: 2 }}
+                                                                    />
+                                                                    <div>
+                                                                        <div style={{ fontSize: 13, fontWeight: 700, color: T.navy }}>{item.name}</div>
+                                                                        <div style={{ fontSize: 11, color: T.slate }}>{item.qty} {item.unit} | Rp {(item.estPrice || 0).toLocaleString('id-ID')}</div>
+                                                                    </div>
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                                                        <div>
+                                                            <Label>Prioritas</Label>
+                                                            <Select value={workshopOrderPriority} onChange={e => setWorkshopOrderPriority(e.target.value)}>
+                                                                <option value="LOW">Low</option>
+                                                                <option value="NORMAL">Normal</option>
+                                                                <option value="HIGH">High</option>
+                                                                <option value="URGENT">Urgent</option>
+                                                            </Select>
+                                                        </div>
+                                                        <div>
+                                                            <Label>Deadline (Opsional)</Label>
+                                                            <Input type="date" value={workshopOrderDeadline} onChange={e => setWorkshopOrderDeadline(e.target.value)} />
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <Label>Catatan Tambahan (Opsional)</Label>
+                                                        <Textarea rows={3} value={workshopOrderNotes} onChange={e => setWorkshopOrderNotes(e.target.value)} placeholder="Tambahkan instruksi khusus..." />
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 10 }}>
+                                                        <Btn type="button" variant="ghost" onClick={() => setShowWorkshopModal(false)}>Batal</Btn>
+                                                        <Btn type="submit" variant="gold">
+                                                            Kirim Pesanan
+                                                        </Btn>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        };
+
+                        export default ProcurementDetail;
+                        // Append something to test

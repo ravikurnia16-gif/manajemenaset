@@ -23,6 +23,13 @@ function WorkshopOrderDetail() {
     const [order, setOrder] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    const userStr = localStorage.getItem('user');
+    const userObj = userStr ? JSON.parse(userStr) : null;
+    const isWorkshopAdmin = userObj && (
+        ['SUPER_ADMIN', 'ADMIN_ASET'].includes(userObj.role) || 
+        (userObj.unit?.name || '').toLowerCase().includes('workshop')
+    );
+
     // Form states
     const [statusForm, setStatusForm] = useState(false);
     const [newStatus, setNewStatus] = useState('');
@@ -33,6 +40,11 @@ function WorkshopOrderDetail() {
     const [progressPercent, setProgressPercent] = useState('');
     const [photoBase64, setPhotoBase64] = useState(null);
 
+    // Edit Details Form states
+    const [detailsForm, setDetailsForm] = useState(false);
+    const [editWorkshopType, setEditWorkshopType] = useState('');
+    const [editItems, setEditItems] = useState([]);
+
     useEffect(() => {
         fetchOrder();
     }, [id]);
@@ -42,6 +54,8 @@ function WorkshopOrderDetail() {
             const res = await api.get(`/workshop/orders/${id}`);
             setOrder(res.data);
             setNewStatus(res.data.status);
+            setEditWorkshopType(res.data.workshopType || '');
+            setEditItems(res.data.items?.map(it => ({ id: it.id, name: it.name, estimatedPrice: it.estimatedPrice || 0 })) || []);
         } catch (error) {
             console.error(error);
             Swal.fire('Error', 'Gagal memuat detail pesanan', 'error');
@@ -100,6 +114,21 @@ function WorkshopOrderDetail() {
         }
     };
 
+    const handleUpdateDetails = async (e) => {
+        e.preventDefault();
+        try {
+            await api.put(`/workshop/orders/${id}/details`, {
+                workshopType: editWorkshopType,
+                items: editItems
+            });
+            Swal.fire('Berhasil', 'Detail pesanan berhasil diperbarui', 'success');
+            setDetailsForm(false);
+            fetchOrder();
+        } catch (error) {
+            Swal.fire('Gagal', error.response?.data?.error || 'Terjadi kesalahan', 'error');
+        }
+    };
+
     if (loading) return <div className="p-10 text-center text-gray-500">Memuat detail...</div>;
     if (!order) return <div className="p-10 text-center text-red-500">Pesanan tidak ditemukan.</div>;
 
@@ -131,10 +160,12 @@ function WorkshopOrderDetail() {
                             <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>
                                 {order.status.replace('_', ' ')}
                             </span>
-                            <span className={`px-2 py-1 flex items-center text-xs font-bold rounded ${order.workshopType === 'KAYU' ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-800'}`}>
-                                {order.workshopType === 'KAYU' ? <HardHat size={12} className="mr-1" /> : <Cog size={12} className="mr-1" />}
-                                {order.workshopType}
-                            </span>
+                            {order.workshopType && (
+                                <span className={`px-2 py-1 flex items-center text-xs font-bold rounded ${order.workshopType === 'KAYU' ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-800'}`}>
+                                    {order.workshopType === 'KAYU' ? <HardHat size={12} className="mr-1" /> : <Cog size={12} className="mr-1" />}
+                                    {order.workshopType}
+                                </span>
+                            )}
                             {order.priority === 'URGENT' && (
                                 <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded">URGENT</span>
                             )}
@@ -148,6 +179,11 @@ function WorkshopOrderDetail() {
                             <FileText size={16} className="mr-2" />
                             Surat Pesanan
                         </Link>
+                    )}
+                    {isWorkshopAdmin && !isDone && (
+                        <button onClick={() => setDetailsForm(true)} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                            Update Detail
+                        </button>
                     )}
                     {!isDone && (
                         <button onClick={() => setStatusForm(true)} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
@@ -195,12 +231,6 @@ function WorkshopOrderDetail() {
                                 </div>
                             </div>
                         </div>
-                        {order.description && (
-                            <div className="p-5 border-t border-gray-100 bg-gray-50/50">
-                                <p className="text-xs text-gray-500 mb-2">Deskripsi</p>
-                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{order.description}</p>
-                            </div>
-                        )}
                         {order.procurement && (
                             <div className="p-4 border-t border-blue-100 bg-blue-50">
                                 <div className="flex items-center justify-between">
@@ -226,8 +256,8 @@ function WorkshopOrderDetail() {
                                     <tr>
                                         <th className="px-4 py-3 text-left">Nama / Spesifikasi</th>
                                         <th className="px-4 py-3 text-center">Jumlah</th>
-                                        <th className="px-4 py-3 text-right">Est. Biaya Material</th>
-                                        <th className="px-4 py-3 text-right">Est. Biaya Jasa</th>
+                                        <th className="px-4 py-3 text-right">Est. Harga Satuan</th>
+                                        <th className="px-4 py-3 text-right">Subtotal</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 bg-white">
@@ -241,10 +271,10 @@ function WorkshopOrderDetail() {
                                                 <span className="font-medium text-gray-800">{item.qty}</span> <span className="text-xs text-gray-500">{item.unit}</span>
                                             </td>
                                             <td className="px-4 py-3 text-right text-sm text-gray-600">
-                                                Rp {(item.materialCost || 0).toLocaleString('id-ID')}
+                                                Rp {(item.estimatedPrice || 0).toLocaleString('id-ID')}
                                             </td>
-                                            <td className="px-4 py-3 text-right text-sm text-gray-600">
-                                                Rp {(item.laborCost || 0).toLocaleString('id-ID')}
+                                            <td className="px-4 py-3 text-right text-sm font-bold text-gray-700">
+                                                Rp {((item.estimatedPrice || 0) * (item.qty || 1)).toLocaleString('id-ID')}
                                             </td>
                                         </tr>
                                     ))}
@@ -398,6 +428,71 @@ function WorkshopOrderDetail() {
                             <div className="flex justify-end space-x-2">
                                 <button type="button" onClick={() => setProgressForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Batal</button>
                                 <button type="submit" className="px-4 py-2 text-sm text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg">Simpan Progress</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Update Detail (WorkshopType & Estimated Prices) */}
+            {detailsForm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+                        <h3 className="text-lg font-bold mb-4">Update Detail Pesanan Workshop</h3>
+                        <form onSubmit={handleUpdateDetails}>
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Tipe Workshop (Tujuan)</label>
+                                <div className="flex gap-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditWorkshopType('KAYU')}
+                                        className={`flex-1 p-3 rounded-lg border-2 transition-colors ${
+                                            editWorkshopType === 'KAYU' ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-200 text-gray-500 hover:border-orange-200'
+                                        }`}
+                                    >
+                                        <div className="font-bold">Workshop Kayu</div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditWorkshopType('BESI')}
+                                        className={`flex-1 p-3 rounded-lg border-2 transition-colors ${
+                                            editWorkshopType === 'BESI' ? 'border-slate-500 bg-slate-100 text-slate-800' : 'border-gray-200 text-gray-500 hover:border-slate-300'
+                                        }`}
+                                    >
+                                        <div className="font-bold">Workshop Besi</div>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Estimasi Harga Item</label>
+                                <div className="space-y-3">
+                                    {editItems.map((item, index) => (
+                                        <div key={item.id} className="grid grid-cols-1 md:grid-cols-2 gap-2 items-center p-3 border rounded-lg bg-gray-50">
+                                            <div className="text-sm font-medium text-gray-700">{item.name}</div>
+                                            <div className="flex items-center space-x-2">
+                                                <span className="text-sm text-gray-500">Rp</span>
+                                                <input 
+                                                    type="number"
+                                                    min="0"
+                                                    value={item.estimatedPrice}
+                                                    onChange={(e) => {
+                                                        const newItems = [...editItems];
+                                                        newItems[index].estimatedPrice = parseFloat(e.target.value) || 0;
+                                                        setEditItems(newItems);
+                                                    }}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:border-emerald-500 outline-none"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div className="flex justify-end space-x-2 mt-6">
+                                <button type="button" onClick={() => setDetailsForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Batal</button>
+                                <button type="submit" className="px-4 py-2 text-sm text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg">Simpan Detail</button>
                             </div>
                         </form>
                     </div>

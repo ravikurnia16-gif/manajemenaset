@@ -9,9 +9,7 @@ const WorkshopOrderForm = () => {
     const [loading, setLoading] = useState(false);
 
     const [form, setForm] = useState({
-        workshopType: 'KAYU',
         title: '',
-        description: '',
         priority: 'NORMAL',
         deadline: '',
         notes: '',
@@ -19,7 +17,7 @@ const WorkshopOrderForm = () => {
     });
 
     const [items, setItems] = useState([
-        { name: '', spec: '', qty: 1, unit: 'Unit', materialCost: 0, laborCost: 0 }
+        { name: '', spec: '', qty: 1, unit: 'Unit' }
     ]);
 
     const handleFormChange = (field, value) => {
@@ -33,17 +31,13 @@ const WorkshopOrderForm = () => {
     };
 
     const addItem = () => {
-        setItems([...items, { name: '', spec: '', qty: 1, unit: 'Unit', materialCost: 0, laborCost: 0 }]);
+        setItems([...items, { name: '', spec: '', qty: 1, unit: 'Unit' }]);
     };
 
     const removeItem = (index) => {
         if (items.length === 1) return;
         setItems(items.filter((_, i) => i !== index));
     };
-
-    const totalEstimated = items.reduce((acc, item) => {
-        return acc + ((parseFloat(item.materialCost) || 0) + (parseFloat(item.laborCost) || 0)) * (parseInt(item.qty) || 1);
-    }, 0);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -59,10 +53,8 @@ const WorkshopOrderForm = () => {
 
         const confirm = await Swal.fire({
             title: 'Kirim Pesanan Workshop?',
-            html: `<p>Tipe: <strong>Workshop ${form.workshopType}</strong></p>
-                   <p>Total Item: <strong>${items.length}</strong></p>
-                   <p>Est. Biaya: <strong>Rp ${totalEstimated.toLocaleString('id-ID')}</strong></p>
-                   <p class="text-sm text-gray-500 mt-2">Surat Pesanan akan otomatis di-generate ke modul E-Office.</p>`,
+            html: `<p>Total Item: <strong>${items.length}</strong></p>
+                   <p class="text-sm text-gray-500 mt-2">Pesanan akan dievaluasi oleh Unit Workshop. Surat Pesanan akan otomatis di-generate ke modul E-Office.</p>`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#059669',
@@ -101,43 +93,6 @@ const WorkshopOrderForm = () => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-8">
-                    {/* Tipe Workshop */}
-                    <div className="bg-slate-50 p-4 sm:p-6 rounded-xl border border-slate-200">
-                        <label className="block text-sm font-bold text-slate-700 mb-3">Tipe Workshop *</label>
-                        <div className="flex gap-4">
-                            <button
-                                type="button"
-                                onClick={() => handleFormChange('workshopType', 'KAYU')}
-                                className={`flex-1 flex items-center justify-center gap-3 p-4 rounded-xl border-2 transition-all ${
-                                    form.workshopType === 'KAYU'
-                                        ? 'border-orange-400 bg-orange-50 text-orange-800 shadow-md'
-                                        : 'border-slate-200 bg-white text-slate-500 hover:border-orange-200'
-                                }`}
-                            >
-                                <HardHat size={24} />
-                                <div className="text-left">
-                                    <div className="font-bold text-base">Workshop Kayu</div>
-                                    <div className="text-xs opacity-70">Furnitur, kusen, lemari, dll</div>
-                                </div>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleFormChange('workshopType', 'BESI')}
-                                className={`flex-1 flex items-center justify-center gap-3 p-4 rounded-xl border-2 transition-all ${
-                                    form.workshopType === 'BESI'
-                                        ? 'border-slate-500 bg-slate-100 text-slate-800 shadow-md'
-                                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-                                }`}
-                            >
-                                <Cog size={24} />
-                                <div className="text-left">
-                                    <div className="font-bold text-base">Workshop Besi</div>
-                                    <div className="text-xs opacity-70">Pagar, rak, tralis, dll</div>
-                                </div>
-                            </button>
-                        </div>
-                    </div>
-
                     {/* Detail Pesanan */}
                     <div className="bg-slate-50 p-4 sm:p-6 rounded-xl border border-slate-200 space-y-4">
                         <h3 className="text-sm font-bold text-slate-700 mb-2">Detail Pesanan</h3>
@@ -151,17 +106,6 @@ const WorkshopOrderForm = () => {
                                 onChange={e => handleFormChange('title', e.target.value)}
                                 required
                             />
-                        </div>
-
-                        <div>
-                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Deskripsi (Opsional)</label>
-                            <textarea
-                                rows="3"
-                                className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-700"
-                                placeholder="Jelaskan detail pekerjaan yang diminta..."
-                                value={form.description}
-                                onChange={e => handleFormChange('description', e.target.value)}
-                            ></textarea>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -250,7 +194,7 @@ const WorkshopOrderForm = () => {
                                                 />
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+                                        <div className="grid grid-cols-2 sm:grid-cols-2 gap-2 sm:gap-4">
                                             <div>
                                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Jumlah</label>
                                                 <input
@@ -272,26 +216,6 @@ const WorkshopOrderForm = () => {
                                                     required
                                                 />
                                             </div>
-                                            <div>
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Est. Material (Rp)</label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    className="border border-slate-300 p-2 rounded text-sm w-full focus:border-emerald-500 outline-none"
-                                                    value={item.materialCost}
-                                                    onChange={e => handleItemChange(index, 'materialCost', e.target.value)}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Est. Jasa (Rp)</label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    className="border border-slate-300 p-2 rounded text-sm w-full focus:border-emerald-500 outline-none"
-                                                    value={item.laborCost}
-                                                    onChange={e => handleItemChange(index, 'laborCost', e.target.value)}
-                                                />
-                                            </div>
                                         </div>
                                     </div>
                                     {items.length > 1 && (
@@ -301,12 +225,6 @@ const WorkshopOrderForm = () => {
                                     )}
                                 </div>
                             ))}
-                        </div>
-
-                        {/* Total */}
-                        <div className="mt-4 bg-emerald-50 p-4 rounded-xl border border-emerald-200 flex justify-between items-center">
-                            <span className="font-bold text-emerald-800">Total Estimasi Biaya:</span>
-                            <span className="text-xl font-bold text-emerald-700">Rp {totalEstimated.toLocaleString('id-ID')}</span>
                         </div>
                     </div>
 

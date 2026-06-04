@@ -7,7 +7,7 @@ const { createNotification } = require('./notificationController');
 // Helper to generate Request Code
 const generateCode = async (type) => {
     const year = new Date().getFullYear();
-    const typeCode = type === 'KAYU' ? 'KY' : 'BS';
+    const typeCode = type === 'KAYU' ? 'KY' : (type === 'BESI' ? 'BS' : 'UM');
 
     const lastRecord = await prisma.workshopOrder.findFirst({
         where: {
@@ -185,7 +185,7 @@ exports.getOrderById = async (req, res) => {
 
 // 4. Create Order
 exports.createOrder = async (req, res) => {
-    const { workshopType, title, description, priority, deadline, notes, items, workshopUnitId, picName } = req.body;
+    const { title, priority, deadline, notes, items, workshopUnitId, picName } = req.body;
     const user = req.user;
 
     try {
@@ -193,30 +193,26 @@ exports.createOrder = async (req, res) => {
             return res.status(400).json({ error: 'Minimal harus ada 1 item pesanan.' });
         }
 
-        const code = await generateCode(workshopType);
+        const code = await generateCode(null);
         
         let estimatedCost = 0;
         const itemData = items.map(it => {
-            const mat = parseFloat(it.materialCost || 0);
-            const lab = parseFloat(it.laborCost || 0);
-            estimatedCost += (mat + lab) * parseInt(it.qty || 1);
+            const price = parseFloat(it.estimatedPrice || 0);
+            estimatedCost += price * parseInt(it.qty || 1);
             
             return {
                 name: it.name,
                 spec: it.spec,
                 qty: parseInt(it.qty || 1),
                 unit: it.unit || 'Unit',
-                materialCost: mat,
-                laborCost: lab
+                estimatedPrice: price
             };
         });
 
         const newOrder = await prisma.workshopOrder.create({
             data: {
                 code,
-                workshopType,
                 title,
-                description,
                 priority: priority || 'NORMAL',
                 deadline: deadline ? new Date(deadline) : null,
                 notes,
@@ -253,7 +249,6 @@ exports.createOrder = async (req, res) => {
         if (admins.length > 0) {
             const msg = `Bismillah.\n*Request Workshop Baru* \u{1F6E0}\n\n` +
                 `Dari: *${user.name || user.username}*\n` +
-                `Tipe: *Workshop ${workshopType}*\n` +
                 `Order: *${title}*\n\n` +
                 `Mohon dicek di sistem dan Surat Pesanan menunggu TTE.`;
 
@@ -415,24 +410,22 @@ exports.createFromProcurement = async (req, res) => {
 
         if (selectedItems.length === 0) return res.status(400).json({ error: 'Tidak ada item yang dipilih' });
 
-        const code = await generateCode(workshopType);
+        const code = await generateCode(null);
         
         const itemData = selectedItems.map(it => ({
             name: it.name,
             spec: it.spec,
             qty: it.qty,
             unit: it.unit,
-            materialCost: it.estPrice || 0, // Using est price as material cost as baseline
+            estimatedPrice: it.estPrice || 0, // Using est price from procurement
         }));
 
-        let estimatedCost = itemData.reduce((acc, curr) => acc + (curr.materialCost * curr.qty), 0);
+        let estimatedCost = itemData.reduce((acc, curr) => acc + (curr.estimatedPrice * curr.qty), 0);
 
         const newOrder = await prisma.workshopOrder.create({
             data: {
                 code,
-                workshopType,
                 title: `[PROC] ${procurement.title || procurement.code}`,
-                description: `Ter-generate otomatis dari Procurement: ${procurement.code}`,
                 priority: priority || 'NORMAL',
                 deadline: deadline ? new Date(deadline) : null,
                 notes,
@@ -459,3 +452,49 @@ exports.createFromProcurement = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+// 8. Update Order Details (WorkshopType & Estimated Prices)
+exports.updateOrderDetails = async (req, res) => {
+    const { id } = req.params;
+    const { workshopType, items } = req.body;
+
+    try {
+        const order = await prisma.workshopOrder.findUnique({ where: { id: parseInt(id) } });
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+
+        await prisma.$transaction(async (prisma) => {
+            let totalEstimatedCost = order.estimatedCost;
+
+            if (workshopType) {
+                await prisma.workshopOrder.update({
+                    where: { id: parseInt(id) },
+                    data: { workshopType }
+                });
+            }
+
+            if (items && Array.isArray(items)) {
+                totalEstimatedCost = 0;
+                for (const item of items) {
+                    await prisma.workshopOrderItem.update({
+                        where: { id: item.id },
+                        data: { estimatedPrice: parseFloat(item.estimatedPrice) }
+                    });
+                }
+                
+                // Recalculate total
+                const dbItems = await prisma.workshopOrderItem.findMany({ where: { orderId: parseInt(id) } });
+                totalEstimatedCost = dbItems.reduce((acc, it) => acc + (it.estimatedPrice * it.qty), 0);
+
+                await prisma.workshopOrder.update({
+                    where: { id: parseInt(id) },
+                    data: { estimatedCost: totalEstimatedCost }
+                });
+            }
+        });
+
+        res.json({ message: 'Order details updated successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
