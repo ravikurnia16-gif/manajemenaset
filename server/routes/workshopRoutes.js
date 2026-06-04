@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const workshopController = require('../controllers/workshopController');
-const { requireAuth } = require('../middleware/authMiddleware');
+const { verifyToken } = require('../middleware/authMiddleware');
 
-router.use(requireAuth);
+router.use(verifyToken);
 
 router.get('/dashboard', workshopController.getDashboardStats);
 router.get('/orders', workshopController.getAllOrders);
