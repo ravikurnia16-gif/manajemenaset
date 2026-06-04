@@ -37,6 +37,7 @@ import BusInvoiceVerify from './pages/BusInvoiceVerify';
 
 import WorkshopDashboard from './pages/WorkshopDashboard';
 import WorkshopOrderList from './pages/WorkshopOrderList';
+import WorkshopOrderForm from './pages/WorkshopOrderForm';
 import WorkshopOrderDetail from './pages/WorkshopOrderDetail';
 
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
@@ -164,6 +165,7 @@ function App() {
           {/* Modul Manajemen Workshop */}
           <Route path="workshop/dashboard" element={<WorkshopDashboard />} />
           <Route path="workshop/orders" element={<WorkshopOrderList />} />
+          <Route path="workshop/orders/new" element={<WorkshopOrderForm />} />
           <Route path="workshop/orders/:id" element={<WorkshopOrderDetail />} />
 
           <Route path="settings" element={<Settings />} />
