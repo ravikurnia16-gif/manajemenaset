@@ -305,7 +305,7 @@ const AssetImageUpload = ({ value, onChange, label = 'Foto Aset' }) => {
         const file = e.target.files[0];
         if (!file) return;
         if (file.size > 5 * 1024 * 1024) return alert('File terlalu besar (maks 5MB)');
-        
+
         const reader = new FileReader();
         reader.onloadend = () => onChange(reader.result);
         reader.readAsDataURL(file);
@@ -322,14 +322,14 @@ const AssetImageUpload = ({ value, onChange, label = 'Foto Aset' }) => {
                 {value ? (
                     <>
                         <img src={value} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        <button 
+                        <button
                             type="button"
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange(null); }}
-                            style={{ 
-                                position: 'absolute', top: 4, right: 4, 
-                                background: 'rgba(239, 68, 68, 0.9)', color: 'white', 
-                                border: 'none', borderRadius: '50%', width: 18, height: 18, 
-                                cursor: 'pointer', fontSize: 10, display: 'flex', 
+                            style={{
+                                position: 'absolute', top: 4, right: 4,
+                                background: 'rgba(239, 68, 68, 0.9)', color: 'white',
+                                border: 'none', borderRadius: '50%', width: 18, height: 18,
+                                cursor: 'pointer', fontSize: 10, display: 'flex',
                                 alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
                             }}
                         >×</button>
@@ -340,10 +340,10 @@ const AssetImageUpload = ({ value, onChange, label = 'Foto Aset' }) => {
                         <div style={{ fontSize: 9, fontWeight: 600 }}>UPLOAD</div>
                     </div>
                 )}
-                <input 
-                    type="file" accept="image/*" 
+                <input
+                    type="file" accept="image/*"
                     onChange={handleFile}
-                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} 
+                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
                 />
             </div>
         </div>
@@ -532,7 +532,7 @@ const ProcurementDetail = () => {
             for (const item of req.items) {
                 const det = assetDetails[item.id];
                 if (!det?.categoryId) return alert(`Pilih Kategori untuk item: ${item.name}`);
-                
+
                 if (det.allocationType === 'SAME') {
                     if (!det?.roomId) return alert(`Pilih Ruangan untuk item: ${item.name}`);
                 } else {
@@ -1030,8 +1030,8 @@ const ProcurementDetail = () => {
                                     Pesan ke Workshop
                                 </Btn>
                                 <Btn variant="primary" onClick={() => { handleStatus('PROCESS', 'Lanjut ke Finalisasi'); setActiveTab(4); }}>
-                                Lanjut ke Finalisasi <ChevronRight size={14} />
-                            </Btn>
+                                    Lanjut ke Finalisasi <ChevronRight size={14} />
+                                </Btn>
                             </>
                         )}
                     </CardHeader>
@@ -1398,7 +1398,7 @@ const ProcurementDetail = () => {
                                                         <div style={{ fontWeight: 700, fontSize: 14, color: T.navy }}>{idx + 1}. {it.name}</div>
                                                         <div style={{ fontSize: 11, color: T.slate, background: T.cream, padding: '4px 8px', borderRadius: 6 }}>Qty: {it.qty} {it.unit}</div>
                                                     </div>
-                                                    
+
                                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
                                                         <div>
                                                             <Label>Kategori *</Label>
@@ -1463,14 +1463,14 @@ const ProcurementDetail = () => {
                                                                             <option value="">— Pilih Ruangan —</option>
                                                                             {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                                                                         </Select>
-                                                                        <AssetImageUpload 
-                                                                            value={u.image} 
+                                                                        <AssetImageUpload
+                                                                            value={u.image}
                                                                             onChange={val => {
                                                                                 const nextUnits = [...det.units];
                                                                                 nextUnits[uIdx].image = val;
                                                                                 updateDet('units', nextUnits);
-                                                                            }} 
-                                                                            label="Foto Unit" 
+                                                                            }}
+                                                                            label="Foto Unit"
                                                                         />
                                                                     </div>
                                                                 ))}
@@ -1486,20 +1486,20 @@ const ProcurementDetail = () => {
                                                         </div>
                                                         {det.allocationType === 'SAME' && (
                                                             <div>
-                                                                <AssetImageUpload 
-                                                                    value={det.image} 
-                                                                    onChange={val => updateDet('image', val)} 
-                                                                    label="Foto Aset (Sama untuk semua)" 
+                                                                <AssetImageUpload
+                                                                    value={det.image}
+                                                                    onChange={val => updateDet('image', val)}
+                                                                    label="Foto Aset (Sama untuk semua)"
                                                                 />
                                                             </div>
                                                         )}
                                                     </div>
                                                     <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.cream, padding: '10px 14px', borderRadius: 8 }}>
-                                                            <input 
-                                                                type="checkbox" 
+                                                            <input
+                                                                type="checkbox"
                                                                 id={`lendable-${it.id}`}
-                                                                checked={det.isLendable || false} 
+                                                                checked={det.isLendable || false}
                                                                 onChange={e => updateDet('isLendable', e.target.checked)}
                                                                 style={{ cursor: 'pointer', width: 16, height: 16 }}
                                                             />
@@ -1516,10 +1516,10 @@ const ProcurementDetail = () => {
                                                                         Pemeliharaan Rutin?
                                                                     </label>
                                                                 </div>
-                                                                <input 
-                                                                    type="checkbox" 
+                                                                <input
+                                                                    type="checkbox"
                                                                     id={`maint-${it.id}`}
-                                                                    checked={det.needsRoutineMaintenance || false} 
+                                                                    checked={det.needsRoutineMaintenance || false}
                                                                     onChange={e => updateDet('needsRoutineMaintenance', e.target.checked)}
                                                                     style={{ cursor: 'pointer', width: 16, height: 16 }}
                                                                 />
@@ -1528,17 +1528,17 @@ const ProcurementDetail = () => {
                                                                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                                                                     <div style={{ flex: 1 }}>
                                                                         <Label>Interval</Label>
-                                                                        <Input 
-                                                                            type="number" 
-                                                                            value={det.maintenanceInterval || 3} 
+                                                                        <Input
+                                                                            type="number"
+                                                                            value={det.maintenanceInterval || 3}
                                                                             onChange={e => updateDet('maintenanceInterval', e.target.value)}
                                                                             style={{ padding: '6px 10px', fontSize: 12 }}
                                                                         />
                                                                     </div>
                                                                     <div style={{ flex: 1 }}>
                                                                         <Label>Satuan</Label>
-                                                                        <Select 
-                                                                            value={det.intervalUnit || 'MONTHS'} 
+                                                                        <Select
+                                                                            value={det.intervalUnit || 'MONTHS'}
                                                                             onChange={e => updateDet('intervalUnit', e.target.value)}
                                                                             style={{ padding: '6px 10px', fontSize: 12 }}
                                                                         >
@@ -1575,8 +1575,8 @@ const ProcurementDetail = () => {
                                     <CheckCircle size={18} />
                                     Selesaikan Pengadaan &amp; Buat Aset
                                 </button>
-                                
-                                <div style={{ 
+
+                                <div style={{
                                     padding: '16px', borderRadius: 12, border: `1.5px solid ${T.border}`,
                                     background: T.white, display: 'flex', flexDirection: 'column', gap: 10
                                 }}>
@@ -1593,8 +1593,8 @@ const ProcurementDetail = () => {
                                             qty: it.qty,
                                             condition: 'Baik'
                                         }));
-                                        navigate('/e-office/surat-keluar', { 
-                                            state: { 
+                                        navigate('/e-office/surat-keluar', {
+                                            state: {
                                                 autoCreate: true,
                                                 type: 'SURAT_KELUAR',
                                                 category: 'Serah Terima Barang',
@@ -1604,7 +1604,7 @@ const ProcurementDetail = () => {
                                                 party2Name: req.items?.[0]?.vendorName || '',
                                                 party2Title: 'Penerima',
                                                 bastItems
-                                            } 
+                                            }
                                         });
                                     }}>
                                         <QrCode size={14} /> Buat BAST Resmi di E-Office
@@ -1672,8 +1672,8 @@ const ProcurementDetail = () => {
                                         qty: it.qty,
                                         condition: 'Baik'
                                     }));
-                                    navigate('/e-office/surat-keluar', { 
-                                        state: { 
+                                    navigate('/e-office/surat-keluar', {
+                                        state: {
                                             autoCreate: true,
                                             type: 'SURAT_KELUAR',
                                             category: 'Serah Terima Barang',
@@ -1683,97 +1683,97 @@ const ProcurementDetail = () => {
                                             party2Name: req.items?.[0]?.vendorName || '',
                                             party2Title: 'Penerima',
                                             bastItems
-                                        } 
+                                        }
                                     });
                                 }}>
-                                                            <QrCode size={14} /> Buat Ulang / Lihat BAST Resmi di E-Office
-                                                        </Btn>
-                                                    </div>
-                                                )}
+                                    <QrCode size={14} /> Buat Ulang / Lihat BAST Resmi di E-Office
+                                </Btn>
+                            </div>
+                        )}
+                    </div>
+                </Card>
+            )}
+
+            {/* Modal Kirim ke Workshop */}
+            {showWorkshopModal && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 9999,
+                    background: 'rgba(15,31,61,0.6)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+                }}>
+                    <div style={{
+                        background: T.white, borderRadius: 16, width: '100%', maxWidth: 600,
+                        maxHeight: '90vh', overflowY: 'auto', padding: 30, position: 'relative'
+                    }}>
+                        <button onClick={() => setShowWorkshopModal(false)} style={{
+                            position: 'absolute', top: 20, right: 20, background: 'none',
+                            border: 'none', cursor: 'pointer', color: T.slate
+                        }}>
+                            <XCircle size={24} />
+                        </button>
+
+                        <h2 style={{ fontSize: 20, color: T.navy, marginBottom: 8, fontFamily: "'Playfair Display', serif" }}>
+                            Buat Pesanan Workshop
+                        </h2>
+                        <p style={{ color: T.slate, fontSize: 13, marginBottom: 24 }}>
+                            Pilih item dari pengadaan ini untuk dikirimkan sebagai permintaan ke Unit Workshop.
+                        </p>
+
+                        <form onSubmit={handleCreateWorkshopOrder} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                            <div>
+                                <Label>Pilih Item</Label>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, border: `1px solid ${T.border}`, borderRadius: 10, padding: 16, background: T.cream }}>
+                                    {req.items.map((item, idx) => (
+                                        <label key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={!!selectedWorkshopItems[item.id]}
+                                                onChange={(e) => setSelectedWorkshopItems(prev => ({ ...prev, [item.id]: e.target.checked }))}
+                                                style={{ marginTop: 2 }}
+                                            />
+                                            <div>
+                                                <div style={{ fontSize: 13, fontWeight: 700, color: T.navy }}>{item.name}</div>
+                                                <div style={{ fontSize: 11, color: T.slate }}>{item.qty} {item.unit} | Rp {(item.estPrice || 0).toLocaleString('id-ID')}</div>
                                             </div>
-                                        </Card>
-                                    )}
-
-                                    {/* Modal Kirim ke Workshop */}
-                                    {showWorkshopModal && (
-                                        <div style={{
-                                            position: 'fixed', inset: 0, zIndex: 9999,
-                                            background: 'rgba(15,31,61,0.6)', backdropFilter: 'blur(4px)',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
-                                        }}>
-                                            <div style={{
-                                                background: T.white, borderRadius: 16, width: '100%', maxWidth: 600,
-                                                maxHeight: '90vh', overflowY: 'auto', padding: 30, position: 'relative'
-                                            }}>
-                                                <button onClick={() => setShowWorkshopModal(false)} style={{
-                                                    position: 'absolute', top: 20, right: 20, background: 'none',
-                                                    border: 'none', cursor: 'pointer', color: T.slate
-                                                }}>
-                                                    <XCircle size={24} />
-                                                </button>
-                                                
-                                                <h2 style={{ fontSize: 20, color: T.navy, marginBottom: 8, fontFamily: "'Playfair Display', serif" }}>
-                                                    Buat Pesanan Workshop
-                                                </h2>
-                                                <p style={{ color: T.slate, fontSize: 13, marginBottom: 24 }}>
-                                                    Pilih item dari pengadaan ini untuk dikirimkan sebagai permintaan ke Unit Workshop.
-                                                </p>
-
-                                                <form onSubmit={handleCreateWorkshopOrder} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                                                    <div>
-                                                        <Label>Pilih Item</Label>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, border: `1px solid ${T.border}`, borderRadius: 10, padding: 16, background: T.cream }}>
-                                                            {req.items.map((item, idx) => (
-                                                                <label key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
-                                                                    <input 
-                                                                        type="checkbox"
-                                                                        checked={!!selectedWorkshopItems[item.id]}
-                                                                        onChange={(e) => setSelectedWorkshopItems(prev => ({ ...prev, [item.id]: e.target.checked }))}
-                                                                        style={{ marginTop: 2 }}
-                                                                    />
-                                                                    <div>
-                                                                        <div style={{ fontSize: 13, fontWeight: 700, color: T.navy }}>{item.name}</div>
-                                                                        <div style={{ fontSize: 11, color: T.slate }}>{item.qty} {item.unit} | Rp {(item.estPrice || 0).toLocaleString('id-ID')}</div>
-                                                                    </div>
-                                                                </label>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                                                        <div>
-                                                            <Label>Prioritas</Label>
-                                                            <Select value={workshopOrderPriority} onChange={e => setWorkshopOrderPriority(e.target.value)}>
-                                                                <option value="LOW">Low</option>
-                                                                <option value="NORMAL">Normal</option>
-                                                                <option value="HIGH">High</option>
-                                                                <option value="URGENT">Urgent</option>
-                                                            </Select>
-                                                        </div>
-                                                        <div>
-                                                            <Label>Deadline (Opsional)</Label>
-                                                            <Input type="date" value={workshopOrderDeadline} onChange={e => setWorkshopOrderDeadline(e.target.value)} />
-                                                        </div>
-                                                    </div>
-
-                                                    <div>
-                                                        <Label>Catatan Tambahan (Opsional)</Label>
-                                                        <Textarea rows={3} value={workshopOrderNotes} onChange={e => setWorkshopOrderNotes(e.target.value)} placeholder="Tambahkan instruksi khusus..." />
-                                                    </div>
-
-                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 10 }}>
-                                                        <Btn type="button" variant="ghost" onClick={() => setShowWorkshopModal(false)}>Batal</Btn>
-                                                        <Btn type="submit" variant="gold">
-                                                            Kirim Pesanan
-                                                        </Btn>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    )}
+                                        </label>
+                                    ))}
                                 </div>
-                            );
-                        };
+                            </div>
 
-                        export default ProcurementDetail;
-                        // Append something to test
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                                <div>
+                                    <Label>Prioritas</Label>
+                                    <Select value={workshopOrderPriority} onChange={e => setWorkshopOrderPriority(e.target.value)}>
+                                        <option value="LOW">Low</option>
+                                        <option value="NORMAL">Normal</option>
+                                        <option value="HIGH">High</option>
+                                        <option value="URGENT">Urgent</option>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label>Deadline (Opsional)</Label>
+                                    <Input type="date" value={workshopOrderDeadline} onChange={e => setWorkshopOrderDeadline(e.target.value)} />
+                                </div>
+                            </div>
+
+                            <div>
+                                <Label>Catatan Tambahan (Opsional)</Label>
+                                <Textarea rows={3} value={workshopOrderNotes} onChange={e => setWorkshopOrderNotes(e.target.value)} placeholder="Tambahkan instruksi khusus..." />
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 10 }}>
+                                <Btn type="button" variant="ghost" onClick={() => setShowWorkshopModal(false)}>Batal</Btn>
+                                <Btn type="submit" variant="gold">
+                                    Kirim Pesanan
+                                </Btn>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default ProcurementDetail;
+// Append something to test

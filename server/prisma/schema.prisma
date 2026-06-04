@@ -400,8 +400,9 @@ model Maintenance {
   costDetails     Json? // Array of { label: string, price: number, assetId: number | null }
 
   aiDiagnosis   Json? // AI Diagnosis Results (Diagnosis, Severity, Actions)
-  isDirectOrder Boolean @default(false)
-  quickToken    String? @unique // Token for quick update via WA
+  isDirectOrder    Boolean   @default(false)
+  quickToken       String?   @unique // Token for quick update via WA
+  firstRespondedAt DateTime? // Waktu respon pertama (Setujui/Tolak) untuk SLA
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

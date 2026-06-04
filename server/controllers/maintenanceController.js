@@ -6,6 +6,31 @@ const { createNotification } = require('./notificationController');
 const predictiveService = require('../services/predictiveService');
 const crypto = require('crypto');
 
+// --- Business Day Helpers for SLA Respon Awal ---
+
+/**
+ * Adjust a date to the next business day (Mon-Fri).
+ * Saturday -> Monday, Sunday -> Monday.
+ */
+const adjustToBusinessDay = (date) => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0=Sunday, 6=Saturday
+    if (day === 0) d.setDate(d.getDate() + 1); // Sunday -> Monday
+    if (day === 6) d.setDate(d.getDate() + 2); // Saturday -> Monday
+    return d;
+};
+
+/**
+ * Calculate difference in hours between adjusted business start and response time.
+ * Start date is adjusted to next business day if weekend.
+ */
+const calculateBusinessHoursDiff = (createdAt, respondedAt) => {
+    const start = adjustToBusinessDay(createdAt);
+    const end = new Date(respondedAt);
+    const diffMs = Math.abs(end - start);
+    return diffMs / (1000 * 60 * 60); // hours
+};
+
 // Get Dashboard Stats
 exports.getDashboardStats = async (req, res) => {
     try {
@@ -151,13 +176,62 @@ exports.getDashboardStats = async (req, res) => {
             slaStats.overallAvgDays = totalDaysAll / validTasksCount;
         }
 
+        // 7. Initial Response Speed (Sarpras Only)
+        const respondedSarprasTasks = await prisma.maintenance.findMany({
+            where: {
+                targetDept: 'SARPRAS',
+                firstRespondedAt: { not: null },
+                createdAt: { gte: startOfPeriod, lt: endOfPeriod }
+            },
+            select: {
+                createdAt: true,
+                firstRespondedAt: true,
+                urgency: true
+            }
+        });
+
+        const initialResponseStats = {
+            overallAvgHours: 0,
+            totalResponded: 0,
+            byUrgency: {
+                NORMAL: { avgHours: 0, count: 0 },
+                URGENT: { avgHours: 0, count: 0 },
+                EMERGENCY: { avgHours: 0, count: 0 }
+            }
+        };
+
+        let totalHoursAll = 0;
+        let validRespondedCount = 0;
+
+        respondedSarprasTasks.forEach(task => {
+            if (task.createdAt && task.firstRespondedAt) {
+                const diffHours = calculateBusinessHoursDiff(task.createdAt, task.firstRespondedAt);
+
+                totalHoursAll += diffHours;
+                validRespondedCount++;
+
+                const urgency = task.urgency || 'NORMAL';
+                if (initialResponseStats.byUrgency[urgency]) {
+                    const u = initialResponseStats.byUrgency[urgency];
+                    u.avgHours = ((u.avgHours * u.count) + diffHours) / (u.count + 1);
+                    u.count++;
+                }
+            }
+        });
+
+        if (validRespondedCount > 0) {
+            initialResponseStats.overallAvgHours = totalHoursAll / validRespondedCount;
+        }
+        initialResponseStats.totalResponded = validRespondedCount;
+
         res.json({
             totalCostThisMonth,
             activeReportsCount,
             overdueAssetsCount,
             monthlyTrend,
             recentReports,
-            slaStats
+            slaStats,
+            initialResponseStats
         });
 
     } catch (error) {
@@ -607,6 +681,11 @@ exports.updateStatus = async (req, res) => {
             updateData.quickToken = null; // Clear token after use
         }
 
+        // Record first response time (for SLA Respon Awal)
+        if (oldReport.status === 'SUBMITTED' && status !== 'SUBMITTED' && !oldReport.firstRespondedAt) {
+            updateData.firstRespondedAt = new Date();
+        }
+
         // Generate quickToken if assigned
         if (status === 'ASSIGNED') {
             updateData.quickToken = crypto.randomBytes(16).toString('hex');
@@ -1035,5 +1114,108 @@ exports.checkAssetMaintenanceReminders = async () => {
 
     } catch (error) {
         console.error('[Scheduler] checkAssetMaintenanceReminders Error:', error);
+    }
+};
+
+/**
+ * Scheduled Task: Send daily notification at 08:30 WIB for Sarpras reports
+ * that have been in SUBMITTED status for more than 48 hours (calendar hours
+ * from business-day-adjusted createdAt).
+ * Recipients: Staff Manajemen Aset (WhatsApp + In-App Notification)
+ */
+exports.checkUnrespondedReports = async () => {
+    try {
+        console.log('[Scheduler] Checking Unresponded Sarpras Reports (>48h)...');
+
+        const now = new Date();
+        const threshold48h = new Date(now.getTime() - (48 * 60 * 60 * 1000)); // 48 hours ago
+
+        // Find all SUBMITTED Sarpras reports
+        const submittedReports = await prisma.maintenance.findMany({
+            where: {
+                targetDept: 'SARPRAS',
+                status: 'SUBMITTED',
+                createdAt: { lt: threshold48h }
+            },
+            include: {
+                user: { select: { name: true, username: true } },
+                unit: { select: { name: true } }
+            },
+            orderBy: { createdAt: 'asc' }
+        });
+
+        // Filter: only include reports whose business-day-adjusted createdAt is >48h
+        const overdueReports = submittedReports.filter(report => {
+            const adjustedCreated = adjustToBusinessDay(report.createdAt);
+            const diffHours = (now - adjustedCreated) / (1000 * 60 * 60);
+            return diffHours > 48;
+        });
+
+        if (overdueReports.length === 0) {
+            console.log('[Scheduler] No unresponded Sarpras reports >48h. Skipping.');
+            return;
+        }
+
+        console.log(`[Scheduler] Found ${overdueReports.length} unresponded Sarpras report(s) >48h.`);
+
+        // Prepare WhatsApp Message
+        let msg = `Bismillah.\n⚠️ *LAPORAN SARPRAS BELUM DIRESPON (>48 Jam)*\n\n` +
+            `Berikut adalah ${overdueReports.length} laporan pemeliharaan Sarpras yang belum direspon lebih dari 48 jam:\n\n`;
+
+        overdueReports.slice(0, 15).forEach((report, i) => {
+            const adjustedCreated = adjustToBusinessDay(report.createdAt);
+            const hoursAgo = Math.round((now - adjustedCreated) / (1000 * 60 * 60));
+            const pelapor = report.user?.name || report.user?.username || '-';
+            msg += `${i + 1}. *${report.title}* (${report.code})\n`;
+            msg += `   📍 ${report.unit?.name || 'Umum'} | 👤 ${pelapor}\n`;
+            msg += `   ⏱️ Sudah ${hoursAgo} jam belum direspon\n\n`;
+        });
+
+        if (overdueReports.length > 15) {
+            msg += `...dan ${overdueReports.length - 15} laporan lainnya.\n\n`;
+        }
+
+        msg += `Mohon segera ditindaklanjuti.\n\n` +
+            `_Sistem Manajemen Aset_`;
+
+        // Find Recipients (Staff Manajemen Aset)
+        const recipients = await prisma.user.findMany({
+            where: {
+                position: { contains: 'Manajemen Aset' },
+                phone: { not: null, not: '' }
+            }
+        });
+
+        // Send WhatsApp
+        for (const user of recipients) {
+            try {
+                await whatsappService.sendMessage(user.phone, msg);
+                console.log(`[Scheduler] Unresponded report summary sent to ${user.name} (${user.phone})`);
+            } catch (e) {
+                console.error(`[Scheduler] Failed to send WA to ${user.phone}:`, e.message);
+            }
+        }
+
+        // Send In-App Notification to all Staff Manajemen Aset
+        const allStaffAset = await prisma.user.findMany({
+            where: { position: { contains: 'Manajemen Aset' } }
+        });
+
+        for (const staff of allStaffAset) {
+            try {
+                await createNotification(
+                    staff.id,
+                    '⚠️ Laporan Belum Direspon >48 Jam',
+                    `Ada ${overdueReports.length} laporan pemeliharaan Sarpras yang belum direspon lebih dari 48 jam. Mohon segera ditindaklanjuti.`,
+                    'WARNING',
+                    '/pemeliharaan'
+                );
+            } catch (e) {
+                console.error(`[Scheduler] In-app notif error for ${staff.username}:`, e.message);
+            }
+        }
+
+    } catch (error) {
+        console.error('[Scheduler] checkUnrespondedReports Error:', error);
     }
 };

@@ -12,7 +12,7 @@ const {
     checkMissingReportsWeekly 
 } = require('../controllers/personnelController');
 const { sendWeeklyAssetSummary } = require('./summaryNotification');
-const { checkAssetMaintenanceReminders } = require('../controllers/maintenanceController');
+const { checkAssetMaintenanceReminders, checkUnrespondedReports } = require('../controllers/maintenanceController');
 const { checkBusBookingNotifications, checkUnpaidBusInvoices } = require('../controllers/busBookingController');
 const { checkInvoiceDueDates } = require('../controllers/officeDocumentController');
 
@@ -91,11 +91,16 @@ const initScheduler = () => {
         // 3b. ASSET MAINTENANCE REMINDER (Daily at 08:30 AM)
         // ----------------------------------------------------
         if (hour === 8 && minute === 30) {
-            console.log('[Scheduler] Executing Asset Maintenance Reminders...');
+            console.log('[Scheduler] Executing Asset Maintenance Reminders & Unresponded Report Check...');
             try {
                 await checkAssetMaintenanceReminders();
             } catch (err) {
                 console.error('[Scheduler] Error in Asset Reminders:', err);
+            }
+            try {
+                await checkUnrespondedReports();
+            } catch (err) {
+                console.error('[Scheduler] Error in Unresponded Reports Check:', err);
             }
         }
 

@@ -181,6 +181,45 @@ const MaintenanceDashboard = () => {
                 </div>
             )}
 
+            {/* Initial Response Speed Section (Sarpras Only) */}
+            {stats.initialResponseStats && (
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                    <div className="mb-4 flex items-center gap-2">
+                        <Clock className="text-blue-500" size={20} />
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800">Kecepatan Respon Awal (Sarpras)</h3>
+                            <p className="text-xs text-slate-500">Rata-rata waktu respon pertama (Setujui/Tolak) — hari kerja Senin-Jumat</p>
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-white rounded-xl border border-blue-100 p-5 shadow-sm border-l-4 border-l-blue-500">
+                            <p className="text-slate-500 text-sm font-semibold mb-1">Rata-rata Keseluruhan</p>
+                            <h3 className="text-2xl font-black text-blue-700">{(stats.initialResponseStats?.overallAvgHours || 0).toFixed(1)} <span className="text-sm font-medium text-slate-500">Jam</span></h3>
+                            <p className="text-xs text-slate-400 mt-1">{stats.initialResponseStats?.totalResponded || 0} laporan direspon</p>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl border border-red-100 p-5 shadow-sm border-l-4 border-l-red-500">
+                            <p className="text-slate-500 text-sm font-semibold mb-1">Darurat (Emergency)</p>
+                            <h3 className="text-2xl font-black text-red-600">{(stats.initialResponseStats?.byUrgency?.EMERGENCY?.avgHours || 0).toFixed(1)} <span className="text-sm font-medium text-slate-500">Jam</span></h3>
+                            <p className="text-xs text-slate-400 mt-1">{stats.initialResponseStats?.byUrgency?.EMERGENCY?.count || 0} laporan direspon</p>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl border border-amber-100 p-5 shadow-sm border-l-4 border-l-amber-500">
+                            <p className="text-slate-500 text-sm font-semibold mb-1">Penting (Urgent)</p>
+                            <h3 className="text-2xl font-black text-amber-600">{(stats.initialResponseStats?.byUrgency?.URGENT?.avgHours || 0).toFixed(1)} <span className="text-sm font-medium text-slate-500">Jam</span></h3>
+                            <p className="text-xs text-slate-400 mt-1">{stats.initialResponseStats?.byUrgency?.URGENT?.count || 0} laporan direspon</p>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm border-l-4 border-l-slate-400">
+                            <p className="text-slate-500 text-sm font-semibold mb-1">Biasa (Normal)</p>
+                            <h3 className="text-2xl font-black text-slate-700">{(stats.initialResponseStats?.byUrgency?.NORMAL?.avgHours || 0).toFixed(1)} <span className="text-sm font-medium text-slate-500">Jam</span></h3>
+                            <p className="text-xs text-slate-400 mt-1">{stats.initialResponseStats?.byUrgency?.NORMAL?.count || 0} laporan direspon</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Cost Trend Chart */}
                 <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
