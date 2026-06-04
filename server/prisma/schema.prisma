@@ -100,7 +100,8 @@ model User {
   procurementProgress ProcurementProgress[]
 
   // Workshop Orders
-  workshopOrders WorkshopOrder[] @relation("WorkshopRequester")
+  workshopOrders   WorkshopOrder[]    @relation("WorkshopRequester")
+  workshopProgress WorkshopProgress[] @relation("WorkshopProgressCreator")
   // Driver Extensions
   licenseNumber    String?
   licenseType      String? // e.g., SIM A, SIM B1, SIM B2
@@ -1477,6 +1478,7 @@ model WorkshopProgress {
   percentage      Int            @default(0) // 0-100
   photo           String?        @db.LongText
   createdById     Int?
+  user            User?          @relation("WorkshopProgressCreator", fields: [createdById], references: [id])
   createdAt       DateTime       @default(now())
   
   @@index([orderId])
