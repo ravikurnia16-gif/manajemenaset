@@ -1,0 +1,461 @@
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+const { uploadFile } = require('../services/minioService');
+const whatsappService = require('../services/whatsappService');
+const { createNotification } = require('./notificationController');
+
+// Helper to generate Request Code
+const generateCode = async (type) => {
+    const year = new Date().getFullYear();
+    const typeCode = type === 'KAYU' ? 'KY' : 'BS';
+
+    const lastRecord = await prisma.workshopOrder.findFirst({
+        where: {
+            code: {
+                startsWith: `WS/${typeCode}/${year}/`
+            }
+        },
+        orderBy: {
+            code: 'desc'
+        }
+    });
+
+    let nextSequence = 1;
+    if (lastRecord) {
+        const parts = lastRecord.code.split('/');
+        if (parts.length === 4) {
+            const lastSeq = parseInt(parts[3]);
+            if (!isNaN(lastSeq)) {
+                nextSequence = lastSeq + 1;
+            }
+        }
+    }
+
+    const sequence = nextSequence.toString().padStart(3, '0');
+    return `WS/${typeCode}/${year}/${sequence}`;
+};
+
+// Generate Surat Pesanan E-Office
+const generateSuratPesanan = async (order, user) => {
+    // Cari data user lengkap untuk tanda tangan nanti (walaupun di draft, authornya jelas)
+    const author = await prisma.user.findUnique({ where: { id: user.id } });
+
+    const contentData = {
+        orderCode: order.code,
+        workshopType: order.workshopType,
+        title: order.title,
+        priority: order.priority,
+        deadline: order.deadline ? new Date(order.deadline).toISOString().split('T')[0] : '-',
+        estimatedCost: order.estimatedCost,
+        items: order.items.map(item => ({
+            name: item.name,
+            spec: item.spec,
+            qty: item.qty,
+            unit: item.unit
+        })),
+        notes: order.notes,
+        orderStatus: order.status
+    };
+
+    const newDoc = await prisma.officeDocument.create({
+        data: {
+            type: 'SURAT_PESANAN',
+            subject: `Surat Pesanan Workshop - ${order.title}`,
+            category: 'Pesanan',
+            content: JSON.stringify(contentData),
+            authorId: user.id,
+            status: 'PENDING_APPROVAL', // Langsung diarahkan ke Kabid untuk TTE
+            priority: order.priority === 'URGENT' ? 'SANGAT_SEGERA' : (order.priority === 'HIGH' ? 'SEGERA' : 'BIASA'),
+        }
+    });
+
+    // Update order dengan link surat
+    await prisma.workshopOrder.update({
+        where: { id: order.id },
+        data: { officeDocumentId: newDoc.id }
+    });
+
+    return newDoc;
+};
+
+// --- CONTROLLER FUNCTIONS ---
+
+// 1. Dashboard Stats
+exports.getDashboardStats = async (req, res) => {
+    const user = req.user;
+    try {
+        const isWorkshopAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) || (user.unit?.name || '').toLowerCase().includes('workshop');
+        
+        let whereClause = {};
+        if (!isWorkshopAdmin) {
+            whereClause = { requestedById: user.id };
+        } else if ((user.unit?.name || '').toLowerCase().includes('workshop') && !['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
+             // Jika hanya admin unit workshop, dia cuma bisa lihat orderan ke unitnya
+             whereClause = { workshopUnitId: user.unitId };
+        }
+
+        const totalOrders = await prisma.workshopOrder.count({ where: whereClause });
+        const inProgress = await prisma.workshopOrder.count({ where: { ...whereClause, status: 'IN_PROGRESS' } });
+        const completed = await prisma.workshopOrder.count({ where: { ...whereClause, status: 'COMPLETED' } });
+        
+        const kayuStats = await prisma.workshopOrder.count({ where: { ...whereClause, workshopType: 'KAYU' } });
+        const besiStats = await prisma.workshopOrder.count({ where: { ...whereClause, workshopType: 'BESI' } });
+
+        const recentOrders = await prisma.workshopOrder.findMany({
+            where: whereClause,
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            include: { requestedBy: { select: { name: true } }, unit: { select: { name: true } } }
+        });
+
+        res.json({
+            totalOrders,
+            inProgress,
+            completed,
+            byType: { KAYU: kayuStats, BESI: besiStats },
+            recentOrders
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 2. Get All Orders
+exports.getAllOrders = async (req, res) => {
+    const user = req.user;
+    const { type, status, priority } = req.query;
+
+    try {
+        const isWorkshopAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) || (user.unit?.name || '').toLowerCase().includes('workshop');
+        
+        let whereClause = {};
+        if (type) whereClause.workshopType = type;
+        if (status) whereClause.status = status;
+        if (priority) whereClause.priority = priority;
+
+        if (!isWorkshopAdmin) {
+            whereClause.requestedById = user.id;
+        } else if ((user.unit?.name || '').toLowerCase().includes('workshop') && !['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
+             whereClause.workshopUnitId = user.unitId;
+        }
+
+        const orders = await prisma.workshopOrder.findMany({
+            where: whereClause,
+            include: {
+                requestedBy: { select: { name: true, username: true } },
+                unit: { select: { name: true } },
+                workshopUnit: { select: { name: true } },
+                _count: { select: { items: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        res.json(orders);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 3. Get Order by ID
+exports.getOrderById = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const order = await prisma.workshopOrder.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                items: true,
+                progress: {
+                    include: { user: { select: { id: true, name: true, username: true } } },
+                    orderBy: { createdAt: 'desc' }
+                },
+                requestedBy: { select: { name: true, username: true, phone: true } },
+                unit: { select: { name: true } },
+                workshopUnit: { select: { name: true } },
+                procurement: { select: { code: true, title: true } },
+                officeDocument: { select: { id: true, number: true, status: true, uuid: true } }
+            }
+        });
+
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+        res.json(order);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 4. Create Order
+exports.createOrder = async (req, res) => {
+    const { workshopType, title, description, priority, deadline, notes, items, workshopUnitId, picName } = req.body;
+    const user = req.user;
+
+    try {
+        if (!items || items.length === 0) {
+            return res.status(400).json({ error: 'Minimal harus ada 1 item pesanan.' });
+        }
+
+        const code = await generateCode(workshopType);
+        
+        let estimatedCost = 0;
+        const itemData = items.map(it => {
+            const mat = parseFloat(it.materialCost || 0);
+            const lab = parseFloat(it.laborCost || 0);
+            estimatedCost += (mat + lab) * parseInt(it.qty || 1);
+            
+            return {
+                name: it.name,
+                spec: it.spec,
+                qty: parseInt(it.qty || 1),
+                unit: it.unit || 'Unit',
+                materialCost: mat,
+                laborCost: lab
+            };
+        });
+
+        const newOrder = await prisma.workshopOrder.create({
+            data: {
+                code,
+                workshopType,
+                title,
+                description,
+                priority: priority || 'NORMAL',
+                deadline: deadline ? new Date(deadline) : null,
+                notes,
+                requestedById: user.id,
+                unitId: user.unitId,
+                workshopUnitId: workshopUnitId ? parseInt(workshopUnitId) : null,
+                picName,
+                estimatedCost,
+                status: 'PENDING',
+                items: {
+                    create: itemData
+                }
+            },
+            include: {
+                items: true,
+                requestedBy: true
+            }
+        });
+
+        // Auto-generate E-Office Document
+        await generateSuratPesanan(newOrder, user);
+
+        // Notify Admins
+        const admins = await prisma.user.findMany({
+            where: {
+                OR: [
+                    { position: 'Kepala Bidang Sarana dan Prasarana' },
+                    { role: 'ADMIN_ASET' }
+                ],
+                phone: { not: null, not: '' }
+            }
+        });
+
+        if (admins.length > 0) {
+            const msg = `Bismillah.\n*Request Workshop Baru* \u{1F6E0}\n\n` +
+                `Dari: *${user.name || user.username}*\n` +
+                `Tipe: *Workshop ${workshopType}*\n` +
+                `Order: *${title}*\n\n` +
+                `Mohon dicek di sistem dan Surat Pesanan menunggu TTE.`;
+
+            admins.forEach(admin => {
+                setTimeout(() => {
+                    whatsappService.sendMessage(admin.phone, msg).catch(console.error);
+                }, 5000);
+            });
+        }
+
+        res.json({ message: 'Order created successfully', data: newOrder });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 5. Update Status
+exports.updateOrderStatus = async (req, res) => {
+    const { id } = req.params;
+    const { status, message, photoBase64 } = req.body;
+    const user = req.user;
+
+    try {
+        const order = await prisma.workshopOrder.findUnique({ where: { id: parseInt(id) }, include: { requestedBy: true } });
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+
+        const updateData = { status };
+        let progressMsg = `Status diperbarui menjadi: ${status}`;
+        
+        if (status === 'IN_PROGRESS' && order.status === 'PENDING') {
+            updateData.startDate = new Date();
+            progressMsg = 'Pekerjaan dimulai.';
+        } else if (status === 'COMPLETED') {
+            updateData.completionDate = new Date();
+            progressMsg = 'Pekerjaan selesai.';
+            
+            // Sync status E-Office Document if exists
+            if (order.officeDocumentId) {
+                const doc = await prisma.officeDocument.findUnique({ where: { id: order.officeDocumentId } });
+                if (doc) {
+                    try {
+                        const content = JSON.parse(doc.content || '{}');
+                        content.orderStatus = 'COMPLETED';
+                        await prisma.officeDocument.update({
+                            where: { id: doc.id },
+                            data: { content: JSON.stringify(content) }
+                        });
+                    } catch(e) {}
+                }
+            }
+        } else if (message) {
+            progressMsg = message;
+        }
+
+        // Upload photo if any
+        let photoUrl = null;
+        if (photoBase64 && photoBase64.startsWith('data:')) {
+            const matches = photoBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+            if (matches && matches.length === 3) {
+                const type = matches[1];
+                const buffer = Buffer.from(matches[2], 'base64');
+                const extension = type.split('/')[1] || 'jpg';
+                photoUrl = await uploadFile(buffer, `ws_progress_${Date.now()}.${extension}`, type, 'workshop');
+            }
+        }
+
+        const updatedOrder = await prisma.$transaction(async (prisma) => {
+            const updated = await prisma.workshopOrder.update({
+                where: { id: parseInt(id) },
+                data: updateData
+            });
+
+            await prisma.workshopProgress.create({
+                data: {
+                    orderId: parseInt(id),
+                    message: progressMsg,
+                    photo: photoUrl,
+                    createdById: user.id
+                }
+            });
+
+            return updated;
+        });
+
+        // Notif to requestor
+        if (order.requestedBy?.phone) {
+            const waMsg = `Bismillah.\n*Update Order Workshop*\n\n` +
+                `Order Anda: *${order.title}*\n` +
+                `Status saat ini: *${status}*\n\n` +
+                (message ? `Catatan: ${message}` : `Silakan cek di sistem.`);
+                
+            setTimeout(() => {
+                whatsappService.sendMessage(order.requestedBy.phone, waMsg).catch(console.error);
+            }, 3000);
+        }
+
+        res.json(updatedOrder);
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 6. Add Progress
+exports.addProgress = async (req, res) => {
+    const { id } = req.params;
+    const { message, percentage, photoBase64 } = req.body;
+    const user = req.user;
+
+    try {
+        let photoUrl = null;
+        if (photoBase64 && photoBase64.startsWith('data:')) {
+            const matches = photoBase64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+            if (matches && matches.length === 3) {
+                const type = matches[1];
+                const buffer = Buffer.from(matches[2], 'base64');
+                const extension = type.split('/')[1] || 'jpg';
+                photoUrl = await uploadFile(buffer, `ws_progress_${Date.now()}.${extension}`, type, 'workshop');
+            }
+        }
+
+        const progress = await prisma.workshopProgress.create({
+            data: {
+                orderId: parseInt(id),
+                message,
+                percentage: percentage ? parseInt(percentage) : 0,
+                photo: photoUrl,
+                createdById: user.id
+            }
+        });
+
+        res.json(progress);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 7. Create from Procurement
+exports.createFromProcurement = async (req, res) => {
+    const { procurementId, workshopType, priority, deadline, notes, itemsIds } = req.body;
+    const user = req.user;
+
+    try {
+        const procurement = await prisma.procurement.findUnique({
+            where: { id: parseInt(procurementId) },
+            include: { items: true }
+        });
+
+        if (!procurement) return res.status(404).json({ error: 'Procurement not found' });
+        if (procurement.status !== 'APPROVED' && procurement.status !== 'COMPLETED') {
+             return res.status(400).json({ error: 'Procurement belum di-approve.' });
+        }
+
+        // Filter items
+        const selectedItems = itemsIds 
+            ? procurement.items.filter(it => itemsIds.includes(it.id))
+            : procurement.items;
+
+        if (selectedItems.length === 0) return res.status(400).json({ error: 'Tidak ada item yang dipilih' });
+
+        const code = await generateCode(workshopType);
+        
+        const itemData = selectedItems.map(it => ({
+            name: it.name,
+            spec: it.spec,
+            qty: it.qty,
+            unit: it.unit,
+            materialCost: it.estPrice || 0, // Using est price as material cost as baseline
+        }));
+
+        let estimatedCost = itemData.reduce((acc, curr) => acc + (curr.materialCost * curr.qty), 0);
+
+        const newOrder = await prisma.workshopOrder.create({
+            data: {
+                code,
+                workshopType,
+                title: `[PROC] ${procurement.title || procurement.code}`,
+                description: `Ter-generate otomatis dari Procurement: ${procurement.code}`,
+                priority: priority || 'NORMAL',
+                deadline: deadline ? new Date(deadline) : null,
+                notes,
+                requestedById: procurement.userId,
+                unitId: procurement.unitId,
+                procurementId: procurement.id,
+                estimatedCost,
+                status: 'PENDING',
+                items: {
+                    create: itemData
+                }
+            },
+            include: {
+                items: true
+            }
+        });
+
+        // Auto-generate Surat Pesanan
+        await generateSuratPesanan(newOrder, user);
+
+        res.json({ message: 'Order created from procurement', data: newOrder });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

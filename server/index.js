@@ -51,6 +51,7 @@ app.use('/api/asset-standards', require('./routes/assetStandardRoutes'));
 app.use('/api/audit', require('./routes/auditRoutes'));
 app.use('/api/construction', require('./routes/constructionRoutes'));
 app.use('/api/contractors', require('./routes/contractorRoutes'));
+app.use('/api/workshop', require('./routes/workshopRoutes'));
 
 
 // Serve Static Files

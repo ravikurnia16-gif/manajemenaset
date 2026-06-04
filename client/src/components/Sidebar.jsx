@@ -58,11 +58,12 @@ const Sidebar = ({ isOpen = true }) => {
     ];
     const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position && user.position.toLowerCase().includes(kw));
 
-    const isTechAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user?.role);
-    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
     const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user?.role);
+    const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+    const isKabidSarpras = user?.position === 'Kepala Bidang Sarana dan Prasarana';
+    const isAdminAset = user?.role === 'ADMIN_ASET';
+    const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || (user?.unit?.name || '').toLowerCase().includes('workshop');
 
-    const isKabidSarpras = user?.position?.toLowerCase() === 'kepala bidang sarana dan prasarana';
     const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(user?.role) || ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user?.position);
 
     const renderCollapsible = (key, icon, label, children) => (
@@ -122,9 +123,6 @@ const Sidebar = ({ isOpen = true }) => {
                 "flex-1 overflow-y-auto custom-scrollbar space-y-4 transition-all duration-300",
                 isOpen ? "p-3" : "p-0 overflow-hidden"
             )}>
-
-
-
                 {/* 1. Manajemen Aset */}
                 {renderCollapsible('assets', <Box size={18} />, 'Manajemen Aset', (
                     <>

@@ -11,6 +11,8 @@ import RKBDetail from './pages/RKBDetail';
 import ProcurementList from './pages/ProcurementList';
 import ProcurementForm from './pages/ProcurementForm';
 import ProcurementDetail from './pages/ProcurementDetail';
+import OfficeDocumentDetail from './pages/OfficeDocumentDetail';
+import OfficeDocumentGenerator from './pages/OfficeDocumentGenerator';
 import MaintenanceList from './pages/MaintenanceList';
 import MaintenanceForm from './pages/MaintenanceForm';
 import MaintenanceDetail from './pages/MaintenanceDetail';
@@ -34,6 +36,10 @@ import BusInvoicePublic from './pages/BusInvoicePublic';
 import BusInvoiceBatchPrint from './pages/BusInvoiceBatchPrint';
 import BusConfirmationPublic from './pages/BusConfirmationPublic';
 import BusInvoiceVerify from './pages/BusInvoiceVerify';
+
+import WorkshopDashboard from './pages/WorkshopDashboard';
+import WorkshopOrderList from './pages/WorkshopOrderList';
+import WorkshopOrderDetail from './pages/WorkshopOrderDetail';
 
 import VehicleMaintenanceList from './pages/VehicleMaintenanceList';
 import VehicleMaintenanceForm from './pages/VehicleMaintenanceForm';
@@ -62,19 +68,12 @@ import PublicVerify from './pages/PublicVerify';
 import AssetStandardCatalog from './pages/AssetStandardCatalog';
 import AssetStandardForm from './pages/AssetStandardForm';
 import AuditList from './pages/AuditList';
+import AuditSessionList from './pages/AuditSessionList';
 import AuditSessionDetail from './pages/AuditSessionDetail';
 import ConstructionDashboard from './pages/ConstructionDashboard';
 import ContractorList from './pages/ContractorList';
+import ProtectedRoute from './components/ProtectedRoute';
 
-
-// Komponen untuk melindungi route yang butuh login
-const ProtectedRoute = ({ children }) => {
-  const user = localStorage.getItem('user');
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-  return children;
-};
 
 function App() {
   useEffect(() => {
@@ -154,16 +153,27 @@ function App() {
           <Route path="aset/audit/:id" element={<AuditSessionDetail />} />
           <Route path="master" element={<MasterData />} />
           <Route path="rkb" element={<RKBList />} />
-          <Route path="rkb/:id" element={<RKBDetail />} />
-          <Route path="procurements" element={<ProcurementList />} />
-          <Route path="procurements/new" element={<ProcurementForm />} />
-          <Route path="procurements/:id" element={<ProcurementDetail />} />
-          <Route path="vendors" element={<VendorManagement />} />
+                    {/* Modul E-Office */}
+                    <Route path="/e-office/documents" element={<ProtectedRoute><EOffice /></ProtectedRoute>} />
+                    <Route path="/e-office/documents/generate" element={<ProtectedRoute><OfficeDocumentGenerator /></ProtectedRoute>} />
+                    <Route path="/e-office/documents/:id" element={<ProtectedRoute><OfficeDocumentDetail /></ProtectedRoute>} />
+
+                    {/* Modul Manajemen Workshop */}
+                    <Route path="/workshop/dashboard" element={<ProtectedRoute><WorkshopDashboard /></ProtectedRoute>} />
+                    <Route path="/workshop/orders" element={<ProtectedRoute><WorkshopOrderList /></ProtectedRoute>} />
+                    <Route path="/workshop/orders/:id" element={<ProtectedRoute><WorkshopOrderDetail /></ProtectedRoute>} />
+
+                    {/* Modul Audit */}
+                    <Route path="/audit" element={<ProtectedRoute><AuditSessionList /></ProtectedRoute>} />
           <Route path="prasarana/proyek" element={<ConstructionDashboard />} />
           <Route path="prasarana/tukang" element={<ContractorList />} />
           <Route path="pemeliharaan" element={<MaintenanceList />} />
           <Route path="pemeliharaan/input" element={<MaintenanceForm />} />
           <Route path="pemeliharaan/:id" element={<MaintenanceDetail />} />
+          <Route path="procurements" element={<ProcurementList />} />
+          <Route path="procurements/new" element={<ProcurementForm />} />
+          <Route path="procurements/:id" element={<ProcurementDetail />} />
+          <Route path="vendors" element={<VendorManagement />} />
           <Route path="settings" element={<Settings />} />
           <Route path="mutasi" element={<MutationList />} />
           <Route path="mutasi/request" element={<MutationForm />} />
