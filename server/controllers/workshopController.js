@@ -448,6 +448,32 @@ exports.createFromProcurement = async (req, res) => {
         // Auto-generate Surat Pesanan
         await generateSuratPesanan(newOrder, user);
 
+        // Notify Sarpras Unit with Workshop Unit(s)
+        const recipients = await prisma.user.findMany({
+            where: {
+                position: 'Sarpras Unit',
+                unit: {
+                    name: {
+                        contains: 'Workshop'
+                    }
+                },
+                phone: { not: null, not: '' }
+            }
+        });
+
+        if (recipients.length > 0) {
+            const msg = `Bismillah.\n*Request Workshop Baru* \u{1F6E0}\n\n` +
+                `Dari: *${user.name || user.username}*\n` +
+                `Order: *[PROC] ${procurement.title || procurement.code}*\n\n` +
+                `Mohon dicek di sistem.`;
+
+            recipients.forEach(recipient => {
+                setTimeout(() => {
+                    whatsappService.sendMessage(recipient.phone, msg).catch(console.error);
+                }, 5000);
+            });
+        }
+
         res.json({ message: 'Order created from procurement', data: newOrder });
 
     } catch (error) {
