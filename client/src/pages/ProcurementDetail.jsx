@@ -610,6 +610,7 @@ const ProcurementDetail = () => {
             setShowWorkshopModal(false);
             // reset selection
             setSelectedWorkshopItems({});
+            navigate('/workshop/orders');
         } catch (e) {
             alert(e.response?.data?.error || e.message);
         } finally {
@@ -1017,9 +1018,21 @@ const ProcurementDetail = () => {
                 <Card>
                     <CardHeader icon={Store} title="Tahap 3 — Pemilihan Vendor Pembanding">
                         {req.status === 'APPROVED' && (isAdmin || isAssignedToAny) && (
-                            <Btn variant="primary" onClick={() => { handleStatus('PROCESS', 'Lanjut ke Finalisasi'); setActiveTab(4); }}>
+                            <>
+                                <Btn variant="gold" onClick={() => {
+                                    const initSelected = {};
+                                    req.items.forEach(item => {
+                                        initSelected[item.id] = true;
+                                    });
+                                    setSelectedWorkshopItems(initSelected);
+                                    setShowWorkshopModal(true);
+                                }}>
+                                    Pesan ke Workshop
+                                </Btn>
+                                <Btn variant="primary" onClick={() => { handleStatus('PROCESS', 'Lanjut ke Finalisasi'); setActiveTab(4); }}>
                                 Lanjut ke Finalisasi <ChevronRight size={14} />
                             </Btn>
+                            </>
                         )}
                     </CardHeader>
 
