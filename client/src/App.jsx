@@ -11,8 +11,6 @@ import RKBDetail from './pages/RKBDetail';
 import ProcurementList from './pages/ProcurementList';
 import ProcurementForm from './pages/ProcurementForm';
 import ProcurementDetail from './pages/ProcurementDetail';
-import OfficeDocumentDetail from './pages/OfficeDocumentDetail';
-import OfficeDocumentGenerator from './pages/OfficeDocumentGenerator';
 import MaintenanceList from './pages/MaintenanceList';
 import MaintenanceForm from './pages/MaintenanceForm';
 import MaintenanceDetail from './pages/MaintenanceDetail';
@@ -68,7 +66,6 @@ import PublicVerify from './pages/PublicVerify';
 import AssetStandardCatalog from './pages/AssetStandardCatalog';
 import AssetStandardForm from './pages/AssetStandardForm';
 import AuditList from './pages/AuditList';
-import AuditSessionList from './pages/AuditSessionList';
 import AuditSessionDetail from './pages/AuditSessionDetail';
 import ConstructionDashboard from './pages/ConstructionDashboard';
 import ContractorList from './pages/ContractorList';
@@ -153,18 +150,7 @@ function App() {
           <Route path="aset/audit/:id" element={<AuditSessionDetail />} />
           <Route path="master" element={<MasterData />} />
           <Route path="rkb" element={<RKBList />} />
-                    {/* Modul E-Office */}
-                    <Route path="/e-office/documents" element={<ProtectedRoute><EOffice /></ProtectedRoute>} />
-                    <Route path="/e-office/documents/generate" element={<ProtectedRoute><OfficeDocumentGenerator /></ProtectedRoute>} />
-                    <Route path="/e-office/documents/:id" element={<ProtectedRoute><OfficeDocumentDetail /></ProtectedRoute>} />
-
-                    {/* Modul Manajemen Workshop */}
-                    <Route path="/workshop/dashboard" element={<ProtectedRoute><WorkshopDashboard /></ProtectedRoute>} />
-                    <Route path="/workshop/orders" element={<ProtectedRoute><WorkshopOrderList /></ProtectedRoute>} />
-                    <Route path="/workshop/orders/:id" element={<ProtectedRoute><WorkshopOrderDetail /></ProtectedRoute>} />
-
-                    {/* Modul Audit */}
-                    <Route path="/audit" element={<ProtectedRoute><AuditSessionList /></ProtectedRoute>} />
+          <Route path="rkb/:id" element={<RKBDetail />} />
           <Route path="prasarana/proyek" element={<ConstructionDashboard />} />
           <Route path="prasarana/tukang" element={<ContractorList />} />
           <Route path="pemeliharaan" element={<MaintenanceList />} />
@@ -174,6 +160,12 @@ function App() {
           <Route path="procurements/new" element={<ProcurementForm />} />
           <Route path="procurements/:id" element={<ProcurementDetail />} />
           <Route path="vendors" element={<VendorManagement />} />
+          
+          {/* Modul Manajemen Workshop */}
+          <Route path="workshop/dashboard" element={<WorkshopDashboard />} />
+          <Route path="workshop/orders" element={<WorkshopOrderList />} />
+          <Route path="workshop/orders/:id" element={<WorkshopOrderDetail />} />
+
           <Route path="settings" element={<Settings />} />
           <Route path="mutasi" element={<MutationList />} />
           <Route path="mutasi/request" element={<MutationForm />} />

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench } from 'lucide-react';
+import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const Sidebar = ({ isOpen = true }) => {
@@ -14,7 +14,8 @@ const Sidebar = ({ isOpen = true }) => {
         vehicles: false,
         warehouse: false,
         personnel: false,
-        eoffice: false
+        eoffice: false,
+        workshop: false
     });
 
     const toggleMenu = (menu) => {
@@ -63,6 +64,7 @@ const Sidebar = ({ isOpen = true }) => {
     const isKabidSarpras = user?.position === 'Kepala Bidang Sarana dan Prasarana';
     const isAdminAset = user?.role === 'ADMIN_ASET';
     const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || (user?.unit?.name || '').toLowerCase().includes('workshop');
+    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
 
     const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(user?.role) || ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user?.position);
 
@@ -191,6 +193,21 @@ const Sidebar = ({ isOpen = true }) => {
                                 <HardHat size={16} /> Database Tukang
                             </Link>
                         )}
+                    </>
+                ))}
+
+                {/* Manajemen Workshop */}
+                {isWorkshopAdmin && renderCollapsible('workshop', <Wrench size={18} />, 'Manajemen Workshop', (
+                    <>
+                        <Link to="/workshop/dashboard" className={subNavItemClass('/workshop/dashboard')}>
+                            <LayoutDashboard size={16} /> Dashboard
+                        </Link>
+                        <Link to="/workshop/orders?type=KAYU" className={subNavItemClass('/workshop/orders?type=KAYU')}>
+                            <HardHat size={16} /> Workshop Kayu
+                        </Link>
+                        <Link to="/workshop/orders?type=BESI" className={subNavItemClass('/workshop/orders?type=BESI')}>
+                            <Cog size={16} /> Workshop Besi
+                        </Link>
                     </>
                 ))}
 

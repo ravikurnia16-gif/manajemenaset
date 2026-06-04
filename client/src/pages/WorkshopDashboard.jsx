@@ -10,7 +10,7 @@ import {
     FileText,
     ArrowRight
 } from 'lucide-react';
-import api from '../utils/api';
+import api from '../lib/axios';
 import { Link } from 'react-router-dom';
 
 function WorkshopDashboard() {

@@ -11,7 +11,7 @@ import {
     Calendar,
     ArrowLeft
 } from 'lucide-react';
-import api from '../utils/api';
+import api from '../lib/axios';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
