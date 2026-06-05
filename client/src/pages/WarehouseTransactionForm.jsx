@@ -146,7 +146,7 @@ const WarehouseTransactionForm = () => {
                                                             <div className="text-[10px] text-slate-400 truncate">
                                                                 {item.itemUnit && <span>{item.itemUnit}</span>}
                                                                 {item.size && <span className="ml-1">({item.size})</span>}
-                                                                {item.gender && <span className="ml-1">{item.gender === 'L' ? 'Ikhwan' : 'Akhwat'}</span>}
+                                                                {item.gender && <span className="ml-1">{item.gender === 'L' || item.gender === 'Ikhwan' ? 'Ikhwan' : item.gender === 'P' || item.gender === 'Akhwat' ? 'Akhwat' : item.gender}</span>}
                                                                 {item.purchaseYear && <span className="ml-1">[{item.purchaseYear}]</span>}
                                                                 <span className={`ml-2 font-bold ${item.stock <= item.minStock ? 'text-red-500' : 'text-green-600'}`}>Stok: {item.stock}</span>
                                                             </div>
