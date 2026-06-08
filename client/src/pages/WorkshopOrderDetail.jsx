@@ -86,10 +86,12 @@ function WorkshopOrderDetail() {
         try {
             await api.put(`/workshop/orders/${id}/status`, {
                 status: newStatus,
-                message: statusMsg
+                message: statusMsg,
+                photoBase64: photoBase64
             });
             Swal.fire('Berhasil', 'Status berhasil diperbarui', 'success');
             setStatusForm(false);
+            setPhotoBase64(null);
             fetchOrder();
         } catch (error) {
             Swal.fire('Gagal', error.response?.data?.error || 'Terjadi kesalahan', 'error');
@@ -185,7 +187,7 @@ function WorkshopOrderDetail() {
                         </button>
                     )}
                     {!isDone && (
-                        <button onClick={() => setStatusForm(true)} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                        <button onClick={() => { setPhotoBase64(null); setStatusForm(true); }} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                             Update Status
                         </button>
                     )}
@@ -375,8 +377,20 @@ function WorkshopOrderDetail() {
                                     placeholder="Alasan perubahan status..."
                                 ></textarea>
                             </div>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Foto Status / Progres (Opsional)</label>
+                                <input 
+                                    type="file" 
+                                    accept="image/*"
+                                    onChange={handlePhotoChange}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                />
+                                {photoBase64 && (
+                                    <img src={photoBase64} alt="Preview" className="mt-2 h-24 object-cover rounded border" />
+                                )}
+                            </div>
                             <div className="flex justify-end space-x-2">
-                                <button type="button" onClick={() => setStatusForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Batal</button>
+                                <button type="button" onClick={() => { setStatusForm(false); setPhotoBase64(null); }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Batal</button>
                                 <button type="submit" className="px-4 py-2 text-sm text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg">Simpan Status</button>
                             </div>
                         </form>
