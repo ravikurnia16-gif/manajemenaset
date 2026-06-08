@@ -196,7 +196,7 @@ exports.getOrderById = async (req, res) => {
 
 // 4. Create Order
 exports.createOrder = async (req, res) => {
-    const { title, priority, deadline, notes, items, workshopUnitId, picName, workshopType } = req.body;
+    const { title, priority, deadline, notes, items, workshopUnitId, picName, workshopType, unitId } = req.body;
     const user = req.user;
 
     try {
@@ -228,7 +228,7 @@ exports.createOrder = async (req, res) => {
                 deadline: deadline ? new Date(deadline) : null,
                 notes,
                 requestedById: user.id,
-                unitId: user.unitId,
+                unitId: unitId ? parseInt(unitId) : user.unitId,
                 workshopType: workshopType || null,
                 workshopUnitId: workshopUnitId ? parseInt(workshopUnitId) : null,
                 picName,

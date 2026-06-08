@@ -175,12 +175,13 @@ function WorkshopOrderDetail() {
                     </div>
                 </div>
                 <div className="flex space-x-2">
-                    {order.officeDocument && (
+                    {/* Button Surat Pesanan di-hide sesuai request */}
+                    {/* {order.officeDocument && (
                         <Link to={`/e-office/documents/${order.officeDocument.id}`} className="flex items-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg text-sm font-medium border border-indigo-200 transition-colors">
                             <FileText size={16} className="mr-2" />
                             Surat Pesanan
                         </Link>
-                    )}
+                    )} */}
                     {isWorkshopAdmin && !isDone && (
                         <button onClick={() => setDetailsForm(true)} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                             Update Detail

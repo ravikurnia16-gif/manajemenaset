@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Save, HardHat, Cog, AlertTriangle } from 'lucide-react';
 import api from '../lib/axios';
@@ -18,8 +18,23 @@ const WorkshopOrderForm = () => {
         deadline: '',
         notes: '',
         picName: '',
-        workshopType: ''
+        workshopType: '',
+        unitId: ''
     });
+
+    const [units, setUnits] = useState([]);
+
+    useEffect(() => {
+        const fetchUnits = async () => {
+            try {
+                const res = await api.get('/master/units');
+                setUnits(res.data);
+            } catch (err) {
+                console.error('Failed to fetch units:', err);
+            }
+        };
+        fetchUnits();
+    }, []);
 
     const [items, setItems] = useState([
         { name: '', spec: '', qty: 1, unit: 'Unit' }
@@ -111,6 +126,21 @@ const WorkshopOrderForm = () => {
                                 onChange={e => handleFormChange('title', e.target.value)}
                                 required
                             />
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Pesanan Dari Unit *</label>
+                            <select
+                                className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                                value={form.unitId}
+                                onChange={e => handleFormChange('unitId', e.target.value)}
+                                required
+                            >
+                                <option value="">-- Pilih Unit --</option>
+                                {units.map(unit => (
+                                    <option key={unit.id} value={unit.id}>{unit.name}</option>
+                                ))}
+                            </select>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

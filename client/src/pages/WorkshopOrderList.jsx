@@ -21,6 +21,10 @@ function WorkshopOrderList() {
     const searchParams = new URLSearchParams(location.search);
     const typeParam = searchParams.get('type') || '';
 
+    const userStr = localStorage.getItem('user');
+    const userObj = userStr ? JSON.parse(userStr) : null;
+    const canCreateOrder = userObj && (['SUPER_ADMIN', 'ADMIN_ASET'].includes(userObj.role) || userObj.unitId === 21);
+
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -101,11 +105,12 @@ function WorkshopOrderList() {
                     </div>
                 </div>
                 <div className="flex space-x-2">
-                    {/* Placeholder for Procurement Generate Button */}
-                    <Link to="/workshop/orders/new" className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center shadow-sm">
-                        <Plus size={18} className="mr-2" />
-                        Buat Pesanan
-                    </Link>
+                    {canCreateOrder && (
+                        <Link to="/workshop/orders/new" className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center shadow-sm">
+                            <Plus size={18} className="mr-2" />
+                            Buat Pesanan
+                        </Link>
+                    )}
                 </div>
             </div>
 
