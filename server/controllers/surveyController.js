@@ -28,7 +28,7 @@ exports.submitSurvey = async (req, res) => {
             return res.status(403).json({ error: "Survey sedang dinonaktifkan." });
         }
 
-        const { respondentName, respondentUnit, answers } = req.body;
+        const { respondentName, respondentUnit, feedback, answers } = req.body;
 
         if (!answers || answers.length === 0) {
             return res.status(400).json({ error: "Tidak ada jawaban yang dikirim." });
@@ -39,6 +39,7 @@ exports.submitSurvey = async (req, res) => {
             data: {
                 respondentName,
                 respondentUnit,
+                feedback,
                 answers: {
                     create: answers.map(ans => ({
                         questionId: ans.questionId,
@@ -145,14 +146,16 @@ exports.getSurveyStats = async (req, res) => {
             _count: { ratingValue: true }
         });
 
-        // Get latest text feedbacks
-        const feedbacks = await prisma.surveyAnswer.findMany({
-            where: { textValue: { not: null }, textValue: { not: '' } },
-            orderBy: { id: 'desc' },
+        // Get latest text feedbacks from SurveyResponse
+        const feedbacks = await prisma.surveyResponse.findMany({
+            where: { feedback: { not: null }, feedback: { not: '' } },
+            orderBy: { createdAt: 'desc' },
             take: 20,
-            include: {
-                question: { select: { text: true } },
-                response: { select: { respondentName: true, respondentUnit: true, createdAt: true } }
+            select: { 
+                respondentName: true, 
+                respondentUnit: true, 
+                createdAt: true, 
+                feedback: true 
             }
         });
 

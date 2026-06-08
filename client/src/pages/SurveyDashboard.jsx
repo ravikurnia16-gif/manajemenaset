@@ -159,20 +159,20 @@ const SurveyDashboard = () => {
                                             <User size={14} />
                                         </div>
                                         <div>
-                                            <p className="font-bold text-sm text-slate-800">{fb.response?.respondentName || 'Anonim'}</p>
+                                            <p className="font-bold text-sm text-slate-800">{fb.respondentName || 'Anonim'}</p>
                                             <div className="flex items-center gap-2 text-xs text-slate-500">
-                                                <span className="flex items-center gap-1"><Building2 size={12}/> {fb.response?.respondentUnit || '-'}</span>
+                                                <span className="flex items-center gap-1"><Building2 size={12}/> {fb.respondentUnit || '-'}</span>
                                                 <span>•</span>
-                                                <span className="flex items-center gap-1"><Clock size={12}/> {new Date(fb.response?.createdAt).toLocaleString('id-ID')}</span>
+                                                <span className="flex items-center gap-1"><Clock size={12}/> {new Date(fb.createdAt).toLocaleString('id-ID')}</span>
                                             </div>
                                         </div>
                                     </div>
                                     <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded uppercase">
-                                        {fb.question?.text}
+                                        Kritik & Saran
                                     </span>
                                 </div>
                                 <p className="text-sm text-slate-700 mt-3 whitespace-pre-wrap pl-11">
-                                    "{fb.textValue}"
+                                    "{fb.feedback}"
                                 </p>
                             </div>
                         ))}

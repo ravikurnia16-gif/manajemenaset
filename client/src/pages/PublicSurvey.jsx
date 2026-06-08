@@ -43,8 +43,10 @@ const PublicSurvey = () => {
 
     const [form, setForm] = useState({
         respondentName: '',
-        respondentUnit: ''
+        respondentUnit: '',
+        feedback: ''
     });
+    const [includeIdentity, setIncludeIdentity] = useState(false);
     
     // Answers state: { [questionId]: { ratingValue: null, textValue: '' } }
     const [answers, setAnswers] = useState({});
@@ -74,6 +76,24 @@ const PublicSurvey = () => {
         };
         fetchQuestions();
     }, []);
+
+    const handleIdentityToggle = (e) => {
+        const checked = e.target.checked;
+        setIncludeIdentity(checked);
+        if (checked) {
+            const userStr = localStorage.getItem('user');
+            if (userStr) {
+                const userObj = JSON.parse(userStr);
+                setForm(prev => ({
+                    ...prev,
+                    respondentName: userObj.name || userObj.username || '',
+                    respondentUnit: userObj.unit?.name || ''
+                }));
+            }
+        } else {
+            setForm(prev => ({ ...prev, respondentName: '', respondentUnit: '' }));
+        }
+    };
 
     const handleRatingChange = (qId, value) => {
         setAnswers(prev => ({
@@ -110,8 +130,9 @@ const PublicSurvey = () => {
         try {
             setIsSubmitting(true);
             await api.post('/surveys/submit', {
-                respondentName: form.respondentName || 'Anonim',
-                respondentUnit: form.respondentUnit || '-',
+                respondentName: includeIdentity ? (form.respondentName || 'Anonim') : 'Anonim',
+                respondentUnit: includeIdentity ? (form.respondentUnit || '-') : '-',
+                feedback: form.feedback,
                 answers: payloadAnswers
             });
             setIsSuccess(true);
@@ -186,32 +207,50 @@ const PublicSurvey = () => {
                     
                     {/* Identitas Card */}
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
-                        <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                            <span className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs">1</span>
-                            Data Diri (Opsional)
-                        </h2>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">Nama Lengkap</label>
-                                <input
-                                    type="text"
-                                    value={form.respondentName}
-                                    onChange={e => setForm({ ...form, respondentName: e.target.value })}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
-                                    placeholder="Boleh dikosongkan (Anonim)"
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <span className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs">1</span>
+                                Data Diri
+                            </h2>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                                    checked={includeIdentity}
+                                    onChange={handleIdentityToggle}
                                 />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-2">Unit Kerja / Asal</label>
-                                <input
-                                    type="text"
-                                    value={form.respondentUnit}
-                                    onChange={e => setForm({ ...form, respondentUnit: e.target.value })}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
-                                    placeholder="Contoh: SD IT, SMP IT, dll"
-                                />
-                            </div>
+                                <span className="text-sm font-medium text-slate-600">Sertakan Identitas Saya</span>
+                            </label>
                         </div>
+                        
+                        {!includeIdentity ? (
+                            <div className="text-sm text-slate-500 italic px-8">
+                                Anda mengisi survey ini secara anonim. Identitas Anda tidak akan dicatat.
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">Nama Lengkap</label>
+                                    <input
+                                        type="text"
+                                        value={form.respondentName}
+                                        onChange={e => setForm({ ...form, respondentName: e.target.value })}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
+                                        placeholder="Nama Lengkap"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">Unit Kerja / Asal</label>
+                                    <input
+                                        type="text"
+                                        value={form.respondentUnit}
+                                        onChange={e => setForm({ ...form, respondentUnit: e.target.value })}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
+                                        placeholder="Contoh: SD IT, SMP IT, dll"
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Questions Cards */}
@@ -248,6 +287,23 @@ const PublicSurvey = () => {
                                 )}
                             </div>
                         ))}
+                    </div>
+
+                    {/* Kritik dan Saran Card */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
+                        <h2 className="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
+                            <span className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs">3</span>
+                            Kritik dan Saran (Opsional)
+                        </h2>
+                        <div className="mt-4">
+                            <textarea
+                                rows={5}
+                                value={form.feedback}
+                                onChange={(e) => setForm({ ...form, feedback: e.target.value })}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all resize-none"
+                                placeholder="Tuliskan saran, kritik, atau masukan Anda di sini..."
+                            />
+                        </div>
                     </div>
 
                     {/* Submit Area */}

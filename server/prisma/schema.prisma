@@ -1524,6 +1524,7 @@ model SurveyResponse {
   id             Int            @id @default(autoincrement())
   respondentName String?        
   respondentUnit String?        
+  feedback       String?        @db.Text
   createdAt      DateTime       @default(now())
   answers        SurveyAnswer[]
 }
