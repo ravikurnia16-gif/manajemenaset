@@ -85,13 +85,18 @@ const generateSuratPesanan = async (order, user) => {
 exports.getDashboardStats = async (req, res) => {
     const user = req.user;
     try {
-        const isWorkshopAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) || (user.unit?.name || '').toLowerCase().includes('workshop');
+        const isFullWorkshopAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) || user.unitId === 21;
+        const isWorkshopAdmin = isFullWorkshopAdmin || (user.unit?.name || '').toLowerCase().includes('workshop');
         
         let whereClause = {};
         if (!isWorkshopAdmin) {
-            whereClause = { requestedById: user.id };
-        } else if ((user.unit?.name || '').toLowerCase().includes('workshop') && !['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
-             // Jika hanya admin unit workshop, dia cuma bisa lihat orderan ke unitnya
+            if (user.unitId) {
+                whereClause = { unitId: user.unitId };
+            } else {
+                whereClause = { requestedById: user.id };
+            }
+        } else if (!isFullWorkshopAdmin) {
+             // Jika hanya admin unit workshop biasa, dia cuma bisa lihat orderan ke unitnya
              whereClause = { workshopUnitId: user.unitId };
         }
 
@@ -127,7 +132,8 @@ exports.getAllOrders = async (req, res) => {
     const { type, status, priority } = req.query;
 
     try {
-        const isWorkshopAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) || (user.unit?.name || '').toLowerCase().includes('workshop');
+        const isFullWorkshopAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role) || user.unitId === 21;
+        const isWorkshopAdmin = isFullWorkshopAdmin || (user.unit?.name || '').toLowerCase().includes('workshop');
         
         let whereClause = {};
         if (type) whereClause.workshopType = type;
@@ -135,8 +141,12 @@ exports.getAllOrders = async (req, res) => {
         if (priority) whereClause.priority = priority;
 
         if (!isWorkshopAdmin) {
-            whereClause.requestedById = user.id;
-        } else if ((user.unit?.name || '').toLowerCase().includes('workshop') && !['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role)) {
+            if (user.unitId) {
+                whereClause.unitId = user.unitId;
+            } else {
+                whereClause.requestedById = user.id;
+            }
+        } else if (!isFullWorkshopAdmin) {
              whereClause.workshopUnitId = user.unitId;
         }
 
@@ -186,7 +196,7 @@ exports.getOrderById = async (req, res) => {
 
 // 4. Create Order
 exports.createOrder = async (req, res) => {
-    const { title, priority, deadline, notes, items, workshopUnitId, picName } = req.body;
+    const { title, priority, deadline, notes, items, workshopUnitId, picName, workshopType } = req.body;
     const user = req.user;
 
     try {
@@ -194,7 +204,7 @@ exports.createOrder = async (req, res) => {
             return res.status(400).json({ error: 'Minimal harus ada 1 item pesanan.' });
         }
 
-        const code = await generateCode(null);
+        const code = await generateCode(workshopType || null);
         
         let estimatedCost = 0;
         const itemData = items.map(it => {
@@ -219,6 +229,7 @@ exports.createOrder = async (req, res) => {
                 notes,
                 requestedById: user.id,
                 unitId: user.unitId,
+                workshopType: workshopType || null,
                 workshopUnitId: workshopUnitId ? parseInt(workshopUnitId) : null,
                 picName,
                 estimatedCost,

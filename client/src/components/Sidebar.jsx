@@ -63,7 +63,7 @@ const Sidebar = ({ isOpen = true }) => {
     const isSuperAdmin = user?.role === 'SUPER_ADMIN';
     const isKabidSarpras = user?.position === 'Kepala Bidang Sarana dan Prasarana';
     const isAdminAset = user?.role === 'ADMIN_ASET';
-    const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || (user?.unit?.name || '').toLowerCase().includes('workshop');
+    const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop');
     const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
 
     const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(user?.role) || ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user?.position);
@@ -197,7 +197,7 @@ const Sidebar = ({ isOpen = true }) => {
                 ))}
 
                 {/* Manajemen Workshop */}
-                {isWorkshopAdmin && renderCollapsible('workshop', <Wrench size={18} />, 'Manajemen Workshop', (
+                {renderCollapsible('workshop', <Wrench size={18} />, 'Manajemen Workshop', (
                     <>
                         <Link to="/workshop/dashboard" className={subNavItemClass('/workshop/dashboard')}>
                             <LayoutDashboard size={16} /> Dashboard
