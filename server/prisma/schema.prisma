@@ -1526,14 +1526,15 @@ model Survey {
 
 model SurveyQuestion {
   id        Int            @id @default(autoincrement())
-  surveyId  Int
-  survey    Survey         @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  surveyId  Int?
+  survey    Survey?        @relation(fields: [surveyId], references: [id], onDelete: Cascade)
   text      String         @db.Text
   type      String         @default("RATING") // RATING atau TEXT
   order     Int            @default(0)
   isActive  Boolean        @default(true)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+
   
   answers   SurveyAnswer[]
 
@@ -1542,12 +1543,13 @@ model SurveyQuestion {
 
 model SurveyResponse {
   id             Int            @id @default(autoincrement())
-  surveyId       Int
-  survey         Survey         @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  surveyId       Int?
+  survey         Survey?        @relation(fields: [surveyId], references: [id], onDelete: Cascade)
   respondentName String?        
   respondentUnit String?        
   feedback       String?        @db.Text
   createdAt      DateTime       @default(now())
+
   
   answers        SurveyAnswer[]
 
