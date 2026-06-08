@@ -259,6 +259,8 @@ exports.createOrder = async (req, res) => {
                 itemDetails = newOrder.items.map(it => `- ${it.name} (${it.qty} ${it.unit})`).join('\n');
             }
 
+            const appUrl = process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id';
+
             const msg = `Bismillah.\n*Request Workshop Baru* \u{1F6E0}\n\n` +
                 `Kode: *${newOrder.code}*\n` +
                 `Dari: *${senderName}* (${unitName})\n` +
@@ -266,6 +268,7 @@ exports.createOrder = async (req, res) => {
                 `Prioritas: *${newOrder.priority}*\n` +
                 `Target Selesai: *${newOrder.deadline ? new Date(newOrder.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}*\n\n` +
                 `*Rincian Item*:\n${itemDetails}\n\n` +
+                `🔗 Detail Pesanan:\n${appUrl}/workshop/orders/${newOrder.id}\n\n` +
                 `Mohon dicek di sistem.`;
 
             recipients.forEach(recipient => {
@@ -486,6 +489,8 @@ exports.createFromProcurement = async (req, res) => {
                 itemDetails = newOrder.items.map(it => `- ${it.name} (${it.qty} ${it.unit})`).join('\n');
             }
 
+            const appUrl = process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id';
+
             const msg = `Bismillah.\n*Request Workshop Baru* \u{1F6E0}\n\n` +
                 `Kode: *${newOrder.code}*\n` +
                 `Dari: *${senderName}* (${unitName})\n` +
@@ -493,6 +498,7 @@ exports.createFromProcurement = async (req, res) => {
                 `Prioritas: *${newOrder.priority}*\n` +
                 `Target Selesai: *${newOrder.deadline ? new Date(newOrder.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}*\n\n` +
                 `*Rincian Item*:\n${itemDetails}\n\n` +
+                `🔗 Detail Pesanan:\n${appUrl}/workshop/orders/${newOrder.id}\n\n` +
                 `Mohon dicek di sistem.`;
 
             recipients.forEach(recipient => {
