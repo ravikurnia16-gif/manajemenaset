@@ -246,9 +246,26 @@ exports.createOrder = async (req, res) => {
         });
 
         if (recipients.length > 0) {
+            let unitName = '-';
+            if (newOrder.unitId) {
+                const ut = await prisma.unit.findUnique({ where: { id: newOrder.unitId } });
+                if (ut) unitName = ut.name;
+            }
+
+            const senderName = newOrder.requestedBy ? (newOrder.requestedBy.name || newOrder.requestedBy.username) : 'Pemohon';
+
+            let itemDetails = '';
+            if (newOrder.items && newOrder.items.length > 0) {
+                itemDetails = newOrder.items.map(it => `- ${it.name} (${it.qty} ${it.unit})`).join('\n');
+            }
+
             const msg = `Bismillah.\n*Request Workshop Baru* \u{1F6E0}\n\n` +
-                `Dari: *${user.name || user.username}*\n` +
-                `Order: *${title}*\n\n` +
+                `Kode: *${newOrder.code}*\n` +
+                `Dari: *${senderName}* (${unitName})\n` +
+                `Order: *${newOrder.title}*\n` +
+                `Prioritas: *${newOrder.priority}*\n` +
+                `Target Selesai: *${newOrder.deadline ? new Date(newOrder.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}*\n\n` +
+                `*Rincian Item*:\n${itemDetails}\n\n` +
                 `Mohon dicek di sistem.`;
 
             recipients.forEach(recipient => {
@@ -438,7 +455,8 @@ exports.createFromProcurement = async (req, res) => {
                 }
             },
             include: {
-                items: true
+                items: true,
+                requestedBy: true
             }
         });
 
@@ -455,9 +473,26 @@ exports.createFromProcurement = async (req, res) => {
         });
 
         if (recipients.length > 0) {
+            let unitName = '-';
+            if (newOrder.unitId) {
+                const ut = await prisma.unit.findUnique({ where: { id: newOrder.unitId } });
+                if (ut) unitName = ut.name;
+            }
+
+            const senderName = newOrder.requestedBy ? (newOrder.requestedBy.name || newOrder.requestedBy.username) : 'Pemohon';
+
+            let itemDetails = '';
+            if (newOrder.items && newOrder.items.length > 0) {
+                itemDetails = newOrder.items.map(it => `- ${it.name} (${it.qty} ${it.unit})`).join('\n');
+            }
+
             const msg = `Bismillah.\n*Request Workshop Baru* \u{1F6E0}\n\n` +
-                `Dari: *${user.name || user.username}*\n` +
-                `Order: *[PROC] ${procurement.title || procurement.code}*\n\n` +
+                `Kode: *${newOrder.code}*\n` +
+                `Dari: *${senderName}* (${unitName})\n` +
+                `Order: *${newOrder.title}*\n` +
+                `Prioritas: *${newOrder.priority}*\n` +
+                `Target Selesai: *${newOrder.deadline ? new Date(newOrder.deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}*\n\n` +
+                `*Rincian Item*:\n${itemDetails}\n\n` +
                 `Mohon dicek di sistem.`;
 
             recipients.forEach(recipient => {
