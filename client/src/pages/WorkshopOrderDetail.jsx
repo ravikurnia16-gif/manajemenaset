@@ -27,7 +27,8 @@ function WorkshopOrderDetail() {
     const userObj = userStr ? JSON.parse(userStr) : null;
     const isWorkshopAdmin = userObj && (
         ['SUPER_ADMIN', 'ADMIN_ASET'].includes(userObj.role) || 
-        (userObj.unit?.name || '').toLowerCase().includes('workshop')
+        (userObj.unit?.name || '').toLowerCase().includes('workshop') ||
+        userObj.unitId === 21
     );
 
     // Form states
@@ -160,12 +161,10 @@ function WorkshopOrderDetail() {
                             <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>
                                 {order.status.replace('_', ' ')}
                             </span>
-                            {order.workshopType && (
-                                <span className={`px-2 py-1 flex items-center text-xs font-bold rounded ${order.workshopType === 'KAYU' ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-800'}`}>
-                                    {order.workshopType === 'KAYU' ? <HardHat size={12} className="mr-1" /> : <Cog size={12} className="mr-1" />}
-                                    {order.workshopType}
-                                </span>
-                            )}
+                            <span className={`px-2 py-1 flex items-center text-xs font-bold rounded ${order.workshopType === 'KAYU' ? 'bg-orange-100 text-orange-800' : order.workshopType === 'BESI' ? 'bg-slate-100 text-slate-800' : 'bg-gray-100 text-gray-800'}`}>
+                                {order.workshopType === 'KAYU' ? <HardHat size={12} className="mr-1" /> : order.workshopType === 'BESI' ? <Cog size={12} className="mr-1" /> : null}
+                                {order.workshopType || 'Belum Ditentukan'}
+                            </span>
                             {order.priority === 'URGENT' && (
                                 <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded">URGENT</span>
                             )}

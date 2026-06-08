@@ -202,9 +202,13 @@ function WorkshopOrderList() {
                                                 <span className="flex items-center text-xs font-medium text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-100 w-max">
                                                     <HardHat size={12} className="mr-1" /> Kayu
                                                 </span>
-                                            ) : (
+                                            ) : order.workshopType === 'BESI' ? (
                                                 <span className="flex items-center text-xs font-medium text-slate-700 bg-slate-100 px-2 py-1 rounded border border-slate-200 w-max">
                                                     <Cog size={12} className="mr-1" /> Besi
+                                                </span>
+                                            ) : (
+                                                <span className="flex items-center text-xs font-medium text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-200 w-max">
+                                                    Belum Ditentukan
                                                 </span>
                                             )}
                                         </td>
