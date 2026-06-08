@@ -41,7 +41,7 @@ const generateCode = async () => {
 
 // Get all procurements
 exports.getAllProcurements = async (req, res) => {
-    const { status, type, unitId } = req.query;
+    const { status, type, unitId, categoryId } = req.query;
     const user = req.user;
 
     try {
@@ -49,6 +49,9 @@ exports.getAllProcurements = async (req, res) => {
         if (status) whereClause.status = status;
         if (type) whereClause.type = type;
         if (unitId) whereClause.unitId = parseInt(unitId);
+        if (categoryId) {
+            whereClause.items = { some: { categoryId: parseInt(categoryId) } };
+        }
 
         if (['ADMIN_UNIT', 'USER'].includes(user.role)) {
             whereClause.OR = [

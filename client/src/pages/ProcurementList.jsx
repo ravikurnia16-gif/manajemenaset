@@ -10,13 +10,15 @@ const ProcurementList = () => {
     const navigate = useNavigate();
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState({ status: '', type: '', unitId: '' });
+    const [filter, setFilter] = useState({ categoryId: '', type: '', unitId: '' });
     const [units, setUnits] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [selectedIds, setSelectedIds] = useState([]);
     const [pagination, setPagination] = useState({ limit: 10, page: 1 });
 
     useEffect(() => {
         fetchUnits();
+        fetchCategories();
     }, []);
 
     useEffect(() => {
@@ -33,12 +35,21 @@ const ProcurementList = () => {
         }
     };
 
+    const fetchCategories = async () => {
+        try {
+            const res = await api.get('/master/categories');
+            setCategories(res.data);
+        } catch (error) {
+            console.error("Failed to fetch categories");
+        }
+    };
+
     const fetchRequests = async () => {
         setLoading(true);
         try {
             // Remove empty filters
             const params = new URLSearchParams();
-            if (filter.status) params.append('status', filter.status);
+            if (filter.categoryId) params.append('categoryId', filter.categoryId);
             if (filter.type) params.append('type', filter.type);
             if (filter.unitId) params.append('unitId', filter.unitId);
             params.append('limit', pagination.limit);
@@ -158,15 +169,14 @@ const ProcurementList = () => {
                 </div>
 
                 <select
-                    className="border-none bg-slate-50 rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm focus:ring-2 focus:ring-blue-100 outline-none text-slate-600 font-medium flex-1 sm:flex-none min-w-[100px]"
-                    value={filter.status}
-                    onChange={e => setFilter({ ...filter, status: e.target.value })}
+                    className="border-none bg-slate-50 rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm focus:ring-2 focus:ring-blue-100 outline-none text-slate-600 font-medium flex-1 sm:flex-none min-w-[100px] max-w-full sm:max-w-[200px]"
+                    value={filter.categoryId}
+                    onChange={e => setFilter({ ...filter, categoryId: e.target.value })}
                 >
-                    <option value="">Semua Status</option>
-                    <option value="SUBMITTED">Menunggu Validasi</option>
-                    <option value="APPROVED">Disetujui</option>
-                    <option value="PROCESS">Diproses Vendor</option>
-                    <option value="COMPLETED">Selesai</option>
+                    <option value="">Semua Kategori</option>
+                    {categories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
                 </select>
 
                 <select
