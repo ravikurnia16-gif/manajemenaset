@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog } from 'lucide-react';
 import { cn } from '../lib/utils';
+import api from '../lib/axios';
 
 const Sidebar = ({ isOpen = true }) => {
     const location = useLocation();
@@ -15,8 +16,14 @@ const Sidebar = ({ isOpen = true }) => {
         warehouse: false,
         personnel: false,
         eoffice: false,
-        workshop: false
+        workshop: false,
+        survey: false
     });
+
+    const [settings, setSettings] = useState(null);
+    useEffect(() => {
+        api.get('/settings').then(res => setSettings(res.data)).catch(() => {});
+    }, []);
 
     const toggleMenu = (menu) => {
         setOpenMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
@@ -303,7 +310,26 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/master" className={navItemClass('/master')}><Database size={18} /> Master Data</Link>
                     )}
                     <Link to="/settings" className={navItemClass('/settings')}><Settings size={18} /> Pengaturan</Link>
-
+                    
+                    {settings?.surveyEnabled && (
+                        renderCollapsible('survey', <MessageSquare size={18} />, 'Survey Kepuasan', (
+                            <>
+                                <Link to="/public/survey" target="_blank" className={subNavItemClass('/public/survey')}>
+                                    <MessageSquare size={16} /> Isi Survey (Public)
+                                </Link>
+                                {isGlobalAdmin && (
+                                    <>
+                                        <Link to="/survey/results" className={subNavItemClass('/survey/results')}>
+                                            <TrendingUp size={16} /> Hasil Survey
+                                        </Link>
+                                        <Link to="/survey/manage" className={subNavItemClass('/survey/manage')}>
+                                            <FileText size={16} /> Rancang Survey
+                                        </Link>
+                                    </>
+                                )}
+                            </>
+                        ))
+                    )}
                 </div>
             </nav>
 

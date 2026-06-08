@@ -12,7 +12,8 @@ const Settings = () => {
         orgLogo: '',
         orgHeadName: '',
         orgHeadNip: '',
-        assetCodePrefix: 'AST'
+        assetCodePrefix: 'AST',
+        surveyEnabled: false
     });
     const [myProfile, setMyProfile] = useState({
         name: '',
@@ -528,6 +529,26 @@ const Settings = () => {
                                     maxLength={5}
                                 />
                                 <p className="text-[10px] text-slate-500 mt-2">Default: AST. Perubahan akan berlaku untuk aset baru.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-2">Aktivasi Halaman Survey</label>
+                                <label className="flex items-center cursor-pointer gap-3 relative">
+                                    <div className="relative">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only"
+                                            checked={settings.surveyEnabled || false}
+                                            onChange={e => setSettings({ ...settings, surveyEnabled: e.target.checked })}
+                                        />
+                                        <div className={`block w-10 h-6 rounded-full transition-colors ${settings.surveyEnabled ? 'bg-blue-500' : 'bg-slate-700'}`}></div>
+                                        <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${settings.surveyEnabled ? 'transform translate-x-4' : ''}`}></div>
+                                    </div>
+                                    <span className="text-sm font-medium text-slate-300">
+                                        {settings.surveyEnabled ? 'Survey Aktif (Publik & User)' : 'Survey Dinonaktifkan'}
+                                    </span>
+                                </label>
+                                <p className="text-[10px] text-slate-500 mt-2">Jika diaktifkan, menu pengisian survey akan muncul dan bisa diakses publik.</p>
                             </div>
 
                             <div className="pt-4">

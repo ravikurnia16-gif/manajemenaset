@@ -31,6 +31,11 @@ function WorkshopOrderDetail() {
         userObj.unitId === 21
     );
 
+    const canCancel = userObj && (
+        ['SUPER_ADMIN', 'ADMIN_ASET'].includes(userObj.role) || 
+        userObj.unitId === 21
+    );
+
     // Form states
     const [statusForm, setStatusForm] = useState(false);
     const [newStatus, setNewStatus] = useState('');
@@ -117,6 +122,38 @@ function WorkshopOrderDetail() {
         }
     };
 
+    const handleCancelOrder = () => {
+        Swal.fire({
+            title: 'Tolak / Batalkan Pesanan',
+            text: 'Masukkan alasan pembatalan atau penolakan:',
+            input: 'textarea',
+            inputPlaceholder: 'Alasan penolakan...',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#94a3b8',
+            confirmButtonText: 'Ya, Batalkan',
+            cancelButtonText: 'Tutup',
+            inputValidator: (value) => {
+                if (!value) {
+                    return 'Alasan pembatalan wajib diisi!';
+                }
+            }
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    await api.put(`/workshop/orders/${id}/status`, {
+                        status: 'CANCELLED',
+                        message: `Pesanan Ditolak/Dibatalkan. Alasan: ${result.value}`
+                    });
+                    Swal.fire('Dibatalkan', 'Pesanan telah berhasil dibatalkan.', 'success');
+                    fetchOrder();
+                } catch (error) {
+                    Swal.fire('Gagal', error.response?.data?.error || 'Terjadi kesalahan saat membatalkan', 'error');
+                }
+            }
+        });
+    };
+
     const handleUpdateDetails = async (e) => {
         e.preventDefault();
         try {
@@ -185,6 +222,11 @@ function WorkshopOrderDetail() {
                     {isWorkshopAdmin && !isDone && (
                         <button onClick={() => setDetailsForm(true)} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                             Update Detail
+                        </button>
+                    )}
+                    {canCancel && order.status === 'PENDING' && (
+                        <button onClick={handleCancelOrder} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                            Tolak / Batalkan
                         </button>
                     )}
                     {!isDone && (

@@ -72,6 +72,10 @@ import ConstructionDashboard from './pages/ConstructionDashboard';
 import ContractorList from './pages/ContractorList';
 import ProtectedRoute from './components/ProtectedRoute';
 
+import PublicSurvey from './pages/PublicSurvey';
+import SurveyManager from './pages/SurveyManager';
+import SurveyDashboard from './pages/SurveyDashboard';
+
 
 function App() {
   useEffect(() => {
@@ -131,6 +135,7 @@ function App() {
         <Route path="/q/:token" element={<QuickComplete />} />
         <Route path="/verify/:uuid" element={<PublicVerify />} />
         <Route path="/verify/bus-invoice/:id" element={<BusInvoiceVerify />} />
+        <Route path="/public/survey" element={<PublicSurvey />} />
 
         {/* Semua route di dalam sini diproteksi */}
         <Route path="/" element={
@@ -170,6 +175,14 @@ function App() {
 
           <Route path="settings" element={<Settings />} />
           <Route path="mutasi" element={<MutationList />} />
+          
+          {/* Module: Survey Kepuasan */}
+          <Route path="survey/manage" element={
+            ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role) ? <SurveyManager /> : <Navigate to="/dashboard" />
+          } />
+          <Route path="survey/results" element={
+            ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role) ? <SurveyDashboard /> : <Navigate to="/dashboard" />
+          } />
           <Route path="mutasi/request" element={<MutationForm />} />
           <Route path="penghapusan" element={<DisposalList />} />
           <Route path="peminjaman" element={<LoanList />} />

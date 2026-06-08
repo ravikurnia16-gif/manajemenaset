@@ -361,6 +361,17 @@ exports.updateOrderStatus = async (req, res) => {
                 }
             });
 
+            // Sync to Procurement if linked
+            if (order.procurementId) {
+                await prisma.procurementProgress.create({
+                    data: {
+                        procurementId: order.procurementId,
+                        message: `[Workshop Update] ${progressMsg}`,
+                        type: 'SYSTEM'
+                    }
+                });
+            }
+
             return updated;
         });
 
@@ -410,6 +421,18 @@ exports.addProgress = async (req, res) => {
                 createdById: user.id
             }
         });
+
+        // Get the order to check if it has procurementId
+        const order = await prisma.workshopOrder.findUnique({ where: { id: parseInt(id) } });
+        if (order && order.procurementId) {
+            await prisma.procurementProgress.create({
+                data: {
+                    procurementId: order.procurementId,
+                    message: `[Workshop Progress] ${message} (${percentage || 0}%)`,
+                    type: 'SYSTEM'
+                }
+            });
+        }
 
         res.json(progress);
     } catch (error) {

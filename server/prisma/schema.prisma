@@ -432,6 +432,7 @@ model Setting {
   orgHeadNip      String?
   assetCodePrefix String   @default("AST")
   busInitialFund  Float    @default(0) // Dana awal operasional Bus
+  surveyEnabled   Boolean  @default(false)
   updatedAt       DateTime @updatedAt
 }
 
@@ -1505,4 +1506,37 @@ model WorkshopProgress {
   createdAt       DateTime       @default(now())
   
   @@index([orderId])
+}
+
+// --- MODULE SURVEY KEPUASAN ---
+
+model SurveyQuestion {
+  id        Int            @id @default(autoincrement())
+  text      String         @db.Text // Teks pertanyaan
+  type      String         @default("RATING") // RATING atau TEXT
+  isActive  Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  answers   SurveyAnswer[]
+}
+
+model SurveyResponse {
+  id             Int            @id @default(autoincrement())
+  respondentName String?        
+  respondentUnit String?        
+  createdAt      DateTime       @default(now())
+  answers        SurveyAnswer[]
+}
+
+model SurveyAnswer {
+  id          Int            @id @default(autoincrement())
+  responseId  Int
+  response    SurveyResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  questionId  Int
+  question    SurveyQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  ratingValue Int?           
+  textValue   String?        @db.Text 
+
+  @@index([responseId])
+  @@index([questionId])
 }
