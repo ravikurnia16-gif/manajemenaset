@@ -86,6 +86,10 @@ model User {
   vehicleDriverBookings VehicleBooking[] @relation("VehicleDriver")
   busDriverBookings     BusBooking[]     @relation("BusDriver")
 
+  // Lelang (Pelelangan)
+  wonDisposals          AssetDisposal[]  @relation("DisposalWinner")
+  disposalBids          DisposalBid[]
+
   // Personnel Module Extensions
   assignedRoutines  PersonnelRoutine[] @relation("RoutineAssignee")
   createdRoutines   PersonnelRoutine[] @relation("RoutineAssigner")
@@ -948,8 +952,28 @@ model AssetDisposal {
   reviewedBy      User?          @relation("Reviewer", fields: [reviewedById], references: [id])
   reviewedAt      DateTime?
   rejectionReason String?        @db.Text
+  
+  // Lelang / Pelelangan
+  finalPrice      Float?
+  winnerId        Int?
+  winner          User?          @relation("DisposalWinner", fields: [winnerId], references: [id])
+  bids            DisposalBid[]
+
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+}
+
+model DisposalBid {
+  id              Int           @id @default(autoincrement())
+  assetDisposalId Int
+  assetDisposal   AssetDisposal @relation(fields: [assetDisposalId], references: [id], onDelete: Cascade)
+  userId          Int
+  user            User          @relation(fields: [userId], references: [id])
+  bidPrice        Float
+  status          String        @default("PENDING") // PENDING, WINNER, REJECTED
+  notes           String?       @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 }
 
 model SarprasRule {

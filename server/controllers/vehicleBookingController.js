@@ -929,7 +929,7 @@ exports.checkOverdueVehicleBookings = async () => {
                     `Tujuan: ${booking.destination}\n` +
                     `Batas Waktu: ${new Date(booking.endDate).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}\n` +
                     `Keterlambatan: *${diffHours} jam*\n\n` +
-                    `Peminjam melewati batas waktu peminjaman namun belum menekan tombol [Akhiri Perjalanan] di sistem.\n\n` +
+                    `Peminjam melewati batas waktu peminjaman namun belum menekan tombol [Akhiri Perjalanan] pada *Sub menu Permohonan saya* di sistem.\n\n` +
                     `Mohon untuk segera menindaklanjuti atau menghubungi peminjam yang bersangkutan.`;
 
                 for (const staff of staffRecipients) {
@@ -1077,7 +1077,7 @@ exports.checkUpcomingVehicleBookings = async () => {
                     `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
                     `Jadwal Keberangkatan: ${formatWAWaktu(booking.startDate)}\n` +
                     `Keterlambatan: *${diffMins} menit*\n\n` +
-                    `⚠️ Mohon segera input *KM AWAL* di aplikasi SARPRAS jika Anda sudah mulai menggunakan armada.\n\n` +
+                    `⚠️ Mohon segera input *KM AWAL* di aplikasi SARPRAS (pada *Sub menu Permohonan saya*) jika Anda sudah mulai menggunakan armada.\n\n` +
                     `🔗 Akses menu peminjaman di sini:\n${process.env.VITE_API_URL ? process.env.VITE_API_URL.replace('/api', '') : 'https://sarpras.dareliman.or.id'}/kendaraan/peminjaman\n\n` +
                     `_Notifikasi ini akan dikirim setiap 1 jam sampai perjalanan dimulai._`;
                 await sendMessage(booking.user.phone, msg);

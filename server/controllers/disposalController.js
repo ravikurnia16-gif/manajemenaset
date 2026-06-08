@@ -241,3 +241,141 @@ exports.getDisposalDetail = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+/**
+ * Get all assets listed for auction (method: DIJUAL / LELANG)
+ */
+exports.getAuctions = async (req, res) => {
+    try {
+        const auctions = await prisma.assetDisposal.findMany({
+            where: {
+                method: 'DIJUAL',
+                status: 'APPROVED' // Only approved disposals are auctioned
+            },
+            include: {
+                asset: {
+                    include: {
+                        category: { select: { name: true } },
+                        unit: { select: { name: true } }
+                    }
+                },
+                bids: {
+                    include: {
+                        user: { select: { name: true, username: true } }
+                    },
+                    orderBy: { bidPrice: 'desc' }
+                },
+                winner: { select: { name: true, username: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(auctions);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * Submit a bid for an auction item
+ */
+exports.submitBid = async (req, res) => {
+    const { id } = req.params; // AssetDisposal ID
+    const { bidPrice, notes } = req.body;
+    const userId = req.user.id;
+
+    if (!bidPrice || isNaN(bidPrice) || bidPrice <= 0) {
+        return res.status(400).json({ error: 'Harga penawaran tidak valid' });
+    }
+
+    try {
+        const disposal = await prisma.assetDisposal.findUnique({
+            where: { id: parseInt(id) }
+        });
+
+        if (!disposal || disposal.method !== 'DIJUAL' || disposal.status !== 'APPROVED') {
+            return res.status(400).json({ error: 'Item ini tidak tersedia untuk dilelang' });
+        }
+
+        if (disposal.winnerId) {
+            return res.status(400).json({ error: 'Lelang untuk item ini sudah ditutup' });
+        }
+
+        // Check if user already bid
+        const existingBid = await prisma.disposalBid.findFirst({
+            where: { assetDisposalId: parseInt(id), userId }
+        });
+
+        if (existingBid) {
+            // Update bid
+            const updatedBid = await prisma.disposalBid.update({
+                where: { id: existingBid.id },
+                data: { bidPrice: parseFloat(bidPrice), notes }
+            });
+            return res.json({ message: 'Penawaran berhasil diperbarui', data: updatedBid });
+        }
+
+        const bid = await prisma.disposalBid.create({
+            data: {
+                assetDisposalId: parseInt(id),
+                userId,
+                bidPrice: parseFloat(bidPrice),
+                notes
+            }
+        });
+
+        res.json({ message: 'Penawaran berhasil diajukan', data: bid });
+    } catch (error) {
+        console.error('Submit Bid Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * Admin chooses a winner for the auction
+ */
+exports.setWinner = async (req, res) => {
+    const { bidId } = req.params;
+
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            const bid = await tx.disposalBid.findUnique({
+                where: { id: parseInt(bidId) },
+                include: { assetDisposal: true }
+            });
+
+            if (!bid) throw new Error('Penawaran tidak ditemukan');
+            if (bid.assetDisposal.winnerId) throw new Error('Lelang ini sudah memiliki pemenang');
+
+            // Set this bid as WINNER
+            await tx.disposalBid.update({
+                where: { id: parseInt(bidId) },
+                data: { status: 'WINNER' }
+            });
+
+            // Set other bids as REJECTED
+            await tx.disposalBid.updateMany({
+                where: {
+                    assetDisposalId: bid.assetDisposalId,
+                    id: { not: parseInt(bidId) }
+                },
+                data: { status: 'REJECTED' }
+            });
+
+            // Update AssetDisposal
+            const updatedDisposal = await tx.assetDisposal.update({
+                where: { id: bid.assetDisposalId },
+                data: {
+                    winnerId: bid.userId,
+                    finalPrice: bid.bidPrice
+                }
+            });
+
+            return updatedDisposal;
+        });
+
+        res.json({ message: 'Pemenang lelang berhasil ditetapkan', data: result });
+    } catch (error) {
+        console.error('Set Winner Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};

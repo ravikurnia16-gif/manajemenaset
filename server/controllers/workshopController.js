@@ -42,6 +42,7 @@ const generateSuratPesanan = async (order, user) => {
 
     const contentData = {
         orderCode: order.code,
+        destination: "Workshop di Tempat",
         workshopType: order.workshopType,
         title: order.title,
         priority: order.priority,
@@ -235,18 +236,14 @@ exports.createOrder = async (req, res) => {
         // Auto-generate E-Office Document
         await generateSuratPesanan(newOrder, user);
 
-        // Notify Sarpras Unit with Workshop Unit ID
-        const targetUnitId = workshopUnitId ? parseInt(workshopUnitId) : null;
-        let recipients = [];
-        if (targetUnitId) {
-            recipients = await prisma.user.findMany({
-                where: {
-                    position: 'Sarpras Unit',
-                    unitId: targetUnitId,
-                    phone: { not: null, not: '' }
-                }
-            });
-        }
+        // Notify Sarpras Unit (Hardcoded to unitId 21 as requested)
+        const recipients = await prisma.user.findMany({
+            where: {
+                position: 'Sarpras Unit',
+                unitId: 21,
+                phone: { not: null, not: '' }
+            }
+        });
 
         if (recipients.length > 0) {
             const msg = `Bismillah.\n*Request Workshop Baru* \u{1F6E0}\n\n` +
@@ -448,15 +445,11 @@ exports.createFromProcurement = async (req, res) => {
         // Auto-generate Surat Pesanan
         await generateSuratPesanan(newOrder, user);
 
-        // Notify Sarpras Unit with Workshop Unit(s)
+        // Notify Sarpras Unit (Hardcoded to unitId 21 as requested)
         const recipients = await prisma.user.findMany({
             where: {
                 position: 'Sarpras Unit',
-                unit: {
-                    name: {
-                        contains: 'Workshop'
-                    }
-                },
+                unitId: 21,
                 phone: { not: null, not: '' }
             }
         });
