@@ -11,7 +11,7 @@ exports.getActiveQuestions = async (req, res) => {
 
         const questions = await prisma.surveyQuestion.findMany({
             where: { isActive: true },
-            order: { id: 'asc' }
+            orderBy: { id: 'asc' }
         });
         res.json(questions);
     } catch (error) {
@@ -63,7 +63,7 @@ exports.submitSurvey = async (req, res) => {
 exports.getQuestionsAdmin = async (req, res) => {
     try {
         const questions = await prisma.surveyQuestion.findMany({
-            order: { id: 'asc' }
+            orderBy: { id: 'asc' }
         });
         res.json(questions);
     } catch (error) {
