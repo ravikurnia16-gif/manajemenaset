@@ -1510,23 +1510,48 @@ model WorkshopProgress {
 
 // --- MODULE SURVEY KEPUASAN ---
 
+model Survey {
+  id          Int              @id @default(autoincrement())
+  title       String           // e.g. "Survey Kepuasan Semester 1"
+  description String?          @db.Text
+  startDate   DateTime?
+  endDate     DateTime?
+  isActive    Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  questions   SurveyQuestion[]
+  responses   SurveyResponse[]
+}
+
 model SurveyQuestion {
   id        Int            @id @default(autoincrement())
-  text      String         @db.Text // Teks pertanyaan
+  surveyId  Int
+  survey    Survey         @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  text      String         @db.Text
   type      String         @default("RATING") // RATING atau TEXT
+  order     Int            @default(0)
   isActive  Boolean        @default(true)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+  
   answers   SurveyAnswer[]
+
+  @@index([surveyId])
 }
 
 model SurveyResponse {
   id             Int            @id @default(autoincrement())
+  surveyId       Int
+  survey         Survey         @relation(fields: [surveyId], references: [id], onDelete: Cascade)
   respondentName String?        
   respondentUnit String?        
   feedback       String?        @db.Text
   createdAt      DateTime       @default(now())
+  
   answers        SurveyAnswer[]
+
+  @@index([surveyId])
 }
 
 model SurveyAnswer {

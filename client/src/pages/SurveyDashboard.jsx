@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
-import { MessageSquare, Users, Star, TrendingUp, User, Clock, Building2 } from 'lucide-react';
+import { MessageSquare, Users, Star, TrendingUp, User, Clock, Building2, List } from 'lucide-react';
 import api from '../lib/axios';
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#3b82f6', '#22c55e'];
@@ -8,23 +8,40 @@ const RATING_LABELS = { 1: 'Sangat Kurang', 2: 'Kurang', 3: 'Cukup', 4: 'Baik', 
 
 const SurveyDashboard = () => {
     const [stats, setStats] = useState(null);
+    const [surveys, setSurveys] = useState([]);
+    const [selectedSurveyId, setSelectedSurveyId] = useState('');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchStats = async () => {
+        const fetchSurveys = async () => {
             try {
-                const res = await api.get('/surveys/stats');
-                setStats(res.data);
+                const res = await api.get('/surveys');
+                setSurveys(res.data);
             } catch (error) {
-                console.error('Fetch survey stats error:', error);
-            } finally {
-                setLoading(false);
+                console.error('Fetch surveys error:', error);
             }
         };
-        fetchStats();
+        fetchSurveys();
     }, []);
 
-    if (loading) {
+    useEffect(() => {
+        fetchStats();
+    }, [selectedSurveyId]);
+
+    const fetchStats = async () => {
+        try {
+            setLoading(true);
+            const url = selectedSurveyId ? `/surveys/stats?surveyId=${selectedSurveyId}` : '/surveys/stats';
+            const res = await api.get(url);
+            setStats(res.data);
+        } catch (error) {
+            console.error('Fetch survey stats error:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading && !stats) {
         return <div className="text-center py-12 text-slate-500">Memuat dashboard hasil survey...</div>;
     }
 
@@ -43,8 +60,6 @@ const SurveyDashboard = () => {
     }).filter(d => d.value > 0);
 
     // Calculate Overall Satisfaction Index (IKM)
-    // Formula: (Total Sum of all ratings) / (Total responses * number of questions * 5) * 100
-    // Simplified: Average of all averages / 5 * 100
     let overallIndex = 0;
     if (stats.stats.length > 0) {
         const sumAvg = stats.stats.reduce((acc, curr) => acc + curr.average, 0);
@@ -53,13 +68,31 @@ const SurveyDashboard = () => {
 
     return (
         <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div>
-                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    <TrendingUp className="text-blue-500" />
-                    Dashboard Hasil Survey
-                </h1>
-                <p className="text-slate-500 text-sm">Analisis tingkat kepuasan pengguna terhadap layanan Bidang Sarana.</p>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                        <TrendingUp className="text-blue-500" />
+                        Dashboard Hasil Survey
+                    </h1>
+                    <p className="text-slate-500 text-sm">Analisis tingkat kepuasan pengguna terhadap layanan Bidang Sarana.</p>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                    <List size={20} className="text-slate-500" />
+                    <select
+                        value={selectedSurveyId}
+                        onChange={(e) => setSelectedSurveyId(e.target.value)}
+                        className="border border-slate-300 rounded-lg px-4 py-2 bg-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                        <option value="">Semua Paket Survey</option>
+                        {surveys.map(s => (
+                            <option key={s.id} value={s.id}>{s.title}</option>
+                        ))}
+                    </select>
+                </div>
             </div>
+
+            {loading && <div className="text-sm text-blue-500 animate-pulse">Memperbarui data...</div>}
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -87,7 +120,7 @@ const SurveyDashboard = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Average Rating Per Question Chart */}
                 <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
-                    <h3 className="font-bold text-slate-800 mb-6">Rata-rata Nilai per Kategori</h3>
+                    <h3 className="font-bold text-slate-800 mb-6">Rata-rata Nilai per Pertanyaan</h3>
                     {stats.stats.length > 0 ? (
                         <div className="h-72">
                             <ResponsiveContainer width="100%" height="100%">
@@ -95,9 +128,7 @@ const SurveyDashboard = () => {
                                     <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
                                     <XAxis type="number" domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} />
                                     <YAxis dataKey="text" type="category" width={150} tick={{ fontSize: 11 }} />
-                                    <Tooltip 
-                                        formatter={(value) => [value.toFixed(2), 'Rata-rata']}
-                                    />
+                                    <Tooltip formatter={(value) => [value.toFixed(2), 'Rata-rata']} />
                                     <Bar dataKey="average" radius={[0, 4, 4, 0]} barSize={20}>
                                         {stats.stats.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill="#3b82f6" />
@@ -113,7 +144,7 @@ const SurveyDashboard = () => {
 
                 {/* Distribution Chart */}
                 <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
-                    <h3 className="font-bold text-slate-800 mb-6">Distribusi Rating Keseluruhan</h3>
+                    <h3 className="font-bold text-slate-800 mb-6">Distribusi Rating</h3>
                     {distributionData.length > 0 ? (
                         <div className="h-72">
                             <ResponsiveContainer width="100%" height="100%">
@@ -152,7 +183,7 @@ const SurveyDashboard = () => {
                 {stats.feedbacks.length > 0 ? (
                     <div className="space-y-4">
                         {stats.feedbacks.map(fb => (
-                            <div key={fb.id} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <div key={fb.id} className="bg-slate-50 p-4 rounded-xl border border-slate-100 relative">
                                 <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-2">
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
@@ -171,9 +202,14 @@ const SurveyDashboard = () => {
                                         Kritik & Saran
                                     </span>
                                 </div>
-                                <p className="text-sm text-slate-700 mt-3 whitespace-pre-wrap pl-11">
-                                    "{fb.feedback}"
-                                </p>
+                                <div className="pl-11">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                                        <List size={10} /> {fb.survey?.title}
+                                    </div>
+                                    <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                                        "{fb.feedback}"
+                                    </p>
+                                </div>
                             </div>
                         ))}
                     </div>
