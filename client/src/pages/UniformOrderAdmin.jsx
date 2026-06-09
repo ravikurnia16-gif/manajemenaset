@@ -116,10 +116,27 @@ const UniformOrderAdmin = () => {
         } catch (e) { alert(e.response?.data?.error || 'Gagal'); }
     };
 
+    const getStatusPriority = (status) => {
+        if (status === 'PENDING' || status === 'READY') return 0;
+        if (status === 'PICKED_UP') return 2;
+        return 1;
+    };
+
     const displayedOrders = orders.filter(order => {
         const isUnit = (order.note && order.note.includes('PESANAN UNIT INTERNAL')) ||
             (order.studentName && order.studentName.toUpperCase().includes('PESANAN UNIT'));
         return activeTab === 'WARID' ? !isUnit : isUnit;
+    }).sort((a, b) => {
+        const prioA = getStatusPriority(a.status);
+        const prioB = getStatusPriority(b.status);
+        if (prioA !== prioB) return prioA - prioB;
+        
+        const dateA = new Date(a.createdAt);
+        const dateB = new Date(b.createdAt);
+        if (prioA === 0) {
+            return dateA - dateB; // Terlama di atas
+        }
+        return dateB - dateA; // Terbaru di atas untuk selain PENDING & READY
     });
 
     return (
