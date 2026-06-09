@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, Filter, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ClipboardList, Filter, Trash2, ChevronDown, ChevronUp, Edit3, X } from 'lucide-react';
 import api from '../lib/axios';
 
 const UNITS = ['SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'Yayasan'];
@@ -24,6 +24,11 @@ const UniformOrderAdmin = () => {
     const [expandedId, setExpandedId] = useState(null);
     const [itemEdits, setItemEdits] = useState({});
     const [savingBulk, setSavingBulk] = useState(false);
+    
+    // Edit Modal State
+    const [editModal, setEditModal] = useState({ isOpen: false, order: null });
+    const [formData, setFormData] = useState({ studentName: '', customerName: '', customerPhone: '', customerUnit: '', note: '' });
+
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -58,6 +63,28 @@ const UniformOrderAdmin = () => {
             await api.delete(`/uniform-order/admin/${id}`);
             fetchOrders();
         } catch (e) { alert('Gagal menghapus'); }
+    };
+
+    const openEditModal = (order) => {
+        setFormData({
+            studentName: order.studentName || '',
+            customerName: order.customerName || '',
+            customerPhone: order.customerPhone || '',
+            customerUnit: order.customerUnit || '',
+            note: order.note || ''
+        });
+        setEditModal({ isOpen: true, order });
+    };
+
+    const handleEditOrderSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            await api.put(`/uniform-order/admin/orders/${editModal.order.id}/details`, formData);
+            setEditModal({ isOpen: false, order: null });
+            fetchOrders();
+        } catch (e) {
+            alert(e.response?.data?.error || 'Gagal menyimpan');
+        }
     };
 
     const getOrderDisplay = (order) => {
@@ -224,6 +251,9 @@ const UniformOrderAdmin = () => {
                                 >
                                     {expandedId === order.id ? <ChevronUp size={20} className="text-slate-400" /> : <ChevronDown size={20} className="text-slate-400" />}
                                 </button>
+                                <button onClick={() => openEditModal(order)} className="p-2 text-slate-300 hover:text-indigo-500 transition" title="Edit Orderan">
+                                    <Edit3 size={16} />
+                                </button>
                                 <button onClick={() => handleDelete(order.id)} className="p-2 text-slate-300 hover:text-red-500 transition" title="Hapus">
                                     <Trash2 size={16} />
                                 </button>
@@ -272,97 +302,36 @@ const UniformOrderAdmin = () => {
                                                                                 currentStatus === 'CANCEL_ITEM' ? (activeTab === 'UNIT' ? 'Ditolak' : 'Batal') : 'Selesai'}
                                                             </span>
 
-                                                            {/* Processing Options */}
-                                                            {currentStatus !== 'DONE' && currentStatus !== 'CANCEL_ITEM' && (
-                                                                <div className="flex gap-1 ml-2">
-                                                                    {activeTab === 'UNIT' ? (
-                                                                        <>
-                                                                            {currentStatus === 'PENDING' && (
-                                                                                <>
-                                                                                    <button
-                                                                                        onClick={() => handleEditItem(item.id, 'READY')}
-                                                                                        className="text-[10px] bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-600 hover:text-white font-bold shadow-sm transition"
-                                                                                    >
-                                                                                        TERIMA (APPROVE)
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => handleEditItem(item.id, 'CANCEL_ITEM')}
-                                                                                        className="text-[10px] bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-600 hover:text-white font-bold shadow-sm transition"
-                                                                                    >
-                                                                                        TOLAK
-                                                                                    </button>
-                                                                                </>
-                                                                            )}
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            {/* Sedia Button (Visible for Pending, No Stock, and Indent) */}
-                                                                            {(currentStatus === 'PENDING' || currentStatus === 'NO_STOCK' || currentStatus === 'INDENT') && (
-                                                                                <div className="relative group">
-                                                                                    <button className="text-[10px] bg-white border border-green-200 text-green-600 px-2 py-1 rounded hover:bg-green-600 hover:text-white font-bold transition">
-                                                                                        SEDIA
-                                                                                    </button>
-                                                                                    <div className="absolute right-0 bottom-full mb-1 bg-white border shadow-xl rounded-lg p-2 invisible group-hover:visible z-50 w-48">
-                                                                                        <div className="text-[10px] font-bold text-slate-400 uppercase mb-2 border-b pb-1">Pilih Hari Jemput</div>
-                                                                                        <div className="grid grid-cols-1 gap-1">
-                                                                                            {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'].map(day => (
-                                                                                                <button
-                                                                                                    key={day}
-                                                                                                    onClick={() => handleEditItem(item.id, 'READY', day)}
-                                                                                                    className="text-left py-1.5 px-2 hover:bg-indigo-50 rounded text-[10px] font-medium"
-                                                                                                >
-                                                                                                    {day} (07.30 - 16.00)
-                                                                                                </button>
-                                                                                            ))}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </div>
-                                                                            )}
+                                                            {/* Processing Options - Dropdown */}
+                                                            <div className="flex items-center gap-2 ml-2">
+                                                                <select
+                                                                    value={currentStatus}
+                                                                    onChange={(e) => handleEditItem(item.id, e.target.value)}
+                                                                    className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white font-medium text-slate-600 hover:border-indigo-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
+                                                                >
+                                                                    <option value="PENDING">Menunggu</option>
+                                                                    <option value="READY">Sedia</option>
+                                                                    <option value="NO_STOCK">Kosong</option>
+                                                                    <option value="INDENT">Indent (Pesan)</option>
+                                                                    <option value="CANCEL_ITEM">Batal / Ditolak</option>
+                                                                    <option value="DONE">Selesai (Sudah Diambil)</option>
+                                                                </select>
 
-                                                                            {/* Kosong Button */}
-                                                                            {currentStatus === 'PENDING' && (
-                                                                                <button
-                                                                                    onClick={() => handleEditItem(item.id, 'NO_STOCK')}
-                                                                                    className="text-[10px] bg-white border border-red-200 text-red-600 px-2 py-1 rounded hover:bg-red-600 hover:text-white font-bold transition"
-                                                                                >
-                                                                                    KOSONG
-                                                                                </button>
-                                                                            )}
-
-                                                                            {/* Indent (PESAN) Button - Visible when NO_STOCK */}
-                                                                            {currentStatus === 'NO_STOCK' && (
-                                                                                <button
-                                                                                    onClick={() => handleEditItem(item.id, 'INDENT')}
-                                                                                    className="text-[10px] bg-white border border-orange-200 text-orange-600 px-2 py-1 rounded hover:bg-orange-600 hover:text-white font-bold transition"
-                                                                                >
-                                                                                    PESAN (INDENT)
-                                                                                </button>
-                                                                            )}
-
-                                                                            {/* Batal Button - Visible when PENDING, NO_STOCK or INDENT */}
-                                                                            {(currentStatus === 'PENDING' || currentStatus === 'NO_STOCK' || currentStatus === 'INDENT') && (
-                                                                                <button
-                                                                                    onClick={() => handleEditItem(item.id, 'CANCEL_ITEM')}
-                                                                                    className="text-[10px] bg-white border border-slate-200 text-slate-500 px-2 py-1 rounded hover:bg-slate-500 hover:text-white font-bold transition"
-                                                                                >
-                                                                                    BATAL
-                                                                                </button>
-                                                                            )}
-                                                                        </>
-                                                                    )}
-
-                                                                    {/* Selesai Button - Shared for both UNIT and WARID when READY */}
-                                                                    {currentStatus === 'READY' && (
-                                                                        <button
-                                                                            onClick={() => handleItemStatusNoNotify(item.id, 'DONE')}
-                                                                            className="text-[10px] bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 font-bold shadow-sm transition border border-indigo-700"
-                                                                            title="Selesaikan pesanan dan kurangi stok tanpa pemberitahuan WA"
-                                                                        >
-                                                                            SELESAI
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            )}
+                                                                {currentStatus === 'READY' && (
+                                                                    <select
+                                                                        value={currentPickup || ''}
+                                                                        onChange={(e) => handleEditItem(item.id, 'READY', e.target.value)}
+                                                                        className="text-xs border border-green-200 rounded-lg px-2 py-1.5 bg-green-50 font-medium text-green-700 outline-none cursor-pointer"
+                                                                    >
+                                                                        <option value="">-- Hari Jemput --</option>
+                                                                        <option value="Senin">Senin</option>
+                                                                        <option value="Selasa">Selasa</option>
+                                                                        <option value="Rabu">Rabu</option>
+                                                                        <option value="Kamis">Kamis</option>
+                                                                        <option value="Jumat">Jumat</option>
+                                                                    </select>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 );
@@ -414,6 +383,90 @@ const UniformOrderAdmin = () => {
                     </div>
                 ))}
             </div>
+
+            {/* Edit Order Modal */}
+            {editModal.isOpen && (
+                <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                <Edit3 size={18} className="text-indigo-600" />
+                                Edit Detail Pesanan
+                            </h3>
+                            <button onClick={() => setEditModal({ isOpen: false, order: null })} className="text-slate-400 hover:text-slate-600 transition">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleEditOrderSubmit} className="p-4 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Nama Siswa / Barang</label>
+                                <input 
+                                    type="text" 
+                                    value={formData.studentName} 
+                                    onChange={e => setFormData({...formData, studentName: e.target.value})}
+                                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                    required
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Nama Pemesan</label>
+                                    <input 
+                                        type="text" 
+                                        value={formData.customerName} 
+                                        onChange={e => setFormData({...formData, customerName: e.target.value})}
+                                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">No HP / WA</label>
+                                    <input 
+                                        type="text" 
+                                        value={formData.customerPhone} 
+                                        onChange={e => setFormData({...formData, customerPhone: e.target.value})}
+                                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Unit</label>
+                                <select 
+                                    value={formData.customerUnit} 
+                                    onChange={e => setFormData({...formData, customerUnit: e.target.value})}
+                                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white"
+                                >
+                                    <option value="">Pilih Unit</option>
+                                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                                    <option value="Lainnya">Lainnya</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Catatan Tambahan</label>
+                                <textarea 
+                                    value={formData.note} 
+                                    onChange={e => setFormData({...formData, note: e.target.value})}
+                                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 h-24"
+                                />
+                            </div>
+                            <div className="pt-4 flex justify-end gap-2">
+                                <button 
+                                    type="button" 
+                                    onClick={() => setEditModal({ isOpen: false, order: null })}
+                                    className="px-4 py-2 text-sm font-bold text-slate-500 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
+                                >
+                                    Batal
+                                </button>
+                                <button 
+                                    type="submit"
+                                    className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition"
+                                >
+                                    Simpan Perubahan
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

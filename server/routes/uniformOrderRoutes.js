@@ -254,6 +254,17 @@ const updateOrderStatus = async (req, res) => {
     } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
 };
 
+const updateOrderDetails = async (req, res) => {
+    try {
+        const { studentName, customerName, customerPhone, customerUnit, note } = req.body;
+        const order = await prisma.uniformOrder.update({
+            where: { id: parseInt(req.params.id) },
+            data: { studentName, customerName, customerPhone, customerUnit, note }
+        });
+        res.json({ message: 'Detail pesanan diperbarui', order });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+};
+
 const deleteOrder = async (req, res) => {
     try {
         await prisma.uniformOrder.delete({ where: { id: parseInt(req.params.id) } });
@@ -566,6 +577,7 @@ router.get('/search-public', publicSearchOrder);
 // Admin routes
 router.get('/admin/orders', authMiddleware, getAllOrders);
 router.put('/admin/:id', authMiddleware, updateOrderStatus);
+router.put('/admin/orders/:id/details', authMiddleware, updateOrderDetails);
 router.delete('/admin/:id', authMiddleware, deleteOrder);
 router.put('/admin/orders/:id/bulk-items', authMiddleware, bulkUpdateItems);
 

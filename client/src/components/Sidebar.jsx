@@ -184,24 +184,7 @@ const Sidebar = ({ isOpen = true }) => {
                     </>
                 ))}
 
-                {/* 2. Manajemen Prasarana (Pembangunan) */}
-                {renderCollapsible('construction', <Building2 size={18} />, 'Manajemen Prasarana', (
-                    <>
-                        {isPembangunanFull && (
-                            <Link to="/prasarana/proyek" className={subNavItemClass('/prasarana/proyek')}>
-                                <ClipboardList size={16} /> Manajemen Proyek
-                            </Link>
-                        )}
-                        <Link to="/pemeliharaan?targetDept=PEMBANGUNAN" className={subNavItemClass('/pemeliharaan?targetDept=PEMBANGUNAN')}>
-                            <Wrench size={16} /> Pemeliharaan
-                        </Link>
-                        {isPembangunanFull && (
-                            <Link to="/prasarana/tukang" className={subNavItemClass('/prasarana/tukang')}>
-                                <HardHat size={16} /> Database Tukang
-                            </Link>
-                        )}
-                    </>
-                ))}
+
 
                 {/* Manajemen Workshop */}
                 {renderCollapsible('workshop', <Wrench size={18} />, 'Manajemen Workshop', (

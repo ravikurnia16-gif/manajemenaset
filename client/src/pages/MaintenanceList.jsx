@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Search, Filter, Trash2, Eye, Wrench, Calendar, AlertCircle, Download, ChevronLeft, ChevronRight, BarChart2, Clock, CheckCircle } from 'lucide-react';
+import { Plus, Search, Filter, Trash2, Eye, Wrench, Calendar, AlertCircle, Download, ChevronLeft, ChevronRight, BarChart2, Clock, CheckCircle, HardHat } from 'lucide-react';
 import api from '../lib/axios';
 import * as XLSX from 'xlsx';
 import MaintenanceDashboard from '../components/MaintenanceDashboard';
+import ContractorList from './ContractorList';
 
 const statusColors = {
     SUBMITTED: 'bg-blue-100 text-blue-700',
@@ -43,6 +44,7 @@ const MaintenanceList = () => {
     const [loading, setLoading] = useState(true);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isDashboardAuthorized = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
+    const isTukangAuthorized = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
@@ -305,6 +307,14 @@ const MaintenanceList = () => {
                 >
                     <Clock size={18} /> Daftar Laporan
                 </button>
+                {isTukangAuthorized && (
+                    <button
+                        onClick={() => setActiveTab('tukang')}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'tukang' ? 'bg-orange-50 text-orange-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                    >
+                        <HardHat size={18} /> Database Tukang
+                    </button>
+                )}
             </div>
 
             {/* Tab Contents */}
@@ -729,11 +739,14 @@ const MaintenanceList = () => {
             )}
                 </div>
             )}
-            
-            {/* End of activeTab === 'list' */}
-            {activeTab === 'list' && (
-                <div className="hidden"></div>
+
+            {isTukangAuthorized && activeTab === 'tukang' && (
+                <div className="animate-in fade-in duration-500 border-t border-slate-200 pt-4 -mx-4 md:-mx-6 px-4 md:px-6">
+                    <ContractorList />
+                </div>
             )}
+
+            {/* End of activeTab === 'list' */}
         </div>
     );
 };
