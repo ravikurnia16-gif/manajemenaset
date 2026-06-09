@@ -10,7 +10,7 @@ exports.getAllMaintenanceLogs = async (req, res) => {
 
         // Filter by PIC if not a global admin/Sarpras staff
         const isSarpras = role === 'KEPALA_BIDANG' || req.user?.position?.includes('Sarana dan Prasarana') || req.user?.position?.includes('Manajemen Aset');
-        
+
         if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role) && !isSarpras) {
             where = {
                 vehicle: {
@@ -38,10 +38,10 @@ exports.getMaintenanceLogById = async (req, res) => {
         const { id: userId, role } = req.user;
         const log = await prisma.vehicleService.findUnique({
             where: { id: parseInt(req.params.id) },
-            include: { 
+            include: {
                 vehicle: {
                     include: { pics: { select: { id: true } } }
-                } 
+                }
             }
         });
 
@@ -64,7 +64,7 @@ exports.createMaintenanceLog = async (req, res) => {
     try {
         const { id: userId, role } = req.user;
         const {
-            vehicleId, date, category, type, description, cost, odometer, 
+            vehicleId, date, category, type, description, cost, odometer,
             nextServiceOdometer, nextServiceDate, workshop, proofFile, items
         } = req.body;
 
@@ -75,7 +75,7 @@ exports.createMaintenanceLog = async (req, res) => {
 
         // 2. PIC Validation
         const isSarpras = role === 'KEPALA_BIDANG' || req.user?.position?.includes('Sarana dan Prasarana') || req.user?.position?.includes('Manajemen Aset');
-        
+
         if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role) && !isSarpras) {
             const vehicle = await prisma.vehicle.findUnique({
                 where: { id: parseInt(vehicleId) },
@@ -120,10 +120,10 @@ exports.createMaintenanceLog = async (req, res) => {
                 if (!item.name) continue;
 
                 // Calculate targets
-                const targetKm = (odometer && item.intervalKm) 
-                    ? parseInt(odometer) + parseInt(item.intervalKm) 
+                const targetKm = (odometer && item.intervalKm)
+                    ? parseInt(odometer) + parseInt(item.intervalKm)
                     : (item.nextKm ? parseInt(item.nextKm) : null);
-                
+
                 let targetDate = null;
                 if (item.intervalMonths) {
                     targetDate = new Date(date);
@@ -301,8 +301,7 @@ exports.checkHybridReminderNotifications = async () => {
             where: {
                 OR: [
                     { position: 'Kepala Bidang Sarana dan Prasarana' },
-                    { position: 'Staff Keuangan dan Administrasi (Sarpras)' },
-                    { position: 'Staff Manajemen Aset' }
+                    { position: 'Staff Kendaraan' }
                 ],
                 phone: { not: null }
             }
@@ -349,7 +348,7 @@ exports.checkHybridReminderNotifications = async () => {
                     where: { id: vehicle.id },
                     data: { lastKmNotifiedAt: now }
                 });
-            } catch (e) {}
+            } catch (e) { }
         }
 
         console.log(`[Hybrid Reminder] Scheduled ${alertVehicles.length * recipients.length} notification(s).`);
