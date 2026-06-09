@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Save, HardHat, Cog, AlertTriangle } from 'lucide-react';
 import api from '../lib/axios';
 import Swal from 'sweetalert2';
@@ -12,14 +12,17 @@ const WorkshopOrderForm = () => {
     const userObj = userStr ? JSON.parse(userStr) : null;
     const isAdminUnit21 = userObj?.role === 'ADMIN_UNIT' && userObj?.unitId === 21;
 
+    const location = useLocation();
+    const fromMaintenance = location.state?.fromMaintenance;
+
     const [form, setForm] = useState({
-        title: '',
+        title: fromMaintenance ? fromMaintenance.title : '',
         priority: 'NORMAL',
         deadline: '',
-        notes: '',
+        notes: fromMaintenance ? fromMaintenance.notes : '',
         picName: '',
         workshopType: '',
-        unitId: ''
+        unitId: fromMaintenance ? fromMaintenance.unitId : ''
     });
 
     const [units, setUnits] = useState([]);
@@ -88,6 +91,7 @@ const WorkshopOrderForm = () => {
         try {
             await api.post('/workshop/orders', {
                 ...form,
+                maintenanceId: fromMaintenance?.id,
                 items
             });
             Swal.fire('Berhasil!', 'Pesanan workshop berhasil dibuat dan Surat Pesanan telah dikirim ke E-Office.', 'success');

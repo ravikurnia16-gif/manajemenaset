@@ -375,7 +375,8 @@ exports.getReportById = async (req, res) => {
             include: {
                 user: { select: { username: true, name: true, phone: true } },
                 unit: { select: { name: true } },
-                assets: { select: { id: true, code: true, name: true, specification: true, condition: true } }
+                assets: { select: { id: true, code: true, name: true, specification: true, condition: true } },
+                workshopOrders: { select: { id: true, code: true, title: true, status: true, workshopType: true } }
             }
         });
         if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });

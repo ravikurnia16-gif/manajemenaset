@@ -382,6 +382,7 @@ model Maintenance {
   targetDept String              @default("SARPRAS") // SARPRAS or PEMBANGUNAN
   urgency    String              @default("NORMAL") // e.g. NORMAL, URGENT, EMERGENCY
   assets     Asset[]
+  workshopOrders WorkshopOrder[]
 
   title       String // Judul Ringkas
   description String  @db.Text // Keluhan / Masalah
@@ -1466,6 +1467,10 @@ model WorkshopOrder {
   // Linkage to E-Office (Surat Pesanan)
   officeDocumentId Int?                @unique
   officeDocument   OfficeDocument?     @relation(fields: [officeDocumentId], references: [id])
+  
+  // Linkage to Maintenance
+  maintenanceId   Int?
+  maintenance     Maintenance?         @relation(fields: [maintenanceId], references: [id])
   
   // Notes & Media
   notes           String?              @db.Text

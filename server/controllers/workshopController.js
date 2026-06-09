@@ -196,7 +196,7 @@ exports.getOrderById = async (req, res) => {
 
 // 4. Create Order
 exports.createOrder = async (req, res) => {
-    const { title, priority, deadline, notes, items, workshopUnitId, picName, workshopType, unitId } = req.body;
+    const { title, priority, deadline, notes, items, workshopUnitId, picName, workshopType, unitId, maintenanceId } = req.body;
     const user = req.user;
 
     try {
@@ -234,6 +234,7 @@ exports.createOrder = async (req, res) => {
                 picName,
                 estimatedCost,
                 status: 'PENDING',
+                maintenanceId: maintenanceId ? parseInt(maintenanceId) : null,
                 items: {
                     create: itemData
                 }
@@ -250,7 +251,7 @@ exports.createOrder = async (req, res) => {
         // Notify Sarpras Unit (Hardcoded to unitId 21 as requested)
         const recipients = await prisma.user.findMany({
             where: {
-                position: 'Sarpras Unit',
+                position: { in: ['Sarpras Unit', 'Kepala Unit'] },
                 unitId: 21,
                 phone: { not: null, not: '' }
             }
@@ -503,7 +504,7 @@ exports.createFromProcurement = async (req, res) => {
         // Notify Sarpras Unit (Hardcoded to unitId 21 as requested)
         const recipients = await prisma.user.findMany({
             where: {
-                position: 'Sarpras Unit',
+                position: { in: ['Sarpras Unit', 'Kepala Unit'] },
                 unitId: 21,
                 phone: { not: null, not: '' }
             }

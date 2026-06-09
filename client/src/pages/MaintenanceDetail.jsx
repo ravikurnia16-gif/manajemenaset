@@ -41,6 +41,7 @@ const MaintenanceDetail = () => {
     const [technicianName, setTechnicianName] = useState('');
     const [technicianPhone, setTechnicianPhone] = useState('');
     const [technicianType, setTechnicianType] = useState('external'); // 'internal' or 'external'
+    const [createWorkshopOrder, setCreateWorkshopOrder] = useState(false);
     const [progressNote, setProgressNote] = useState('');
     const [costItems, setCostItems] = useState([]); // [{ id: string, label: string, price: number, assetId: number|null }]
     const [bulkPrice, setBulkPrice] = useState('');
@@ -148,6 +149,22 @@ const MaintenanceDetail = () => {
             }
 
             await api.put(`/maintenance/${id}/status`, payload);
+
+            if (actionModal.nextStatus === 'ASSIGNED' && technicianType === 'external' && createWorkshopOrder) {
+                showToast('Laporan ditugaskan. Mengalihkan ke form Workshop...');
+                navigate('/workshop/orders/new', {
+                    state: {
+                        fromMaintenance: {
+                            id: report.id,
+                            title: `[MT] ${report.title}`,
+                            notes: report.description,
+                            unitId: report.unitId
+                        }
+                    }
+                });
+                return;
+            }
+
             setActionModal({ show: false, type: '', nextStatus: '' });
             setActionNote('');
             setTechnicianName('');
@@ -416,6 +433,34 @@ const MaintenanceDetail = () => {
                 </div>
             </div>
 
+            {/* Workshop Orders Section */}
+            {report.workshopOrders && report.workshopOrders.length > 0 && (
+                <div className="bg-slate-50 rounded-xl border border-slate-200 p-5 space-y-3">
+                    <h3 className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                        <Wrench size={18} /> Pesanan Workshop Terkait
+                    </h3>
+                    <div className="space-y-2">
+                        {report.workshopOrders.map(wo => (
+                            <div key={wo.id} className="flex justify-between items-center bg-white p-3 border border-slate-200 rounded-lg">
+                                <div>
+                                    <div className="font-semibold text-slate-700">{wo.title}</div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs text-slate-500 font-mono">{wo.code}</span>
+                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] rounded font-bold">{wo.status}</span>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => navigate(`/workshop/orders/${wo.id}`)}
+                                    className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded"
+                                >
+                                    Lihat Detail
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Nota / Bukti Pembayaran Section */}
             {report.media?.some(m => m.isReceipt) && (
                 <div className="bg-amber-50 rounded-xl border border-amber-200 p-5 space-y-3 animate-in fade-in slide-in-from-top-4 duration-500">
@@ -658,6 +703,19 @@ const MaintenanceDetail = () => {
                                                     placeholder="Misal: 08123456789 (Opsional)"
                                                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                                 />
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-2 mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                                                <input 
+                                                    type="checkbox" 
+                                                    id="createWorkshopOrder"
+                                                    checked={createWorkshopOrder}
+                                                    onChange={e => setCreateWorkshopOrder(e.target.checked)}
+                                                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                                />
+                                                <label htmlFor="createWorkshopOrder" className="text-sm font-semibold text-blue-800 cursor-pointer">
+                                                    Buat Pesanan ke Workshop Terkait
+                                                </label>
                                             </div>
                                         </div>
                                     )}
