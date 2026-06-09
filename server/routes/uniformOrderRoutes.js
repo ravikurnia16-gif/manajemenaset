@@ -417,16 +417,48 @@ const bulkUpdateItems = async (req, res) => {
                 include: { item: true }
             });
 
+            const dataToUpdate = {
+                status: update.status, 
+                pickupDetails: update.pickupDetails || null 
+            };
+
+            if (update.size !== undefined) {
+                dataToUpdate.size = update.size;
+
+                if (currentItem && currentItem.itemId) {
+                    const currentWarehouseItem = await prisma.warehouseItem.findUnique({
+                        where: { id: currentItem.itemId }
+                    });
+                    if (currentWarehouseItem) {
+                        const matchingItem = await prisma.warehouseItem.findFirst({
+                            where: {
+                                name: currentWarehouseItem.name,
+                                categoryId: currentWarehouseItem.categoryId,
+                                type: currentWarehouseItem.type,
+                                gender: currentWarehouseItem.gender,
+                                itemUnit: currentWarehouseItem.itemUnit,
+                                uniformGroup: currentWarehouseItem.uniformGroup,
+                                size: update.size
+                            }
+                        });
+                        if (matchingItem) {
+                            dataToUpdate.itemId = matchingItem.id;
+                        } else {
+                            dataToUpdate.itemId = null;
+                        }
+                    }
+                }
+            }
+
             await prisma.uniformOrderItem.update({
                 where: { id: parseInt(update.id) },
-                data: { 
-                    status: update.status, 
-                    pickupDetails: update.pickupDetails || null 
-                }
+                data: dataToUpdate
             });
 
+            const finalItemId = dataToUpdate.itemId !== undefined ? dataToUpdate.itemId : (currentItem ? currentItem.itemId : null);
+
             // Automatically deduct stock and create transaction if it just became DONE
-            if (currentItem && currentItem.status !== 'DONE' && update.status === 'DONE' && currentItem.itemId) {
+            if (currentItem && currentItem.status !== 'DONE' && update.status === 'DONE' && finalItemId) {
                 // Generate transaction code manually to ensure sequential isolation
                 const lastTx = await prisma.warehouseTransaction.findFirst({
                     where: { code: { startsWith: `TRX/${year}/` } },
@@ -459,7 +491,7 @@ const bulkUpdateItems = async (req, res) => {
                         await tx.warehouseTransactionItem.create({
                             data: {
                                 transactionId: transaction.id,
-                                itemId: currentItem.itemId,
+                                itemId: finalItemId,
                                 quantity: currentItem.quantity,
                                 recipientName: order.customerName || order.studentName,
                                 recipientUnit: order.customerUnit
@@ -467,7 +499,7 @@ const bulkUpdateItems = async (req, res) => {
                         });
 
                         await tx.warehouseItem.update({
-                            where: { id: currentItem.itemId },
+                            where: { id: finalItemId },
                             data: { stock: { decrement: currentItem.quantity } }
                         });
                     }

@@ -99,11 +99,35 @@ const UniformOrderAdmin = () => {
         return order.note || '-';
     };
 
-    const handleEditItem = (itemId, newStatus, pickupDetails = null) => {
-        setItemEdits(prev => ({
-            ...prev,
-            [itemId]: { status: newStatus, pickupDetails }
-        }));
+    const getAllSizes = (originalSize) => {
+        const defaultSizes = ['SS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '4XL', '38', '40', '42', '44', '46', '48', '50/20', '50/22', '50/24', '52/20', '52/22', '52/24', '54/20', '54/22', '54/24', '20', '20.5', '21', '21.5', '22', '22.5', '23', '23.5', '24', 'Ukuran Khusus'];
+        if (originalSize && !defaultSizes.includes(originalSize)) {
+            return [originalSize, ...defaultSizes];
+        }
+        return defaultSizes;
+    };
+
+    const handleEditItem = (itemId, updatesOrStatus, pickupDetails = null) => {
+        setItemEdits(prev => {
+            const currentItem = orders.flatMap(o => o.items || []).find(i => i.id === itemId);
+            const existing = prev[itemId] || {
+                status: currentItem?.status || 'PENDING',
+                pickupDetails: currentItem?.pickupDetails || null,
+                size: currentItem?.size || ''
+            };
+            
+            let merged = {};
+            if (typeof updatesOrStatus === 'object' && updatesOrStatus !== null) {
+                merged = { ...existing, ...updatesOrStatus };
+            } else {
+                merged = { ...existing, status: updatesOrStatus, pickupDetails };
+            }
+            
+            return {
+                ...prev,
+                [itemId]: merged
+            };
+        });
     };
 
     const handleBulkSave = async (orderId) => {
@@ -278,8 +302,18 @@ const UniformOrderAdmin = () => {
                                                     <div key={item.id} className={`flex flex-wrap items-center gap-4 p-3 rounded-lg border transition-all ${itemEdits[item.id] ? 'bg-indigo-50/50 border-indigo-200 shadow-sm' : 'bg-slate-50 border-slate-100'}`}>
                                                         <div className="flex-1">
                                                             <div className="font-bold text-slate-700 text-sm">{item.itemName || 'Item'}</div>
-                                                            <div className="text-xs text-slate-500 flex gap-2 mt-0.5">
-                                                                <span>Ukuran: <b className="text-slate-700">{item.size || '-'}</b></span>
+                                                            <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                                                                <span className="flex items-center">Ukuran: 
+                                                                    <select
+                                                                        value={itemEdits[item.id]?.size || item.size || ''}
+                                                                        onChange={(e) => handleEditItem(item.id, { size: e.target.value })}
+                                                                        className="text-xs border border-slate-200 rounded px-1.5 py-0.5 bg-white font-bold text-slate-700 outline-none cursor-pointer focus:border-indigo-500 ml-1.5"
+                                                                    >
+                                                                        {getAllSizes(item.size).map(sz => (
+                                                                            <option key={sz} value={sz}>{sz}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                </span>
                                                                 <span>•</span>
                                                                 <span>Qty: <b className="text-slate-700">{item.quantity}</b></span>
                                                             </div>
