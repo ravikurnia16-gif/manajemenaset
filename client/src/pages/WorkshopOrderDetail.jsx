@@ -280,6 +280,15 @@ function WorkshopOrderDetail() {
                                     {order.deadline ? new Date(order.deadline).toLocaleDateString('id-ID') : '-'}
                                 </div>
                             </div>
+                            {order.completionDate && (
+                                <div>
+                                    <p className="text-xs text-emerald-600 mb-1 font-semibold">Selesai Aktual</p>
+                                    <div className="flex items-center text-sm font-bold text-emerald-700">
+                                        <CheckCircle size={16} className="mr-2" />
+                                        {new Date(order.completionDate).toLocaleString('id-ID')}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         {order.procurement && (
                             <div className="p-4 border-t border-blue-100 bg-blue-50">
