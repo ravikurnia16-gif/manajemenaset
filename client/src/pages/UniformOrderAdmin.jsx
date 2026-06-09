@@ -117,9 +117,13 @@ const UniformOrderAdmin = () => {
     };
 
     const getStatusPriority = (status) => {
-        if (status === 'PENDING' || status === 'READY') return 0;
-        if (status === 'PICKED_UP') return 2;
-        return 1;
+        if (status === 'PENDING') return 0;
+        if (status === 'CONFIRMED') return 1;
+        if (status === 'READY') return 2;
+        if (status === 'INDENT') return 3;
+        if (status === 'CANCELLED') return 4;
+        if (status === 'PICKED_UP') return 5;
+        return 6;
     };
 
     const displayedOrders = orders.filter(order => {
@@ -133,10 +137,10 @@ const UniformOrderAdmin = () => {
         
         const dateA = new Date(a.createdAt);
         const dateB = new Date(b.createdAt);
-        if (prioA === 0) {
-            return dateA - dateB; // Terlama di atas
+        if (prioA <= 3) {
+            return dateA - dateB; // Terlama di atas untuk pesanan aktif
         }
-        return dateB - dateA; // Terbaru di atas untuk selain PENDING & READY
+        return dateB - dateA; // Terbaru di atas untuk pesanan selesai/batal
     });
 
     return (
