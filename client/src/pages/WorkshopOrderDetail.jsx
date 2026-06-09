@@ -88,6 +88,12 @@ function WorkshopOrderDetail() {
 
     const handleUpdateStatus = async (e) => {
         e.preventDefault();
+
+        if (newStatus === 'COMPLETED' && !photoBase64) {
+            Swal.fire('Peringatan', 'Foto wajib diunggah saat menyelesaikan pesanan (Status: COMPLETED).', 'warning');
+            return;
+        }
+
         try {
             await api.put(`/workshop/orders/${id}/status`, {
                 status: newStatus,
@@ -421,10 +427,13 @@ function WorkshopOrderDetail() {
                                 ></textarea>
                             </div>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Foto Status / Progres (Opsional)</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Foto Status / Progres {newStatus === 'COMPLETED' ? <span className="text-red-500">*</span> : '(Opsional)'}
+                                </label>
                                 <input 
                                     type="file" 
                                     accept="image/*"
+                                    required={newStatus === 'COMPLETED'}
                                     onChange={handlePhotoChange}
                                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                                 />
