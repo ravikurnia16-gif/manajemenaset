@@ -553,7 +553,7 @@ exports.createFromProcurement = async (req, res) => {
 // 8. Update Order Details (WorkshopType & Estimated Prices)
 exports.updateOrderDetails = async (req, res) => {
     const { id } = req.params;
-    const { workshopType, items } = req.body;
+    const { workshopType, items, deadline } = req.body;
 
     try {
         const order = await prisma.workshopOrder.findUnique({ where: { id: parseInt(id) } });
@@ -566,6 +566,13 @@ exports.updateOrderDetails = async (req, res) => {
                 await prisma.workshopOrder.update({
                     where: { id: parseInt(id) },
                     data: { workshopType }
+                });
+            }
+
+            if (deadline !== undefined) {
+                await prisma.workshopOrder.update({
+                    where: { id: parseInt(id) },
+                    data: { deadline: deadline ? new Date(deadline) : null }
                 });
             }
 

@@ -49,6 +49,7 @@ function WorkshopOrderDetail() {
     // Edit Details Form states
     const [detailsForm, setDetailsForm] = useState(false);
     const [editWorkshopType, setEditWorkshopType] = useState('');
+    const [editDeadline, setEditDeadline] = useState('');
     const [editItems, setEditItems] = useState([]);
 
     useEffect(() => {
@@ -61,6 +62,7 @@ function WorkshopOrderDetail() {
             setOrder(res.data);
             setNewStatus(res.data.status);
             setEditWorkshopType(res.data.workshopType || '');
+            setEditDeadline(res.data.deadline ? new Date(res.data.deadline).toISOString().split('T')[0] : '');
             setEditItems(res.data.items?.map(it => ({ id: it.id, name: it.name, estimatedPrice: it.estimatedPrice || 0 })) || []);
         } catch (error) {
             console.error(error);
@@ -165,6 +167,7 @@ function WorkshopOrderDetail() {
         try {
             await api.put(`/workshop/orders/${id}/details`, {
                 workshopType: editWorkshopType,
+                deadline: editDeadline || null,
                 items: editItems
             });
             Swal.fire('Berhasil', 'Detail pesanan berhasil diperbarui', 'success');
@@ -280,15 +283,6 @@ function WorkshopOrderDetail() {
                                     {order.deadline ? new Date(order.deadline).toLocaleDateString('id-ID') : '-'}
                                 </div>
                             </div>
-                            {order.completionDate && (
-                                <div>
-                                    <p className="text-xs text-emerald-600 mb-1 font-semibold">Selesai Aktual</p>
-                                    <div className="flex items-center text-sm font-bold text-emerald-700">
-                                        <CheckCircle size={16} className="mr-2" />
-                                        {new Date(order.completionDate).toLocaleString('id-ID')}
-                                    </div>
-                                </div>
-                            )}
                         </div>
                         {order.procurement && (
                             <div className="p-4 border-t border-blue-100 bg-blue-50">
@@ -536,6 +530,16 @@ function WorkshopOrderDetail() {
                                         <div className="font-bold">Workshop Besi</div>
                                     </button>
                                 </div>
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Target Selesai (Deadline)</label>
+                                <input 
+                                    type="date"
+                                    value={editDeadline}
+                                    onChange={(e) => setEditDeadline(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
                             </div>
                             
                             <div className="mb-4">
