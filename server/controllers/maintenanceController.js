@@ -400,22 +400,26 @@ exports.createReport = async (req, res) => {
 
         // AI Analysis removed for stability
 
-        const isDirect = (req.body.isDirectOrder === 'true' || req.body.isDirectOrder === true) && user.role === 'SUPER_ADMIN' && targetDept !== 'PEMBANGUNAN';
+        const isDirect = (req.body.isDirectOrder === 'true' || req.body.isDirectOrder === true) && user.role === 'SUPER_ADMIN';
         let initialStatus = 'SUBMITTED';
         let technician = null;
         let quickToken = null;
 
-        // Auto-assign for Direct Orders
+        // Auto-assign for Direct Orders (Penugasan Internal)
         if (isDirect) {
             initialStatus = 'ASSIGNED';
-            // Find Staff Manajemen Aset
-            const staffAset = await prisma.user.findFirst({
-                where: { position: 'Staff Manajemen Aset' }
-            });
-            if (staffAset) {
-                technician = staffAset.name || staffAset.username;
-                quickToken = crypto.randomBytes(16).toString('hex');
+            technician = req.body.technicianName || null;
+            
+            // Fallback if no technician selected
+            if (!technician) {
+                const staffAset = await prisma.user.findFirst({
+                    where: { position: 'Staff Manajemen Aset' }
+                });
+                if (staffAset) {
+                    technician = staffAset.name || staffAset.username;
+                }
             }
+            quickToken = crypto.randomBytes(16).toString('hex');
         }
 
         let finalUnitId = user.unitId;
@@ -476,12 +480,6 @@ exports.createReport = async (req, res) => {
 
                 // 1. In-App Notification (Dynamic based on targetDept)
                 const inAppRoles = [{ position: { contains: 'Staff Manajemen Aset' } }];
-                if (targetDept === 'PEMBANGUNAN') {
-                    inAppRoles.push({
-                        position: { contains: 'Staff Pembangunan' },
-                        nip: '22101471'
-                    });
-                }
 
                 const notifRecipients = await prisma.user.findMany({
                     where: {
@@ -526,12 +524,6 @@ exports.createReport = async (req, res) => {
 
                 // 2. WhatsApp Notification (Dynamic based on targetDept)
                 const waRoles = [{ position: { contains: 'Manajemen Aset' } }];
-                if (targetDept === 'PEMBANGUNAN') {
-                    waRoles.push({
-                        position: { contains: 'Staff Pembangunan' },
-                        nip: '22101471'
-                    });
-                }
 
                 const waRecipients = await prisma.user.findMany({
                     where: {
@@ -561,7 +553,7 @@ exports.createReport = async (req, res) => {
                         `📋 *Judul* : ${title}\n` +
                         `📝 *Masalah* : ${description}\n\n` +
                         (targetDept !== 'PEMBANGUNAN' ? `📦 *Aset Terkait* :\n${assetListStr}\n\n` : '') +
-                        `${isDirect ? `*Status*: Otomatis Ditugaskan ke Staff Aset.` : `Mohon segera ditindaklanjuti.`}\n\n` +
+                        `${isDirect ? `*Status*: Otomatis Ditugaskan ke ${report.technician || 'Teknisi'}.` : `Mohon segera ditindaklanjuti.`}\n\n` +
                         `Syukron jazakumullahu khairan.`;
 
                     // Send to all found recipients with delay
@@ -585,15 +577,15 @@ exports.createReport = async (req, res) => {
                 // 3. Notify Technician (If Direct Order)
                 if (isDirect && report.status === 'ASSIGNED' && report.technician) {
                     const techUser = await prisma.user.findFirst({
-                        where: { position: 'Staff Manajemen Aset' }
+                        where: { OR: [{ name: report.technician }, { username: report.technician }] }
                     });
 
                     if (techUser && techUser.phone) {
-                        const msgTech = `Bismillah.\n🛠 *PENUGASAN MANDAT KABID*\n\n` +
+                        const msgTech = `Bismillah.\n🛠 *PENUGASAN INTERNAL BARU*\n\n` +
                             `Halo *${techUser.name || techUser.username}*,\n` +
-                            `Anda mendapatkan instruksi langsung untuk memperbaiki: *${title}*.\n\n` +
+                            `Anda mendapatkan instruksi penugasan untuk: *${title}*.\n\n` +
                             `📜 *Kode* : ${code}\n` +
-                            `👤 *Pemberi Tugas* : Super Admin (Atas Perintah Kabid)\n` +
+                            `👤 *Pemberi Tugas* : Admin (Penugasan Internal)\n` +
                             `📝 *Masalah* : ${description}\n\n` +
                             `Mohon segera ditindaklanjuti. Syukron.`;
 

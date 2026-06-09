@@ -3,7 +3,7 @@ import {
     Car, Calendar, MapPin, Info, CheckCircle, XCircle,
     Clock, Gauge, Fuel, User, Plus, Search, X, Lock, Edit,
     ArrowRight, ChevronRight, ChevronLeft, AlertCircle, Trash2,
-    Users, LogIn, LogOut, Receipt, Navigation2, Loader2
+    Users, LogIn, LogOut, Receipt, Navigation2, Loader2, History
 } from 'lucide-react';
 import api from '../lib/axios';
 
@@ -2847,6 +2847,64 @@ const VehicleBooking = () => {
                                 </div>
                             </div>
                         )}
+
+                        {/* Riwayat Sanksi (Dicabut) */}
+                        <div className="mt-8">
+                            <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <History className="text-blue-600" /> Riwayat Pencabutan Sanksi
+                            </h4>
+                            <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+                                {(() => {
+                                    const liftedSanctions = (isSuperAdmin || isAdminAset ? driverViolations : driverViolations.filter(v => v.driverId === user.id)).filter(v => v.category === "Sanksi Peminjaman" && v.sanction === "Sanksi Dicabut");
+
+                                    if (liftedSanctions.length === 0) {
+                                        return (
+                                            <div className="py-12 text-center bg-slate-50/50">
+                                                <p className="text-slate-500 font-bold">Belum ada riwayat pencabutan sanksi.</p>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                                        <th className="p-4 pl-6">Tanggal</th>
+                                                        {(isSuperAdmin || isAdminAset) && <th className="p-4">User</th>}
+                                                        <th className="p-4">Status</th>
+                                                        <th className="p-4 pr-6">Catatan & Riwayat</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 text-sm">
+                                                    {liftedSanctions.map(v => (
+                                                        <tr key={v.id} className="hover:bg-slate-50/50 transition-colors">
+                                                            <td className="p-4 pl-6 whitespace-nowrap font-medium text-slate-600">
+                                                                {new Date(v.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                            </td>
+                                                            {(isSuperAdmin || isAdminAset) && (
+                                                                <td className="p-4">
+                                                                    <div className="font-bold text-slate-800">{v.driver?.name || 'Unknown'}</div>
+                                                                    <div className="text-[10px] text-slate-400 font-bold uppercase">{v.driver?.nip ? `NIP: ${v.driver.nip}` : 'No NIP'}</div>
+                                                                </td>
+                                                            )}
+                                                            <td className="p-4 whitespace-nowrap">
+                                                                <span className="inline-block px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-black uppercase shadow-inner">
+                                                                    {v.sanction}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-4">
+                                                                <div className="text-slate-700 leading-relaxed break-words text-xs whitespace-pre-wrap">{v.description}</div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

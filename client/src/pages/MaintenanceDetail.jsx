@@ -28,6 +28,7 @@ const MaintenanceDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [report, setReport] = useState(null);
+    const [units, setUnits] = useState([]);
     const [users, setUsers] = useState([]);
     const [contractors, setContractors] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -38,6 +39,7 @@ const MaintenanceDetail = () => {
     // Modal state for actions
     const [actionModal, setActionModal] = useState({ show: false, type: '', nextStatus: '' });
     const [actionNote, setActionNote] = useState('');
+    const [assignUnitId, setAssignUnitId] = useState('');
     const [technicianName, setTechnicianName] = useState('');
     const [technicianPhone, setTechnicianPhone] = useState('');
     const [technicianType, setTechnicianType] = useState('external'); // 'internal' or 'external'
@@ -75,6 +77,15 @@ const MaintenanceDetail = () => {
         }
     };
 
+    const fetchUnits = async () => {
+        try {
+            const res = await api.get('/master/units');
+            setUnits(res.data.data || res.data || []);
+        } catch (err) {
+            console.error("Failed to fetch units:", err);
+        }
+    };
+
     const fetchContractors = async () => {
         try {
             const res = await api.get('/contractors', { params: { limit: 'all' } });
@@ -89,6 +100,7 @@ const MaintenanceDetail = () => {
         if (isAdmin) {
             fetchUsers();
             fetchContractors();
+            fetchUnits();
         }
     }, [id]);
 
@@ -167,6 +179,7 @@ const MaintenanceDetail = () => {
 
             setActionModal({ show: false, type: '', nextStatus: '' });
             setActionNote('');
+            setAssignUnitId('');
             setTechnicianName('');
             setTechnicianPhone('');
             setProgressNote('');
@@ -236,9 +249,9 @@ const MaintenanceDetail = () => {
                 { label: 'Mulai Pengerjaan', nextStatus: 'IN_PROGRESS', type: 'start' },
                 { label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion' }
             ],
-            'IN_PROGRESS': { 
+            'IN_PROGRESS': {
                 label: 'Selesaikan', nextStatus: 'COMPLETED', type: 'completion',
-                secondaryLabel: 'Update Progres', secondaryType: 'progress' 
+                secondaryLabel: 'Update Progres', secondaryType: 'progress'
             }
         };
         const action = transitions[report.status];
@@ -253,9 +266,8 @@ const MaintenanceDetail = () => {
             {/* Global Toast Notification */}
             {toast.show && (
                 <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in-down">
-                    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl shadow-black/5 text-sm font-semibold border ${
-                        toast.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'
-                    }`}>
+                    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl shadow-black/5 text-sm font-semibold border ${toast.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'
+                        }`}>
                         {toast.type === 'error' ? '❌' : '✅'}
                         {toast.message}
                     </div>
@@ -449,7 +461,7 @@ const MaintenanceDetail = () => {
                                         <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] rounded font-bold">{wo.status}</span>
                                     </div>
                                 </div>
-                                <button 
+                                <button
                                     onClick={() => navigate(`/workshop/orders/${wo.id}`)}
                                     className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded"
                                 >
@@ -521,7 +533,7 @@ const MaintenanceDetail = () => {
                         </div>
                     </div>
                 )}
-                
+
                 {(report.cost > 0 || report.status === 'COMPLETED') && (
                     <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
                         <div className="flex justify-between items-center mb-3">
@@ -588,7 +600,7 @@ const MaintenanceDetail = () => {
                 <button
                     onClick={() => {
                         setCostItems(report.costDetails || []);
-                        setProgressNote(''); 
+                        setProgressNote('');
                         setActionNote(report.completionNote || '');
                         setActionModal({ show: true, type: 'completion', nextStatus: 'COMPLETED' });
                     }}
@@ -624,7 +636,7 @@ const MaintenanceDetail = () => {
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => { setTechnicianType('internal'); setTechnicianName(''); setTechnicianPhone(''); }}
+                                        onClick={() => { setTechnicianType('internal'); setTechnicianName(''); setTechnicianPhone(''); setAssignUnitId(''); }}
                                         className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${technicianType === 'internal' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                     >
                                         Pegawai (Internal)
@@ -632,36 +644,54 @@ const MaintenanceDetail = () => {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-1">
-                                        {technicianType === 'internal' ? 'Pilih Pegawai *' : 'Nama Teknisi / Vendor *'}
-                                    </label>
                                     {technicianType === 'internal' ? (
-                                        <select
-                                            value={technicianName}
-                                            onChange={e => setTechnicianName(e.target.value)}
-                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                        >
-                                            <option value="">-- Pilih Pegawai --</option>
-                                            {users
-                                                .filter(u => {
-                                                    const pos = u.position || '';
-                                                    if (report.targetDept === 'PEMBANGUNAN') {
-                                                        return pos.includes('Staff Manajemen Aset') || pos.includes('Staff Teknisi Aset') || pos.includes('Staff Pembangunan');
-                                                    }
-                                                    // Untuk Sarpras
-                                                    return pos.includes('Staff Manajemen Aset') ||
-                                                        pos.includes('Staff Teknisi Aset') ||
-                                                        pos.includes('Sarpras Unit') ||
-                                                        pos.includes('Staff Kendaraan') ||
-                                                        pos.includes('Gudang dan Logistik');
-                                                })
-                                                .map(u => (
-                                                    <option key={u.id} value={u.name || u.username}>{u.name || u.username}</option>
-                                                ))
-                                            }
-                                        </select>
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-slate-700 mb-1">Pilih Unit Pegawai *</label>
+                                                <select
+                                                    value={assignUnitId}
+                                                    onChange={e => {
+                                                        setAssignUnitId(e.target.value);
+                                                        setTechnicianName('');
+                                                    }}
+                                                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"
+                                                >
+                                                    <option value="">-- Pilih Unit --</option>
+                                                    {units.map(u => (
+                                                        <option key={u.id} value={u.id}>{u.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            {assignUnitId && (
+                                                <div className="animate-in slide-in-from-top-2 duration-300">
+                                                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Pilih Pegawai (Teknisi) *</label>
+                                                    <select
+                                                        value={technicianName}
+                                                        onChange={e => setTechnicianName(e.target.value)}
+                                                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none text-slate-700"
+                                                    >
+                                                        <option value="">-- Pilih Pegawai --</option>
+                                                        {users
+                                                            .filter(u =>
+                                                                u.unitId === parseInt(assignUnitId) &&
+                                                                (
+                                                                    u.role === 'ADMIN_ASET' ||
+                                                                    (u.position && u.position.toLowerCase().includes('sarpras unit'))
+                                                                )
+                                                            )
+                                                            .map(u => (
+                                                                <option key={u.id} value={u.name || u.username}>{u.name || u.username}</option>
+                                                            ))
+                                                        }
+                                                    </select>
+                                                </div>
+                                            )}
+                                        </div>
                                     ) : (
                                         <div className="space-y-3">
+                                            <label className="block text-sm font-semibold text-slate-700 mb-1">
+                                                Nama Teknisi / Vendor *
+                                            </label>
                                             {report?.targetDept === 'PEMBANGUNAN' ? (
                                                 <select
                                                     value={technicianName}
@@ -691,7 +721,7 @@ const MaintenanceDetail = () => {
                                                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                                 />
                                             )}
-                                            
+
                                             <div>
                                                 <label className="block text-xs font-semibold text-slate-600 mb-1">
                                                     Nomor WA {report?.targetDept === 'PEMBANGUNAN' ? 'Tukang' : 'Vendor / Teknisi'}
@@ -704,10 +734,10 @@ const MaintenanceDetail = () => {
                                                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                                 />
                                             </div>
-                                            
+
                                             <div className="flex items-center gap-2 mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                                                <input 
-                                                    type="checkbox" 
+                                                <input
+                                                    type="checkbox"
                                                     id="createWorkshopOrder"
                                                     checked={createWorkshopOrder}
                                                     onChange={e => setCreateWorkshopOrder(e.target.checked)}
@@ -753,7 +783,7 @@ const MaintenanceDetail = () => {
                                                 Total: Rp {costItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0).toLocaleString('id-ID')}
                                             </span>
                                         </div>
-                                        
+
                                         {/* Adaptive UI Logic */}
                                         {report.assets && report.assets.length > 1 ? (
                                             <div className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
@@ -768,7 +798,7 @@ const MaintenanceDetail = () => {
                                                             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
                                                         />
                                                     </div>
-                                                    <button 
+                                                    <button
                                                         onClick={() => {
                                                             if (!bulkPrice) return;
                                                             const newItems = report.assets.map(asset => ({
@@ -784,7 +814,7 @@ const MaintenanceDetail = () => {
                                                         Terapkan
                                                     </button>
                                                 </div>
-                                                
+
                                                 {/* Asset Checklist / Cost List */}
                                                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                                                     {report.assets.map(asset => {
@@ -807,7 +837,7 @@ const MaintenanceDetail = () => {
                                                                         </div>
                                                                     </div>
                                                                 ))}
-                                                                <button 
+                                                                <button
                                                                     onClick={() => setCostItems(prev => [...prev, { id: Math.random().toString(), label: 'Biaya Ekstra', price: 0, assetId: asset.id }])}
                                                                     className="mt-2 text-[10px] font-bold text-blue-600 flex items-center gap-1 hover:underline"
                                                                 >
@@ -822,8 +852,8 @@ const MaintenanceDetail = () => {
                                             <div className="space-y-2">
                                                 {costItems.map((item, idx) => (
                                                     <div key={item.id} className="flex gap-2 items-center">
-                                                        <input 
-                                                            type="text" 
+                                                        <input
+                                                            type="text"
                                                             value={item.label}
                                                             onChange={e => {
                                                                 const newItems = [...costItems];
@@ -833,8 +863,8 @@ const MaintenanceDetail = () => {
                                                             placeholder="Nama Item (misal: Busi)"
                                                             className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
                                                         />
-                                                        <input 
-                                                            type="number" 
+                                                        <input
+                                                            type="number"
                                                             value={item.price}
                                                             onChange={e => {
                                                                 const newItems = [...costItems];
@@ -844,10 +874,10 @@ const MaintenanceDetail = () => {
                                                             placeholder="Harga"
                                                             className="w-1/3 px-3 py-2 border border-slate-200 rounded-lg text-sm"
                                                         />
-                                                        <button onClick={() => setCostItems(prev => prev.filter(p => p.id !== item.id))} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                                                        <button onClick={() => setCostItems(prev => prev.filter(p => p.id !== item.id))} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
                                                     </div>
                                                 ))}
-                                                <button 
+                                                <button
                                                     onClick={() => setCostItems(prev => [...prev, { id: Math.random().toString(), label: '', price: 0, assetId: report.assets?.[0]?.id || null }])}
                                                     className="w-full py-2 border border-dashed border-slate-300 text-slate-500 rounded-lg text-xs font-bold hover:bg-slate-50 flex items-center justify-center gap-1"
                                                 >
@@ -861,8 +891,8 @@ const MaintenanceDetail = () => {
                                             <div>
                                                 <label className="block text-sm font-semibold text-slate-700 mb-1">Upload Nota (Opsional)</label>
                                                 <div className="flex items-center gap-3">
-                                                    <input 
-                                                        type="file" 
+                                                    <input
+                                                        type="file"
                                                         accept="image/*"
                                                         onChange={e => setReceiptFile(e.target.files[0])}
                                                         className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
@@ -873,8 +903,8 @@ const MaintenanceDetail = () => {
                                             <div>
                                                 <label className="block text-sm font-semibold text-slate-700 mb-1">Foto Bukti Selesai (Opsional)</label>
                                                 <div className="flex items-center gap-3">
-                                                    <input 
-                                                        type="file" 
+                                                    <input
+                                                        type="file"
                                                         accept="image/*,video/*"
                                                         onChange={e => setCompletionPhoto(e.target.files[0])}
                                                         className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"

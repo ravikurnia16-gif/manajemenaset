@@ -2398,7 +2398,7 @@ exports.proposeSanctionLift = async (req, res) => {
 
 exports.reviewSanctionLift = async (req, res) => {
     try {
-        const { userId, isApproved } = req.body;
+        const { userId, isApproved, reviewNotes } = req.body;
         const adminId = req.user.id;
 
         const admin = await prisma.user.findUnique({ where: { id: adminId } });
@@ -2422,10 +2422,24 @@ exports.reviewSanctionLift = async (req, res) => {
                 }
             });
 
-            // Also reset warning counts on any active/recent bookings to prevent immediate re-sanction if loop triggers again.
-            // Wait, the late loops only trigger if tripStartTime is null or tripEndTime is null. 
-            // If we completed or cancelled the trip, it won't be processed again by those loops.
-            // So just un-sanctioning the user is enough.
+            const latestViolation = await prisma.driverViolation.findFirst({
+                where: {
+                    driverId: parseInt(userId),
+                    category: "Sanksi Peminjaman",
+                    sanction: "Akun Dibekukan"
+                },
+                orderBy: { date: 'desc' }
+            });
+
+            if (latestViolation) {
+                await prisma.driverViolation.update({
+                    where: { id: latestViolation.id },
+                    data: {
+                        sanction: "Sanksi Dicabut",
+                        description: `${latestViolation.description}\n\n[SANKSI DICABUT] Di-review oleh ${admin.name} pada ${new Date().toLocaleString('id-ID')}.\nCatatan: ${reviewNotes || 'Tidak ada catatan.'}`
+                    }
+                });
+            }
 
             if (user.phone) {
                 const msg = `✅ *PENCABUTAN SANKSI DISETUJUI*\n\n` +
@@ -2445,6 +2459,24 @@ exports.reviewSanctionLift = async (req, res) => {
                     sanctionProposedLift: false
                 }
             });
+
+            const latestViolation = await prisma.driverViolation.findFirst({
+                where: {
+                    driverId: parseInt(userId),
+                    category: "Sanksi Peminjaman",
+                    sanction: "Akun Dibekukan"
+                },
+                orderBy: { date: 'desc' }
+            });
+
+            if (latestViolation) {
+                await prisma.driverViolation.update({
+                    where: { id: latestViolation.id },
+                    data: {
+                        description: `${latestViolation.description}\n\n[PENCABUTAN SANKSI DITOLAK] Di-review oleh ${admin.name} pada ${new Date().toLocaleString('id-ID')}.\nCatatan: ${reviewNotes || 'Tidak ada catatan.'}`
+                    }
+                });
+            }
 
             if (user.phone) {
                 const msg = `❌ *PENCABUTAN SANKSI DITOLAK*\n\n` +

@@ -872,6 +872,16 @@ exports.checkOverdueVehicleBookings = async () => {
                     data: { isSanctioned: true }
                 });
 
+                await prisma.driverViolation.create({
+                    data: {
+                        driverId: booking.userId,
+                        date: new Date(),
+                        category: "Sanksi Peminjaman",
+                        description: `Diselesaikan otomatis karena tidak mengakhiri perjalanan setelah 10 kali peringatan (Armada: ${booking.vehicle.name}, Plat: ${booking.vehicle.plateNumber}).`,
+                        sanction: "Akun Dibekukan"
+                    }
+                });
+
                 await createNotification(
                     booking.userId,
                     'Sanksi Pelanggaran: Peminjaman Kendaraan',
@@ -1039,6 +1049,16 @@ exports.checkUpcomingVehicleBookings = async () => {
                 await prisma.user.update({
                     where: { id: booking.userId },
                     data: { isSanctioned: true }
+                });
+
+                await prisma.driverViolation.create({
+                    data: {
+                        driverId: booking.userId,
+                        date: new Date(),
+                        category: "Sanksi Peminjaman",
+                        description: `Dibatalkan otomatis karena tidak memulai perjalanan setelah 10 kali peringatan (Armada: ${booking.vehicle.name}, Plat: ${booking.vehicle.plateNumber}).`,
+                        sanction: "Akun Dibekukan"
+                    }
                 });
 
                 await createNotification(
