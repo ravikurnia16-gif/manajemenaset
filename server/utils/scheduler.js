@@ -12,6 +12,9 @@ const {
     checkMissingReportsWeekly 
 } = require('../controllers/personnelController');
 const { sendWeeklyAssetSummary } = require('./summaryNotification');
+const { sendWeeklyBusTripSummary } = require('./tripSummaryNotification');
+const { sendMaintenanceConditionSummary } = require('./maintenanceSummaryNotification');
+const { sendUniformOrderSummary } = require('./uniformSummaryNotification');
 const { checkAssetMaintenanceReminders, checkUnrespondedReports } = require('../controllers/maintenanceController');
 const { checkBusBookingNotifications, checkUnpaidBusInvoices } = require('../controllers/busBookingController');
 const { checkInvoiceDueDates } = require('../controllers/officeDocumentController');
@@ -65,6 +68,42 @@ const initScheduler = () => {
                 await sendWeeklyCalendarSummary();
             } catch (err) {
                 console.error('[Scheduler] Error in Weekly Summary:', err);
+            }
+        }
+
+        // ----------------------------------------------------
+        // 2b. WEEKLY BUS TRIP SUMMARY (Monday at 07:35 AM)
+        // ----------------------------------------------------
+        if (day === 1 && hour === 7 && minute === 35) {
+            console.log('[Scheduler] Executing Weekly Bus Trip Summary...');
+            try {
+                await sendWeeklyBusTripSummary();
+            } catch (err) {
+                console.error('[Scheduler] Error in Weekly Bus Trip Summary:', err);
+            }
+        }
+
+        // ----------------------------------------------------
+        // 2c. MAINTENANCE CONDITION SUMMARY (Monday & Thursday at 07:35 AM)
+        // ----------------------------------------------------
+        if ([1, 4].includes(day) && hour === 7 && minute === 35) {
+            console.log('[Scheduler] Executing Maintenance Condition Summary...');
+            try {
+                await sendMaintenanceConditionSummary();
+            } catch (err) {
+                console.error('[Scheduler] Error in Maintenance Condition Summary:', err);
+            }
+        }
+
+        // ----------------------------------------------------
+        // 2d. UNIFORM ORDER SUMMARY (Monday & Thursday at 07:40 AM)
+        // ----------------------------------------------------
+        if ([1, 4].includes(day) && hour === 7 && minute === 40) {
+            console.log('[Scheduler] Executing Uniform Order Summary...');
+            try {
+                await sendUniformOrderSummary();
+            } catch (err) {
+                console.error('[Scheduler] Error in Uniform Order Summary:', err);
             }
         }
 

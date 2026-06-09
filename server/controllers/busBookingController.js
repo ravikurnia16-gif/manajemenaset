@@ -131,14 +131,10 @@ const createBusBooking = async (req, res) => {
                     }
                 }
 
-                // 2. Notify Admins & Staff Kendaraan
+                // 2. Notify Staff Kendaraan
                 const recipients = await prisma.user.findMany({
                     where: {
-                        OR: [
-                            { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } },
-                            { position: { contains: 'Staff Manajemen Aset' } },
-                            { position: { contains: 'Staff Kendaraan' } }
-                        ],
+                        position: { contains: 'Staff Kendaraan' },
                         phone: { not: null, not: '' }
                     }
                 });
