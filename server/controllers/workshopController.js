@@ -67,6 +67,7 @@ const generateSuratPesanan = async (order, user) => {
             authorId: user.id,
             status: 'PENDING_APPROVAL', // Langsung diarahkan ke Kabid untuk TTE
             priority: order.priority === 'URGENT' ? 'SANGAT_SEGERA' : (order.priority === 'HIGH' ? 'SEGERA' : 'BIASA'),
+            party2Name: 'Workshop di Tempat'
         }
     });
 
