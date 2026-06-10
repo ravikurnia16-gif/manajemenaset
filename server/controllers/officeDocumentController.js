@@ -559,18 +559,18 @@ exports.generatePDF = async (req, res) => {
         const isManual = doc.content && doc.content.includes('"isManual":true');
         const isLainnya = doc.category === 'Lainnya' || doc.type === 'LAINNYA';
 
-        // Serve uploaded final file directly if available (for Manual Workflow or Lainnya category)
-        if (doc.fileUrl && (isManual || isLainnya)) {
+        // Serve uploaded final file directly if available (for Manual Workflow, Lainnya, or if a PDF is uploaded)
+        if (doc.fileUrl) {
             const fileUrls = doc.fileUrl.split(',').filter(u => u.trim());
             const pdfFile = fileUrls.find(u => u.toLowerCase().endsWith('.pdf'));
             const docFile = fileUrls[0]; // fallback to first file
-            const targetUrl = pdfFile || docFile;
+            const targetUrl = (isManual || isLainnya) ? (pdfFile || docFile) : pdfFile;
             if (targetUrl) {
                 try {
                     // Fix URL if it's a relative path starting with /
                     const finalUrl = targetUrl.startsWith('http') ? targetUrl : `http://localhost:${process.env.PORT || 5000}${targetUrl}`;
                     const fileRes = await axios.get(finalUrl, { responseType: 'arraybuffer' });
-                    const contentType = pdfFile ? 'application/pdf' : 'application/octet-stream';
+                    const contentType = targetUrl.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream';
                     const ext = targetUrl.split('.').pop().toLowerCase();
                     res.setHeader('Content-Type', contentType);
                     res.setHeader('Content-Disposition', `inline; filename="${doc.number || 'dokumen'}.${ext}"`);
@@ -931,18 +931,18 @@ exports.generatePublicPDF = async (req, res) => {
         const isManual = doc.content && doc.content.includes('"isManual":true');
         const isLainnya = doc.category === 'Lainnya' || doc.type === 'LAINNYA';
 
-        // Serve uploaded final file directly if available (for Manual Workflow or Lainnya category)
-        if (doc.fileUrl && (isManual || isLainnya)) {
+        // Serve uploaded final file directly if available (for Manual Workflow, Lainnya, or if a PDF is uploaded)
+        if (doc.fileUrl) {
             const fileUrls = doc.fileUrl.split(',').filter(u => u.trim());
             const pdfFile = fileUrls.find(u => u.toLowerCase().endsWith('.pdf'));
             const docFile = fileUrls[0]; // fallback to first file
-            const targetUrl = pdfFile || docFile;
+            const targetUrl = (isManual || isLainnya) ? (pdfFile || docFile) : pdfFile;
             if (targetUrl) {
                 try {
                     // Fix URL if it's a relative path starting with /
                     const finalUrl = targetUrl.startsWith('http') ? targetUrl : `http://localhost:${process.env.PORT || 5000}${targetUrl}`;
                     const fileRes = await axios.get(finalUrl, { responseType: 'arraybuffer' });
-                    const contentType = pdfFile ? 'application/pdf' : 'application/octet-stream';
+                    const contentType = targetUrl.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream';
                     const ext = targetUrl.split('.').pop().toLowerCase();
                     res.setHeader('Content-Type', contentType);
                     res.setHeader('Content-Disposition', `inline; filename="${doc.number || 'dokumen'}.${ext}"`);
