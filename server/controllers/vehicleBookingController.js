@@ -835,7 +835,14 @@ exports.checkOverdueVehicleBookings = async () => {
 
         console.log(`[Job] Found ${overdueBookings.length} overdue trips. Sending reminders...`);
 
-        // Notifications to Staff Kendaraan removed as requested
+        // Ambil daftar Staff Kendaraan untuk notifikasi jika ada pembekuan akun
+        const staffRecipients = await prisma.user.findMany({
+            where: {
+                position: { contains: 'Staff Kendaraan' },
+                AND: [{ phone: { not: null } }, { NOT: { phone: '' } }, { NOT: { phone: '08' } }]
+            }
+        });
+
         for (const booking of overdueBookings) {
             const diffMs = now - new Date(booking.endDate);
             const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -889,6 +896,24 @@ exports.checkOverdueVehicleBookings = async () => {
                         `Silakan ajukan pencabutan sanksi melalui menu *Pelanggaran User* di aplikasi SARPRAS.\n\n` +
                         `_Sistem Manajemen Aset_`;
                     await sendMessage(booking.user.phone, sanctionMsg);
+                }
+
+                // Notifikasi ke Staff Kendaraan tentang Pembekuan
+                if (staffRecipients.length > 0) {
+                    const waStaffMsg = `🚨 *LAPORAN SANKSI PEMBEKUAN AKUN* 🚨\n\n` +
+                        `Terdapat pengguna yang baru saja *DIBEKUKAN* hak akses peminjaman kendaraannya oleh sistem karena mengabaikan 10 kali peringatan pengakhiran perjalanan.\n\n` +
+                        `Peminjam: *${booking.user.name}*\n` +
+                        `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
+                        `Tujuan: ${booking.destination}\n\n` +
+                        `Mohon Tim Staff Kendaraan menindaklanjuti secara langsung kepada pengguna terkait untuk memastikan armada telah dikembalikan.`;
+
+                    for (const staff of staffRecipients) {
+                        try {
+                            if (staff.phone) await sendMessage(staff.phone, waStaffMsg);
+                        } catch (err) {
+                            console.error('Failed to notify staff about sanction:', err.message);
+                        }
+                    }
                 }
                 continue;
             }
@@ -983,7 +1008,14 @@ exports.checkUpcomingVehicleBookings = async () => {
             include: { user: true, vehicle: true }
         });
 
-        // Pencarian Staff Kendaraan dihapus sesuai permintaan
+        // Ambil daftar Staff Kendaraan untuk notifikasi pembekuan
+        const staffRecipients = await prisma.user.findMany({
+            where: {
+                position: { contains: 'Staff Kendaraan' },
+                AND: [{ phone: { not: null } }, { NOT: { phone: '' } }, { NOT: { phone: '08' } }]
+            }
+        });
+
         for (const booking of lateBookings) {
             const diffMs = now - new Date(booking.startDate);
             const diffMins = Math.floor(diffMs / (1000 * 60));
@@ -1035,6 +1067,24 @@ exports.checkUpcomingVehicleBookings = async () => {
                         `Silakan ajukan pencabutan sanksi melalui menu *Pelanggaran User* di aplikasi SARPRAS.\n\n` +
                         `_Sistem Manajemen Aset_`;
                     await sendMessage(booking.user.phone, sanctionMsg);
+                }
+
+                // Notifikasi ke Staff Kendaraan tentang Pembekuan
+                if (staffRecipients.length > 0) {
+                    const waStaffMsg = `🚨 *LAPORAN SANKSI PEMBEKUAN AKUN* 🚨\n\n` +
+                        `Terdapat pengguna yang baru saja *DIBEKUKAN* hak akses peminjaman kendaraannya oleh sistem karena mengabaikan 10 kali peringatan untuk memulai perjalanan.\n\n` +
+                        `Peminjam: *${booking.user.name}*\n` +
+                        `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
+                        `Tujuan: ${booking.destination}\n\n` +
+                        `Tiket telah dibatalkan otomatis. Mohon Tim Staff Kendaraan memastikan armada siap digunakan oleh pengguna lain.`;
+
+                    for (const staff of staffRecipients) {
+                        try {
+                            if (staff.phone) await sendMessage(staff.phone, waStaffMsg);
+                        } catch (err) {
+                            console.error('Failed to notify staff about sanction:', err.message);
+                        }
+                    }
                 }
                 continue;
             }
