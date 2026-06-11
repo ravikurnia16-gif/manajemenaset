@@ -69,9 +69,9 @@ function drawKopSuratSync(page, fontBold, fontRegular, images) {
     page.drawText(t1, { x: centerX - (w1 / 2), y, size: 16, font: fontBold, color: green });
     y -= 16;
 
-    const t2 = 'BIDANG SARANA DAN PRASARANA';
-    const w2 = fontBold.widthOfTextAtSize(t2, 16);
-    page.drawText(t2, { x: centerX - (w2 / 2), y, size: 16, font: fontBold, color: orange });
+    const t2 = 'BIDANG SARANA';
+    const w2 = fontBold.widthOfTextAtSize(t2, 18);
+    page.drawText(t2, { x: centerX - (w2 / 2), y, size: 18, font: fontBold, color: orange });
     y -= 16;
 
     const t3 = '"Merawat dengan Ikhlas, Melayani dengan Sunnah."';

@@ -148,8 +148,8 @@ const Layout = () => {
                         >
                             <Menu size={24} />
                         </button>
-                        <h2 className="text-lg font-bold text-slate-800 hidden sm:block tracking-tight">SARANA DAN PRASARANA</h2>
-                        <h2 className="text-lg font-bold text-slate-800 sm:hidden">SARPRAS</h2>
+                        <h2 className="text-xl font-bold text-slate-800 hidden sm:block tracking-tight">BIDANG SARANA</h2>
+                        <h2 className="text-lg font-bold text-slate-800 sm:hidden">BIDANG SARANA</h2>
                     </div>
 
                     <div className="flex items-center gap-4">

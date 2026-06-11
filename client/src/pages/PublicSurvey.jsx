@@ -210,7 +210,7 @@ const PublicSurvey = () => {
                     <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-800 tracking-tight mb-2">
                         {survey?.title || 'Survey Kepuasan Pengguna'}
                     </h1>
-                    <p className="text-slate-500">{survey?.description || 'Bidang Sarana dan Prasarana - Yayasan Dar el-Iman'}</p>
+                    <p className="text-slate-500">{survey?.description || 'Bidang Sarana - Yayasan Dar el-Iman'}</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-8 animate-in fade-in slide-in-from-bottom-8 delay-150 fill-mode-both">

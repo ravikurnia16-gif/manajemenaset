@@ -168,7 +168,7 @@ const ReportPage = () => {
                     <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
                         <BarChart3 className="text-blue-600" /> Pusat Laporan Terpadu
                     </h1>
-                    <p className="text-slate-500 text-sm font-medium">Konsolidasi data manajemen sarana dan prasarana</p>
+                    <p className="text-slate-500 text-sm font-medium">Konsolidasi data manajemen Bidang Sarana</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <button
