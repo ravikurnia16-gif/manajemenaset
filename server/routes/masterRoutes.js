@@ -11,19 +11,19 @@ const router = express.Router();
 router.get('/units/public', getAllUnits);
 router.get('/units', verifyToken, getAllUnits);
 router.get('/units/:id', verifyToken, getUnitById);
-router.post('/units', verifyToken, authorizeRole(['SUPER_ADMIN']), createUnit);
-router.delete('/units/bulk', verifyToken, authorizeRole(['SUPER_ADMIN']), deleteMultipleUnits);
-router.put('/units/:id', verifyToken, authorizeRole(['SUPER_ADMIN']), updateUnit);
-router.delete('/units/:id', verifyToken, authorizeRole(['SUPER_ADMIN']), deleteUnit);
+router.post('/units', verifyToken, authorizeRole(['SUPER_ADMIN', 'KABID_SARPRAS']), createUnit);
+router.delete('/units/bulk', verifyToken, authorizeRole(['SUPER_ADMIN', 'KABID_SARPRAS']), deleteMultipleUnits);
+router.put('/units/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'KABID_SARPRAS']), updateUnit);
+router.delete('/units/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'KABID_SARPRAS']), deleteUnit);
 
 router.get('/rooms', verifyToken, getAllRooms);
 router.post('/rooms', verifyToken, createRoom);
 router.delete('/rooms/bulk', verifyToken, deleteMultipleRooms);
 router.put('/rooms/:id', verifyToken, updateRoom);
 router.delete('/rooms/:id', verifyToken, deleteRoom);
-router.post('/rooms/cleanup', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), cleanupRooms);
-router.post('/rooms/repair', verifyToken, authorizeRole(['SUPER_ADMIN']), repairRoomConflicts);
-router.post('/assets/sync', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), syncAssetCodes);
+router.post('/rooms/cleanup', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS']), cleanupRooms);
+router.post('/rooms/repair', verifyToken, authorizeRole(['SUPER_ADMIN', 'KABID_SARPRAS']), repairRoomConflicts);
+router.post('/assets/sync', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS']), syncAssetCodes);
 
 router.get('/categories', verifyToken, getAllCategories);
 router.post('/categories', verifyToken, createCategory);

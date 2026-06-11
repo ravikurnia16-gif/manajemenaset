@@ -8,8 +8,8 @@ router.get('/staff', verifyToken, authorizeSarprasAdmin(), userController.getSar
 router.get('/unit-admins', verifyToken, userController.getUnitAdmins);
 router.get('/profile', verifyToken, userController.getProfile);
 router.put('/profile', verifyToken, userController.updateProfile);
-router.post('/', verifyToken, authorizeRole(['SUPER_ADMIN']), userController.createUser);
-router.put('/:id', verifyToken, authorizeRole(['SUPER_ADMIN']), userController.updateUser);
-router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN']), userController.deleteUser);
+router.post('/', verifyToken, authorizeRole(['SUPER_ADMIN', 'KABID_SARPRAS']), userController.createUser);
+router.put('/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'KABID_SARPRAS']), userController.updateUser);
+router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'KABID_SARPRAS']), userController.deleteUser);
 
 module.exports = router;
