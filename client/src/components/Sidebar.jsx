@@ -66,12 +66,12 @@ const Sidebar = ({ isOpen = true }) => {
     ];
     const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position && user.position.toLowerCase().includes(kw));
 
-    const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'AUDITOR'].includes(user?.role);
-    const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+    const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(user?.role);
+    const isSuperAdmin = ['SUPER_ADMIN', 'KABID_SARPRAS'].includes(user?.role);
     const isKabidSarpras = user?.position === 'Kepala Bidang Sarana';
     const isAdminAset = user?.role === 'ADMIN_ASET';
     const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop') || user?.role === 'AUDITOR';
-    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'AUDITOR'].includes(user?.role);
+    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(user?.role);
 
     const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(user?.role) || ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user?.position);
 
