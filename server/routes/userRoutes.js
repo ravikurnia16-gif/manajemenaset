@@ -12,4 +12,19 @@ router.post('/', verifyToken, authorizeRole(['SUPER_ADMIN', 'KABID_SARPRAS']), u
 router.put('/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'KABID_SARPRAS']), userController.updateUser);
 router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'KABID_SARPRAS']), userController.deleteUser);
 
+// Temporary patch route to fix legacy KABID_SARPRAS role
+router.get('/patch/kabid-role', async (req, res) => {
+    try {
+        const { PrismaClient } = require('@prisma/client');
+        const prisma = new PrismaClient();
+        const result = await prisma.user.updateMany({
+            where: { position: 'Kepala Bidang Sarana' },
+            data: { role: 'SUPER_ADMIN' }
+        });
+        res.json({ message: 'Success! Role Kepala Bidang Sarana telah diubah menjadi SUPER_ADMIN di database.', affected: result.count });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 module.exports = router;
