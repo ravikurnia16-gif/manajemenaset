@@ -168,7 +168,7 @@ const Settings = () => {
                 phone: myProfile.phone
             });
             alert('Profil berhasil diperbarui!');
-            
+
             // Reload to sync with Layout and other components immediately
             window.location.reload();
         } catch (error) {
@@ -185,7 +185,7 @@ const Settings = () => {
                 // UPDATE logic
                 const res = await api.put(`/users/${newUser.id}`, newUser);
                 alert('User berhasil diperbarui!');
-                
+
                 // If the updated user is the current user, sync localStorage and reload
                 if (newUser.id === currentUser.id) {
                     localStorage.setItem('user', JSON.stringify(res.data.user));
@@ -233,7 +233,7 @@ const Settings = () => {
     };
 
     const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'KABID_SARPRAS'].includes(currentUser.role);
- 
+
     const handleFixGenders = async () => {
         if (!window.confirm('Bersihkan data gender "Akhowat/Ikhwan" menjadi "P/L"? Proses ini tidak bisa dibatalkan.')) return;
         setSaving(true);
@@ -700,8 +700,8 @@ const Settings = () => {
                                                 <td className="px-6 py-4">
                                                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${['SUPER_ADMIN', 'BIDANG_IT', 'KABID_SARPRAS'].includes(user.role) ? 'bg-purple-50 text-purple-600 border-purple-100' :
                                                         user.role === 'ADMIN_ASET' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                                                        user.role === 'AUDITOR' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                                            'bg-slate-50 text-slate-600 border-slate-100'
+                                                            user.role === 'AUDITOR' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                                                'bg-slate-50 text-slate-600 border-slate-100'
                                                         }`}>
                                                         {user.role}
                                                     </span>
@@ -911,7 +911,7 @@ const Settings = () => {
                                                 // BIDANG K3
                                                 { label: 'Kepala Bidang K3', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
                                                 { label: 'Staff K3', role: 'USER', scope: 'UNIT' },
- 
+
                                                 // DIVISI PENDIDIKAN
                                                 { label: 'Wakil Divisi Pendidikan', role: 'KEPALA_BIDANG', scope: 'GLOBAL' },
                                                 { label: 'Staff Divisi Pendidikan', role: 'USER', scope: 'UNIT' },
@@ -971,7 +971,7 @@ const Settings = () => {
                                             <option value="Staff Pembangunan">Staff Pembangunan (Admin Pbg)</option>
                                             <option value="Kepala Bidang K3">Kepala Bidang K3 (Global Terbatas)</option>
                                             <option value="Staff K3">Staff K3 (User)</option>
- 
+
                                             <option disabled className="bg-slate-100 font-bold text-slate-800">-- DIVISI PENDIDIKAN --</option>
                                             <option value="Wakil Divisi Pendidikan">Wakil Divisi Pendidikan (Global Terbatas)</option>
                                             <option value="Staff Divisi Pendidikan">Staff Divisi Pendidikan (User)</option>

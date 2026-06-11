@@ -833,18 +833,7 @@ exports.checkOverdueVehicleBookings = async () => {
 
         console.log(`[Job] Found ${overdueBookings.length} overdue trips. Sending reminders...`);
 
-        // Fetch Staff Kendaraan recipients once
-        const staffRecipients = await prisma.user.findMany({
-            where: {
-                position: { contains: 'Staff Kendaraan' },
-                AND: [
-                    { phone: { not: null } },
-                    { NOT: { phone: '' } },
-                    { NOT: { phone: '08' } }
-                ]
-            }
-        });
-
+        // Notifications to Staff Kendaraan removed as requested
         for (const booking of overdueBookings) {
             const diffMs = now - new Date(booking.endDate);
             const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -927,31 +916,7 @@ exports.checkOverdueVehicleBookings = async () => {
                 await sendMessage(booking.user.phone, waMsg);
             }
 
-            // 3. Notifikasi WhatsApp ke Staff Kendaraan
-            if (staffRecipients.length > 0) {
-                const cleanPhone = booking.user.phone ? booking.user.phone.replace(/\D/g, '').replace(/^0/, '62') : null;
-                const waLink = cleanPhone ? `https://wa.me/${cleanPhone}` : null;
-
-                const waStaffMsg = `⚠️ *PERINGATAN KETERLAMBATAN PENGEMBALIAN ARMADA*\n\n` +
-                    `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
-                    `Peminjam: ${booking.user.name}\n` +
-                    (waLink ? `WA Peminjam: ${waLink}\n` : `No. HP Peminjam: ${booking.user.phone || '-'}\n`) +
-                    `Tujuan: ${booking.destination}\n` +
-                    `Batas Waktu: ${new Date(booking.endDate).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}\n` +
-                    `Keterlambatan: *${diffHours} jam*\n\n` +
-                    `Peminjam melewati batas waktu peminjaman namun belum menekan tombol [Akhiri Perjalanan] pada *Sub menu Permohonan saya* di sistem.\n\n` +
-                    `Mohon untuk segera menindaklanjuti atau menghubungi peminjam yang bersangkutan.`;
-
-                for (const staff of staffRecipients) {
-                    try {
-                        if (staff.phone) {
-                            await sendMessage(staff.phone, waStaffMsg);
-                        }
-                    } catch (err) {
-                        console.error('Failed to notify staff about overdue trip:', err.message);
-                    }
-                }
-            }
+            // 3. Notifikasi WhatsApp ke Staff Kendaraan (DIHAPUS SESUAI PERMINTAAN)
         }
     } catch (error) {
         console.error('[Job Error] checkOverdueVehicleBookings failed:', error);
@@ -1016,16 +981,7 @@ exports.checkUpcomingVehicleBookings = async () => {
             include: { user: true, vehicle: true }
         });
 
-        let startStaffRecipients = [];
-        if (lateBookings.length > 0) {
-            startStaffRecipients = await prisma.user.findMany({
-                where: {
-                    position: { contains: 'Staff Kendaraan' },
-                    AND: [{ phone: { not: null } }, { NOT: { phone: '' } }, { NOT: { phone: '08' } }]
-                }
-            });
-        }
-
+        // Pencarian Staff Kendaraan dihapus sesuai permintaan
         for (const booking of lateBookings) {
             const diffMs = now - new Date(booking.startDate);
             const diffMins = Math.floor(diffMs / (1000 * 60));
@@ -1103,31 +1059,7 @@ exports.checkUpcomingVehicleBookings = async () => {
                 await sendMessage(booking.user.phone, msg);
             }
 
-            // Notifikasi WhatsApp ke Staff Kendaraan
-            if (startStaffRecipients.length > 0) {
-                const cleanPhone = booking.user.phone ? booking.user.phone.replace(/\D/g, '').replace(/^0/, '62') : null;
-                const waLink = cleanPhone ? `https://wa.me/${cleanPhone}` : null;
-
-                const waStaffMsg = `⚠️ *INFO KETERLAMBATAN MULAI PERJALANAN*\n\n` +
-                    `Terdapat armada yang belum dimulai perjalanannya di sistem, padahal jadwal peminjaman sudah lewat:\n\n` +
-                    `Armada: *${booking.vehicle.name} (${booking.vehicle.plateNumber})*\n` +
-                    `Peminjam: ${booking.user.name}\n` +
-                    (waLink ? `WA Peminjam: ${waLink}\n` : `No. HP Peminjam: ${booking.user.phone || '-'}\n`) +
-                    `Tujuan: ${booking.destination}\n` +
-                    `Jadwal Keberangkatan: ${formatWAWaktu(booking.startDate)}\n` +
-                    `Keterlambatan: *${diffMins} menit*\n\n` +
-                    `Mohon untuk menegur peminjam yang bersangkutan agar segera input *KM Awal*.`;
-
-                for (const staff of startStaffRecipients) {
-                    try {
-                        if (staff.phone) {
-                            await sendMessage(staff.phone, waStaffMsg);
-                        }
-                    } catch (err) {
-                        console.error('Failed to notify staff about delayed start:', err.message);
-                    }
-                }
-            }
+            // Notifikasi WhatsApp ke Staff Kendaraan (DIHAPUS SESUAI PERMINTAAN)
         }
     } catch (error) {
         console.error('[Job Error] checkUpcomingVehicleBookings failed:', error);
