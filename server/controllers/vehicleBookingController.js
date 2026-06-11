@@ -562,9 +562,11 @@ exports.endTrip = async (req, res) => {
                     `Kondisi BBM saat ini: *${conditionStr}*\n\n` +
                     `Mohon agar Tim Staff Kendaraan segera menindaklanjuti untuk pengisian BBM armada agar siap digunakan untuk perjalanan selanjutnya.`;
 
+                const isMotor = vehicleInfo.type?.toLowerCase().includes('motor');
                 for (const staff of staffRecipients) {
                     try {
-                        if (staff.phone) {
+                        // Skip WhatsApp if vehicle is a motor
+                        if (staff.phone && !isMotor) {
                             await sendMessage(staff.phone, fuelMsg);
                         }
                         await createNotification(
