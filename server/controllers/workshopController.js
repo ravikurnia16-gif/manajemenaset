@@ -42,7 +42,7 @@ const generateSuratPesanan = async (order, user) => {
 
     const contentData = {
         orderCode: order.code,
-        destination: "Workshop di Tempat",
+        destination: "Workshop",
         workshopType: order.workshopType,
         title: order.title,
         priority: order.priority,
@@ -67,7 +67,7 @@ const generateSuratPesanan = async (order, user) => {
             authorId: user.id,
             status: 'PENDING_APPROVAL', // Langsung diarahkan ke Kabid untuk TTE
             priority: order.priority === 'URGENT' ? 'SANGAT_SEGERA' : (order.priority === 'HIGH' ? 'SEGERA' : 'BIASA'),
-            party2Name: 'Workshop di Tempat'
+            party2Name: 'Workshop'
         }
     });
 
