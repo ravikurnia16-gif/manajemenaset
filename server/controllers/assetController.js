@@ -211,17 +211,25 @@ exports.getAllAssets = async (req, res) => {
 
         // 1. Role-based Restriction
         const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'BIDANG_IT', 'KABID_SARPRAS'].includes(role) || req.user.position === 'Kepala Bidang Sarana dan Prasarana';
+        
+        let allowedUnitIds = [unitId];
+        const userUnit = await prisma.unit.findUnique({ where: { id: unitId } });
+        if (userUnit && userUnit.name.startsWith('Kantor Yayasan -')) {
+            const parentUnit = await prisma.unit.findFirst({ where: { name: 'Kantor Yayasan' } });
+            if (parentUnit) allowedUnitIds.push(parentUnit.id);
+        }
+
         if (!isGlobalAdmin) {
-            where.unitId = unitId;
+            where.unitId = { in: allowedUnitIds };
         }
 
         // 2. Explicit Filters (if provided and allowed)
         if (filterUnitId) {
             // Allow filtering by unitId if:
             // 1. User is global admin
-            // 2. User is filtering their own unit
+            // 2. User is filtering their own unit (or parent unit)
             // 3. User is specifically looking for lendable assets (Cross-unit borrowing)
-            if (isGlobalAdmin || parseInt(filterUnitId) === unitId || isLendable === 'true' || isLendable === true) {
+            if (isGlobalAdmin || allowedUnitIds.includes(parseInt(filterUnitId)) || isLendable === 'true' || isLendable === true) {
                 where.unitId = parseInt(filterUnitId);
             }
         }

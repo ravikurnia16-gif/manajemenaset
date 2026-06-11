@@ -700,6 +700,7 @@ const Settings = () => {
                                                 <td className="px-6 py-4">
                                                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role) ? 'bg-purple-50 text-purple-600 border-purple-100' :
                                                         user.role === 'ADMIN_ASET' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                                        user.role === 'AUDITOR' ? 'bg-amber-50 text-amber-600 border-amber-100' :
                                                             'bg-slate-50 text-slate-600 border-slate-100'
                                                         }`}>
                                                         {user.role}
@@ -880,6 +881,7 @@ const Settings = () => {
                                                 { label: 'Ketua Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
                                                 { label: 'Sekretaris Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
                                                 { label: 'Bendahara Yayasan', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
+                                                { label: 'Auditor', role: 'AUDITOR', scope: 'GLOBAL' },
 
                                                 // BIDANG SARANA & PRASARANA
                                                 { label: 'Kepala Bidang Sarana dan Prasarana', role: 'KABID_SARPRAS', scope: 'GLOBAL' },
@@ -944,6 +946,7 @@ const Settings = () => {
                                             <option value="Ketua Yayasan">Ketua Yayasan</option>
                                             <option value="Sekretaris Yayasan">Sekretaris Yayasan</option>
                                             <option value="Bendahara Yayasan">Bendahara Yayasan</option>
+                                            <option value="Auditor">Auditor (Yayasan)</option>
                                         </optgroup>
                                         <optgroup label="Kantor Yayasan">
                                             <option disabled className="bg-slate-100 font-bold text-slate-800">-- BIDANG SARPRAS & IT --</option>
@@ -984,7 +987,7 @@ const Settings = () => {
                                         Role System: <span className="font-bold text-blue-600">{newUser.role || '-'}</span>
                                         {newUser.role && (
                                             <span className="ml-1 text-slate-400">
-                                                ({['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(newUser.role) ? 'Akses Global' : 'Akses Terbatas Unit'})
+                                                ({['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS', 'ADMIN_PBG', 'AUDITOR'].includes(newUser.role) ? 'Akses Global' : 'Akses Terbatas Unit'})
                                             </span>
                                         )}
                                     </div>

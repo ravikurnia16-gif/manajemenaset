@@ -18,8 +18,19 @@ exports.getDashboardStats = async (req, res) => {
 
         // Determine filtering logic
         const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KABID_SARPRAS'].includes(role) || req.user.position === 'Kepala Bidang Sarana dan Prasarana';
+        
+        let allowedUnitIds = [userUnitId];
+        const userUnit = await prisma.unit.findUnique({ where: { id: userUnitId } });
+        if (userUnit && userUnit.name.startsWith('Kantor Yayasan -')) {
+            const parentUnit = await prisma.unit.findFirst({ where: { name: 'Kantor Yayasan' } });
+            if (parentUnit) allowedUnitIds.push(parentUnit.id);
+        }
+
         if (!isGlobalAdmin) {
-            where.unitId = userUnitId;
+            where.unitId = { in: allowedUnitIds };
+            if (filterUnitId && allowedUnitIds.includes(parseInt(filterUnitId))) {
+                where.unitId = parseInt(filterUnitId);
+            }
         } else if (filterUnitId) {
             where.unitId = parseInt(filterUnitId);
         }

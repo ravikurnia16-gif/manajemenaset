@@ -86,6 +86,19 @@ const syncExternalUser = async (niy, externalData, password) => {
         'Unit SDIT-3': 'SDIT 3 Dar el-Iman',
         'Unit SMPIT': 'SMP IT Dar el-Iman Padang',
         'Unit SMAIT': 'SMA IT Dar el-Iman',
+        'Bidang SDM': 'Kantor Yayasan - Bidang SDM',
+        'Bidang Keuangan': 'Kantor Yayasan - Bidang Keuangan',
+        'Bidang Pembangunan': 'Kantor Yayasan - Bidang Pembangunan',
+        'Deiped': 'Dar el-Iman Peduli',
+        'Unit Taud-Saqu': 'TAUD SaQu Dar el-Iman',
+        'Unit Pondok Pesantren Putra': 'Pondok Pesantren Putra Dar el-Iman',
+        'Yayasan': 'Kantor Yayasan',
+        'Unit Pondok Pesantren Putri': 'Pondok Pesantren Putri Dar el-Iman',
+        'Divisi Pendidikan': 'Kantor Yayasan',
+        'SMPIT 50 Kota': 'SMP IT Dar el Iman 50 Kota',
+        'K3': 'Kantor Yayasan - K3',
+        'Bidang IT': 'Kantor Yayasan - Bidang IT',
+        'Bidang Sarana': 'Kantor Yayasan - Bidang Sarana',
     };
 
     if (unitName) {
