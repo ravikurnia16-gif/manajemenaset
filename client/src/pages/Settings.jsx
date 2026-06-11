@@ -884,7 +884,7 @@ const Settings = () => {
                                                 { label: 'Auditor', role: 'AUDITOR', scope: 'GLOBAL' },
 
                                                 // BIDANG SARANA & PRASARANA
-                                                { label: 'Kepala Bidang Sarana', role: 'KABID_SARPRAS', scope: 'GLOBAL' },
+                                                { label: 'Kepala Bidang Sarana', role: 'SUPER_ADMIN', scope: 'GLOBAL' },
                                                 { label: 'Staff Keuangan dan Administrasi', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                                 { label: 'Staff Manajemen Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
                                                 { label: 'Staff Teknisi Aset', role: 'ADMIN_ASET', scope: 'GLOBAL' },
