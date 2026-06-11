@@ -1844,7 +1844,7 @@ async function generatePemberitahuanPDF(doc, setting) {
 
         // Signature
         const sigX = width - 250;
-            page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana dan Prasarana,', { x: sigX, y, size: 10, font: fontBold });
+            page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana,', { x: sigX, y, size: 10, font: fontBold });
         y -= 65;
 
         await drawDigitalSignature(page, doc, sigX, y, 60);
@@ -2143,7 +2143,7 @@ async function generateSuratLainnyaPDF(doc, setting) {
     page.drawText(`Padang, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`, { x: sigX, y, size: 11, font: fontRegular });
     y -= 18;
 
-    page.drawText(doc.signedBy?.position || 'Kepala Bidang Sarana dan Prasarana,', { x: sigX, y, size: 10, font: fontBold });
+    page.drawText(doc.signedBy?.position || 'Kepala Bidang Sarana,', { x: sigX, y, size: 10, font: fontBold });
     y -= 65;
 
     await drawDigitalSignature(page, doc, sigX, y, 60);
@@ -2332,7 +2332,7 @@ async function generateBeritaAcaraKunjunganPDF(doc, setting) {
     page.drawText(sanitizeTextForWinAnsi(`Dibuat di: ${docLocation}`), { x: margin, y: cursor.y, size: 11, font: fontRegular });
     cursor.y -= 20;
     
-    page.drawText(sanitizeTextForWinAnsi(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana dan Prasarana,'), { x: sigX, y: cursor.y, size: 10, font: fontBold });
+    page.drawText(sanitizeTextForWinAnsi(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana,'), { x: sigX, y: cursor.y, size: 10, font: fontBold });
     cursor.y -= 65;
 
     await drawDigitalSignature(page, doc, sigX, cursor.y, 60);
@@ -2465,7 +2465,7 @@ async function generateSuratUmumPDF(doc, setting) {
     // Signature
     const sigX = width - 250;
     checkPage(100);
-    page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana dan Prasarana,', { x: sigX, y: cursor.y, size: 10, font: fontBold });
+    page.drawText(doc.signedBy?.position || doc.party1Title || 'Kepala Bidang Sarana,', { x: sigX, y: cursor.y, size: 10, font: fontBold });
     cursor.y -= 65;
 
     await drawDigitalSignature(page, doc, sigX, cursor.y, 60);

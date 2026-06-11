@@ -190,7 +190,7 @@ exports.checkMissingWeeklyReports = async () => {
         const recipients = await prisma.user.findMany({
             where: {
                 OR: [
-                    { position: 'Kepala Bidang Sarana dan Prasarana' },
+                    { position: 'Kepala Bidang Sarana' },
                     { name: { contains: 'Ringgo Afriwansyah Putra' } }
                 ],
                 phone: { not: null, not: '' }

@@ -20,16 +20,16 @@ const sendWeeklyBusTripSummary = async () => {
         sunday.setDate(monday.getDate() + 6);
         sunday.setHours(23, 59, 59, 999);
 
-        // 2. Prepare target users (Kepala Bidang Sarana dan Prasarana)
+        // 2. Prepare target users (Kepala Bidang Sarana)
         const leads = await prisma.user.findMany({
             where: {
-                position: 'Kepala Bidang Sarana dan Prasarana',
+                position: 'Kepala Bidang Sarana',
                 phone: { not: null, not: '' }
             }
         });
 
         if (leads.length === 0) {
-            console.warn("[Weekly Trip Summary] Skip: No target users (Kepala Bidang Sarana dan Prasarana) found with phone numbers.");
+            console.warn("[Weekly Trip Summary] Skip: No target users (Kepala Bidang Sarana) found with phone numbers.");
             return;
         }
 

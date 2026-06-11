@@ -10,16 +10,16 @@ const sendMaintenanceConditionSummary = async () => {
     try {
         console.log("[Maintenance Summary] Starting maintenance condition summary task...");
 
-        // Prepare target users (Kepala Bidang Sarana dan Prasarana)
+        // Prepare target users (Kepala Bidang Sarana)
         const leads = await prisma.user.findMany({
             where: {
-                position: 'Kepala Bidang Sarana dan Prasarana',
+                position: 'Kepala Bidang Sarana',
                 phone: { not: null, not: '' }
             }
         });
 
         if (leads.length === 0) {
-            console.warn("[Maintenance Summary] Skip: No target users (Kepala Bidang Sarana dan Prasarana) found with phone numbers.");
+            console.warn("[Maintenance Summary] Skip: No target users (Kepala Bidang Sarana) found with phone numbers.");
             return;
         }
 

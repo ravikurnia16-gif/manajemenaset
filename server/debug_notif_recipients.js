@@ -6,7 +6,7 @@ async function debugUsers() {
     console.log('--- Debugging Staff Manajemen Aset Users ---');
 
     // 1. Check for the specific positions used in the code
-    const targetPositions = ['Kepala Bidang Sarana dan Prasarana', 'Staff Manajemen Aset'];
+    const targetPositions = ['Kepala Bidang Sarana', 'Staff Manajemen Aset'];
     const users = await prisma.user.findMany({
         where: {
             position: { in: targetPositions }

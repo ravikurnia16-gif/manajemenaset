@@ -30,16 +30,16 @@ const sendWeeklyAssetSummary = async () => {
             orderBy: { name: 'asc' }
         });
 
-        // 3. Prepare target users (Kepala Bidang Sarana dan Prasarana)
+        // 3. Prepare target users (Kepala Bidang Sarana)
         const leads = await prisma.user.findMany({
             where: {
-                position: 'Kepala Bidang Sarana dan Prasarana',
+                position: 'Kepala Bidang Sarana',
                 phone: { not: null, not: '' }
             }
         });
 
         if (leads.length === 0) {
-            console.warn("[Weekly Summary] Skip: No target users (Kepala Bidang Sarana dan Prasarana) found with phone numbers.");
+            console.warn("[Weekly Summary] Skip: No target users (Kepala Bidang Sarana) found with phone numbers.");
             return;
         }
 

@@ -345,7 +345,7 @@ exports.submitForApproval = async (req, res) => {
         (async () => {
             try {
                 const kabid = await prisma.user.findFirst({
-                    where: { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } }
+                    where: { position: { contains: 'Kepala Bidang Sarana' } }
                 });
 
                 if (kabid && kabid.phone) {

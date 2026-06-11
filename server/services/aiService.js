@@ -27,7 +27,7 @@ class AIService {
         const { tasks, plans, routines, dailyLogs } = data;
 
         const prompt = `
-            Anda adalah asisten AI eksekutif untuk Kepala Bidang Sarana dan Prasarana.
+            Anda adalah asisten AI eksekutif untuk Kepala Bidang Sarana.
             Tugas Anda adalah membuat ringkasan naratif (Executive Summary) yang profesional dan informatif berdasarkan data aktivitas tim staf berikut ini.
 
             DATA AKTIVITAS:

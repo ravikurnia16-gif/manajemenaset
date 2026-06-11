@@ -17,7 +17,7 @@ exports.getDashboardStats = async (req, res) => {
         });
 
         // Determine filtering logic
-        const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KABID_SARPRAS'].includes(role) || req.user.position === 'Kepala Bidang Sarana dan Prasarana';
+        const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT', 'KABID_SARPRAS'].includes(role) || req.user.position === 'Kepala Bidang Sarana';
         
         let allowedUnitIds = [userUnitId];
         const userUnit = await prisma.unit.findUnique({ where: { id: userUnitId } });

@@ -210,7 +210,7 @@ async function downloadMOUPdf(mou) {
   // QR Code for Pihak Pertama (Kabid Sarpras)
   const sigH = 25;
   try {
-    const qrData = `MOU: ${mou.mouNumber} | Penghuni: ${mou.residentName} | Unit: ${mou.unit?.code || mou.unitId} | Berlaku: ${new Date(mou.startDate).toLocaleDateString("id-ID")} s/d ${new Date(mou.endDate).toLocaleDateString("id-ID")} | Status: ${mou.status} | Ditandatangani secara digital oleh Kepala Bidang Sarana dan Prasarana, Yayasan Dar El Iman`;
+    const qrData = `MOU: ${mou.mouNumber} | Penghuni: ${mou.residentName} | Unit: ${mou.unit?.code || mou.unitId} | Berlaku: ${new Date(mou.startDate).toLocaleDateString("id-ID")} s/d ${new Date(mou.endDate).toLocaleDateString("id-ID")} | Status: ${mou.status} | Ditandatangani secara digital oleh Kepala Bidang Sarana, Yayasan Dar El Iman`;
     // Create QR code using canvas
     const qrCanvas = document.createElement('canvas');
     const QRCodeLib = await import('react-qr-code');

@@ -158,7 +158,7 @@ exports.createProcurement = async (req, res) => {
             }
         }
 
-        const isDirect = (isDirectOrder === true || isDirectOrder === 'true') && (user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana dan Prasarana');
+        const isDirect = (isDirectOrder === true || isDirectOrder === 'true') && (user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana');
         const initialStatus = isDirect ? 'APPROVED' : 'SUBMITTED';
 
         const results = [];
@@ -246,9 +246,9 @@ exports.createProcurement = async (req, res) => {
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
-                            { position: 'Kepala Bidang Sarana dan Prasarana' },
+                            { position: 'Kepala Bidang Sarana' },
                             { position: 'Staff Manajemen Aset' },
-                            { position: 'Staff Keuangan dan Administrasi (Sarpras)' }
+                            { position: 'Staff Keuangan dan Administrasi' }
                         ]
                     }
                 });
@@ -295,9 +295,9 @@ exports.createProcurement = async (req, res) => {
                     const admins = await prisma.user.findMany({
                         where: {
                             OR: [
-                                { position: 'Kepala Bidang Sarana dan Prasarana' },
+                                { position: 'Kepala Bidang Sarana' },
                                 { position: 'Staff Manajemen Aset' },
-                                { position: 'Staff Keuangan dan Administrasi (Sarpras)' }
+                                { position: 'Staff Keuangan dan Administrasi' }
                             ],
                             phone: { not: null, not: '' }
                         }
@@ -403,9 +403,9 @@ exports.importProcurement = async (req, res) => {
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
-                            { position: 'Kepala Bidang Sarana dan Prasarana' },
+                            { position: 'Kepala Bidang Sarana' },
                             { position: 'Staff Manajemen Aset' },
-                            { position: 'Staff Keuangan dan Administrasi (Sarpras)' }
+                            { position: 'Staff Keuangan dan Administrasi' }
                         ]
                     }
                 });
@@ -444,7 +444,7 @@ exports.importProcurement = async (req, res) => {
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
-                            { position: 'Kepala Bidang Sarana dan Prasarana' }, // Ravi Kurnia
+                            { position: 'Kepala Bidang Sarana' }, // Ravi Kurnia
                             { position: 'Staff Manajemen Aset' }, // Eldo
                             { position: 'Staff Keuangan' }  // Syafrian
                         ],

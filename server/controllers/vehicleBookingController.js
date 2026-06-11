@@ -100,7 +100,7 @@ exports.requestBooking = async (req, res) => {
         }
 
         const isPIC = vehicle.pics.some(p => p.id === userId);
-        const isKabidSarpras = currentUser.position === 'Kepala Bidang Sarana dan Prasarana';
+        const isKabidSarpras = currentUser.position === 'Kepala Bidang Sarana';
 
         // Special Roles: Yayasan Leadership (Auto-Approval)
         const yayasanPositions = ['Ketua Yayasan', 'Bendahara Yayasan', 'Sekretaris Yayasan'];
@@ -136,7 +136,7 @@ exports.requestBooking = async (req, res) => {
                     const recipients = await prisma.user.findMany({
                         where: {
                             OR: [
-                                { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } },
+                                { position: { contains: 'Kepala Bidang Sarana' } },
                                 { position: { contains: 'Staff Kendaraan' } }
                             ],
                             AND: [{ phone: { not: null } }, { NOT: { phone: '' } }, { NOT: { phone: '08' } }]
@@ -253,7 +253,7 @@ exports.requestBooking = async (req, res) => {
         // Special Notification to Head of Sarpras for Yayasan usage
         if (isYayasan) {
             const headSarpras = await prisma.user.findFirst({
-                where: { position: 'Kepala Bidang Sarana dan Prasarana' }
+                where: { position: 'Kepala Bidang Sarana' }
             });
 
             if (headSarpras && headSarpras.phone) {
@@ -320,7 +320,7 @@ exports.reviewBooking = async (req, res) => {
         // Check permission: Super Admin or one of the Vehicle PICs or Kabid Sarpras
         const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role);
         const isPIC = booking.vehicle.pics.some(p => p.id === req.user.id);
-        const isKabidSarpras = admin?.position === 'Kepala Bidang Sarana dan Prasarana';
+        const isKabidSarpras = admin?.position === 'Kepala Bidang Sarana';
 
         if (!isSuperAdmin && !isPIC && !isKabidSarpras) {
             return res.status(403).json({ error: 'Akses ditolak. Anda bukan PIC resmi kendaraan ini.' });
@@ -432,7 +432,7 @@ exports.startTrip = async (req, res) => {
             const recipients = await prisma.user.findMany({
                 where: {
                     OR: [
-                        { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } }, // Matches "Kepala Bidang Sarana..."
+                        { position: { contains: 'Kepala Bidang Sarana' } }, // Matches "Kepala Bidang Sarana..."
                         { position: { contains: 'Staff Kendaraan' } } // Matches "Staff Kendaraan", "Staf Kendaraan", "Pengelola Kendaraan", etc.
                     ],
                     AND: [
@@ -684,7 +684,7 @@ exports.getBookings = async (req, res) => {
 
         const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role);
         const isAdminAset = req.user.role === 'ADMIN_ASET';
-        const isKabidSarpras = currentUser?.position === 'Kepala Bidang Sarana dan Prasarana';
+        const isKabidSarpras = currentUser?.position === 'Kepala Bidang Sarana';
         const isNormalOrPIC = !isSuperAdmin && !isAdminAset && !isKabidSarpras;
 
         if (tab === 'PENDING' || tab === 'APPROVAL') {
@@ -1150,7 +1150,7 @@ exports.updateBookingHistory = async (req, res) => {
         // Check if user is Admin / SuperAdmin / KabidSarpras / Staff Kendaraan
         const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role);
         const isAdminAset = req.user.role === 'ADMIN_ASET';
-        const isKabidSarpras = req.user.position === 'Kepala Bidang Sarana dan Prasarana';
+        const isKabidSarpras = req.user.position === 'Kepala Bidang Sarana';
         const isStaffKendaraan = req.user.position?.toLowerCase().includes('staff kendaraan') || req.user.position === 'Staff Kendaraan';
 
         if (!isSuperAdmin && !isAdminAset && !isKabidSarpras && !isStaffKendaraan) {

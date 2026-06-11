@@ -726,7 +726,7 @@ const checkUnpaidBusInvoices = async () => {
         // Find Recipients: Staff Keuangan & Administrasi (Sarpras)
         const recipients = await prisma.user.findMany({
             where: {
-                position: 'Staff Keuangan dan Administrasi (Sarpras)',
+                position: 'Staff Keuangan dan Administrasi',
                 phone: { not: null, not: '' }
             }
         });
@@ -833,7 +833,7 @@ const completeBusBooking = async (req, res) => {
             try {
                 const finStaffs = await prisma.user.findMany({
                     where: {
-                        position: 'Staff Keuangan dan Administrasi (Sarpras)',
+                        position: 'Staff Keuangan dan Administrasi',
                         phone: { not: null, not: '' }
                     }
                 });

@@ -68,7 +68,7 @@ exports.requestMutation = async (req, res) => {
                 const admins = await prisma.user.findMany({
                     where: {
                         OR: [
-                            { position: 'Kepala Bidang Sarana dan Prasarana' },
+                            { position: 'Kepala Bidang Sarana' },
                             { position: 'Staff Manajemen Aset' }
                         ]
                     }
@@ -94,7 +94,7 @@ exports.requestMutation = async (req, res) => {
                 const recipients = await prisma.user.findMany({
                     where: {
                         OR: [
-                            { position: 'Kepala Bidang Sarana dan Prasarana' },
+                            { position: 'Kepala Bidang Sarana' },
                             { position: 'Staff Manajemen Aset' }
                         ],
                         phone: { not: null, not: '' }

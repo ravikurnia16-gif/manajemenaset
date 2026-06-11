@@ -74,7 +74,7 @@ const sendPushToPosition = async (position, title, body, link = null) => {
  * Send push to Kepala Bidang Sarpras
  */
 const sendPushToKabid = async (title, body, link = null) => {
-    return sendPushToPosition('Kepala Bidang Sarana dan Prasarana', title, body, link);
+    return sendPushToPosition('Kepala Bidang Sarana', title, body, link);
 };
 
 module.exports = {

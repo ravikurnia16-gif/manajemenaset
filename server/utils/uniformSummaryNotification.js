@@ -10,16 +10,16 @@ const sendUniformOrderSummary = async () => {
     try {
         console.log("[Uniform Summary] Starting uniform order summary task...");
 
-        // Prepare target users (Kepala Bidang Sarana dan Prasarana)
+        // Prepare target users (Kepala Bidang Sarana)
         const leads = await prisma.user.findMany({
             where: {
-                position: 'Kepala Bidang Sarana dan Prasarana',
+                position: 'Kepala Bidang Sarana',
                 phone: { not: null, not: '' }
             }
         });
 
         if (leads.length === 0) {
-            console.warn("[Uniform Summary] Skip: No target users (Kepala Bidang Sarana dan Prasarana) found with phone numbers.");
+            console.warn("[Uniform Summary] Skip: No target users (Kepala Bidang Sarana) found with phone numbers.");
             return;
         }
 

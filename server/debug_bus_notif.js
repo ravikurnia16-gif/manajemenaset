@@ -11,7 +11,7 @@ async function debug() {
             where: {
                 OR: [
                     { name: { contains: 'Wegi' } },
-                    { position: 'Kepala Bidang Sarana dan Prasarana' }
+                    { position: 'Kepala Bidang Sarana' }
                 ],
                 phone: { not: null, not: '' }
             }

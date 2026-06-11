@@ -18,7 +18,7 @@ const ProcurementForm = () => {
     const fileInputRef = useRef(null);
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const isAuthorizedForDirectOrder = user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana dan Prasarana';
+    const isAuthorizedForDirectOrder = user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana';
 
     useEffect(() => {
         api.get('/assets/funding-sources')

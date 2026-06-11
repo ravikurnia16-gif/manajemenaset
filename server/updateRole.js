@@ -3,7 +3,7 @@ const prisma = new PrismaClient();
 
 async function main() {
     const res = await prisma.user.updateMany({
-        where: { position: 'Staff Keuangan dan Administrasi (Sarpras)' },
+        where: { position: 'Staff Keuangan dan Administrasi' },
         data: { role: 'SUPER_ADMIN' }
     });
     console.log('Updated users:', res.count);

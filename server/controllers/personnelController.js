@@ -432,7 +432,7 @@ exports.createAssignment = async (req, res) => {
                         : '';
 
                     const msg = `Bismillah.\n\n` +
-                        `Telah masuk permintaan dari Kepala Bidang Sarana dan Prasarana Dengan Rinciannya:\n\n` +
+                        `Telah masuk permintaan dari Kepala Bidang Sarana Dengan Rinciannya:\n\n` +
                         `📌 *Judul* : ${title}\n` +
                         `📅 *Deadline* : ${dueDate ? new Date(dueDate).toLocaleDateString('id-ID') : '-'}\n` +
                         `👤 *Pemberi Tugas* : ${assigner?.name || assigner?.username || 'Admin'}\n\n` +
@@ -1554,9 +1554,9 @@ exports.sendDailyPersonnelSummary = async () => {
         const kabid = await prisma.user.findFirst({
             where: {
                 OR: [
-                    { position: 'Kepala Bidang Sarana dan Prasarana' },
+                    { position: 'Kepala Bidang Sarana' },
                     { role: 'KEPALA_BIDANG' },
-                    { position: { contains: 'Kepala Bidang Sarana dan Prasarana' } }
+                    { position: { contains: 'Kepala Bidang Sarana' } }
                 ]
             }
         });
@@ -1636,7 +1636,7 @@ exports.checkPlanDeadlines = async () => {
         });
 
         const kabid = await prisma.user.findFirst({
-            where: { position: 'Kepala Bidang Sarana dan Prasarana' }
+            where: { position: 'Kepala Bidang Sarana' }
         });
 
         for (const p of plans) {
@@ -1736,7 +1736,7 @@ exports.reviewReport = async (req, res) => {
 
     try {
         // Only SUPER_ADMIN and KABID position can review
-        const isKabid = user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana dan Prasarana';
+        const isKabid = user.role === 'SUPER_ADMIN' || user.position === 'Kepala Bidang Sarana';
         if (!isKabid) {
             return res.status(403).json({ error: 'Hanya Kepala Bidang yang dapat memberikan tinjauan.' });
         }
@@ -1843,7 +1843,7 @@ exports.checkMissingReportsWeekly = async () => {
         // Get all Sarpras staff (excluding Kabid)
         const staff = await prisma.user.findMany({
             where: {
-                position: { not: 'Kepala Bidang Sarana dan Prasarana' },
+                position: { not: 'Kepala Bidang Sarana' },
                 OR: [
                     { position: { contains: 'Sarana dan Prasarana' } },
                     { position: { contains: 'Manajemen Aset' } },
@@ -1925,7 +1925,7 @@ exports.checkMissingReportsWeekly = async () => {
 
         // --- 2. Send recap to Kabid ---
         const kabid = await prisma.user.findFirst({
-            where: { position: 'Kepala Bidang Sarana dan Prasarana' }
+            where: { position: 'Kepala Bidang Sarana' }
         });
 
         if (kabid?.phone) {
@@ -2366,7 +2366,7 @@ exports.proposeSanctionLift = async (req, res) => {
         const admins = await prisma.user.findMany({
             where: {
                 OR: [
-                    { position: 'Kepala Bidang Sarana dan Prasarana' },
+                    { position: 'Kepala Bidang Sarana' },
                     { position: 'Staff Kendaraan' }
                 ]
             }

@@ -541,16 +541,16 @@ const sendWeeklyCalendarSummary = async () => {
     try {
         console.log('[Weekly Summary] Starting summary generation...');
 
-        // Find recipients: Kepala Bidang Sarana dan Prasarana
+        // Find recipients: Kepala Bidang Sarana
         const leads = await prisma.user.findMany({
             where: {
-                position: 'Kepala Bidang Sarana dan Prasarana',
+                position: 'Kepala Bidang Sarana',
                 phone: { not: null, not: '' }
             }
         });
 
         if (leads.length === 0) {
-            console.error('[Weekly Summary] ERROR: No Kepala Bidang Sarana dan Prasarana found with phone number.');
+            console.error('[Weekly Summary] ERROR: No Kepala Bidang Sarana found with phone number.');
             return;
         }
 

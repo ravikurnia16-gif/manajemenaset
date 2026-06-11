@@ -13,7 +13,7 @@ async function check() {
             where: {
                 OR: [
                     { name: { contains: 'Wegi' } },
-                    { position: 'Kepala Bidang Sarana dan Prasarana' }
+                    { position: 'Kepala Bidang Sarana' }
                 ]
             }
         });

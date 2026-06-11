@@ -374,7 +374,7 @@ exports.sendTestWA = async (req, res) => {
         const recipients = await prisma.user.findMany({
             where: {
                 OR: [
-                    { position: 'Kepala Bidang Sarana dan Prasarana' },
+                    { position: 'Kepala Bidang Sarana' },
                     { position: 'Staff Manajemen Aset' }
                     // Eldo replaced by position
                 ],

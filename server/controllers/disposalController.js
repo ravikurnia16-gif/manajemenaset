@@ -64,7 +64,7 @@ exports.createDisposal = async (req, res) => {
         // --- In-App Notification (Phase 3) ---
         try {
             const leads = await prisma.user.findMany({
-                where: { position: 'Kepala Bidang Sarana dan Prasarana' }
+                where: { position: 'Kepala Bidang Sarana' }
             });
 
             if (leads.length > 0) {
@@ -87,11 +87,11 @@ exports.createDisposal = async (req, res) => {
             console.error('Failed to send in-app notification for disposal:', notifErr);
         }
 
-        // Send WA Notification to Kepala Bidang Sarana dan Prasarana
+        // Send WA Notification to Kepala Bidang Sarana
         try {
             const leads = await prisma.user.findMany({
                 where: {
-                    position: 'Kepala Bidang Sarana dan Prasarana',
+                    position: 'Kepala Bidang Sarana',
                     phone: { not: null, not: '' }
                 }
             });

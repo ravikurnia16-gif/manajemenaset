@@ -26,7 +26,7 @@ const BusBooking = () => {
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isAuthorizedForWA = user.name?.toLowerCase().includes('wegi') ||
-        user.position === 'Kepala Bidang Sarana dan Prasarana' ||
+        user.position === 'Kepala Bidang Sarana' ||
         user.role === 'SUPER_ADMIN';
 
     const isSarpras = user.position?.toLowerCase().includes('sarana dan prasarana') || ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);

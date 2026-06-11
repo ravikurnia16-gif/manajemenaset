@@ -300,7 +300,7 @@ exports.checkHybridReminderNotifications = async () => {
         const recipients = await prisma.user.findMany({
             where: {
                 OR: [
-                    { position: 'Kepala Bidang Sarana dan Prasarana' },
+                    { position: 'Kepala Bidang Sarana' },
                     { position: 'Staff Kendaraan' }
                 ],
                 phone: { not: null }
