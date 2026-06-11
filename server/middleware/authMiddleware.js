@@ -26,6 +26,11 @@ exports.authorizeRole = (roles) => {
             allowedRoles.push('BIDANG_IT');
         }
 
+        // Global read-only access for Auditor
+        if (req.user.role === 'AUDITOR' && req.method === 'GET') {
+            return next();
+        }
+
         if (!allowedRoles.includes(req.user.role)) {
             return res.status(403).json({ error: 'Forbidden' });
         }
@@ -35,6 +40,8 @@ exports.authorizeRole = (roles) => {
 
 exports.authorizeSarprasAdmin = () => {
     return (req, res, next) => {
+        if (req.user.role === 'AUDITOR' && req.method === 'GET') return next();
+
         const role = req.user.role;
         const pos = req.user.position || '';
         
@@ -50,6 +57,8 @@ exports.authorizeSarprasAdmin = () => {
 
 exports.authorizeEOfficeAccess = () => {
     return (req, res, next) => {
+        if (req.user.role === 'AUDITOR' && req.method === 'GET') return next();
+
         const role = req.user.role;
         
         // Super Admin, IT, Admin Aset, and Kabids can access E-Office
@@ -64,6 +73,8 @@ exports.authorizeEOfficeAccess = () => {
 
 exports.authorizePembangunanAccess = () => {
     return (req, res, next) => {
+        if (req.user.role === 'AUDITOR' && req.method === 'GET') return next();
+
         const role = req.user.role;
         const pos = req.user.position || '';
         

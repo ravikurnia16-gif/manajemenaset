@@ -54,8 +54,8 @@ const Sidebar = ({ isOpen = true }) => {
         console.error("Failed to parse user from localStorage", e);
     }
 
-    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_UNIT'].includes(user?.role);
-    const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user?.role);
+    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KEPALA_BIDANG', 'ADMIN_UNIT', 'AUDITOR'].includes(user?.role);
+    const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(user?.role);
     const sarprasKeywords = [
         'sarana dan prasarana',
         'manajemen aset',
@@ -66,12 +66,12 @@ const Sidebar = ({ isOpen = true }) => {
     ];
     const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position && user.position.toLowerCase().includes(kw));
 
-    const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(user?.role);
+    const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'AUDITOR'].includes(user?.role);
     const isSuperAdmin = user?.role === 'SUPER_ADMIN';
     const isKabidSarpras = user?.position === 'Kepala Bidang Sarana dan Prasarana';
     const isAdminAset = user?.role === 'ADMIN_ASET';
-    const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop');
-    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user?.role);
+    const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop') || user?.role === 'AUDITOR';
+    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'AUDITOR'].includes(user?.role);
 
     const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(user?.role) || ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user?.position);
 
