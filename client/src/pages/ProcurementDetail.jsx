@@ -196,7 +196,7 @@ const STEPS = [
 
 const Stepper = ({ active, req, onSwitch, loading }) => {
     const isDone = (step) => {
-        if (step === 1) return req.status !== 'SUBMITTED';
+        if (step === 1) return ['APPROVED', 'PROCESS', 'COMPLETED'].includes(req.status);
         if (step === 2) return ['PROCESS', 'COMPLETED'].includes(req.status);
         if (step === 3) return ['PROCESS', 'COMPLETED'].includes(req.status);
         if (step === 4) return ['PROCESS', 'COMPLETED'].includes(req.status);
@@ -204,6 +204,7 @@ const Stepper = ({ active, req, onSwitch, loading }) => {
         return false;
     };
     const isDisabled = (step) => {
+        if (req.status === 'REJECTED' && step >= 2) return true;
         if (step >= 2 && req.status === 'SUBMITTED') return true;
         if (step >= 4 && req.status === 'APPROVED') return true;
         if (step === 5 && req.status === 'APPROVED') return true;
@@ -281,6 +282,7 @@ const Notice = ({ type = 'info', children }) => {
         info: { bg: '#eef3fc', border: '#bfd0f5', color: '#1e3a8a', icon: AlertCircle },
         warning: { bg: T.warnBg, border: '#f0d08a', color: T.warn, icon: AlertCircle },
         success: { bg: T.successBg, border: '#a3d9c0', color: T.success, icon: CheckCircle },
+        danger: { bg: T.dangerBg, border: '#f5c2c2', color: T.danger, icon: XCircle },
     };
     const s = styles[type];
     const Icon = s.icon;
@@ -826,10 +828,15 @@ const ProcurementDetail = () => {
                         <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                             {req.status === 'SUBMITTED' && (
                                 <Notice type="warning">
-                                    <strong>Menunggu persetujuan.</strong> Request ini belum diproses. Silakan tinjau dan setujui atau tolak.
+                                    <strong>Menunggu persetujuan.</strong> Request ini belum diproses. Silakan tinjau dan setujui or tolak.
                                 </Notice>
                             )}
-                            {req.status !== 'SUBMITTED' && (
+                            {req.status === 'REJECTED' && (
+                                <Notice type="danger">
+                                    <strong>Request ditolak.</strong> Pengadaan ini tidak disetujui. Alasan: {req.rejectionReason || 'Tidak ada keterangan tambahan.'}
+                                </Notice>
+                            )}
+                            {!['SUBMITTED', 'REJECTED'].includes(req.status) && (
                                 <Notice type="success">
                                     <strong>Request telah diverifikasi dan disetujui.</strong> Silakan lanjutkan ke tahap berikutnya.
                                 </Notice>
