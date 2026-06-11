@@ -3,8 +3,8 @@ const prisma = new PrismaClient();
 
 /**
  * Generates automatic document numbers based on category and current date.
- * Format: {URUT}/{KODE_KAT}/SARPRAS/{BULAN_ROMAWI}/{TAHUN}
- * Example: 001/UND/SARPRAS/IV/2026
+ * Format: {URUT}/{KODE_KAT}/SRN/{BULAN_ROMAWI}/{TAHUN}
+ * Example: 001/UND/SRN/IV/2026
  */
 
 const CATEGORY_CODES = {
@@ -41,7 +41,7 @@ const ROMAN_MONTHS = {
  * Generate the next document number for a given category.
  * @param {string} category - Document category (e.g. 'Undangan')
  * @param {string} type - Document type ('SURAT_KELUAR', 'BAST', 'MOU')
- * @returns {Promise<string>} Generated number e.g. "001/UND/SARPRAS/IV/2026"
+ * @returns {Promise<string>} Generated number e.g. "001/UND/SRN/IV/2026"
  */
 async function generateDocumentNumber(category, type) {
     const now = new Date();
@@ -96,7 +96,7 @@ async function generateDocumentNumber(category, type) {
     }
 
     const sequence = String(nextSeq).padStart(3, '0');
-    return `${sequence}/${catCode}/SARPRAS/${romanMonth}/${year}`;
+    return `${sequence}/${catCode}/SRN/${romanMonth}/${year}`;
 }
 
 /**

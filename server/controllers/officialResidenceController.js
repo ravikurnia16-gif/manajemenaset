@@ -13,7 +13,7 @@ const generateMOUNumber = async () => {
     };
 
     const prefix = `MOU/`;
-    const suffix = `/SARPRAS/${monthToRoman(month)}/${year}`;
+    const suffix = `/SRN/${monthToRoman(month)}/${year}`;
 
     // Find all MOUs for the current year
     const lastRecord = await prisma.officialResidenceMOU.findFirst({
@@ -30,7 +30,7 @@ const generateMOUNumber = async () => {
 
     let nextSequence = 1;
     if (lastRecord) {
-        // Example: MOU/001/SARPRAS/IV/2026 -> parts: ["MOU", "001", "SARPRAS", "IV", "2026"]
+        // Example: MOU/001/SRN/IV/2026 -> parts: ["MOU", "001", "SRN", "IV", "2026"]
         const parts = lastRecord.mouNumber.split('/');
         if (parts.length >= 3) {
             const lastSeq = parseInt(parts[1]);
