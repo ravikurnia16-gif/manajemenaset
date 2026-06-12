@@ -124,8 +124,16 @@ const VehicleBooking = () => {
                 const start = new Date(`${formData.startDate}T${formData.startTime}`);
                 if (!isNaN(start.getTime())) {
                     const end = new Date(start.getTime() + (parseInt(formData.rentalDays) * 24 * 60 * 60 * 1000));
-                    const endDate = end.toISOString().split('T')[0];
-                    const endTime = end.toTimeString().split(' ')[0].slice(0, 5);
+                    
+                    // Gunakan local time, jangan toISOString() karena menggunakan UTC (Jam Internasional)
+                    const year = end.getFullYear();
+                    const month = String(end.getMonth() + 1).padStart(2, '0');
+                    const day = String(end.getDate()).padStart(2, '0');
+                    const endDate = `${year}-${month}-${day}`;
+                    
+                    const hours = String(end.getHours()).padStart(2, '0');
+                    const minutes = String(end.getMinutes()).padStart(2, '0');
+                    const endTime = `${hours}:${minutes}`;
 
                     if (formData.endDate !== endDate || formData.endTime !== endTime) {
                         setFormData(prev => ({ ...prev, endDate, endTime }));
