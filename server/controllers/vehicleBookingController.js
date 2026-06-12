@@ -317,12 +317,13 @@ exports.reviewBooking = async (req, res) => {
         const admin = await prisma.user.findUnique({ where: { id: req.user.id } });
         const adminName = admin?.name || req.user.username || 'Admin';
 
-        // Check permission: Super Admin or one of the Vehicle PICs or Kabid Sarpras
+        // Check permission: Super Admin or one of the Vehicle PICs or Kabid Sarpras or Admin Aset
         const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role);
         const isPIC = booking.vehicle.pics.some(p => p.id === req.user.id);
         const isKabidSarpras = admin?.position === 'Kepala Bidang Sarana';
+        const isAdminAset = req.user.role === 'ADMIN_ASET';
 
-        if (!isSuperAdmin && !isPIC && !isKabidSarpras) {
+        if (!isSuperAdmin && !isPIC && !isKabidSarpras && !isAdminAset) {
             return res.status(403).json({ error: 'Akses ditolak. Anda bukan PIC resmi kendaraan ini.' });
         }
 
