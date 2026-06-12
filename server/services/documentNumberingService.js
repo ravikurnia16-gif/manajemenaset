@@ -67,7 +67,7 @@ async function generateDocumentNumber(category, type) {
     const yearStart = new Date(year, 0, 1);
     const yearEnd = new Date(year + 1, 0, 1);
 
-    const lastDoc = await prisma.officeDocument.findFirst({
+    const docs = await prisma.officeDocument.findMany({
         where: {
             type: { not: 'SURAT_MASUK' },
             number: { not: null },
@@ -76,24 +76,23 @@ async function generateDocumentNumber(category, type) {
                 lt: yearEnd,
             },
         },
-        orderBy: {
-            id: 'desc',
-        },
+        select: { number: true }
     });
 
-    let nextSeq = 1;
-    if (lastDoc && lastDoc.number) {
-        const parts = lastDoc.number.split('/');
-        if (parts.length > 0 && !isNaN(parseInt(parts[0]))) {
-            nextSeq = parseInt(parts[0]) + 1;
-        } else {
-            // fallback if format is weird
-            const count = await prisma.officeDocument.count({
-                where: { type: { not: 'SURAT_MASUK' }, number: { not: null }, date: { gte: yearStart, lt: yearEnd } }
-            });
-            nextSeq = count + 1;
+    let maxSeq = 0;
+    for (const d of docs) {
+        if (d.number) {
+            const parts = d.number.split('/');
+            if (parts.length > 0 && !isNaN(parseInt(parts[0]))) {
+                const seq = parseInt(parts[0]);
+                if (seq > maxSeq) {
+                    maxSeq = seq;
+                }
+            }
         }
     }
+
+    const nextSeq = maxSeq + 1;
 
     const sequence = String(nextSeq).padStart(3, '0');
     return `${sequence}/${catCode}/SRN/${romanMonth}/${year}`;

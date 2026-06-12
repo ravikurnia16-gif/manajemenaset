@@ -406,14 +406,32 @@ exports.approveAndSign = async (req, res) => {
             updateData.party1SignedAt = new Date();
         }
 
-        const updated = await prisma.officeDocument.update({
-            where: { id },
-            data: updateData,
-            include: {
-                author: { select: { id: true, name: true } },
-                signedBy: { select: { id: true, name: true, nip: true } },
-            },
-        });
+        let updated;
+        let retries = 3;
+        while (retries > 0) {
+            try {
+                if (!updateData.number) {
+                    updateData.number = await generateDocumentNumber(doc.category, doc.type);
+                }
+                updated = await prisma.officeDocument.update({
+                    where: { id },
+                    data: updateData,
+                    include: {
+                        author: { select: { id: true, name: true } },
+                        signedBy: { select: { id: true, name: true, nip: true } },
+                    },
+                });
+                break; // success
+            } catch (err) {
+                if (err.code === 'P2002' && err.meta?.target === 'OfficeDocument_number_key') {
+                    updateData.number = null; // force regeneration
+                    retries--;
+                    if (retries === 0) throw err;
+                } else {
+                    throw err;
+                }
+            }
+        }
 
         res.json(updated);
     } catch (error) {
@@ -503,18 +521,32 @@ exports.signAsParty = async (req, res) => {
         const p2Signed = refreshed.party2SignedAt || refreshed.party2Signature;
 
         if (p1Signed && p2Signed && refreshed.status !== 'SIGNED') {
+            let retries = 3;
             let number = refreshed.number;
-            if (!number) {
-                number = await generateDocumentNumber(refreshed.category, refreshed.type);
+            while (retries > 0) {
+                try {
+                    if (!number) {
+                        number = await generateDocumentNumber(refreshed.category, refreshed.type);
+                    }
+                    await prisma.officeDocument.update({
+                        where: { id },
+                        data: { 
+                            status: 'SIGNED', 
+                            signedAt: new Date(),
+                            number
+                        },
+                    });
+                    break;
+                } catch (err) {
+                    if (err.code === 'P2002' && err.meta?.target === 'OfficeDocument_number_key') {
+                        number = null;
+                        retries--;
+                        if (retries === 0) throw err;
+                    } else {
+                        throw err;
+                    }
+                }
             }
-            await prisma.officeDocument.update({
-                where: { id },
-                data: { 
-                    status: 'SIGNED', 
-                    signedAt: new Date(),
-                    number
-                },
-            });
         }
 
         const result = await prisma.officeDocument.findUnique({
