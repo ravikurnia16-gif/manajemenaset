@@ -93,9 +93,15 @@ const VehicleMaintenanceForm = () => {
             api.get(`/vehicles/maintenance/${id}`).then(res => {
                 const d = res.data;
                 setForm({ ...d, date: new Date(d.date).toISOString().split('T')[0] });
-                if (d.items && Array.isArray(d.items)) {
-                    setSelectedRoutine(d.items.filter(i => i.isRoutine));
-                    setNonRoutineItems(d.items.filter(i => !i.isRoutine));
+                
+                let parsedItems = d.items;
+                if (typeof parsedItems === 'string') {
+                    try { parsedItems = JSON.parse(parsedItems); } catch(e) { parsedItems = null; }
+                }
+
+                if (parsedItems && Array.isArray(parsedItems)) {
+                    setSelectedRoutine(parsedItems.filter(i => i.isRoutine || i.isRoutine === 'true'));
+                    setNonRoutineItems(parsedItems.filter(i => !i.isRoutine && i.isRoutine !== 'true'));
                 }
             });
         }

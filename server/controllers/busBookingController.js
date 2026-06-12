@@ -297,15 +297,22 @@ const getBusExpenseSummary = async (req, res) => {
             select: { amount: true, date: true, description: true, id: true }
         });
 
+        // 4b. Other Income: Pemasukan Lainnya
+        const otherIncomes = await prisma.busOtherIncome.findMany({
+            select: { amount: true, date: true, description: true, id: true }
+        });
+
         // 5. Summarize
         const totalFuel = vehicleBookingFuel.reduce((s, f) => s + (f.fuelPrice || 0), 0);
         const totalMaintenance = serviceRecords.reduce((s, m) => s + (m.cost || 0), 0);
         const totalUnexpected = unexpectedExpenses.reduce((s, u) => s + (u.amount || 0), 0);
+        const totalOtherIncome = otherIncomes.reduce((s, o) => s + (o.amount || 0), 0);
 
         res.json({
             totalFuel,
             totalMaintenance,
             totalUnexpected,
+            totalOtherIncome,
             totalExpenses: totalFuel + totalMaintenance + totalUnexpected,
             fuelRecords: vehicleBookingFuel.map(f => ({ cost: f.fuelPrice, date: f.startDate, title: `BBM ${f.vehicle?.name || ''}`.trim() })),
             maintenanceRecords: serviceRecords.map(m => ({
@@ -318,6 +325,12 @@ const getBusExpenseSummary = async (req, res) => {
                 cost: u.amount,
                 date: u.date,
                 title: u.description
+            })),
+            otherIncomeRecords: otherIncomes.map(o => ({
+                id: o.id,
+                amount: o.amount,
+                date: o.date,
+                title: o.description
             }))
         });
     } catch (err) {
@@ -998,6 +1011,47 @@ const deleteBusUnexpectedExpense = async (req, res) => {
     }
 };
 
+// Bus Other Income CRUD
+const createBusOtherIncome = async (req, res) => {
+    try {
+        const { date, description, amount } = req.body;
+
+        // Authorization check
+        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
+            return res.status(403).json({ error: 'Akses ditolak' });
+        }
+
+        const income = await prisma.busOtherIncome.create({
+            data: {
+                date: date ? new Date(date) : new Date(),
+                description,
+                amount: parseFloat(amount)
+            }
+        });
+        res.json(income);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+const deleteBusOtherIncome = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Authorization check
+        if (!['ADMIN_ASET', 'SUPER_ADMIN', 'KABID_SARPRAS'].includes(req.user.role)) {
+            return res.status(403).json({ error: 'Akses ditolak' });
+        }
+
+        await prisma.busOtherIncome.delete({
+            where: { id: parseInt(id) }
+        });
+        res.json({ message: 'Pemasukan berhasil dihapus' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 module.exports = {
     getAllBusBookings,
     getPublicBusBookings,
@@ -1009,6 +1063,8 @@ module.exports = {
     getBusUnexpectedExpenses,
     createBusUnexpectedExpense,
     deleteBusUnexpectedExpense,
+    createBusOtherIncome,
+    deleteBusOtherIncome,
     createBusBooking,
     deleteBusBooking,
     cancelByToken,
