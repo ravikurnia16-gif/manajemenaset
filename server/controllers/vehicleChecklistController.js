@@ -148,7 +148,7 @@ exports.auditWeeklyChecklists = async () => {
             });
 
             if (count === 0) {
-                const msg = `❌ *PELANGGARAN CEKLIS MINGGUAN*\n\nKendaraan *${v.name} (${v.plateNumber})* BELUM DILAKUKAN CEKLIS MINGGUAN sepanjang minggu ini.\n\nMohon Staf Kendaraan segera menyelesaikan tanggung jawab pengecekan.`;
+                const msg = `⚠️ *PENGINGAT CEKLIS MINGGUAN*\n\nKendaraan *${v.name} (${v.plateNumber})* BELUM DILAKUKAN CEKLIS MINGGUAN sepanjang minggu ini.\n\nMohon Staf Kendaraan segera menyelesaikan tanggung jawab pengecekan.`;
                 for (const s of staff) {
                     sendMessage(s.phone, msg);
                 }
