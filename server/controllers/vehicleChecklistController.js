@@ -1,7 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const waTemplateService = require('../services/waTemplateService');
-const { createNotification } = require('./notificationController');
+const { sendMessage } = require('../services/whatsappService');
 
 /**
  * 1. CRUD FOR VEHICLE CHECKLIST
@@ -32,10 +31,10 @@ exports.createChecklist = async (req, res) => {
                 driverId: req.user.id,
                 date: new Date(),
                 type,
-                checks,
+                checks: typeof checks === 'string' ? JSON.parse(checks) : checks,
                 fuelLevel,
                 notes,
-                status
+                status: status || 'SIAP JALAN'
             }
         });
         res.status(201).json({ message: 'Ceklis berhasil disimpan', data: checklist });
@@ -57,13 +56,12 @@ const getStaffKendaraan = async () => {
                 { role: 'SUPER_ADMIN' },
                 { position: { contains: 'Kendaraan' } }
             ],
-            phone: { not: null, not: '' }
+            phone: { not: null }
         }
     });
 };
 
 // A. Daily Checklist Audit (Mon-Fri 18:00)
-// Checks if requireDailyChecklist vehicles have >=4 checklists in last 2 workdays
 exports.auditDailyChecklists = async () => {
     console.log(`[${new Date().toLocaleString('id-ID')}] [Checklist] Auditing Daily Checklists...`);
     try {
@@ -76,8 +74,7 @@ exports.auditDailyChecklists = async () => {
         let startDate = new Date();
         startDate.setHours(0, 0, 0, 0);
 
-        // Substract days, skipping weekends
-        let daysToSubtract = 2; // last 2 days
+        let daysToSubtract = 2;
         while (daysToSubtract > 0) {
             startDate.setDate(startDate.getDate() - 1);
             if (startDate.getDay() !== 0 && startDate.getDay() !== 6) {
@@ -86,7 +83,6 @@ exports.auditDailyChecklists = async () => {
         }
 
         const staff = await getStaffKendaraan();
-        const staffPhones = staff.map(s => s.phone);
 
         for (const v of vehicles) {
             const count = await prisma.vehicleChecklist.count({
@@ -97,14 +93,10 @@ exports.auditDailyChecklists = async () => {
                 }
             });
 
-            if (count < 4) { // Target is 2 per day * 2 days = 4
+            if (count < 4) { // Target: 2 per day * 2 days = 4
                 const msg = `⚠️ *Peringatan Ceklis Harian*\n\nKendaraan *${v.name} (${v.plateNumber})* tidak mengisi ceklis harian secara rutin (2x sehari) dalam 2 hari kerja terakhir. Total pengisian hanya: ${count} kali.\n\nMohon Staf Kendaraan segera menindaklanjuti.`;
-                for (const phone of staffPhones) {
-                    await waTemplateService.send('ASSET_LOAN_APPROVED', phone, {
-                        nama_peminjam: 'Staff Kendaraan', // reusing template param
-                        nama_aset: v.name,
-                        waktu_ambil: 'Segera Cek'
-                    }, msg);
+                for (const s of staff) {
+                    sendMessage(s.phone, msg);
                 }
             }
         }
@@ -123,11 +115,7 @@ exports.sendWeeklyChecklistReminder = async () => {
         const staff = await getStaffKendaraan();
         for (const s of staff) {
             const msg = `🚗 *PENGINGAT CEKLIS MINGGUAN*\n\nAssalamu'alaikum, mengingatkan kepada Staf Kendaraan untuk melakukan pengisian Ceklis Mingguan pada armada wajib hari ini.\n\nTerdapat ${vehicles.length} kendaraan yang wajib dicek.`;
-            await waTemplateService.send('ASSET_LOAN_APPROVED', s.phone, {
-                nama_peminjam: s.name,
-                nama_aset: 'Ceklis Mingguan',
-                waktu_ambil: 'Hari ini'
-            }, msg);
+            sendMessage(s.phone, msg);
         }
     } catch (err) {
         console.error('[Checklist] Weekly Reminder Error:', err.message);
@@ -162,11 +150,7 @@ exports.auditWeeklyChecklists = async () => {
             if (count === 0) {
                 const msg = `❌ *PELANGGARAN CEKLIS MINGGUAN*\n\nKendaraan *${v.name} (${v.plateNumber})* BELUM DILAKUKAN CEKLIS MINGGUAN sepanjang minggu ini.\n\nMohon Staf Kendaraan segera menyelesaikan tanggung jawab pengecekan.`;
                 for (const s of staff) {
-                    await waTemplateService.send('ASSET_LOAN_APPROVED', s.phone, {
-                        nama_peminjam: s.name,
-                        nama_aset: v.name,
-                        waktu_ambil: 'Segera'
-                    }, msg);
+                    sendMessage(s.phone, msg);
                 }
             }
         }
