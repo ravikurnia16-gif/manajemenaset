@@ -838,13 +838,16 @@ exports.createDriverViolation = async (req, res) => {
             return res.status(403).json({ error: 'Akses ditolak.' });
         }
 
+        const photoUrl = req.fileUrls?.photo || null;
+
         const newViolation = await prisma.driverViolation.create({
             data: {
                 driverId: parseInt(driverId),
                 date: new Date(date),
                 category,
                 description,
-                sanction
+                sanction,
+                photoUrl
             }
         });
         res.json({ message: 'Pelanggaran berhasil ditambahkan', data: newViolation });

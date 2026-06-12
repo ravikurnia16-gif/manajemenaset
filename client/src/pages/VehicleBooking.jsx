@@ -3,9 +3,10 @@ import {
     Car, Calendar, MapPin, Info, CheckCircle, XCircle,
     Clock, Gauge, Fuel, User, Plus, Search, X, Lock, Edit,
     ArrowRight, ChevronRight, ChevronLeft, AlertCircle, Trash2,
-    Users, LogIn, LogOut, Receipt, Navigation2, Loader2, History
+    Users, LogIn, LogOut, Receipt, Navigation2, Loader2, History, Camera
 } from 'lucide-react';
 import api from '../lib/axios';
+import VehicleChecklistTab from '../components/VehicleChecklistTab';
 
 const VehicleBooking = () => {
     const [activeTab, setActiveTab] = useState('CURRENT_FLEET');
@@ -620,6 +621,7 @@ const VehicleBooking = () => {
         { id: 'CALENDAR', label: 'Kalender', icon: <Calendar size={16} /> },
         ...(canApprove ? [{ id: 'APPROVAL', label: 'Persetujuan', icon: <CheckCircle size={16} />, count: bookings.filter(b => b.status === 'PENDING').length }] : []),
         { id: 'MY_REQUESTS', label: 'Permohonan Saya', icon: <User size={16} /> },
+        { id: 'CHECKLISTS', label: 'Ceklis Kendaraan', icon: <CheckCircle size={16} /> },
         { id: 'USER_VIOLATIONS', label: 'Pelanggaran User', icon: <AlertCircle size={16} /> },
         ...(canApprove ? [{ id: 'HISTORY', label: 'Riwayat Seluruhnya', icon: <Clock size={16} /> }] : []),
         ...((isSuperAdmin || isAdminAset) ? [{ id: 'DRIVERS', label: 'Driver', icon: <Navigation2 size={16} /> }] : [])
@@ -708,6 +710,7 @@ const VehicleBooking = () => {
 
             {/* Tab Contents */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 min-h-[400px]">
+                {activeTab === 'CHECKLISTS' && <VehicleChecklistTab vehicles={vehicles} currentUserProfile={currentUserProfile} isAdmin={isAdminAset || isSuperAdmin} />}
                 {activeTab === 'CURRENT_FLEET' && (
                     <div className="p-6">
                         {/* Search & Filter Bar */}
@@ -2717,6 +2720,14 @@ const VehicleBooking = () => {
                                                     <div className="text-xs text-slate-700 flex items-center gap-1">
                                                         <strong>Sanksi:</strong> <span className="text-red-600 font-bold bg-red-50 border border-red-100 px-2 py-0.5 rounded-md">{v.sanction}</span>
                                                     </div>
+
+                                                    {v.photoUrl && (
+                                                        <div className="mt-2 pt-2 border-t border-slate-100">
+                                                            <a href={v.photoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 text-[10px] font-bold flex items-center gap-1.5 uppercase">
+                                                                <Camera size={12} /> Lihat Bukti Foto
+                                                            </a>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
@@ -2731,6 +2742,7 @@ const VehicleBooking = () => {
                                                         <th className="p-4">Kategori</th>
                                                         <th className="p-4">Keterangan / Kejadian</th>
                                                         <th className="p-4">Sanksi / Tindakan</th>
+                                                        <th className="p-4 text-center">Bukti Foto</th>
                                                         {(isSuperAdmin || isAdminAset) && <th className="p-4 pr-6 text-right">Aksi</th>}
                                                     </tr>
                                                 </thead>
@@ -2758,6 +2770,15 @@ const VehicleBooking = () => {
                                                                 <span className="inline-block px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-black uppercase shadow-inner">
                                                                     {v.sanction}
                                                                 </span>
+                                                            </td>
+                                                            <td className="p-4 text-center">
+                                                                {v.photoUrl ? (
+                                                                    <a href={v.photoUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors" title="Lihat Bukti Foto">
+                                                                        <Camera size={18} />
+                                                                    </a>
+                                                                ) : (
+                                                                    <span className="text-slate-300 font-bold text-xs">-</span>
+                                                                )}
                                                             </td>
                                                             {(isSuperAdmin || isAdminAset) && (
                                                                 <td className="p-4 pr-6 text-right">
@@ -3014,12 +3035,8 @@ const VehicleBooking = () => {
                             onSubmit={(e) => {
                                 e.preventDefault();
                                 const fd = new FormData(e.target);
-                                api.post(`/personnel/violations`, {
-                                    driverId: fd.get('driverId'),
-                                    date: fd.get('date'),
-                                    category: fd.get('category'),
-                                    description: fd.get('description'),
-                                    sanction: fd.get('sanction')
+                                api.post(`/personnel/violations`, fd, {
+                                    headers: { 'Content-Type': 'multipart/form-data' }
                                 }).then(() => {
                                     showToast('Pelanggaran berhasil dicatat');
                                     fetchDriverViolations();
@@ -3089,6 +3106,16 @@ const VehicleBooking = () => {
                                     required
                                     placeholder="Contoh: Teguran Lisan, SP1, Pemotongan Insentif"
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase">Bukti Foto (Opsional)</label>
+                                <input
+                                    type="file"
+                                    name="photo"
+                                    accept="image/*"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
                                 />
                             </div>
 

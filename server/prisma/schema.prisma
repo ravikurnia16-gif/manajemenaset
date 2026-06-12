@@ -610,7 +610,14 @@ model Vehicle {
   fuelLogs             VehicleFuelLog[]
   weeklyReports        VehicleWeeklyReport[]
   inspections          VehicleInspection[]
+  vehicleChecklists    VehicleChecklist[]
   maintenanceReminders VehicleMaintenanceReminder[]
+  checklists           VehicleChecklist[]
+
+  // Checklist config
+  requireDailyChecklist   Boolean @default(false)
+  requireWeeklyChecklist  Boolean @default(false)
+  requireMonthlyChecklist Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1581,4 +1588,20 @@ model SurveyAnswer {
 
   @@index([responseId])
   @@index([questionId])
+}
+
+model VehicleChecklist {
+  id        Int      @id @default(autoincrement())
+  vehicleId Int
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverId  Int?
+  driver    User?    @relation(fields: [driverId], references: [id])
+  date      DateTime
+  type      String   // HARIAN, MINGGUAN, BULANAN
+  checks    Json     // Store boolean checks
+  fuelLevel String?
+  notes     String?  @db.Text
+  status    String   // SIAP JALAN, PERLU PERBAIKAN
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

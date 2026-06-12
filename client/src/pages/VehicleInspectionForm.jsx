@@ -86,8 +86,8 @@ const VehicleInspectionForm = () => {
         e.preventDefault();
         
         // Basic validation
-        if (!photos.frontPhoto || !photos.backPhoto || !photos.leftPhoto || !photos.rightPhoto) {
-            alert('Mohon unggah foto dari keempat sisi kendaraan.');
+        if (!photos.frontPhoto && !photos.backPhoto && !photos.leftPhoto && !photos.rightPhoto) {
+            alert('Mohon unggah setidaknya satu foto sisi kendaraan.');
             return;
         }
 

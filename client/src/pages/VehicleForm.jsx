@@ -26,7 +26,10 @@ const VehicleForm = () => {
         kirDueDate: '',
         picIds: [],
         isRentable: false,
-        defaultRentalPrice: ''
+        defaultRentalPrice: '',
+        requireDailyChecklist: false,
+        requireWeeklyChecklist: false,
+        requireMonthlyChecklist: false
     });
     const [users, setUsers] = useState([]);
     const [picSearch, setPicSearch] = useState('');
@@ -58,7 +61,10 @@ const VehicleForm = () => {
                 kirDueDate: formatDate(data.kirDueDate),
                 picIds: data.pics?.map(p => p.id) || [],
                 isRentable: !!data.isRentable,
-                defaultRentalPrice: data.defaultRentalPrice || ''
+                defaultRentalPrice: data.defaultRentalPrice || '',
+                requireDailyChecklist: !!data.requireDailyChecklist,
+                requireWeeklyChecklist: !!data.requireWeeklyChecklist,
+                requireMonthlyChecklist: !!data.requireMonthlyChecklist
             });
         } catch (error) {
             console.error('Failed to fetch vehicle:', error);
@@ -425,6 +431,60 @@ const VehicleForm = () => {
                                 />
                             </div>
                         )}
+                    </div>
+
+                    {/* Checklist Configuration */}
+                    <div className="mt-8 pt-8 border-t border-slate-100">
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-4">Pengaturan Kewajiban Ceklis Kendaraan</label>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <label className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${form.requireDailyChecklist ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-slate-50 border-transparent text-slate-500'}`}>
+                                <input 
+                                    type="checkbox" 
+                                    className="hidden" 
+                                    checked={form.requireDailyChecklist}
+                                    onChange={(e) => setForm({...form, requireDailyChecklist: e.target.checked})}
+                                />
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${form.requireDailyChecklist ? 'border-blue-500 bg-blue-500 text-white' : 'border-slate-300'}`}>
+                                    {form.requireDailyChecklist && <span className="text-xs">✓</span>}
+                                </div>
+                                <div>
+                                    <span className="font-bold block text-sm">Wajib Ceklis Harian</span>
+                                    <span className="text-[10px] opacity-70 leading-tight block">Minimal 2x sehari pada jam kerja (Senin-Jumat).</span>
+                                </div>
+                            </label>
+
+                            <label className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${form.requireWeeklyChecklist ? 'bg-orange-50 border-orange-500 text-orange-700' : 'bg-slate-50 border-transparent text-slate-500'}`}>
+                                <input 
+                                    type="checkbox" 
+                                    className="hidden" 
+                                    checked={form.requireWeeklyChecklist}
+                                    onChange={(e) => setForm({...form, requireWeeklyChecklist: e.target.checked})}
+                                />
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${form.requireWeeklyChecklist ? 'border-orange-500 bg-orange-500 text-white' : 'border-slate-300'}`}>
+                                    {form.requireWeeklyChecklist && <span className="text-xs">✓</span>}
+                                </div>
+                                <div>
+                                    <span className="font-bold block text-sm">Wajib Ceklis Mingguan</span>
+                                    <span className="text-[10px] opacity-70 leading-tight block">Diisi seminggu sekali. Peringatan akan dikirim Jumat sore.</span>
+                                </div>
+                            </label>
+
+                            <label className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${form.requireMonthlyChecklist ? 'bg-green-50 border-green-500 text-green-700' : 'bg-slate-50 border-transparent text-slate-500'}`}>
+                                <input 
+                                    type="checkbox" 
+                                    className="hidden" 
+                                    checked={form.requireMonthlyChecklist}
+                                    onChange={(e) => setForm({...form, requireMonthlyChecklist: e.target.checked})}
+                                />
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${form.requireMonthlyChecklist ? 'border-green-500 bg-green-500 text-white' : 'border-slate-300'}`}>
+                                    {form.requireMonthlyChecklist && <span className="text-xs">✓</span>}
+                                </div>
+                                <div>
+                                    <span className="font-bold block text-sm">Wajib Ceklis Bulanan</span>
+                                    <span className="text-[10px] opacity-70 leading-tight block">Diisi minimal 1x per bulan untuk pemeliharaan rutin.</span>
+                                </div>
+                            </label>
+                        </div>
                     </div>
 
                     <div className="mt-12 flex justify-end gap-3">

@@ -96,7 +96,8 @@ exports.createVehicle = async (req, res) => {
         const {
             name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
-            taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice
+            taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice,
+            requireDailyChecklist, requireWeeklyChecklist, requireMonthlyChecklist
         } = req.body;
 
         console.log('[DEBUG] Create Vehicle Payload:', { name, plateNumber, taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice });
@@ -116,6 +117,9 @@ exports.createVehicle = async (req, res) => {
                 status: status || 'ACTIVE',
                 isRentable: isRentable === true || isRentable === 'true',
                 defaultRentalPrice: defaultRentalPrice ? parseFloat(defaultRentalPrice) : null,
+                requireDailyChecklist: requireDailyChecklist === true || requireDailyChecklist === 'true',
+                requireWeeklyChecklist: requireWeeklyChecklist === true || requireWeeklyChecklist === 'true',
+                requireMonthlyChecklist: requireMonthlyChecklist === true || requireMonthlyChecklist === 'true',
                 taxDueDate: taxDueDate ? new Date(taxDueDate) : null,
                 stnkDueDate: stnkDueDate ? new Date(stnkDueDate) : null,
                 kirDueDate: kirDueDate ? new Date(kirDueDate) : null,
@@ -143,7 +147,8 @@ exports.updateVehicle = async (req, res) => {
         const {
             name, brand, model, type, plateNumber,
             fuelType, capacity, color, odometer, photo, status,
-            taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice
+            taxDueDate, stnkDueDate, kirDueDate, picIds, isRentable, defaultRentalPrice,
+            requireDailyChecklist, requireWeeklyChecklist, requireMonthlyChecklist
         } = req.body;
 
         // Handle picIds from FormData (it often arrives as picIds[] or multiple picIds fields)
@@ -181,6 +186,9 @@ exports.updateVehicle = async (req, res) => {
                 status,
                 isRentable: isRentable === true || isRentable === 'true',
                 defaultRentalPrice: defaultRentalPrice ? parseFloat(defaultRentalPrice) : null,
+                requireDailyChecklist: requireDailyChecklist === true || requireDailyChecklist === 'true',
+                requireWeeklyChecklist: requireWeeklyChecklist === true || requireWeeklyChecklist === 'true',
+                requireMonthlyChecklist: requireMonthlyChecklist === true || requireMonthlyChecklist === 'true',
                 taxDueDate: parseDate(taxDueDate),
                 stnkDueDate: parseDate(stnkDueDate),
                 kirDueDate: parseDate(kirDueDate),

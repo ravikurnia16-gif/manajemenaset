@@ -40,8 +40,9 @@ router.put('/drivers/:id', personnelController.updateDriverInfo);
 router.get('/drivers/:id/history', personnelController.getDriverHistory);
 
 // Driver Violations
+const { handleUpload } = require('../middleware/uploadMiddleware');
 router.get('/violations', personnelController.getDriverViolations);
-router.post('/violations', personnelController.createDriverViolation);
+router.post('/violations', handleUpload('photo', 'violations'), personnelController.createDriverViolation);
 router.delete('/violations/:id', personnelController.deleteDriverViolation);
 
 // Staff List (Sarpras)

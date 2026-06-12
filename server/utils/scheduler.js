@@ -18,6 +18,7 @@ const { sendUniformOrderSummary } = require('./uniformSummaryNotification');
 const { checkAssetMaintenanceReminders, checkUnrespondedReports } = require('../controllers/maintenanceController');
 const { checkBusBookingNotifications, checkUnpaidBusInvoices } = require('../controllers/busBookingController');
 const { checkInvoiceDueDates } = require('../controllers/officeDocumentController');
+const checklistController = require('../controllers/vehicleChecklistController');
 
 let schedulerInterval = null;
 
@@ -170,16 +171,21 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
-        // 5. PERSONNEL: MISSING REPORTS AUDIT (Friday at 15:00)
+        // 5. VEHICLE CHECKLIST SCHEDULER
         // ----------------------------------------------------
-        if (day === 5 && hour === 15 && minute === 0) {
-            console.log('[Scheduler] Executing Personnel Missing Report Audit & Vehicle Weekly Reports...');
-            try {
-                await checkMissingReportsWeekly();
-                await checkMissingWeeklyReports();
-            } catch (err) {
-                console.error('[Scheduler] Error in Missing Reports Check:', err);
-            }
+        // A. Daily Checklist Audit (Mon-Fri 18:00)
+        if ([1,2,3,4,5].includes(day) && hour === 18 && minute === 0) {
+            checklistController.auditDailyChecklists();
+        }
+
+        // B. Weekly Checklist Reminder (Mon 07:15)
+        if (day === 1 && hour === 7 && minute === 15) {
+            checklistController.sendWeeklyChecklistReminder();
+        }
+
+        // C. Weekly Checklist Audit (Fri 18:05)
+        if (day === 5 && hour === 18 && minute === 5) {
+            checklistController.auditWeeklyChecklists();
         }
 
         // ----------------------------------------------------
