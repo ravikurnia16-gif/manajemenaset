@@ -20,6 +20,16 @@ router.delete('/:id', verifyToken, vehicleController.deleteVehicle);
 router.get('/test/pajak', vehicleController.triggerTaxCheck);
 router.get('/test/wa', vehicleController.sendTestWA);
 router.get('/test/wa-pure', vehicleController.sendPureTestWA);
+router.get('/test/debug-maintenance', async (req, res) => {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    try {
+        const logs = await prisma.vehicleService.findMany({ where: { cost: 170000 } });
+        res.json(logs);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 
 // Maintenance Routes
 const maintenanceCtrl = require('../controllers/vehicleMaintenanceController');

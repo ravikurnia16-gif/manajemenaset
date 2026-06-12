@@ -100,7 +100,19 @@ const VehicleMaintenanceForm = () => {
                 }
 
                 if (parsedItems && Array.isArray(parsedItems)) {
-                    setSelectedRoutine(parsedItems.filter(i => i.isRoutine || i.isRoutine === 'true'));
+                    setSelectedRoutine(parsedItems.filter(i => i.isRoutine || i.isRoutine === 'true').map(i => {
+                        // Populate missing intervals from defaults (useful for old records)
+                        let defaultComp = null;
+                        for (const cat in ROUTINE_COMPONENTS_BY_TYPE) {
+                            const found = ROUTINE_COMPONENTS_BY_TYPE[cat].find(c => c.name === i.name);
+                            if (found) { defaultComp = found; break; }
+                        }
+                        return {
+                            ...i,
+                            intervalKm: i.intervalKm || (defaultComp ? defaultComp.intervalKm : ''),
+                            intervalMonths: i.intervalMonths || (defaultComp ? defaultComp.intervalMonths : '')
+                        };
+                    }));
                     setNonRoutineItems(parsedItems.filter(i => !i.isRoutine && i.isRoutine !== 'true'));
                 }
             });
