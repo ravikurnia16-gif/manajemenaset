@@ -621,7 +621,7 @@ const VehicleBooking = () => {
         { id: 'CALENDAR', label: 'Kalender', icon: <Calendar size={16} /> },
         ...(canApprove ? [{ id: 'APPROVAL', label: 'Persetujuan', icon: <CheckCircle size={16} />, count: bookings.filter(b => b.status === 'PENDING').length }] : []),
         { id: 'MY_REQUESTS', label: 'Permohonan Saya', icon: <User size={16} /> },
-        { id: 'CHECKLISTS', label: 'Ceklis Kendaraan', icon: <CheckCircle size={16} /> },
+        ...((isSuperAdmin || isAdminAset || isPIC) ? [{ id: 'CHECKLISTS', label: 'Ceklis Kendaraan', icon: <CheckCircle size={16} /> }] : []),
         { id: 'USER_VIOLATIONS', label: 'Pelanggaran User', icon: <AlertCircle size={16} /> },
         ...(canApprove ? [{ id: 'HISTORY', label: 'Riwayat Seluruhnya', icon: <Clock size={16} /> }] : []),
         ...((isSuperAdmin || isAdminAset) ? [{ id: 'DRIVERS', label: 'Driver', icon: <Navigation2 size={16} /> }] : [])
