@@ -85,9 +85,9 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
-        // 2c. MAINTENANCE CONDITION SUMMARY (Monday & Thursday at 07:35 AM)
+        // 2c. MAINTENANCE CONDITION SUMMARY (Monday, Wednesday & Friday at 07:35 AM)
         // ----------------------------------------------------
-        if ([1, 4].includes(day) && hour === 7 && minute === 35) {
+        if ([1, 3, 5].includes(day) && hour === 7 && minute === 35) {
             console.log('[Scheduler] Executing Maintenance Condition Summary...');
             try {
                 await sendMaintenanceConditionSummary();
@@ -97,9 +97,9 @@ const initScheduler = () => {
         }
 
         // ----------------------------------------------------
-        // 2d. UNIFORM ORDER SUMMARY (Monday & Thursday at 07:40 AM)
+        // 2d. UNIFORM ORDER SUMMARY (Monday, Wednesday & Friday at 07:40 AM)
         // ----------------------------------------------------
-        if ([1, 4].includes(day) && hour === 7 && minute === 40) {
+        if ([1, 3, 5].includes(day) && hour === 7 && minute === 40) {
             console.log('[Scheduler] Executing Uniform Order Summary...');
             try {
                 await sendUniformOrderSummary();
