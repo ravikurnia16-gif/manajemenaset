@@ -275,7 +275,7 @@ const VehicleMaintenanceForm = () => {
                     <p className="text-[11px] text-slate-400 mb-4">Centang item yang dilakukan. Komponen & interval disesuaikan otomatis berdasarkan tipe kendaraan.</p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {routineComponents.map(comp => {
+                        {[...routineComponents, ...selectedRoutine.filter(r => !routineComponents.some(comp => comp.name === r.name)).map(r => ({ ...r, icon: '⚠️' }))].map(comp => {
                             const isSelected = selectedRoutine.find(r => r.name === comp.name);
                             return (
                                 <div key={comp.name}>
