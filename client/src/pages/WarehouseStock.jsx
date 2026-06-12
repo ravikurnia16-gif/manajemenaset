@@ -15,6 +15,7 @@ const WarehouseStock = () => {
     const [sizeFilter, setSizeFilter] = useState('');
     const [typeFilter, setTypeFilter] = useState('');
     const [yearFilter, setYearFilter] = useState('');
+    const [activeTab, setActiveTab] = useState('SERAGAM');
     const navigate = useNavigate();
 
     const [expandedGroups, setExpandedGroups] = useState(new Set());
@@ -134,7 +135,8 @@ const WarehouseStock = () => {
     const years = [...new Set(items.map(i => i.purchaseYear).filter(Boolean))].sort((a, b) => b - a);
 
     // --- DATA TRANSFORMATION ---
-    const displayItems = [];
+    const displayItemsSeragam = [];
+    const displayItemsLainnya = [];
     const seragamGroups = {};
 
     const sizeOrder = {
@@ -169,17 +171,19 @@ const WarehouseStock = () => {
                     totalStock: 0,
                     firstImage: item.image
                 };
-                displayItems.push(seragamGroups[groupKey]);
+                displayItemsSeragam.push(seragamGroups[groupKey]);
             }
             seragamGroups[groupKey].items.push(item);
             seragamGroups[groupKey].totalStock += item.stock;
         } else {
-            displayItems.push({
+            displayItemsLainnya.push({
                 isGroup: false,
                 ...item
             });
         }
     });
+
+    const displayItems = activeTab === 'SERAGAM' ? displayItemsSeragam : displayItemsLainnya;
 
     return (
         <div className="p-4 md:p-6 space-y-6">
@@ -230,6 +234,21 @@ const WarehouseStock = () => {
                         {years.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                 )}
+            </div>
+
+            <div className="flex border-b border-slate-200">
+                <button
+                    onClick={() => setActiveTab('SERAGAM')}
+                    className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'SERAGAM' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                >
+                    Stok Seragam
+                </button>
+                <button
+                    onClick={() => setActiveTab('LAINNYA')}
+                    className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'LAINNYA' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                >
+                    Perlengkapan Lainnya
+                </button>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
