@@ -111,7 +111,8 @@ model User {
   licenseType      String? // e.g., SIM A, SIM B1, SIM B2
   licenseExpiry    DateTime?
   driverStatus     String            @default("AVAILABLE") // AVAILABLE, ON_TRIP, OFF
-  driverViolations DriverViolation[]
+  driverViolations   DriverViolation[]
+  vehicleChecklists  VehicleChecklist[] @relation("ChecklistDriver")
 
   // Sanction Fields (Vehicle Booking)
   isSanctioned         Boolean @default(false)
@@ -1594,7 +1595,7 @@ model VehicleChecklist {
   vehicleId Int
   vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   driverId  Int?
-  driver    User?    @relation(fields: [driverId], references: [id])
+  driver    User?    @relation("ChecklistDriver", fields: [driverId], references: [id])
   date      DateTime
   type      String   // HARIAN, MINGGUAN, BULANAN
   checks    Json     // Store boolean checks
