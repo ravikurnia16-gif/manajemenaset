@@ -612,7 +612,6 @@ model Vehicle {
   inspections          VehicleInspection[]
   vehicleChecklists    VehicleChecklist[]
   maintenanceReminders VehicleMaintenanceReminder[]
-  checklists           VehicleChecklist[]
 
   // Checklist config
   requireDailyChecklist   Boolean @default(false)
