@@ -115,11 +115,19 @@ const AssetForm = () => {
     const isYayasan = selectedUnit?.name?.toLowerCase().includes('yayasan');
 
     // If unit changes and it's not Yayasan, force locationUnitId to match unitId
+    // If it IS Yayasan, default the location to the main Kantor Yayasan unit
     useEffect(() => {
-        if (selectedUnitId && !isYayasan) {
-            setLocationUnitId(selectedUnitId.toString());
+        if (selectedUnitId) {
+            if (!isYayasan) {
+                setLocationUnitId(selectedUnitId.toString());
+            } else {
+                const mainYayasan = masterData.units.find(u => u.name === 'Kantor Yayasan');
+                if (mainYayasan) {
+                    setLocationUnitId(mainYayasan.id.toString());
+                }
+            }
         }
-    }, [selectedUnitId, isYayasan]);
+    }, [selectedUnitId, isYayasan, masterData.units]);
 
     // Code Preview Logic
     const generatePreview = () => {
