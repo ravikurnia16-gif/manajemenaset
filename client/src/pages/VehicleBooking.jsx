@@ -460,7 +460,7 @@ const VehicleBooking = () => {
             }
             setSubmitting(true);
             await api.put(`/vehicles/booking/${showActionModal.data.id}/extend`, {
-                newEndDate: actionData.newEndDate,
+                newEndDate: new Date(actionData.newEndDate).toISOString(),
                 extendReason: actionData.extendReason
             });
             showToast('Jadwal pengembalian berhasil diperpanjang!', 'success');

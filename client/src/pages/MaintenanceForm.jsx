@@ -27,15 +27,9 @@ const MaintenanceForm = () => {
         description: '',
         location: '',
         urgency: 'NORMAL',
-        isDirectOrder: false,
     });
     const [mediaFiles, setMediaFiles] = useState([]); // Array of { file, preview, type }
     const fileInputRef = useRef(null);
-
-    const [unitsList, setUnitsList] = useState([]);
-    const [usersList, setUsersList] = useState([]);
-    const [assignUnitId, setAssignUnitId] = useState('');
-    const [assignTechnician, setAssignTechnician] = useState('');
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -58,7 +52,7 @@ const MaintenanceForm = () => {
                 try {
                     const ids = assetIdsParam ? assetIdsParam.split(',') : [assetIdParam];
                     const selectedAssets = [];
-                    
+
                     for (const id of ids) {
                         const res = await api.get(`/assets/${id}`);
                         const asset = res.data;
@@ -73,7 +67,7 @@ const MaintenanceForm = () => {
                             targetDept: 'SARPRAS',
                             type: 'ASSET',
                             category: categoryParam || prev.category,
-                            title: categoryParam === 'ROUTINE' 
+                            title: categoryParam === 'ROUTINE'
                                 ? (selectedAssets.length > 1 ? `Pemeliharaan Rutin Massal (${selectedAssets.length} Aset)` : `Pemeliharaan Rutin: ${selectedAssets[0].label.split(' - ')[1]}`)
                                 : prev.title,
                             selectedAssets: selectedAssets
@@ -94,24 +88,6 @@ const MaintenanceForm = () => {
             fetchAssets();
         }
     }, [form.type, form.category]);
-
-    useEffect(() => {
-        if (user.role === 'SUPER_ADMIN') {
-            const fetchAssignmentData = async () => {
-                try {
-                    const [unitsRes, usersRes] = await Promise.all([
-                        api.get('/master/units'),
-                        api.get('/users')
-                    ]);
-                    setUnitsList(unitsRes.data.data || unitsRes.data || []);
-                    setUsersList(usersRes.data.data || usersRes.data || []);
-                } catch (err) {
-                    console.error('Failed to fetch units or users:', err);
-                }
-            };
-            fetchAssignmentData();
-        }
-    }, [user.role]);
 
     const fetchAssets = async () => {
         try {
@@ -219,10 +195,7 @@ const MaintenanceForm = () => {
             formData.append('urgency', form.urgency);
             formData.append('description', form.description);
             formData.append('location', form.location || '');
-            if (form.isDirectOrder) {
-                formData.append('isDirectOrder', 'true');
-                if (assignTechnician) formData.append('technicianName', assignTechnician);
-            }
+            if (form.isDirectOrder) formData.append('isDirectOrder', 'true');
 
             formData.append('targetDept', form.targetDept);
 
@@ -286,7 +259,7 @@ const MaintenanceForm = () => {
                         </div>
                         <h3 className="text-xl font-bold text-slate-800 mb-2">Laporan Pemeliharaan Aset</h3>
                         <p className="text-sm text-slate-500 leading-relaxed">
-                            Laporan pemeliharaan aset (AC, Komputer, Kendaraan) atau kerusakan fasilitas umum (Lampu, Pintu, Air).
+                            Laporan pemeliharaan aset (AC, Komputer, Printer, dll) atau kerusakan fasilitas umum (Lampu, Pintu, Air, dll).
                         </p>
                         <div className="mt-6 flex items-center gap-2 text-blue-600 font-bold text-sm">
                             Pilih Bidang Ini <span className="group-hover:translate-x-1 transition-transform">→</span>
@@ -395,15 +368,15 @@ const MaintenanceForm = () => {
                         </div>
 
                         {/* Direct Order Toggle (Super Admin Only) */}
-                        {user.role === 'SUPER_ADMIN' && (
+                        {user.role === 'SUPER_ADMIN' && form.targetDept === 'SARPRAS' && (
                             <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
                                 <label className="flex items-center justify-between cursor-pointer">
                                     <div className="space-y-0.5">
                                         <span className="text-sm font-bold text-amber-900 flex items-center gap-2">
-                                            👑 Penugasan Internal
+                                            👑 Instruksi Langsung Kabid
                                         </span>
                                         <p className="text-[10px] text-amber-700 font-medium leading-tight">
-                                            Laporan akan otomatis disetujui & ditugaskan langsung.
+                                            Otomatis disetujui & ditugaskan ke Staff Manajemen Aset.
                                         </p>
                                     </div>
                                     <input
@@ -413,53 +386,6 @@ const MaintenanceForm = () => {
                                         onChange={e => setForm(prev => ({ ...prev, isDirectOrder: e.target.checked }))}
                                     />
                                 </label>
-
-                                {form.isDirectOrder && (
-                                    <div className="mt-4 space-y-3 pt-3 border-t border-amber-200/50 animate-in fade-in duration-300">
-                                        <div>
-                                            <label className="block text-[11px] font-bold text-amber-900 mb-1">Pilih Unit Pegawai</label>
-                                            <select
-                                                value={assignUnitId}
-                                                onChange={e => {
-                                                    setAssignUnitId(e.target.value);
-                                                    setAssignTechnician('');
-                                                }}
-                                                className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none text-slate-700"
-                                            >
-                                                <option value="">-- Pilih Unit --</option>
-                                                {unitsList.map(u => (
-                                                    <option key={u.id} value={u.id}>{u.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        {assignUnitId && (
-                                            <div className="animate-in slide-in-from-top-2 duration-300">
-                                                <label className="block text-[11px] font-bold text-amber-900 mb-1">Pilih Pegawai (Teknisi)</label>
-                                                <select
-                                                    value={assignTechnician}
-                                                    onChange={e => setAssignTechnician(e.target.value)}
-                                                    className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none text-slate-700"
-                                                    required={form.isDirectOrder}
-                                                >
-                                                    <option value="">-- Pilih Pegawai --</option>
-                                                    {usersList
-                                                        .filter(u => 
-                                                            u.unitId === parseInt(assignUnitId) && 
-                                                            (
-                                                                u.role === 'ADMIN_ASET' || 
-                                                                (u.position && u.position.toLowerCase().includes('sarpras unit')) ||
-                                                                (u.position && u.position.toLowerCase().includes('admin aset'))
-                                                            )
-                                                        )
-                                                        .map(u => (
-                                                            <option key={u.id} value={u.name || u.username}>{u.name || u.username}</option>
-                                                        ))
-                                                    }
-                                                </select>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
                             </div>
                         )}
 
