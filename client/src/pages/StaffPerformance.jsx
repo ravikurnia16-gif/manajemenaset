@@ -465,7 +465,7 @@ const StaffPerformance = () => {
     const canFilterStaff = isKabid || ['ADMIN_ASET', 'BIDANG_IT'].includes(userRole);
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
-    const validTabs = isAdmin ? ['RINGKASAN', 'RENCANA_TUGAS', 'RUTINITAS', 'LAPORAN', 'KPI'] : ['RENCANA_TUGAS', 'RUTINITAS', 'LAPORAN'];
+    const validTabs = isAdmin ? ['RINGKASAN', 'RENCANA_TUGAS', 'RUTINITAS', 'LAPORAN'] : ['RENCANA_TUGAS', 'RUTINITAS', 'LAPORAN'];
     const urlTab = searchParams.get('tab')?.toUpperCase();
     const initialTab = validTabs.includes(urlTab) ? urlTab : (isAdmin ? 'RINGKASAN' : 'RENCANA_TUGAS');
 
@@ -520,7 +520,6 @@ const StaffPerformance = () => {
         { key: 'RENCANA_TUGAS', label: 'Rencana & Tugas', icon: ListChecks },
         { key: 'RUTINITAS', label: 'Rutinitas', icon: RotateCcw },
         { key: 'LAPORAN', label: 'Laporan', icon: FileText },
-        { key: 'KPI', label: 'KPI', icon: Trophy, adminOnly: true },
     ];
 
     const changeTab = (t) => { setActiveTab(t); setSearchParams({ tab: t }); };

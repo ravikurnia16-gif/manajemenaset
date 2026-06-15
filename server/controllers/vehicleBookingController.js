@@ -190,7 +190,7 @@ exports.requestBooking = async (req, res) => {
             include: {
                 user: { select: { name: true, phone: true, position: true } },
                 vehicle: { select: { id: true, name: true, plateNumber: true, type: true, pics: true } },
-                driver: { select: { name: true } }
+                driver: { select: { name: true, phone: true } }
             }
         });
 
@@ -292,6 +292,29 @@ exports.requestBooking = async (req, res) => {
             await sendMessage(booking.user.phone, msg);
         }
 
+        // Notify Driver if Auto-Approved/Started and driver is different from requester
+        if ((initialStatus === 'APPROVED' || initialStatus === 'BERLANGSUNG') && booking.driverId && booking.driverId !== booking.userId && booking.driver?.phone) {
+            const startStr = formatWAWaktu(startDate);
+            const endStr = formatWAWaktu(endDate);
+            const driverMsg = `📢 *TUGAS PERJALANAN (DISETUJUI OTOMATIS)*\n\n` +
+                `Halo *${booking.driver.name}*, Anda telah ditunjuk sebagai pengemudi untuk perjalanan berikut:\n` +
+                `Pemohon: ${booking.user.name}\n` +
+                `Armada: ${vehicle.name} (${vehicle.plateNumber})\n` +
+                `Waktu: ${startStr} - ${endStr}\n` +
+                `Tujuan: ${destination}\n\n` +
+                `*Pesan ini berlaku sebagai bukti sah untuk pengambilan kunci armada kepada PIC/Admin Sarpras.*\nSelamat bertugas dan hati-hati di jalan!`;
+            
+            await sendMessage(booking.driver.phone, driverMsg);
+
+            await createNotification(
+                booking.driverId,
+                'Tugas Perjalanan Baru',
+                `Anda ditugaskan sebagai pengemudi untuk perjalanan ${booking.user.name} menggunakan ${vehicle.name}.`,
+                'INFO',
+                isRental ? '/kendaraan/sewa' : '/kendaraan/peminjaman'
+            );
+        }
+
         res.status(201).json(booking);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -308,7 +331,8 @@ exports.reviewBooking = async (req, res) => {
             where: { id: parseInt(id) },
             include: {
                 vehicle: { include: { pics: true } },
-                user: true
+                user: true,
+                driver: true
             }
         });
 
@@ -374,6 +398,29 @@ exports.reviewBooking = async (req, res) => {
             await sendMessage(booking.user.phone, msg);
         }
 
+        // Notify Driver if status is APPROVED and driver is different from user
+        if (status === 'APPROVED' && booking.driverId && booking.driverId !== booking.userId && booking.driver?.phone) {
+            const startStr = formatWAWaktu(booking.startDate);
+            const endStr = formatWAWaktu(booking.endDate);
+            const driverMsg = `📢 *TUGAS PERJALANAN (DISETUJUI)*\n\n` +
+                `Halo *${booking.driver.name}*, Anda telah ditunjuk sebagai pengemudi untuk perjalanan berikut:\n` +
+                `Pemohon: ${booking.user.name}\n` +
+                `Armada: ${booking.vehicle.name} (${booking.vehicle.plateNumber})\n` +
+                `Waktu: ${startStr} - ${endStr}\n` +
+                `Tujuan: ${booking.destination}\n\n` +
+                `*Pesan ini berlaku sebagai bukti sah untuk pengambilan kunci armada kepada PIC/Admin Sarpras.*\nSelamat bertugas dan hati-hati di jalan!`;
+            
+            await sendMessage(booking.driver.phone, driverMsg);
+
+            await createNotification(
+                booking.driverId,
+                'Tugas Perjalanan Baru',
+                `Anda ditugaskan sebagai pengemudi untuk perjalanan ${booking.user.name} menggunakan ${booking.vehicle.name}.`,
+                'INFO',
+                isRental ? '/kendaraan/sewa' : '/kendaraan/peminjaman'
+            );
+        }
+
         // Add System Notification for User
         await createNotification(
             booking.userId,
@@ -401,7 +448,7 @@ exports.startTrip = async (req, res) => {
         });
 
         if (!booking) return res.status(404).json({ error: 'Booking tidak ditemukan' });
-        if (booking.userId !== req.user.id) return res.status(403).json({ error: 'Akses ditolak' });
+        if (booking.userId !== req.user.id && booking.driverId !== req.user.id) return res.status(403).json({ error: 'Akses ditolak' });
 
         const currentOdometer = booking.vehicle.odometer || 0;
         const inputKm = parseInt(startKm);
@@ -497,7 +544,7 @@ exports.endTrip = async (req, res) => {
         });
 
         if (!booking) return res.status(404).json({ error: 'Booking tidak ditemukan' });
-        if (booking.userId !== req.user.id) return res.status(403).json({ error: 'Akses ditolak' });
+        if (booking.userId !== req.user.id && booking.driverId !== req.user.id) return res.status(403).json({ error: 'Akses ditolak' });
 
         const startKmValue = booking.startKm || 0;
         const endKmValue = parseInt(endKm);
@@ -611,9 +658,9 @@ exports.extendTrip = async (req, res) => {
             return res.status(400).json({ error: 'Hanya perjalanan yang sedang BERLANGSUNG yang dapat diperpanjang.' });
         }
 
-        // Only the requester or admins can extend
+        // Only the requester, driver, or admins can extend
         const isAdmin = ['ADMIN_ASET', 'SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role) || req.user.position?.includes('Sarana');
-        if (booking.userId !== req.user.id && !isAdmin) {
+        if (booking.userId !== req.user.id && booking.driverId !== req.user.id && !isAdmin) {
             return res.status(403).json({ error: 'Anda tidak memiliki akses untuk memperpanjang perjalanan ini.' });
         }
 
@@ -719,10 +766,16 @@ exports.getBookings = async (req, res) => {
                 }
             }
         } else if (tab === 'MY_REQUESTS') {
-            where.userId = req.user.id;
+            where.OR = [
+                { userId: req.user.id },
+                { driverId: req.user.id }
+            ];
             // No status filter = get all user request history
         } else if (tab === 'MY_HISTORY') {
-            where.userId = req.user.id;
+            where.OR = [
+                { userId: req.user.id },
+                { driverId: req.user.id }
+            ];
             where.status = { in: ['COMPLETED', 'REJECTED', 'CANCELLED'] };
         } else if (tab === 'HISTORY') {
             if (isNormalOrPIC) {
