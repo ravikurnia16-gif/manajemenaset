@@ -19,7 +19,12 @@ jobs:
       - name: ⚙️ Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '25.x'
+          node-version: '22'
+
+      - name: 🔍 Verify Node Version
+        run: |
+          node -v
+          npm -v
 
       - name: 📦 Install Dependencies (Web)
         working-directory: ./client
