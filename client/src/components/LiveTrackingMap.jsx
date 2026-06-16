@@ -125,12 +125,14 @@ const LiveTrackingMap = () => {
     const visibleTrips = activeTrips.filter(t => !hiddenTrips.has(t.id));
 
     return (
-        <div className="w-full h-[600px] bg-slate-50 relative rounded-2xl overflow-hidden shadow-inner border border-slate-200">
-            {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-[1000]">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                </div>
-            )}
+        <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-[600px] w-full">
+            {/* Map Area */}
+            <div className="flex-1 w-full h-[400px] lg:h-full bg-slate-50 relative rounded-2xl overflow-hidden shadow-inner border border-slate-200">
+                {loading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-[1000]">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                    </div>
+                )}
             
             <MapContainer center={defaultCenter} zoom={13} style={{ height: '100%', width: '100%', zIndex: 1 }}>
                 <TileLayer
@@ -183,10 +185,10 @@ const LiveTrackingMap = () => {
                 )}
 
                 <MapBoundsFitter trips={visibleTrips} routeCoords={routeCoordinates} />
-            </MapContainer>
+            </div>
 
-            {/* Dashboard Overlay */}
-            <div className="absolute top-4 right-4 z-[1000] bg-white/90 backdrop-blur p-4 rounded-xl shadow-lg border border-slate-200 min-w-[280px]">
+            {/* Dashboard Sidebar */}
+            <div className="w-full lg:w-80 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[400px] lg:h-full overflow-hidden">
                 <h4 className="font-black text-slate-800 text-sm mb-3 flex items-center justify-between">
                     <span className="flex items-center gap-2">
                         <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
@@ -194,7 +196,7 @@ const LiveTrackingMap = () => {
                     </span>
                 </h4>
                 
-                <div className="mb-3 p-2 bg-slate-50 border border-slate-100 rounded-lg">
+                <div className="mb-3 p-2 bg-slate-50 border border-slate-100 rounded-lg shrink-0">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Tanggal Rute Historis</label>
                     <input 
                         type="date" 
@@ -204,7 +206,7 @@ const LiveTrackingMap = () => {
                     />
                 </div>
 
-                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar">
                     {debugError && (
                         <div className="p-3 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-mono">
                             ERROR API: {debugError}
