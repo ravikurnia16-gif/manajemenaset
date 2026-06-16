@@ -522,10 +522,53 @@ const VehicleBooking = () => {
             }
 
             setSubmitting(true);
+            
+            // 1. Mulai perjalanan
             await api.post(`/vehicles/booking/${showActionModal.data.id}/start`, {
                 startKm: actionData.km
             });
-            showToast('Perjalanan dimulai!', 'success');
+            
+            showToast('Perjalanan dimulai! Mendapatkan lokasi GPS...', 'info');
+
+            // 2. Langsung baca GPS saat itu juga
+            const bookingId = showActionModal.data.id;
+            const sendInitialLocation = async (lat, lng) => {
+                try {
+                    await api.post(`/vehicles/booking/${bookingId}/location`, { latitude: lat, longitude: lng, speed: 0 });
+                    showToast('Lokasi awal GPS berhasil direkam!', 'success');
+                } catch (err) {
+                    console.error('Failed to send initial location:', err);
+                }
+            };
+
+            const fallbackToIP = async () => {
+                try {
+                    const res = await fetch('https://ipapi.co/json/');
+                    const data = await res.json();
+                    if (data.latitude && data.longitude) {
+                        await sendInitialLocation(data.latitude, data.longitude);
+                    }
+                } catch (e) {
+                    console.error('IP Fallback failed', e);
+                }
+            };
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        sendInitialLocation(position.coords.latitude, position.coords.longitude);
+                    },
+                    (error) => {
+                        console.log('Initial Ping Error:', error);
+                        if (error.code === 1) showToast('Akses lokasi diblokir browser', 'error');
+                        fallbackToIP();
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            } else {
+                fallbackToIP();
+            }
+
             setShowActionModal(null);
             fetchBookings();
         } catch (err) { showToast('Gagal memulai perjalanan: ' + (err.response?.data?.error || err.message), 'error'); }
