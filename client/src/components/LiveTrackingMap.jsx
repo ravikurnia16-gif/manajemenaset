@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import api from '../lib/axios';
@@ -88,6 +88,8 @@ const LiveTrackingMap = () => {
                         </Marker>
                     );
                 })}
+
+                <MapBoundsFitter trips={activeTrips} />
             </MapContainer>
 
             {/* Dashboard Overlay */}
@@ -118,6 +120,25 @@ const LiveTrackingMap = () => {
             </div>
         </div>
     );
+};
+
+// Component to automatically fit map bounds to markers
+const MapBoundsFitter = ({ trips }) => {
+    const map = useMap();
+    
+    useEffect(() => {
+        if (!trips || trips.length === 0) return;
+        
+        const validTrips = trips.filter(t => t.vehicle?.currentLat && t.vehicle?.currentLng);
+        if (validTrips.length === 0) return;
+
+        const bounds = L.latLngBounds(validTrips.map(t => [t.vehicle.currentLat, t.vehicle.currentLng]));
+        
+        // Add a little padding so markers aren't at the very edge
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+    }, [trips, map]);
+
+    return null;
 };
 
 export default LiveTrackingMap;
