@@ -55,6 +55,7 @@ router.get('/:id/reports/weekly', verifyToken, reportCtrl.getVehicleReports);
 
 // Booking / Peminjaman Routes
 const bookingCtrl = require('../controllers/vehicleBookingController');
+router.get('/active-tracking', verifyToken, bookingCtrl.getActiveTracking);
 router.get('/booking/all', verifyToken, bookingCtrl.getBookings);
 router.post('/booking/request', verifyToken, bookingCtrl.requestBooking);
 router.post('/booking/:id/review', verifyToken, bookingCtrl.reviewBooking);
@@ -65,6 +66,5 @@ router.post('/booking/:id/cancel', verifyToken, bookingCtrl.cancelBooking);
 router.put('/booking/:id/history', verifyToken, bookingCtrl.updateBookingHistory);
 router.post('/booking/:id/location', verifyToken, bookingCtrl.updateBookingLocation);
 router.get('/booking/:id/route', verifyToken, bookingCtrl.getBookingRoute);
-router.get('/active-tracking', verifyToken, bookingCtrl.getActiveTracking);
 
 module.exports = router;
