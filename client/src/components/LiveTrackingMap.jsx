@@ -6,12 +6,41 @@ import api from '../lib/axios';
 import { Navigation2, Clock, MapPin, Car, Route } from 'lucide-react';
 
 // Custom icons
-const carIcon = new L.Icon({
-    iconUrl: 'https://cdn-icons-png.flaticon.com/512/3202/3202926.png',
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-    popupAnchor: [0, -20]
-});
+const icons = {
+    mobil: new L.Icon({
+        iconUrl: 'https://cdn-icons-png.flaticon.com/512/3202/3202926.png',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+        popupAnchor: [0, -20]
+    }),
+    motor: new L.Icon({
+        iconUrl: 'https://cdn-icons-png.flaticon.com/512/1986/1986937.png',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+        popupAnchor: [0, -20]
+    }),
+    bus: new L.Icon({
+        iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448339.png',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+        popupAnchor: [0, -20]
+    }),
+    pickup: new L.Icon({
+        iconUrl: 'https://cdn-icons-png.flaticon.com/512/3061/3061118.png',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+        popupAnchor: [0, -20]
+    })
+};
+
+const getVehicleIcon = (type) => {
+    if (!type) return icons.mobil;
+    const t = type.toLowerCase();
+    if (t.includes('motor')) return icons.motor;
+    if (t.includes('bus') || t.includes('minibus')) return icons.bus;
+    if (t.includes('pickup') || t.includes('truk') || t.includes('truck')) return icons.pickup;
+    return icons.mobil;
+};
 
 const LiveTrackingMap = () => {
     const [activeTrips, setActiveTrips] = useState([]);
@@ -119,7 +148,7 @@ const LiveTrackingMap = () => {
                     const lastUpdate = trip.vehicle?.lastLocationUpdate ? new Date(trip.vehicle.lastLocationUpdate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-';
 
                     return (
-                        <Marker key={trip.id} position={[lat, lng]} icon={carIcon}>
+                        <Marker key={trip.id} position={[lat, lng]} icon={getVehicleIcon(trip.vehicle?.type)}>
                             <Popup className="custom-popup">
                                 <div className="p-1 min-w-[200px]">
                                     <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5 border-b pb-2 mb-2">
