@@ -2127,9 +2127,29 @@ const VehicleBooking = () => {
                                                             <button
                                                                 onClick={() => setShowDetailModal(b)}
                                                                 className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                                                                title="Detail"
                                                             >
                                                                 <Info size={16} />
                                                             </button>
+                                                            {b.status === 'BERLANGSUNG' && (
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            // Padang center or slightly offset
+                                                                            const lat = -0.9471 + (Math.random() * 0.01 - 0.005);
+                                                                            const lng = 100.4172 + (Math.random() * 0.01 - 0.005);
+                                                                            await api.post(`/vehicles/booking/${b.id}/location`, { latitude: lat, longitude: lng, speed: Math.floor(Math.random() * 40) + 10 });
+                                                                            showToast('Lokasi simulasi berhasil dikirim. Silakan cek peta.');
+                                                                        } catch (e) {
+                                                                            showToast('Gagal mengirim lokasi simulasi', 'error');
+                                                                        }
+                                                                    }}
+                                                                    className="p-1.5 text-slate-400 hover:text-emerald-500 transition-colors"
+                                                                    title="Kirim Simulasi GPS (Jika Geolocation Browser Error)"
+                                                                >
+                                                                    <Navigation2 size={16} />
+                                                                </button>
+                                                            )}
                                                             {b.status === 'COMPLETED' && canManageBooking && (
                                                                 <button
                                                                     onClick={() => {
