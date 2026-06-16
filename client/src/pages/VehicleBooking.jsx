@@ -5,6 +5,8 @@ import {
     ArrowRight, ChevronRight, ChevronLeft, AlertCircle, Trash2,
     Users, LogIn, LogOut, Receipt, Navigation2, Loader2, History, Camera
 } from 'lucide-react';
+import Swal from 'sweetalert2';
+import socket from '../lib/socket';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
 
@@ -271,6 +273,17 @@ const VehicleBooking = () => {
         fetchStaff();
         fetchDrivers();
         fetchCurrentUser();
+
+        // Listen for real-time booking updates
+        const handleBookingUpdate = () => {
+            fetchBookings();
+            fetchVehicles();
+        };
+
+        socket.on('booking_update', handleBookingUpdate);
+        return () => {
+            socket.off('booking_update', handleBookingUpdate);
+        };
     }, []);
 
     const fetchCurrentUser = async () => {

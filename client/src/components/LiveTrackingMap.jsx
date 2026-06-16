@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, CircleMarker 
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import api from '../lib/axios';
+import socket from '../lib/socket';
 import { Navigation2, Clock, MapPin, Car, Route } from 'lucide-react';
 
 // Custom icons
@@ -114,9 +115,38 @@ const LiveTrackingMap = () => {
 
     useEffect(() => {
         fetchLocations();
-        // Auto refresh every 10 seconds
-        const interval = setInterval(fetchLocations, 10000);
-        return () => clearInterval(interval);
+        
+        // Listen to WebSocket location updates instead of polling
+        const handleLocationUpdate = (data) => {
+            const { vehicleId, latitude, longitude, speed } = data;
+            
+            // 1. Update live marker position
+            setActiveTrips(prev => prev.map(trip => {
+                if (trip.vehicle?.id === vehicleId) {
+                    return {
+                        ...trip,
+                        currentLat: latitude,
+                        currentLng: longitude,
+                        speed: speed
+                    };
+                }
+                return trip;
+            }));
+
+            // 2. If viewing historical route of THIS vehicle, append to line immediately
+            setSelectedRouteVehicleId(currentSelectedId => {
+                if (currentSelectedId === vehicleId) {
+                    setRouteCoordinates(prevCoords => [...prevCoords, [latitude, longitude]]);
+                }
+                return currentSelectedId;
+            });
+        };
+
+        socket.on('location_update', handleLocationUpdate);
+
+        return () => {
+            socket.off('location_update', handleLocationUpdate);
+        };
     }, []);
 
     const toggleVisibility = (tripId) => {

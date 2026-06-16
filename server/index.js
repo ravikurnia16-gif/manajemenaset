@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const { PrismaClient } = require('@prisma/client');
+const http = require('http');
+const { Server } = require('socket.io');
 
 dotenv.config();
 
@@ -9,8 +11,22 @@ dotenv.config();
 process.env.TZ = 'Asia/Jakarta';
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST', 'PUT', 'DELETE']
+    }
+});
+
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
+
+// Socket.IO Middleware injection
+app.use((req, res, next) => {
+    req.io = io;
+    next();
+});
 
 const compression = require('compression');
 const path = require('path');
@@ -108,7 +124,7 @@ app.use((req, res) => {
     });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server successfully started!`);
     console.log(`   - Port: ${PORT}`);
     console.log(`   - Interface: 0.0.0.0`);

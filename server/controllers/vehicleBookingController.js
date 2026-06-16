@@ -315,6 +315,7 @@ exports.requestBooking = async (req, res) => {
             );
         }
 
+        if (req.io) req.io.emit('booking_update');
         res.status(201).json(booking);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -855,6 +856,7 @@ exports.cancelBooking = async (req, res) => {
             );
         }
 
+        if (req.io) req.io.emit('booking_update');
         res.json(updated);
     } catch (error) {
         res.status(500).json({ error: error.message });
