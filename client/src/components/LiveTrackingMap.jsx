@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
+import { useEffect, useState, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import api from '../lib/axios';
@@ -127,7 +127,7 @@ const LiveTrackingMap = () => {
     return (
         <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-[600px] w-full">
             {/* Map Area */}
-            <div className="w-full min-h-[400px] lg:flex-1 lg:min-h-0 lg:h-full bg-slate-50 relative rounded-2xl overflow-hidden shadow-inner border border-slate-200">
+            <div className="w-full h-[400px] lg:flex-1 lg:min-h-0 lg:h-full bg-slate-50 relative rounded-2xl overflow-hidden shadow-inner border border-slate-200">
                 {loading && (
                     <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-[1000]">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -178,10 +178,20 @@ const LiveTrackingMap = () => {
                 })}
 
                 {routeCoordinates.length > 0 && (
-                    <Polyline 
-                        positions={routeCoordinates} 
-                        pathOptions={{ color: '#3b82f6', weight: 4, opacity: 0.8 }} 
-                    />
+                    <>
+                        <Polyline 
+                            positions={routeCoordinates} 
+                            pathOptions={{ color: '#3b82f6', weight: 4, opacity: 0.8 }} 
+                        />
+                        {routeCoordinates.map((coord, idx) => (
+                            <CircleMarker 
+                                key={`route-point-${idx}`} 
+                                center={coord} 
+                                radius={4} 
+                                pathOptions={{ color: '#2563eb', fillColor: '#ffffff', fillOpacity: 1, weight: 2 }} 
+                            />
+                        ))}
+                    </>
                 )}
 
                 <MapBoundsFitter trips={visibleTrips} routeCoords={routeCoordinates} />
@@ -273,6 +283,8 @@ const LiveTrackingMap = () => {
 // Component to automatically fit map bounds to markers
 const MapBoundsFitter = ({ trips, routeCoords }) => {
     const map = useMap();
+    const initialFitDone = useRef(false);
+    const lastRouteCoordsLength = useRef(0);
     
     useEffect(() => {
         const bounds = L.latLngBounds([]);
@@ -293,9 +305,13 @@ const MapBoundsFitter = ({ trips, routeCoords }) => {
             });
         }
         
-        if (hasPoints) {
+        const routeChanged = (routeCoords?.length || 0) !== lastRouteCoordsLength.current;
+        
+        if (hasPoints && (!initialFitDone.current || routeChanged)) {
             // Add a little padding so markers aren't at the very edge
             map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+            initialFitDone.current = true;
+            lastRouteCoordsLength.current = routeCoords?.length || 0;
         }
     }, [trips, routeCoords, map]);
 

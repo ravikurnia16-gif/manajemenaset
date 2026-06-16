@@ -106,6 +106,7 @@ const VehicleBooking = () => {
 
     // --- GPS Tracking Fallback ---
     const gpsWatchId = useRef(null);
+    const lastLocationSentAt = useRef(0);
 
     useEffect(() => {
         const activeTrip = bookings.find(b => 
@@ -115,10 +116,15 @@ const VehicleBooking = () => {
 
         const sendLocation = (position) => {
             if (activeTrip && position?.coords) {
-                const { latitude, longitude, speed } = position.coords;
-                api.post(`/vehicles/booking/${activeTrip.id}/location`, {
-                    latitude, longitude, speed
-                }).catch(err => console.error('GPS send error', err));
+                const now = Date.now();
+                // Hanya kirim lokasi maksimal tiap 45 detik (45000 ms)
+                if (now - lastLocationSentAt.current >= 45000) {
+                    lastLocationSentAt.current = now;
+                    const { latitude, longitude, speed } = position.coords;
+                    api.post(`/vehicles/booking/${activeTrip.id}/location`, {
+                        latitude, longitude, speed
+                    }).catch(err => console.error('GPS send error', err));
+                }
             }
         };
 
