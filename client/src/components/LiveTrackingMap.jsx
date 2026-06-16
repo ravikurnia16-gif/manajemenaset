@@ -22,6 +22,7 @@ const LiveTrackingMap = () => {
     const [routeCoordinates, setRouteCoordinates] = useState([]);
     const [fetchingRoute, setFetchingRoute] = useState(false);
     const [routeDate, setRouteDate] = useState(new Date().toISOString().split('T')[0]);
+    const [debugError, setDebugError] = useState(null);
 
     // Refetch route automatically if date changes and a vehicle is selected
     useEffect(() => {
@@ -51,11 +52,11 @@ const LiveTrackingMap = () => {
                     return next;
                 });
             } else {
-                alert("Belum ada riwayat rute untuk kendaraan ini hari ini.");
+                alert("Belum ada riwayat rute untuk kendaraan ini pada tanggal tersebut.");
             }
         } catch (err) {
             console.error('Failed to fetch route history', err);
-            alert("Gagal memuat rute");
+            alert("Gagal memuat rute: " + (err.response?.data?.error || err.message));
         } finally {
             setFetchingRoute(false);
         }
@@ -64,9 +65,11 @@ const LiveTrackingMap = () => {
     const fetchLocations = async () => {
         try {
             const res = await api.get('/vehicles/active-tracking');
+            setDebugError(null);
             setActiveTrips(res.data);
         } catch (err) {
             console.error('Failed to fetch active tracking', err);
+            setDebugError(err.response?.data?.error || err.message || "Unknown error");
         } finally {
             setLoading(false);
         }
@@ -173,6 +176,11 @@ const LiveTrackingMap = () => {
                 </div>
 
                 <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                    {debugError && (
+                        <div className="p-3 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-mono">
+                            ERROR API: {debugError}
+                        </div>
+                    )}
                     {activeTrips.length === 0 ? (
                         <p className="text-xs text-slate-500 italic text-center py-4">Belum ada data lokasi kendaraan</p>
                     ) : (
