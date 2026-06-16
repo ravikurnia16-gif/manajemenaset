@@ -50,7 +50,15 @@ const LiveTrackingMap = () => {
     const [selectedRouteVehicleId, setSelectedRouteVehicleId] = useState(null);
     const [routeCoordinates, setRouteCoordinates] = useState([]);
     const [fetchingRoute, setFetchingRoute] = useState(false);
-    const [routeDate, setRouteDate] = useState(new Date().toISOString().split('T')[0]);
+    const getLocalDateString = () => {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const [routeDate, setRouteDate] = useState(getLocalDateString());
     const [debugError, setDebugError] = useState(null);
 
     // Refetch route automatically if date changes and a vehicle is selected

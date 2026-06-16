@@ -593,8 +593,38 @@ const VehicleBooking = () => {
             }
             setSubmitting(true);
             const finalLocation = actionData.returnLocation === 'Lainnya' ? actionData.customLocation : actionData.returnLocation;
+            const bookingId = showActionModal.data.id;
 
-            await api.post(`/vehicles/booking/${showActionModal.data.id}/end`, {
+            // --- Capture Final Location ---
+            const sendEndLocation = async (lat, lng) => {
+                try {
+                    await api.post(`/vehicles/booking/${bookingId}/location`, { latitude: lat, longitude: lng, speed: 0 });
+                } catch (err) { console.error('Failed to send end location:', err); }
+            };
+            
+            const fallbackToIP = async () => {
+                try {
+                    const res = await fetch('https://ipapi.co/json/');
+                    const data = await res.json();
+                    if (data.latitude && data.longitude) {
+                        await sendEndLocation(data.latitude, data.longitude);
+                    }
+                } catch (e) {}
+            };
+
+            if (navigator.geolocation) {
+                // Fire and forget to not block the end trip process too long
+                navigator.geolocation.getCurrentPosition(
+                    (position) => { sendEndLocation(position.coords.latitude, position.coords.longitude); },
+                    (error) => { fallbackToIP(); },
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                );
+            } else {
+                fallbackToIP();
+            }
+            // -----------------------------
+
+            await api.post(`/vehicles/booking/${bookingId}/end`, {
                 endKm: parseInt(actionData.km),
                 tripNotes: actionData.notes,
                 fuelRefill: actionData.fuelRefill,
