@@ -97,7 +97,7 @@ const VehicleBooking = () => {
     const [selectedDate, setSelectedDate] = useState(null);
     const [showDayModal, setShowDayModal] = useState(false);
 
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const user = JSON.parse(localStorage.getItem('user') || '{}') || {};
     const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(user.role);
     const isAdminAset = ['ADMIN_ASET'].includes(user.role);
 
@@ -1630,8 +1630,8 @@ const VehicleBooking = () => {
                                                         <div className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-black tracking-tighter uppercase border mb-1.5 ${b.isRented ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
                                                             {b.isRented ? 'SEWA' : 'INTERNAL'}
                                                         </div>
-                                                        <div className="font-bold text-slate-700">{b.user.name}</div>
-                                                        <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user.unit?.name || 'Unit -'}</div>
+                                                        <div className="font-bold text-slate-700">{b.user?.name || 'Sistem'}</div>
+                                                        <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user?.unit?.name || 'Unit -'}</div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="font-bold text-slate-700">{b.vehicle.name}</div>
@@ -1999,8 +1999,8 @@ const VehicleBooking = () => {
                                                     <div className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-black tracking-tighter uppercase border mb-1 ${b.isRented ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
                                                         {b.isRented ? 'SEWA' : 'INTERNAL'}
                                                     </div>
-                                                    <div className="font-bold text-slate-800">{b.user.name}</div>
-                                                    <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user.unit?.name || 'Unit -'}</div>
+                                                    <div className="font-bold text-slate-800">{b.user?.name || 'Sistem'}</div>
+                                                    <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user?.unit?.name || 'Unit -'}</div>
                                                 </div>
                                                 {getStatusBadge(b.status)}
                                             </div>
@@ -2070,8 +2070,8 @@ const VehicleBooking = () => {
                                                         <div className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-black tracking-tighter uppercase border mb-1.5 ${b.isRented ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
                                                             {b.isRented ? 'SEWA' : 'INTERNAL'}
                                                         </div>
-                                                        <div className="font-bold text-slate-700">{b.user.name}</div>
-                                                        <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user.unit?.name || 'Unit -'}</div>
+                                                        <div className="font-bold text-slate-700">{b.user?.name || 'Sistem'}</div>
+                                                        <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user?.unit?.name || 'Unit -'}</div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="font-bold text-slate-700">{b.vehicle.name}</div>

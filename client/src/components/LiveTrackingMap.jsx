@@ -58,7 +58,7 @@ const LiveTrackingMap = () => {
                     
                     if (!lat || !lng) return null; // Skip if no GPS data yet
 
-                    const driverName = trip.driver?.name || trip.user.name;
+                    const driverName = trip.driver?.name || trip.user?.name || 'Sistem';
                     const lastUpdate = new Date(trip.vehicle.lastLocationUpdate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
                     return (
@@ -104,7 +104,7 @@ const LiveTrackingMap = () => {
                             <div key={trip.id} className="p-3 bg-white border border-slate-100 shadow-sm rounded-lg hover:border-blue-300 transition-colors cursor-default">
                                 <p className="font-bold text-xs text-slate-800 mb-1">{trip.vehicle.name}</p>
                                 <p className="text-[10px] text-slate-500 flex justify-between">
-                                    <span>{trip.driver?.name || trip.user.name}</span>
+                                    <span>{trip.driver?.name || trip.user?.name || 'Sistem'}</span>
                                     {trip.vehicle.currentLat ? (
                                         <span className="text-emerald-600 font-bold">Online</span>
                                     ) : (
