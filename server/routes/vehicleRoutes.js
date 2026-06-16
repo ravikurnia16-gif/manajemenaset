@@ -10,7 +10,6 @@ router.get('/public', vehicleController.getAllVehicles);
 // Protected Routes
 router.get('/', verifyToken, vehicleController.getAllVehicles);
 router.get('/dashboard', verifyToken, vehicleController.getVehicleDashboard);
-router.get('/:id', verifyToken, vehicleController.getVehicleById);
 router.post('/', verifyToken, handleUpload('photo', 'vehicles'), vehicleController.createVehicle);
 router.put('/:id', verifyToken, handleUpload('photo', 'vehicles'), vehicleController.updateVehicle);
 router.put('/:id/mark-paid', verifyToken, vehicleController.markVehicleAsPaid);
@@ -67,5 +66,8 @@ router.put('/booking/:id/history', verifyToken, bookingCtrl.updateBookingHistory
 router.post('/booking/:id/location', verifyToken, bookingCtrl.updateBookingLocation);
 router.get('/booking/:id/route', verifyToken, bookingCtrl.getBookingRoute);
 router.get('/history', verifyToken, bookingCtrl.getVehicleRouteHistory);
+
+// Fallback route with parameter MUST be at the very bottom
+router.get('/:id', verifyToken, vehicleController.getVehicleById);
 
 module.exports = router;
