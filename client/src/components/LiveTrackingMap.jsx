@@ -21,9 +21,17 @@ const LiveTrackingMap = () => {
     const [selectedRouteVehicleId, setSelectedRouteVehicleId] = useState(null);
     const [routeCoordinates, setRouteCoordinates] = useState([]);
     const [fetchingRoute, setFetchingRoute] = useState(false);
+    const [routeDate, setRouteDate] = useState(new Date().toISOString().split('T')[0]);
 
-    const handleShowRoute = async (vehicleId) => {
-        if (selectedRouteVehicleId === vehicleId) {
+    // Refetch route automatically if date changes and a vehicle is selected
+    useEffect(() => {
+        if (selectedRouteVehicleId) {
+            handleShowRoute(selectedRouteVehicleId, true);
+        }
+    }, [routeDate]);
+
+    const handleShowRoute = async (vehicleId, forceRefetch = false) => {
+        if (selectedRouteVehicleId === vehicleId && !forceRefetch) {
             setSelectedRouteVehicleId(null);
             setRouteCoordinates([]);
             return;
@@ -31,7 +39,7 @@ const LiveTrackingMap = () => {
 
         setFetchingRoute(true);
         try {
-            const res = await api.get(`/vehicles/history?vehicleId=${vehicleId}`);
+            const res = await api.get(`/vehicles/history?vehicleId=${vehicleId}&date=${routeDate}`);
             if (res.data && res.data.length > 0) {
                 const coords = res.data.map(h => [h.latitude, h.longitude]);
                 setRouteCoordinates(coords);
@@ -147,10 +155,23 @@ const LiveTrackingMap = () => {
 
             {/* Dashboard Overlay */}
             <div className="absolute top-4 right-4 z-[1000] bg-white/90 backdrop-blur p-4 rounded-xl shadow-lg border border-slate-200 min-w-[280px]">
-                <h4 className="font-black text-slate-800 text-sm mb-3 flex items-center gap-2">
-                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                    Status Armada (Live)
+                <h4 className="font-black text-slate-800 text-sm mb-3 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                        Status Armada (Live)
+                    </span>
                 </h4>
+                
+                <div className="mb-3 p-2 bg-slate-50 border border-slate-100 rounded-lg">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Tanggal Rute Historis</label>
+                    <input 
+                        type="date" 
+                        value={routeDate}
+                        onChange={(e) => setRouteDate(e.target.value)}
+                        className="w-full text-xs p-1.5 border border-slate-200 rounded focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    />
+                </div>
+
                 <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                     {activeTrips.length === 0 ? (
                         <p className="text-xs text-slate-500 italic text-center py-4">Belum ada data lokasi kendaraan</p>
