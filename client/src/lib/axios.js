@@ -1,7 +1,12 @@
 import axios from 'axios';
+import { Capacitor } from '@capacitor/core';
+
+const API_URL = Capacitor.isNativePlatform() 
+    ? 'https://manajemen-aset-sarpras.ltdh6w.easypanel.host/api' 
+    : '/api';
 
 const api = axios.create({
-    baseURL: '/api', // Works with our Docker proxy/serve setup
+    baseURL: API_URL, // Works with our Docker proxy/serve setup
 });
 
 // Otomatis masukkan token ke setiap request jika ada
