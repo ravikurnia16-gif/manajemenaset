@@ -77,17 +77,27 @@ app.use(express.static(distPath));
 // --- CATCH-ALL MIDDLEWARE ---
 // Menggunakan app.use di akhir untuk menangani semua request yang tidak cocok dengan route API
 app.use((req, res) => {
-    // Jika bukan API, kirim index.html (React Router akan menangani routing di sisi client)
-    if (!req.path.startsWith('/api')) {
-        res.sendFile(path.join(distPath, 'index.html'), (err) => {
-            if (err) {
-                console.error("Build frontend tidak ditemukan di:", distPath);
-                res.status(500).send("Error: Frontend build not found. Pastikan folder 'client/dist' sudah ada.");
-            }
-        });
-    } else {
-        res.status(404).json({ message: 'API Route Not Found' });
+    if (req.path.startsWith('/api')) {
+        return res.status(404).json({ message: 'API Route Not Found' });
     }
+
+    // Cegah file statis dari pengembalian index.html (solusi untuk crash saat refresh di nested route web karena base path './')
+    if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+        // Jika file diminta dari nested route (misal /kendaraan/assets/file.js)
+        if (req.path.includes('/assets/')) {
+            const filename = req.path.split('/').pop();
+            return res.sendFile(path.join(distPath, 'assets', filename));
+        }
+        return res.status(404).send('Not Found');
+    }
+
+    // Jika bukan API dan bukan static file, kirim index.html (React Router)
+    res.sendFile(path.join(distPath, 'index.html'), (err) => {
+        if (err) {
+            console.error("Build frontend tidak ditemukan di:", distPath);
+            res.status(500).send("Error: Frontend build not found. Pastikan folder 'client/dist' sudah ada.");
+        }
+    });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
