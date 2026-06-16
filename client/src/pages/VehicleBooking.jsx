@@ -161,12 +161,20 @@ const VehicleBooking = () => {
                     { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
                     (position, err) => { if (!err) sendLocation(position); }
                 );
-            } catch {
+            } catch (err) {
+                console.log("Capacitor Geolocation failed, falling back to Web Geolocation", err);
                 // Fallback: Browser navigator.geolocation (Web)
                 if (navigator.geolocation) {
+                    // Try to get a quick ping immediately (important for Desktop testing)
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => sendLocation(position),
+                        (error) => console.log('Initial Web GPS Ping Error:', error),
+                        { enableHighAccuracy: false, timeout: 10000 }
+                    );
+
                     gpsWatchId.current = navigator.geolocation.watchPosition(
                         (position) => sendLocation(position),
-                        (error) => console.error('GPS Error', error),
+                        (error) => console.error('Web GPS Watch Error:', error),
                         { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
                     );
                 }
