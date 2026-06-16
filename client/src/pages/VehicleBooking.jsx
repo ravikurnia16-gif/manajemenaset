@@ -170,7 +170,6 @@ const VehicleBooking = () => {
                         const data = await res.json();
                         if (data.latitude && data.longitude) {
                             sendLocation({ coords: { latitude: data.latitude, longitude: data.longitude, speed: 0 } });
-                            showToast('GPS tidak aktif. Menggunakan lokasi jaringan (kurang akurat)', 'info');
                         }
                     } catch (e) {
                         console.error('IP Fallback failed', e);
@@ -184,7 +183,6 @@ const VehicleBooking = () => {
                         (position) => sendLocation(position),
                         (error) => {
                             console.log('Initial Web GPS Ping Error:', error);
-                            if (error.code === 1) showToast('Akses lokasi diblokir browser', 'error');
                             fallbackToIPLocation();
                         },
                         { enableHighAccuracy: false, timeout: 10000 }
@@ -528,14 +526,13 @@ const VehicleBooking = () => {
                 startKm: actionData.km
             });
             
-            showToast('Perjalanan dimulai! Mendapatkan lokasi GPS...', 'info');
+            showToast('Perjalanan dimulai!', 'success');
 
             // 2. Langsung baca GPS saat itu juga
             const bookingId = showActionModal.data.id;
             const sendInitialLocation = async (lat, lng) => {
                 try {
                     await api.post(`/vehicles/booking/${bookingId}/location`, { latitude: lat, longitude: lng, speed: 0 });
-                    showToast('Lokasi awal GPS berhasil direkam!', 'success');
                 } catch (err) {
                     console.error('Failed to send initial location:', err);
                 }
@@ -560,7 +557,6 @@ const VehicleBooking = () => {
                     },
                     (error) => {
                         console.log('Initial Ping Error:', error);
-                        if (error.code === 1) showToast('Akses lokasi diblokir browser', 'error');
                         fallbackToIP();
                     },
                     { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
