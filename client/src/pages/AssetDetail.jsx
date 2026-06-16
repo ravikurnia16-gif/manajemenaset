@@ -51,19 +51,48 @@ const AssetDetail = () => {
         }
     };
 
+    const userStr = localStorage.getItem('user');
+    const currentUser = userStr ? JSON.parse(userStr) : {};
+    const isSarana = currentUser.position === 'Kepala Bidang Sarana';
+
+    const handleWriteNFC = async () => {
+        if (!('NDEFReader' in window)) {
+            alert('Peramban Anda tidak mendukung Web NFC. Gunakan Google Chrome di Android.');
+            return;
+        }
+        try {
+            const ndef = new window.NDEFReader();
+            await ndef.write(`manajemenaset-id:${asset.id}`);
+            alert(`Berhasil! Aset ${asset.name} telah tersimpan di stiker NFC.`);
+        } catch (error) {
+            console.error(error);
+            alert('Gagal menulis ke NFC: ' + error.message);
+        }
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
             {/* Header */}
-            <div className="flex items-center gap-4">
-                <button onClick={() => navigate('/aset')} className="p-2 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-blue-600 transition-colors">
-                    <ArrowLeft size={20} />
-                </button>
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">{asset.name}</h1>
-                    <p className="text-slate-500 font-medium text-sm flex items-center gap-2">
-                        <Tag size={14} className="text-blue-500" /> {asset.code}
-                    </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <button onClick={() => navigate('/aset')} className="p-2 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-blue-600 transition-colors">
+                        <ArrowLeft size={20} />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-800">{asset.name}</h1>
+                        <p className="text-slate-500 font-medium text-sm flex items-center gap-2">
+                            <Tag size={14} className="text-blue-500" /> {asset.code}
+                        </p>
+                    </div>
                 </div>
+                {isSarana && (
+                    <button 
+                        onClick={handleWriteNFC}
+                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors"
+                    >
+                        <Tag size={16} /> Tulis ke NFC Tag
+                    </button>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

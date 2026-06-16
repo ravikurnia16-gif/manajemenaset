@@ -191,8 +191,41 @@ const Dashboard = () => {
         }
     };
 
+    const isSarana = currentUser.position === 'Kepala Bidang Sarana';
+
+    const handleScanNFC = async () => {
+        if (!('NDEFReader' in window)) {
+            alert('Peramban Anda tidak mendukung Web NFC. Gunakan Google Chrome di Android.');
+            return;
+        }
+        try {
+            const ndef = new window.NDEFReader();
+            await ndef.scan();
+            alert('Dekatkan HP Anda ke Stiker NFC...');
+
+            ndef.onreading = event => {
+                const message = event.message;
+                for (const record of message.records) {
+                    if (record.recordType === "text") {
+                        const textDecoder = new TextDecoder(record.encoding);
+                        const text = textDecoder.decode(record.data);
+                        if (text.startsWith('manajemenaset-id:')) {
+                            const assetId = text.split(':')[1];
+                            window.location.href = `/aset/${assetId}`;
+                        } else {
+                            alert('NFC Tag tidak dikenali oleh sistem ini.');
+                        }
+                    }
+                }
+            };
+        } catch (error) {
+            console.error(error);
+            alert('Gagal mengaktifkan pemindai NFC: ' + error.message);
+        }
+    };
+
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Dashboard Manajemen Aset</h1>
@@ -218,10 +251,18 @@ const Dashboard = () => {
                             </select>
                         </div>
                     )}
+                    {isSarana && (
+                        <button
+                            onClick={handleScanNFC}
+                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 transition-all"
+                        >
+                            Scan NFC Aset
+                        </button>
+                    )}
                     <button
                         onClick={handleExportPDF}
                         disabled={exporting}
-                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 transition-all disabled:opacity-50"
+                        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-slate-200 transition-all disabled:opacity-50"
                     >
                         {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                         {exporting ? 'Mengekspor...' : 'Export PDF'}
