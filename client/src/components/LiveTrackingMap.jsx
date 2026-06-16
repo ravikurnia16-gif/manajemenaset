@@ -15,6 +15,7 @@ const carIcon = new L.Icon({
 
 const LiveTrackingMap = () => {
     const [activeTrips, setActiveTrips] = useState([]);
+    const [hiddenTrips, setHiddenTrips] = useState(new Set());
     const [loading, setLoading] = useState(true);
 
     const fetchLocations = async () => {
@@ -35,8 +36,18 @@ const LiveTrackingMap = () => {
         return () => clearInterval(interval);
     }, []);
 
+    const toggleVisibility = (tripId) => {
+        setHiddenTrips(prev => {
+            const next = new Set(prev);
+            if (next.has(tripId)) next.delete(tripId);
+            else next.add(tripId);
+            return next;
+        });
+    };
+
     // Center map on Padang, Indonesia
     const defaultCenter = [-0.9471, 100.4172]; 
+    const visibleTrips = activeTrips.filter(t => !hiddenTrips.has(t.id));
 
     return (
         <div className="w-full h-[600px] bg-slate-50 relative rounded-2xl overflow-hidden shadow-inner border border-slate-200">
@@ -52,7 +63,7 @@ const LiveTrackingMap = () => {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 />
 
-                {activeTrips.map((trip) => {
+                {visibleTrips.map((trip) => {
                     const lat = trip.vehicle?.currentLat;
                     const lng = trip.vehicle?.currentLng;
                     
@@ -89,31 +100,43 @@ const LiveTrackingMap = () => {
                     );
                 })}
 
-                <MapBoundsFitter trips={activeTrips} />
+                <MapBoundsFitter trips={visibleTrips} />
             </MapContainer>
 
             {/* Dashboard Overlay */}
-            <div className="absolute top-4 right-4 z-[1000] bg-white/90 backdrop-blur p-4 rounded-xl shadow-lg border border-slate-200 min-w-[250px]">
+            <div className="absolute top-4 right-4 z-[1000] bg-white/90 backdrop-blur p-4 rounded-xl shadow-lg border border-slate-200 min-w-[280px]">
                 <h4 className="font-black text-slate-800 text-sm mb-3 flex items-center gap-2">
                     <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                     Status Armada (Live)
                 </h4>
                 <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                     {activeTrips.length === 0 ? (
-                        <p className="text-xs text-slate-500 italic text-center py-4">Tidak ada perjalanan aktif saat ini</p>
+                        <p className="text-xs text-slate-500 italic text-center py-4">Belum ada data lokasi kendaraan</p>
                     ) : (
                         activeTrips.map(trip => (
-                            <div key={trip.id} className="p-3 bg-white border border-slate-100 shadow-sm rounded-lg hover:border-blue-300 transition-colors cursor-default">
-                                <p className="font-bold text-xs text-slate-800 mb-1">{trip.vehicle?.name || 'Unknown Vehicle'}</p>
-                                <p className="text-[10px] text-slate-500 flex justify-between">
-                                    <span>{trip.driver?.name || trip.user?.name || 'Sistem'}</span>
-                                    {trip.vehicle?.currentLat ? (
-                                        <span className="text-emerald-600 font-bold">Online</span>
-                                    ) : (
-                                        <span className="text-amber-500 font-bold">Menunggu GPS...</span>
-                                    )}
-                                </p>
-                            </div>
+                            <label key={trip.id} className="block p-3 bg-white border border-slate-100 shadow-sm rounded-lg hover:border-blue-300 transition-colors cursor-pointer">
+                                <div className="flex items-start gap-3">
+                                    <div className="pt-0.5">
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                                            checked={!hiddenTrips.has(trip.id)}
+                                            onChange={() => toggleVisibility(trip.id)}
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-bold text-xs text-slate-800 mb-1">{trip.vehicle?.name || 'Unknown Vehicle'}</p>
+                                        <p className="text-[10px] text-slate-500 flex justify-between">
+                                            <span>{trip.driver?.name || trip.user?.name || 'Sistem'}</span>
+                                            {trip.status === 'BERLANGSUNG' ? (
+                                                <span className="text-emerald-600 font-bold text-[9px] px-1.5 py-0.5 bg-emerald-50 rounded">Sedang Jalan</span>
+                                            ) : (
+                                                <span className="text-slate-500 font-bold text-[9px] px-1.5 py-0.5 bg-slate-100 rounded">Sedang Parkir</span>
+                                            )}
+                                        </p>
+                                    </div>
+                                </div>
+                            </label>
                         ))
                     )}
                 </div>

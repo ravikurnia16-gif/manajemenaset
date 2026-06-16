@@ -1282,25 +1282,41 @@ exports.getBookingRoute = async (req, res) => {
 
 exports.getActiveTracking = async (req, res) => {
     try {
-        const activeBookings = await prisma.vehicleBooking.findMany({
-            where: { status: 'BERLANGSUNG' },
+        const vehicles = await prisma.vehicle.findMany({
+            where: { currentLat: { not: null }, currentLng: { not: null } },
             include: {
-                vehicle: {
-                    select: {
-                        id: true,
-                        name: true,
-                        plateNumber: true,
-                        type: true,
-                        currentLat: true,
-                        currentLng: true,
-                        lastLocationUpdate: true
+                bookings: {
+                    where: { status: 'BERLANGSUNG' },
+                    take: 1,
+                    include: {
+                        user: { select: { name: true, phone: true } },
+                        driver: { select: { name: true, phone: true } }
                     }
-                },
-                user: { select: { name: true, phone: true } },
-                driver: { select: { name: true, phone: true } }
+                }
             }
         });
-        res.json(activeBookings);
+
+        const activeTrackingData = vehicles.map(v => {
+            const activeBooking = v.bookings[0] || null;
+            return {
+                id: activeBooking ? activeBooking.id : `v-${v.id}`,
+                status: activeBooking ? 'BERLANGSUNG' : 'IDLE',
+                destination: activeBooking ? activeBooking.destination : 'Parkir/Standby',
+                user: activeBooking ? activeBooking.user : null,
+                driver: activeBooking ? activeBooking.driver : null,
+                vehicle: {
+                    id: v.id,
+                    name: v.name,
+                    plateNumber: v.plateNumber,
+                    type: v.type,
+                    currentLat: v.currentLat,
+                    currentLng: v.currentLng,
+                    lastLocationUpdate: v.lastLocationUpdate
+                }
+            };
+        });
+
+        res.json(activeTrackingData);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
