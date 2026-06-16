@@ -126,10 +126,21 @@ const VehicleBooking = () => {
                         }
                     }
 
-                    // Start watching position if not already watching
+                    // 1. Initial Quick Ping (Low Accuracy for speed)
+                    try {
+                        const initPos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 10000 });
+                        if (initPos && initPos.coords) {
+                            const { latitude, longitude, speed } = initPos.coords;
+                            await api.post(`/vehicles/booking/${activeTrip.id}/location`, { latitude, longitude, speed });
+                        }
+                    } catch (initErr) {
+                        console.error("Initial GPS ping failed, waiting for watch:", initErr);
+                    }
+
+                    // 2. Start watching position if not already watching
                     if (gpsWatchId.current === null) {
                         gpsWatchId.current = await Geolocation.watchPosition(
-                            { enableHighAccuracy: true, maximumAge: 30000, timeout: 27000 },
+                            { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
                             (position, err) => {
                                 if (err) {
                                     console.error("GPS Error", err);
