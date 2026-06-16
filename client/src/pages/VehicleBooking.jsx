@@ -6,6 +6,7 @@ import {
     Users, LogIn, LogOut, Receipt, Navigation2, Loader2, History, Camera
 } from 'lucide-react';
 import api from '../lib/axios';
+import { getMediaUrl } from '../lib/media';
 import VehicleChecklistTab from '../components/VehicleChecklistTab';
 
 import LiveTrackingMap from '../components/LiveTrackingMap';
@@ -858,7 +859,7 @@ const VehicleBooking = () => {
                                         <div className="relative h-44 md:h-72 lg:h-80 overflow-hidden bg-slate-50 flex items-center justify-center p-3">
                                             {v.photo ? (
                                                 <img
-                                                    src={v.photo}
+                                                    src={getMediaUrl(v.photo)}
                                                     alt={v.name}
                                                     className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500"
                                                 />

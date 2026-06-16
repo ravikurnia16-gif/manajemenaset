@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import AssetList from './pages/AssetList';
@@ -143,7 +144,7 @@ function App() {
             <Layout />
           </ProtectedRoute>
         }>
-          <Route index element={<Navigate to="/dashboard" />} />
+          <Route index element={<Navigate to={Capacitor.isNativePlatform() ? "/kendaraan/peminjaman" : "/dashboard"} />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="aset" element={<AssetList />} />
           <Route path="aset/view/:id" element={<AssetDetail />} />
