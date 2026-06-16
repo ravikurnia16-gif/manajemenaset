@@ -724,7 +724,8 @@ const VehicleBooking = () => {
         ...((isSuperAdmin || isAdminAset || isPIC) ? [{ id: 'CHECKLISTS', label: 'Ceklis Kendaraan', icon: <CheckCircle size={16} /> }] : []),
         { id: 'USER_VIOLATIONS', label: 'Pelanggaran User', icon: <AlertCircle size={16} /> },
         ...(canApprove ? [{ id: 'HISTORY', label: 'Riwayat Seluruhnya', icon: <Clock size={16} /> }] : []),
-        ...((isSuperAdmin || isAdminAset) ? [{ id: 'DRIVERS', label: 'Driver', icon: <Navigation2 size={16} /> }] : [])
+        ...((isSuperAdmin || isAdminAset) ? [{ id: 'DRIVERS', label: 'Driver', icon: <Navigation2 size={16} /> }] : []),
+        ...(isKabidSarpras ? [{ id: 'TRACKING_MAP', label: 'Peta Pelacakan', icon: <MapPin size={16} /> }] : [])
     ];
 
     return (
