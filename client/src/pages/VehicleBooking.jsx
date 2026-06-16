@@ -3605,7 +3605,7 @@ const VehicleBooking = () => {
                                 </div>
                                 <div className="p-3 bg-slate-50 rounded-xl">
                                     <div className="text-[10px] font-bold text-slate-400 uppercase">Pemohon</div>
-                                    <div className="font-bold text-slate-700">{showDetailModal.user.name}</div>
+                                    <div className="font-bold text-slate-700">{showDetailModal.user?.name}</div>
                                 </div>
                                 <div className="p-3 bg-slate-50 rounded-xl">
                                     <div className="text-[10px] font-bold text-slate-400 uppercase">Driver</div>
