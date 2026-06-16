@@ -65,5 +65,6 @@ router.post('/booking/:id/cancel', verifyToken, bookingCtrl.cancelBooking);
 router.put('/booking/:id/history', verifyToken, bookingCtrl.updateBookingHistory);
 router.post('/booking/:id/location', verifyToken, bookingCtrl.updateBookingLocation);
 router.get('/booking/:id/route', verifyToken, bookingCtrl.getBookingRoute);
+router.get('/active-tracking', verifyToken, bookingCtrl.getActiveTracking);
 
 module.exports = router;

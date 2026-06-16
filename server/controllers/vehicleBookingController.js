@@ -1279,3 +1279,29 @@ exports.getBookingRoute = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.getActiveTracking = async (req, res) => {
+    try {
+        const activeBookings = await prisma.vehicleBooking.findMany({
+            where: { status: 'BERLANGSUNG' },
+            include: {
+                vehicle: {
+                    select: {
+                        id: true,
+                        name: true,
+                        plateNumber: true,
+                        type: true,
+                        currentLat: true,
+                        currentLng: true,
+                        lastLocationUpdate: true
+                    }
+                },
+                user: { select: { name: true, phone: true } },
+                driver: { select: { name: true, phone: true } }
+            }
+        });
+        res.json(activeBookings);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

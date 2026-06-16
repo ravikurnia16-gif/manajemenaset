@@ -8,6 +8,8 @@ import {
 import api from '../lib/axios';
 import VehicleChecklistTab from '../components/VehicleChecklistTab';
 
+import LiveTrackingMap from '../components/LiveTrackingMap';
+
 const VehicleBooking = () => {
     const [activeTab, setActiveTab] = useState('CURRENT_FLEET');
     const [vehicles, setVehicles] = useState([]);
@@ -105,7 +107,7 @@ const VehicleBooking = () => {
 
     useEffect(() => {
         const activeTrip = bookings.find(b => 
-            b.status === 'ACTIVE' && 
+            b.status === 'BERLANGSUNG' && 
             (b.driverId === user.id || b.userId === user.id)
         );
 
@@ -671,7 +673,8 @@ const VehicleBooking = () => {
         ...((isSuperAdmin || isAdminAset || isPIC) ? [{ id: 'CHECKLISTS', label: 'Ceklis Kendaraan', icon: <CheckCircle size={16} /> }] : []),
         { id: 'USER_VIOLATIONS', label: 'Pelanggaran User', icon: <AlertCircle size={16} /> },
         ...(canApprove ? [{ id: 'HISTORY', label: 'Riwayat Seluruhnya', icon: <Clock size={16} /> }] : []),
-        ...((isSuperAdmin || isAdminAset) ? [{ id: 'DRIVERS', label: 'Driver', icon: <Navigation2 size={16} /> }] : [])
+        ...((isSuperAdmin || isAdminAset) ? [{ id: 'DRIVERS', label: 'Driver', icon: <Navigation2 size={16} /> }] : []),
+        ...(isKabidSarpras ? [{ id: 'TRACKING_MAP', label: 'Peta Pelacakan', icon: <MapPin size={16} /> }] : [])
     ];
 
     return (
@@ -777,6 +780,7 @@ const VehicleBooking = () => {
 
             {/* Tab Contents */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 min-h-[400px]">
+                {activeTab === 'TRACKING_MAP' && <LiveTrackingMap />}
                 {activeTab === 'CHECKLISTS' && <VehicleChecklistTab vehicles={vehicles} currentUserProfile={currentUserProfile} isAdmin={isAdminAset || isSuperAdmin} />}
                 {activeTab === 'CURRENT_FLEET' && (
                     <div className="p-6">
