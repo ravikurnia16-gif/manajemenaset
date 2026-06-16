@@ -1,0 +1,1 @@
+const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); prisma.vehicleBooking.findMany({ where: { status: 'BERLANGSUNG' }, include: { vehicle: true } }).then(res => console.log(JSON.stringify(res, null, 2))).finally(() => prisma.$disconnect());

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
+import { Geolocation } from '@capacitor/geolocation';
 import VehicleChecklistTab from '../components/VehicleChecklistTab';
 
 import LiveTrackingMap from '../components/LiveTrackingMap';
@@ -112,31 +113,54 @@ const VehicleBooking = () => {
             (b.driverId === user.id || b.userId === user.id)
         );
 
-        if (activeTrip && navigator.geolocation) {
-            // Start watching position if not already watching
-            if (gpsWatchId.current === null) {
-                gpsWatchId.current = navigator.geolocation.watchPosition(
-                    (position) => {
-                        const { latitude, longitude, speed } = position.coords;
-                        api.post(`/vehicles/booking/${activeTrip.id}/location`, {
-                            latitude, longitude, speed
-                        }).catch(err => console.error("GPS send error", err));
-                    },
-                    (error) => console.error("GPS Error", error),
-                    { enableHighAccuracy: true, maximumAge: 30000, timeout: 27000 }
-                );
+        const setupGPS = async () => {
+            if (activeTrip) {
+                try {
+                    // Check and request permissions for both Native and Web
+                    const permissions = await Geolocation.checkPermissions();
+                    if (permissions.location !== 'granted') {
+                        const requested = await Geolocation.requestPermissions();
+                        if (requested.location !== 'granted') {
+                            console.error('Location permission denied by user');
+                            return;
+                        }
+                    }
+
+                    // Start watching position if not already watching
+                    if (gpsWatchId.current === null) {
+                        gpsWatchId.current = await Geolocation.watchPosition(
+                            { enableHighAccuracy: true, maximumAge: 30000, timeout: 27000 },
+                            (position, err) => {
+                                if (err) {
+                                    console.error("GPS Error", err);
+                                    return;
+                                }
+                                if (position && position.coords) {
+                                    const { latitude, longitude, speed } = position.coords;
+                                    api.post(`/vehicles/booking/${activeTrip.id}/location`, {
+                                        latitude, longitude, speed
+                                    }).catch(err => console.error("GPS send error", err));
+                                }
+                            }
+                        );
+                    }
+                } catch (error) {
+                    console.error("Geolocation setup error:", error);
+                }
+            } else {
+                // Stop watching if no active trip
+                if (gpsWatchId.current !== null) {
+                    Geolocation.clearWatch({ id: gpsWatchId.current });
+                    gpsWatchId.current = null;
+                }
             }
-        } else {
-            // Stop watching if no active trip
-            if (gpsWatchId.current !== null) {
-                navigator.geolocation.clearWatch(gpsWatchId.current);
-                gpsWatchId.current = null;
-            }
-        }
+        };
+
+        setupGPS();
 
         return () => {
             if (gpsWatchId.current !== null) {
-                navigator.geolocation.clearWatch(gpsWatchId.current);
+                Geolocation.clearWatch({ id: gpsWatchId.current });
                 gpsWatchId.current = null;
             }
         };
