@@ -82,12 +82,20 @@ app.use((req, res) => {
     }
 
     // Cegah file statis dari pengembalian index.html (solusi untuk crash saat refresh di nested route web karena base path './')
-    if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+    if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webmanifest)$/)) {
         // Jika file diminta dari nested route (misal /kendaraan/assets/file.js)
         if (req.path.includes('/assets/')) {
             const filename = req.path.split('/').pop();
             return res.sendFile(path.join(distPath, 'assets', filename));
         }
+        
+        // Handle root level assets like Sarpras.jpeg or favicon.ico requested from nested routes
+        const rootFilename = req.path.split('/').pop();
+        const rootFilePath = path.join(distPath, rootFilename);
+        if (require('fs').existsSync(rootFilePath)) {
+            return res.sendFile(rootFilePath);
+        }
+
         return res.status(404).send('Not Found');
     }
 
