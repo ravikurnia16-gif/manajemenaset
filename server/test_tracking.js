@@ -1,16 +1,42 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+
 async function main() {
-    const bookings = await prisma.vehicleBooking.findMany({
+  const vehicles = await prisma.vehicle.findMany({
+    where: { currentLat: { not: null }, currentLng: { not: null } },
+    include: {
+      bookings: {
         where: { status: 'BERLANGSUNG' },
+        take: 1,
         include: {
-            vehicle: {
-                select: { id: true, name: true, plateNumber: true, currentLat: true, currentLng: true, lastLocationUpdate: true }
-            },
-            user: { select: { name: true } },
-            driver: { select: { name: true } }
+          user: { select: { name: true, phone: true } },
+          driver: { select: { name: true, phone: true } }
         }
-    });
-    console.log(JSON.stringify(bookings, null, 2));
+      }
+    }
+  });
+
+  const activeTrackingData = vehicles.map(v => {
+    const activeBooking = v.bookings[0] || null;
+    return {
+      id: activeBooking ? activeBooking.id : 'v-'+v.id,
+      status: activeBooking ? 'BERLANGSUNG' : 'IDLE',
+      destination: activeBooking ? activeBooking.destination : 'Parkir/Standby',
+      user: activeBooking ? activeBooking.user : null,
+      driver: activeBooking ? activeBooking.driver : null,
+      vehicle: {
+        id: v.id,
+        name: v.name,
+        plateNumber: v.plateNumber,
+        type: v.type,
+        currentLat: v.currentLat,
+        currentLng: v.currentLng,
+        lastLocationUpdate: v.lastLocationUpdate
+      }
+    };
+  });
+
+  console.log(JSON.stringify(activeTrackingData, null, 2));
 }
+
 main().catch(console.error).finally(() => prisma.$disconnect());

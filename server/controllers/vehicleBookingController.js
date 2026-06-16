@@ -1321,3 +1321,46 @@ exports.getActiveTracking = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.getVehicleRouteHistory = async (req, res) => {
+    try {
+        const { date, bookingId, vehicleId } = req.query;
+
+        // Base query
+        const whereClause = {};
+
+        if (bookingId) {
+            whereClause.bookingId = parseInt(bookingId);
+        } else if (vehicleId) {
+            whereClause.booking = { vehicleId: parseInt(vehicleId) };
+            
+            // If date is provided, filter by that date
+            if (date) {
+                const targetDate = new Date(date);
+                const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0));
+                const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999));
+                
+                whereClause.createdAt = {
+                    gte: startOfDay,
+                    lte: endOfDay
+                };
+            } else {
+                // Default to today if no date and no booking id specified
+                const today = new Date();
+                const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+                whereClause.createdAt = { gte: startOfDay };
+            }
+        } else {
+            return res.status(400).json({ error: "Please provide bookingId or vehicleId" });
+        }
+
+        const history = await prisma.vehicleLocationHistory.findMany({
+            where: whereClause,
+            orderBy: { createdAt: 'asc' }
+        });
+
+        res.json(history);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
