@@ -477,7 +477,7 @@ const AssetForm = () => {
 
                             {watch('isLendable') && (
                                 <div className="animate-in slide-in-from-top-2 duration-300 pt-2 border-t border-amber-200/50">
-                                    <label className="block text-[10px] font-bold text-amber-700 uppercase mb-1">Biaya Sewa / Pinjam (Per Hari)</label>
+                                    <label className="block text-[10px] font-bold text-amber-700 uppercase mb-1">Biaya Sewa / Pinjam (Sekali Pinjam)</label>
                                     <div className="relative">
                                         <span className="absolute left-3 top-2 text-slate-500 text-sm font-medium">Rp</span>
                                         <input
