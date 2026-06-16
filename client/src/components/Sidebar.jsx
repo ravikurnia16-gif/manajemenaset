@@ -114,12 +114,12 @@ const Sidebar = ({ isOpen = true }) => {
                 isOpen ? "p-5 justify-start h-auto opacity-100" : "p-0 h-0 opacity-0"
             )}>
                 <div className="flex items-center gap-3">
-                    <img src="/Sarpras.jpeg" className="w-10 h-10 rounded-lg object-cover shadow-lg shadow-blue-500/20 shrink-0" alt="Logo" />
+                    <img src={settings?.orgLogo || "/Sarpras.jpeg"} className="w-10 h-10 rounded-lg object-cover shadow-lg shadow-blue-500/20 shrink-0" alt="Logo" />
                     <div className="flex flex-col justify-center">
                         <span className={cn(
                             "text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent transition-all duration-300",
                             !isOpen ? "w-0 overflow-hidden opacity-0" : "w-auto opacity-100"
-                        )}>SARPRAS DEI</span>
+                        )}>{settings?.orgName || "SARPRAS DEI"}</span>
                         <div className={cn(
                             "text-[9px] text-slate-500 tracking-[0.15em] uppercase font-bold transition-all duration-300 whitespace-nowrap overflow-hidden",
                             !isOpen ? "w-0 opacity-0" : "w-auto opacity-100"

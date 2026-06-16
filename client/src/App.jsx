@@ -97,6 +97,35 @@ function App() {
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('wheel', handleWheel, { passive: false });
 
+    // Fetch and apply global app settings (title, favicon)
+    const fetchAppSettings = async () => {
+      try {
+        const { default: api } = await import('./lib/axios');
+        const res = await api.get('/settings');
+        if (res.data) {
+          const { orgName, orgLogo } = res.data;
+          
+          if (orgName) {
+            document.title = orgName;
+          }
+          
+          if (orgLogo) {
+            // Find or create favicon link
+            let link = document.querySelector("link[rel~='icon']");
+            if (!link) {
+              link = document.createElement('link');
+              link.rel = 'icon';
+              document.head.appendChild(link);
+            }
+            link.href = orgLogo;
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load app settings for title/logo:", error);
+      }
+    };
+    fetchAppSettings();
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('wheel', handleWheel);
