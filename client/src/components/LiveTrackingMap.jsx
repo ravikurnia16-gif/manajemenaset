@@ -80,13 +80,59 @@ const LiveTrackingMap = () => {
         try {
             const res = await api.get(`/vehicles/history?vehicleId=${vehicleId}&date=${routeDate}`);
             if (res.data && res.data.length > 0) {
-                const coords = res.data.map(h => [h.latitude, h.longitude]);
-                setRouteCoordinates(coords);
+                const rawCoords = res.data.map(h => [h.latitude, h.longitude]); // Leaflet uses [lat, lng]
+                let finalCoords = [];
+
+                // OSRM Chunking Logic (Max ~90 points per request)
+                const CHUNK_SIZE = 90;
+                let osrmSuccess = true;
+
+                if (rawCoords.length >= 2) { // Need at least 2 points to route
+                    for (let i = 0; i < rawCoords.length; i += (CHUNK_SIZE - 1)) {
+                        // Ensure chunks overlap by 1 point to keep the line connected
+                        const chunk = rawCoords.slice(i, i + CHUNK_SIZE);
+                        if (chunk.length < 2) break;
+
+                        // OSRM requires [lng, lat] format
+                        const osrmStr = chunk.map(c => `${c[1]},${c[0]}`).join(';');
+                        const osrmUrl = `https://router.project-osrm.org/match/v1/driving/${osrmStr}?geometries=geojson&overview=full`;
+                        
+                        try {
+                            const osrmRes = await fetch(osrmUrl);
+                            const osrmData = await osrmRes.json();
+                            
+                            if (osrmData.code === 'Ok' && osrmData.matchings?.length > 0) {
+                                osrmData.matchings.forEach(match => {
+                                    // Convert GeoJSON [lng, lat] back to Leaflet [lat, lng]
+                                    const geom = match.geometry.coordinates;
+                                    const converted = geom.map(c => [c[1], c[0]]);
+                                    finalCoords = finalCoords.concat(converted);
+                                });
+                            } else {
+                                // OSRM failed for this chunk (e.g. invalid point)
+                                osrmSuccess = false;
+                                break;
+                            }
+                        } catch (e) {
+                            console.error('OSRM fetch error:', e);
+                            osrmSuccess = false;
+                            break;
+                        }
+                    }
+                }
+
+                // Fallback to straight lines if OSRM fails or we have < 2 points
+                if (!osrmSuccess || rawCoords.length < 2) {
+                    console.warn("OSRM Failed or Not Enough Points. Falling back to straight lines.");
+                    finalCoords = rawCoords;
+                }
+
+                setRouteCoordinates(finalCoords);
                 setSelectedRouteVehicleId(vehicleId);
                 // Automatically ensure this vehicle is visible
                 setHiddenTrips(prev => {
                     const next = new Set(prev);
-                    next.delete(`v-${vehicleId}`); // Depends on how ID is mapped
+                    next.delete(`v-${vehicleId}`); 
                     return next;
                 });
             } else {
