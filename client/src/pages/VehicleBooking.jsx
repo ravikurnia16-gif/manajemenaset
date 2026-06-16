@@ -730,7 +730,7 @@ const VehicleBooking = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* GPS Companion App Banner */}
+            {/* GPS Companion App Banner (HIDDEN AS REQUESTED)
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 shadow-lg shadow-blue-600/20 text-white flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                     <div className="bg-white/20 p-3 rounded-xl">
@@ -749,6 +749,7 @@ const VehicleBooking = () => {
                     <ArrowRight size={18} /> Download Aplikasi (.APK)
                 </button>
             </div>
+            */}
 
             {/* Header */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
