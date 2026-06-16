@@ -185,6 +185,7 @@ const LiveTrackingMap = () => {
                 )}
 
                 <MapBoundsFitter trips={visibleTrips} routeCoords={routeCoordinates} />
+            </MapContainer>
             </div>
 
             {/* Dashboard Sidebar */}
