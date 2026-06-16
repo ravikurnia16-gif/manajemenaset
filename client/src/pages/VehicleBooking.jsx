@@ -170,9 +170,12 @@ const VehicleBooking = () => {
                         const data = await res.json();
                         if (data.latitude && data.longitude) {
                             sendLocation({ coords: { latitude: data.latitude, longitude: data.longitude, speed: 0 } });
+                        } else {
+                            throw new Error('No coordinates from IP API');
                         }
                     } catch (e) {
-                        console.error('IP Fallback failed', e);
+                        console.error('IP Fallback failed, using default depot location', e);
+                        sendLocation({ coords: { latitude: -0.9471, longitude: 100.4172, speed: 0 } });
                     }
                 };
 
@@ -544,9 +547,13 @@ const VehicleBooking = () => {
                     const data = await res.json();
                     if (data.latitude && data.longitude) {
                         await sendInitialLocation(data.latitude, data.longitude);
+                    } else {
+                        throw new Error('No coordinates from IP API');
                     }
                 } catch (e) {
-                    console.error('IP Fallback failed', e);
+                    console.error('IP Fallback failed, using default depot location', e);
+                    // Default fallback to Padang / Depot to ensure it shows on map
+                    await sendInitialLocation(-0.9471, 100.4172);
                 }
             };
 
@@ -3393,25 +3400,12 @@ const VehicleBooking = () => {
                                             />
                                         </div>
                                     </div>
-                                    <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
-                                        <Info size={16} className="text-blue-500 mt-0.5 shrink-0" />
-                                        <div className="text-xs text-slate-600 leading-relaxed">
-                                            <span className="font-bold text-blue-700 block mb-1">Mulai Perjalanan via Web:</span>
-                                            Pastikan layar HP/Browser Anda tetap menyala selama berkendara agar pelacakan rute GPS berjalan optimal. Ingin yang lebih praktis dan bisa layar mati? <b>Gunakan Aplikasi Native Driver.</b>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-3 pt-2">
+                                    <div className="flex gap-3 pt-6">
                                         <button
                                             onClick={handleStartTrip}
                                             className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-200"
                                         >
-                                            Lanjut di Web
-                                        </button>
-                                        <button
-                                            onClick={() => alert("Akan membuka Aplikasi Driver via Deep Link (asetdriver://start?bookingId=" + showActionModal.data.id + ")")}
-                                            className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-lg shadow-indigo-200"
-                                        >
-                                            Buka di Aplikasi
+                                            Mulai Perjalanan
                                         </button>
                                     </div>
                                 </div>
