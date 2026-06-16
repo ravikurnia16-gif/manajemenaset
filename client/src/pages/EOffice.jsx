@@ -1576,7 +1576,7 @@ const EOffice = () => {
     const [sendingWA, setSendingWA] = useState(null);
     const [sendDocWATarget, setSendDocWATarget] = useState(null);
 
-    const user = JSON.parse(localStorage.getItem('user'));
+    const user = JSON.parse(localStorage.getItem('user') || '{}') || {};
     const isKabidSarpras = user?.role === 'KABID_SARPRAS' || user?.role === 'KEPALA_BIDANG' || user?.role === 'SUPER_ADMIN';
     const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
