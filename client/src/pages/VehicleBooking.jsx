@@ -163,20 +163,42 @@ const VehicleBooking = () => {
                 );
             } catch (err) {
                 console.log("Capacitor Geolocation failed, falling back to Web Geolocation", err);
+                
+                const fallbackToIPLocation = async () => {
+                    try {
+                        const res = await fetch('https://ipapi.co/json/');
+                        const data = await res.json();
+                        if (data.latitude && data.longitude) {
+                            sendLocation({ coords: { latitude: data.latitude, longitude: data.longitude, speed: 0 } });
+                            showToast('GPS tidak aktif. Menggunakan lokasi jaringan (kurang akurat)', 'info');
+                        }
+                    } catch (e) {
+                        console.error('IP Fallback failed', e);
+                    }
+                };
+
                 // Fallback: Browser navigator.geolocation (Web)
                 if (navigator.geolocation) {
                     // Try to get a quick ping immediately (important for Desktop testing)
                     navigator.geolocation.getCurrentPosition(
                         (position) => sendLocation(position),
-                        (error) => console.log('Initial Web GPS Ping Error:', error),
+                        (error) => {
+                            console.log('Initial Web GPS Ping Error:', error);
+                            if (error.code === 1) showToast('Akses lokasi diblokir browser', 'error');
+                            fallbackToIPLocation();
+                        },
                         { enableHighAccuracy: false, timeout: 10000 }
                     );
 
                     gpsWatchId.current = navigator.geolocation.watchPosition(
                         (position) => sendLocation(position),
-                        (error) => console.error('Web GPS Watch Error:', error),
+                        (error) => {
+                            console.error('Web GPS Watch Error:', error);
+                        },
                         { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
                     );
+                } else {
+                    fallbackToIPLocation();
                 }
             }
         };
