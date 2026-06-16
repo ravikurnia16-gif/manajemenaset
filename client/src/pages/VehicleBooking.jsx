@@ -169,7 +169,7 @@ const VehicleBooking = () => {
 
     // Head of Sarpras
     const isKabidSarpras = user.position === 'Kepala Bidang Sarana';
-    const isStaffKendaraan = user.position === 'Staff Kendaraan' || user.position?.toLowerCase().includes('staff kendaraan');
+    const isStaffKendaraan = user.position === 'Staff Kendaraan' || Boolean(user.position?.toLowerCase()?.includes('staff kendaraan'));
     const canManageBooking = isAdminAset || isSuperAdmin || isKabidSarpras || isStaffKendaraan;
 
     const [isPIC, setIsPIC] = useState(false);
