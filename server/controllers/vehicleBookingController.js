@@ -1227,3 +1227,55 @@ exports.updateBookingHistory = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+
+// --- GPS Tracking ---
+exports.updateBookingLocation = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { latitude, longitude, speed } = req.body;
+        
+        const bookingId = parseInt(id);
+        const booking = await prisma.vehicleBooking.findUnique({
+            where: { id: bookingId }
+        });
+
+        if (!booking) return res.status(404).json({ error: 'Peminjaman tidak ditemukan' });
+
+        const history = await prisma.vehicleLocationHistory.create({
+            data: {
+                bookingId,
+                latitude: parseFloat(latitude),
+                longitude: parseFloat(longitude),
+                speed: speed ? parseFloat(speed) : null
+            }
+        });
+
+        await prisma.vehicle.update({
+            where: { id: booking.vehicleId },
+            data: {
+                currentLat: parseFloat(latitude),
+                currentLng: parseFloat(longitude),
+                lastLocationUpdate: new Date()
+            }
+        });
+
+        res.json(history);
+    } catch (error) {
+        console.error('Error updating location:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getBookingRoute = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const route = await prisma.vehicleLocationHistory.findMany({
+            where: { bookingId: parseInt(id) },
+            orderBy: { createdAt: 'asc' }
+        });
+        res.json(route);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

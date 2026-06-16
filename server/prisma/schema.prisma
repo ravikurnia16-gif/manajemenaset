@@ -624,6 +624,11 @@ model Vehicle {
 
   // Notification Tracking
   lastKmNotifiedAt DateTime? // Track last time KM service warning was sent
+
+  // GPS Tracking
+  currentLat         Float?
+  currentLng         Float?
+  lastLocationUpdate DateTime?
 }
 
 model VehicleWeeklyReport {
@@ -709,6 +714,20 @@ model VehicleBooking {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  locationHistory VehicleLocationHistory[]
+}
+
+model VehicleLocationHistory {
+  id        Int      @id @default(autoincrement())
+  bookingId Int
+  booking   VehicleBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  latitude  Float
+  longitude Float
+  speed     Float?
+  createdAt DateTime @default(now())
+
+  @@index([bookingId])
 }
 
 model VehicleService {

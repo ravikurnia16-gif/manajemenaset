@@ -192,6 +192,9 @@ exports.updateMaintenanceLog = async (req, res) => {
             if (!isPic) return res.status(403).json({ error: 'Anda tidak memiliki izin mengedit log kendaraan ini.' });
         }
 
+        const updateDate = date ? new Date(date) : existingLog.date;
+        const updateOdometer = odometer !== undefined ? (odometer ? parseInt(odometer) : null) : existingLog.odometer;
+
         const log = await prisma.vehicleService.update({
             where: { id: parseInt(req.params.id) },
             data: {
@@ -199,15 +202,68 @@ exports.updateMaintenanceLog = async (req, res) => {
                 category,
                 type,
                 description,
-                cost: cost ? parseFloat(cost) : undefined,
-                odometer: odometer ? parseInt(odometer) : undefined,
-                nextServiceOdometer: nextServiceOdometer ? parseInt(nextServiceOdometer) : undefined,
-                nextServiceDate: nextServiceDate ? new Date(nextServiceDate) : undefined,
+                cost: cost !== undefined ? parseFloat(cost) : undefined,
+                odometer: odometer !== undefined ? (odometer ? parseInt(odometer) : null) : undefined,
+                nextServiceOdometer: nextServiceOdometer !== undefined ? (nextServiceOdometer ? parseInt(nextServiceOdometer) : null) : undefined,
+                nextServiceDate: nextServiceDate !== undefined ? (nextServiceDate ? new Date(nextServiceDate) : null) : undefined,
                 workshop,
                 proofFile,
                 items: items !== undefined ? items : undefined
             }
         });
+
+        // Auto-update reminders for routine items
+        if (items && Array.isArray(items)) {
+            const routineItems = items.filter(item => item.isRoutine || item.isRoutine === 'true');
+            for (const item of routineItems) {
+                if (!item.name) continue;
+
+                // Calculate targets
+                const targetKm = (updateOdometer && item.intervalKm)
+                    ? parseInt(updateOdometer) + parseInt(item.intervalKm)
+                    : (item.nextKm ? parseInt(item.nextKm) : null);
+
+                let targetDate = null;
+                if (item.intervalMonths) {
+                    targetDate = new Date(updateDate);
+                    targetDate.setMonth(targetDate.getMonth() + parseInt(item.intervalMonths));
+                } else if (item.nextDate) {
+                    targetDate = new Date(item.nextDate);
+                }
+
+                await prisma.vehicleMaintenanceReminder.upsert({
+                    where: {
+                        vehicleId_componentName: {
+                            vehicleId: existingLog.vehicleId,
+                            componentName: item.name
+                        }
+                    },
+                    create: {
+                        vehicleId: existingLog.vehicleId,
+                        componentName: item.name,
+                        lastServicedKm: updateOdometer,
+                        lastServicedDate: updateDate,
+                        intervalKm: item.intervalKm ? parseInt(item.intervalKm) : null,
+                        intervalMonths: item.intervalMonths ? parseInt(item.intervalMonths) : null,
+                        targetKm,
+                        targetDate,
+                        lastCost: item.cost ? parseFloat(item.cost) : null,
+                        status: 'OK'
+                    },
+                    update: {
+                        lastServicedKm: updateOdometer,
+                        lastServicedDate: updateDate,
+                        intervalKm: item.intervalKm ? parseInt(item.intervalKm) : null,
+                        intervalMonths: item.intervalMonths ? parseInt(item.intervalMonths) : null,
+                        targetKm,
+                        targetDate,
+                        lastCost: item.cost ? parseFloat(item.cost) : null,
+                        status: 'OK'
+                    }
+                });
+            }
+        }
+
         res.json(log);
     } catch (error) {
         res.status(500).json({ error: error.message });

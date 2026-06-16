@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
     Car, Calendar, MapPin, Info, CheckCircle, XCircle,
     Clock, Gauge, Fuel, User, Plus, Search, X, Lock, Edit,
@@ -99,6 +99,45 @@ const VehicleBooking = () => {
 
     // Special Roles: Yayasan Leadership
     const yayasanPositions = ['Ketua Yayasan', 'Bendahara Yayasan', 'Sekretaris Yayasan'];
+
+    // --- GPS Tracking Fallback ---
+    const gpsWatchId = useRef(null);
+
+    useEffect(() => {
+        const activeTrip = bookings.find(b => 
+            b.status === 'ACTIVE' && 
+            (b.driverId === user.id || b.userId === user.id)
+        );
+
+        if (activeTrip && navigator.geolocation) {
+            // Start watching position if not already watching
+            if (gpsWatchId.current === null) {
+                gpsWatchId.current = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const { latitude, longitude, speed } = position.coords;
+                        api.post(`/vehicles/booking/${activeTrip.id}/location`, {
+                            latitude, longitude, speed
+                        }).catch(err => console.error("GPS send error", err));
+                    },
+                    (error) => console.error("GPS Error", error),
+                    { enableHighAccuracy: true, maximumAge: 30000, timeout: 27000 }
+                );
+            }
+        } else {
+            // Stop watching if no active trip
+            if (gpsWatchId.current !== null) {
+                navigator.geolocation.clearWatch(gpsWatchId.current);
+                gpsWatchId.current = null;
+            }
+        }
+
+        return () => {
+            if (gpsWatchId.current !== null) {
+                navigator.geolocation.clearWatch(gpsWatchId.current);
+                gpsWatchId.current = null;
+            }
+        };
+    }, [bookings, user.id]);
     const isYayasanLeader = yayasanPositions.includes(user.position);
 
     // Head of Sarpras
@@ -637,6 +676,26 @@ const VehicleBooking = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
+            {/* GPS Companion App Banner */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 shadow-lg shadow-blue-600/20 text-white flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <div className="bg-white/20 p-3 rounded-xl">
+                        <Navigation2 size={24} className="text-white" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-lg flex items-center gap-2">
+                            💡 Lebih Praktis Kelola Perjalanan!
+                        </h3>
+                        <p className="text-blue-100 text-sm mt-1">
+                            Gunakan Aplikasi Driver untuk fitur <b>Start Trip</b>, <b>End Trip</b>, dan pelacakan GPS otomatis di latar belakang.
+                        </p>
+                    </div>
+                </div>
+                <button onClick={() => alert("File APK Driver sedang disiapkan. Hubungi Admin IT untuk versi beta.")} className="px-6 py-2.5 bg-white text-blue-600 font-bold rounded-xl shadow-sm hover:bg-blue-50 transition-colors flex items-center gap-2 whitespace-nowrap shrink-0">
+                    <ArrowRight size={18} /> Download Aplikasi (.APK)
+                </button>
+            </div>
+
             {/* Header */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                 <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
@@ -3197,13 +3256,27 @@ const VehicleBooking = () => {
                                             />
                                         </div>
                                     </div>
-                                    <button
-                                        disabled={!actionData.km || submitting}
-                                        onClick={handleStartTrip}
-                                        className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-200"
-                                    >
-                                        Berangkat Sekarang
-                                    </button>
+                                    <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
+                                        <Info size={16} className="text-blue-500 mt-0.5 shrink-0" />
+                                        <div className="text-xs text-slate-600 leading-relaxed">
+                                            <span className="font-bold text-blue-700 block mb-1">Mulai Perjalanan via Web:</span>
+                                            Pastikan layar HP/Browser Anda tetap menyala selama berkendara agar pelacakan rute GPS berjalan optimal. Ingin yang lebih praktis dan bisa layar mati? <b>Gunakan Aplikasi Native Driver.</b>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3 pt-2">
+                                        <button
+                                            onClick={handleStartTrip}
+                                            className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-200"
+                                        >
+                                            Lanjut di Web
+                                        </button>
+                                        <button
+                                            onClick={() => alert("Akan membuka Aplikasi Driver via Deep Link (asetdriver://start?bookingId=" + showActionModal.data.id + ")")}
+                                            className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-lg shadow-indigo-200"
+                                        >
+                                            Buka di Aplikasi
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 
