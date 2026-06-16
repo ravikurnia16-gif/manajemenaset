@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
-import { Geolocation } from '@capacitor/geolocation';
+
 import VehicleChecklistTab from '../components/VehicleChecklistTab';
 
 import LiveTrackingMap from '../components/LiveTrackingMap';
@@ -113,56 +113,62 @@ const VehicleBooking = () => {
             (b.driverId === user.id || b.userId === user.id)
         );
 
+        const sendLocation = (position) => {
+            if (activeTrip && position?.coords) {
+                const { latitude, longitude, speed } = position.coords;
+                api.post(`/vehicles/booking/${activeTrip.id}/location`, {
+                    latitude, longitude, speed
+                }).catch(err => console.error('GPS send error', err));
+            }
+        };
+
         const setupGPS = async () => {
-            if (activeTrip) {
-                try {
-                    // Check and request permissions for both Native and Web
-                    const permissions = await Geolocation.checkPermissions();
-                    if (permissions.location !== 'granted') {
-                        const requested = await Geolocation.requestPermissions();
-                        if (requested.location !== 'granted') {
-                            console.error('Location permission denied by user');
-                            return;
-                        }
-                    }
-
-                    // 1. Initial Quick Ping (Low Accuracy for speed)
-                    try {
-                        const initPos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 10000 });
-                        if (initPos && initPos.coords) {
-                            const { latitude, longitude, speed } = initPos.coords;
-                            await api.post(`/vehicles/booking/${activeTrip.id}/location`, { latitude, longitude, speed });
-                        }
-                    } catch (initErr) {
-                        console.error("Initial GPS ping failed, waiting for watch:", initErr);
-                    }
-
-                    // 2. Start watching position if not already watching
-                    if (gpsWatchId.current === null) {
-                        gpsWatchId.current = await Geolocation.watchPosition(
-                            { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
-                            (position, err) => {
-                                if (err) {
-                                    console.error("GPS Error", err);
-                                    return;
-                                }
-                                if (position && position.coords) {
-                                    const { latitude, longitude, speed } = position.coords;
-                                    api.post(`/vehicles/booking/${activeTrip.id}/location`, {
-                                        latitude, longitude, speed
-                                    }).catch(err => console.error("GPS send error", err));
-                                }
-                            }
-                        );
-                    }
-                } catch (error) {
-                    console.error("Geolocation setup error:", error);
-                }
-            } else {
+            if (!activeTrip) {
                 // Stop watching if no active trip
                 if (gpsWatchId.current !== null) {
-                    Geolocation.clearWatch({ id: gpsWatchId.current });
+                    try {
+                        const { Geolocation } = await import('@capacitor/geolocation');
+                        Geolocation.clearWatch({ id: gpsWatchId.current });
+                    } catch {
+                        if (navigator.geolocation) navigator.geolocation.clearWatch(gpsWatchId.current);
+                    }
                     gpsWatchId.current = null;
+                }
+                return;
+            }
+
+            // Already watching
+            if (gpsWatchId.current !== null) return;
+
+            try {
+                // Try Capacitor Geolocation (Native)
+                const { Geolocation } = await import('@capacitor/geolocation');
+                const permissions = await Geolocation.checkPermissions();
+                if (permissions.location !== 'granted') {
+                    const requested = await Geolocation.requestPermissions();
+                    if (requested.location !== 'granted') {
+                        console.error('Location permission denied');
+                        return;
+                    }
+                }
+                // Quick initial ping
+                try {
+                    const initPos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 10000 });
+                    sendLocation(initPos);
+                } catch (e) { /* ignore initial ping failure */ }
+                // Continuous watch
+                gpsWatchId.current = await Geolocation.watchPosition(
+                    { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
+                    (position, err) => { if (!err) sendLocation(position); }
+                );
+            } catch {
+                // Fallback: Browser navigator.geolocation (Web)
+                if (navigator.geolocation) {
+                    gpsWatchId.current = navigator.geolocation.watchPosition(
+                        (position) => sendLocation(position),
+                        (error) => console.error('GPS Error', error),
+                        { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
+                    );
                 }
             }
         };
@@ -171,7 +177,8 @@ const VehicleBooking = () => {
 
         return () => {
             if (gpsWatchId.current !== null) {
-                Geolocation.clearWatch({ id: gpsWatchId.current });
+                // Best-effort cleanup
+                try { navigator.geolocation?.clearWatch(gpsWatchId.current); } catch {}
                 gpsWatchId.current = null;
             }
         };
