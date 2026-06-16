@@ -127,7 +127,7 @@ const LiveTrackingMap = () => {
     return (
         <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-[600px] w-full">
             {/* Map Area */}
-            <div className="flex-1 w-full h-[400px] lg:h-full bg-slate-50 relative rounded-2xl overflow-hidden shadow-inner border border-slate-200">
+            <div className="w-full min-h-[400px] lg:flex-1 lg:min-h-0 lg:h-full bg-slate-50 relative rounded-2xl overflow-hidden shadow-inner border border-slate-200">
                 {loading && (
                     <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-[1000]">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
