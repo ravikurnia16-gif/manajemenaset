@@ -483,7 +483,7 @@ const VehicleBooking = () => {
     const handleStartTrip = async () => {
         if (submitting) return;
         try {
-            const currentOdometer = showActionModal.data.vehicle.odometer || 0;
+            const currentOdometer = showActionModal.data.vehicle?.odometer || 0;
             const inputKm = parseInt(actionData.km);
 
             if (inputKm < currentOdometer) {
@@ -1572,7 +1572,7 @@ const VehicleBooking = () => {
                                                         <div className={`px-2 py-0.5 rounded text-[8px] font-black tracking-tighter uppercase border ${b.isRented ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
                                                             {b.isRented ? 'SEWA' : 'INTERNAL'}
                                                         </div>
-                                                        <span className="text-[10px] text-slate-400 font-bold uppercase">{b.vehicle.name}</span>
+                                                        <span className="text-[10px] text-slate-400 font-bold uppercase">{b.vehicle?.name}</span>
                                                     </div>
                                                     <div className="font-bold text-slate-800 text-sm">{b.destination}</div>
                                                 </div>
@@ -1580,7 +1580,7 @@ const VehicleBooking = () => {
                                             </div>
                                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
                                                 <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                                                    <Car size={14} className="text-blue-500" /> {b.vehicle.name}
+                                                    <Car size={14} className="text-blue-500" /> {b.vehicle?.name}
                                                 </div>
                                                 <div className="flex items-center gap-2 text-[11px] text-slate-500">
                                                     <Calendar size={14} className="text-slate-400" /> {new Date(b.startDate).toLocaleString('id-ID')}
@@ -1641,8 +1641,8 @@ const VehicleBooking = () => {
                                                         <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user?.unit?.name || 'Unit -'}</div>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <div className="font-bold text-slate-700">{b.vehicle.name}</div>
-                                                        <div className="text-[10px] text-slate-400 font-mono">{b.vehicle.plateNumber}</div>
+                                                        <div className="font-bold text-slate-700">{b.vehicle?.name}</div>
+                                                        <div className="text-[10px] text-slate-400 font-mono">{b.vehicle?.plateNumber}</div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
@@ -1708,8 +1708,8 @@ const VehicleBooking = () => {
                                         <div key={b.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-4">
                                             <div className="flex justify-between items-start">
                                                 <div>
-                                                    <div className="font-bold text-slate-800">{b.vehicle.name}</div>
-                                                    <div className="text-[10px] text-slate-400 font-mono">{b.vehicle.plateNumber}</div>
+                                                    <div className="font-bold text-slate-800">{b.vehicle?.name}</div>
+                                                    <div className="text-[10px] text-slate-400 font-mono">{b.vehicle?.plateNumber}</div>
                                                 </div>
                                                 {getStatusBadge(b.status)}
                                             </div>
@@ -1737,7 +1737,7 @@ const VehicleBooking = () => {
                                                     <button
                                                         disabled={submitting}
                                                         onClick={() => {
-                                                            setActionData({ ...actionData, km: b.vehicle.odometer || '' });
+                                                            setActionData({ ...actionData, km: b.vehicle?.odometer || '' });
                                                             setShowActionModal({ type: 'START', data: b });
                                                         }}
                                                         className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
@@ -1808,8 +1808,8 @@ const VehicleBooking = () => {
                                                         <div className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-black tracking-tighter uppercase border mb-1.5 ${b.isRented ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
                                                             {b.isRented ? 'SEWA' : 'INTERNAL'}
                                                         </div>
-                                                        <div className="font-bold text-slate-700">{b.vehicle.name}</div>
-                                                        <div className="text-[10px] text-slate-400 font-mono">{b.vehicle.plateNumber}</div>
+                                                        <div className="font-bold text-slate-700">{b.vehicle?.name}</div>
+                                                        <div className="text-[10px] text-slate-400 font-mono">{b.vehicle?.plateNumber}</div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
@@ -1842,7 +1842,7 @@ const VehicleBooking = () => {
                                                                 <button
                                                                     disabled={submitting}
                                                                     onClick={() => {
-                                                                        setActionData({ ...actionData, km: b.vehicle.odometer || '' });
+                                                                        setActionData({ ...actionData, km: b.vehicle?.odometer || '' });
                                                                         setShowActionModal({ type: 'START', data: b });
                                                                     }}
                                                                     className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1 disabled:opacity-50"
@@ -2013,7 +2013,7 @@ const VehicleBooking = () => {
                                             </div>
                                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
                                                 <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                                                    <Car size={14} className="text-blue-500" /> {b.vehicle.name}
+                                                    <Car size={14} className="text-blue-500" /> {b.vehicle?.name}
                                                 </div>
                                                 <div className="flex items-center gap-2 text-[11px] text-slate-500">
                                                     <Clock size={14} className="text-slate-400" /> {new Date(b.startDate).toLocaleString('id-ID')}
@@ -2081,8 +2081,8 @@ const VehicleBooking = () => {
                                                         <div className="text-[10px] text-slate-400 font-bold uppercase">{b.user?.unit?.name || 'Unit -'}</div>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <div className="font-bold text-slate-700">{b.vehicle.name}</div>
-                                                        <div className="text-[10px] text-slate-400 font-mono">{b.vehicle.plateNumber}</div>
+                                                        <div className="font-bold text-slate-700">{b.vehicle?.name}</div>
+                                                        <div className="text-[10px] text-slate-400 font-mono">{b.vehicle?.plateNumber}</div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
@@ -3596,8 +3596,8 @@ const VehicleBooking = () => {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="p-3 bg-slate-50 rounded-xl">
                                     <div className="text-[10px] font-bold text-slate-400 uppercase">Armada</div>
-                                    <div className="font-bold text-slate-700">{showDetailModal.vehicle.name}</div>
-                                    <div className="text-[10px] font-mono text-slate-400">{showDetailModal.vehicle.plateNumber}</div>
+                                    <div className="font-bold text-slate-700">{showDetailModal.vehicle?.name}</div>
+                                    <div className="text-[10px] font-mono text-slate-400">{showDetailModal.vehicle?.plateNumber}</div>
                                 </div>
                                 <div className="p-3 bg-slate-50 rounded-xl">
                                     <div className="text-[10px] font-bold text-slate-400 uppercase">Status</div>

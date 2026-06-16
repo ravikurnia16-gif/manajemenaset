@@ -53,13 +53,13 @@ const LiveTrackingMap = () => {
                 />
 
                 {activeTrips.map((trip) => {
-                    const lat = trip.vehicle.currentLat;
-                    const lng = trip.vehicle.currentLng;
+                    const lat = trip.vehicle?.currentLat;
+                    const lng = trip.vehicle?.currentLng;
                     
                     if (!lat || !lng) return null; // Skip if no GPS data yet
 
                     const driverName = trip.driver?.name || trip.user?.name || 'Sistem';
-                    const lastUpdate = new Date(trip.vehicle.lastLocationUpdate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    const lastUpdate = trip.vehicle?.lastLocationUpdate ? new Date(trip.vehicle.lastLocationUpdate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-';
 
                     return (
                         <Marker key={trip.id} position={[lat, lng]} icon={carIcon}>
@@ -67,7 +67,7 @@ const LiveTrackingMap = () => {
                                 <div className="p-1 min-w-[200px]">
                                     <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5 border-b pb-2 mb-2">
                                         <Car size={16} className="text-blue-600"/> 
-                                        {trip.vehicle.name} ({trip.vehicle.plateNumber})
+                                        {trip.vehicle?.name} ({trip.vehicle?.plateNumber})
                                     </h3>
                                     <div className="space-y-1.5 text-xs text-slate-600">
                                         <p className="flex items-start gap-2">
@@ -102,10 +102,10 @@ const LiveTrackingMap = () => {
                     ) : (
                         activeTrips.map(trip => (
                             <div key={trip.id} className="p-3 bg-white border border-slate-100 shadow-sm rounded-lg hover:border-blue-300 transition-colors cursor-default">
-                                <p className="font-bold text-xs text-slate-800 mb-1">{trip.vehicle.name}</p>
+                                <p className="font-bold text-xs text-slate-800 mb-1">{trip.vehicle?.name || 'Unknown Vehicle'}</p>
                                 <p className="text-[10px] text-slate-500 flex justify-between">
                                     <span>{trip.driver?.name || trip.user?.name || 'Sistem'}</span>
-                                    {trip.vehicle.currentLat ? (
+                                    {trip.vehicle?.currentLat ? (
                                         <span className="text-emerald-600 font-bold">Online</span>
                                     ) : (
                                         <span className="text-amber-500 font-bold">Menunggu GPS...</span>
