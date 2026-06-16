@@ -108,7 +108,24 @@ const VehicleBooking = () => {
 
     // --- GPS Tracking Fallback ---
     const gpsWatchId = useRef(null);
-    const lastLocationSentAt = useRef(0);
+    const lastSocketSentAt = useRef(0);
+    const lastDbSavedAt = useRef(0);
+    const lastDbSavedLocation = useRef(null);
+
+    // Haversine formula to calculate distance in meters
+    const calculateDistance = (lat1, lon1, lat2, lon2) => {
+        if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
+        const R = 6371e3;
+        const p1 = lat1 * Math.PI/180;
+        const p2 = lat2 * Math.PI/180;
+        const dp = (lat2-lat1) * Math.PI/180;
+        const dl = (lon2-lon1) * Math.PI/180;
+        const a = Math.sin(dp/2) * Math.sin(dp/2) +
+                  Math.cos(p1) * Math.cos(p2) *
+                  Math.sin(dl/2) * Math.sin(dl/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    };
 
     useEffect(() => {
         const activeTrip = bookings.find(b => 
@@ -119,13 +136,34 @@ const VehicleBooking = () => {
         const sendLocation = (position) => {
             if (activeTrip && position?.coords) {
                 const now = Date.now();
-                // Hanya kirim lokasi maksimal tiap 45 detik (45000 ms)
-                if (now - lastLocationSentAt.current >= 45000) {
-                    lastLocationSentAt.current = now;
-                    const { latitude, longitude, speed } = position.coords;
-                    api.post(`/vehicles/booking/${activeTrip.id}/location`, {
-                        latitude, longitude, speed
-                    }).catch(err => console.error('GPS send error', err));
+                const { latitude, longitude, speed } = position.coords;
+                const vehicleId = activeTrip.vehicleId;
+                
+                // 1. Live Socket Update (setiap 5 detik)
+                if (now - lastSocketSentAt.current >= 5000) {
+                    lastSocketSentAt.current = now;
+                    socket.emit('driver_location', {
+                        vehicleId,
+                        bookingId: activeTrip.id,
+                        latitude,
+                        longitude,
+                        speed: speed || 0
+                    });
+                }
+
+                // 2. Database Save (setiap 60 detik DAN bergeser > 50 meter)
+                if (now - lastDbSavedAt.current >= 60000) {
+                    const lastLoc = lastDbSavedLocation.current;
+                    const distance = lastLoc ? calculateDistance(lastLoc.lat, lastLoc.lng, latitude, longitude) : Infinity;
+
+                    if (distance >= 50) { // Hanya simpan jika bergerak lebih dari 50 meter
+                        lastDbSavedAt.current = now;
+                        lastDbSavedLocation.current = { lat: latitude, lng: longitude };
+                        
+                        api.post(`/vehicles/booking/${activeTrip.id}/location`, {
+                            latitude, longitude, speed: speed || 0
+                        }).catch(err => console.error('GPS send error', err));
+                    }
                 }
             }
         };

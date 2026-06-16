@@ -19,6 +19,13 @@ const io = new Server(server, {
     }
 });
 
+io.on('connection', (socket) => {
+    socket.on('driver_location', (data) => {
+        // Broadcast location directly from driver to all listening admins
+        io.emit('location_update', data);
+    });
+});
+
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 
