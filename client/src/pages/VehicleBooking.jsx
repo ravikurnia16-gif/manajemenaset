@@ -724,8 +724,7 @@ const VehicleBooking = () => {
         ...((isSuperAdmin || isAdminAset || isPIC) ? [{ id: 'CHECKLISTS', label: 'Ceklis Kendaraan', icon: <CheckCircle size={16} /> }] : []),
         { id: 'USER_VIOLATIONS', label: 'Pelanggaran User', icon: <AlertCircle size={16} /> },
         ...(canApprove ? [{ id: 'HISTORY', label: 'Riwayat Seluruhnya', icon: <Clock size={16} /> }] : []),
-        ...((isSuperAdmin || isAdminAset) ? [{ id: 'DRIVERS', label: 'Driver', icon: <Navigation2 size={16} /> }] : []),
-        ...(isKabidSarpras ? [{ id: 'TRACKING_MAP', label: 'Peta Pelacakan', icon: <MapPin size={16} /> }] : [])
+        ...((isSuperAdmin || isAdminAset) ? [{ id: 'DRIVERS', label: 'Driver', icon: <Navigation2 size={16} /> }] : [])
     ];
 
     return (
@@ -741,7 +740,7 @@ const VehicleBooking = () => {
                             💡 Lebih Praktis Kelola Perjalanan!
                         </h3>
                         <p className="text-blue-100 text-sm mt-1">
-                            Gunakan Aplikasi Driver untuk fitur <b>Start Trip</b>, <b>End Trip</b>, dan pelacakan GPS otomatis di latar belakang.
+                            Gunakan Aplikasi Driver untuk fitur <b>Start Trip</b>, <b>End Trip</b>, dan permudah akses aplikasi di latar belakang.
                         </p>
                     </div>
                 </div>
