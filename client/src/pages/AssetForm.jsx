@@ -454,24 +454,41 @@ const AssetForm = () => {
                             </div>
                         </div>
 
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${watch('isLendable') ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
-                                    <ArrowRightLeft size={20} />
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col gap-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${watch('isLendable') ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
+                                        <ArrowRightLeft size={20} />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-800">Bisa Dipinjam / Disewa?</p>
+                                        <p className="text-[10px] text-slate-500">Izinkan aset ini dipinjam/disewa.</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-sm font-bold text-slate-800">Bisa Dipinjam?</p>
-                                    <p className="text-[10px] text-slate-500">Izinkan aset ini untuk dipinjam oleh unit lain/staf.</p>
-                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        {...register('isLendable')}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                                </label>
                             </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    {...register('isLendable')}
-                                    className="sr-only peer"
-                                />
-                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-                            </label>
+
+                            {watch('isLendable') && (
+                                <div className="animate-in slide-in-from-top-2 duration-300 pt-2 border-t border-amber-200/50">
+                                    <label className="block text-[10px] font-bold text-amber-700 uppercase mb-1">Biaya Sewa / Pinjam (Per Hari)</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-2 text-slate-500 text-sm font-medium">Rp</span>
+                                        <input
+                                            type="number"
+                                            {...register('rentalFee')}
+                                            className="w-full border border-amber-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none bg-white"
+                                            placeholder="Kosongkan atau isi 0 jika gratis"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Routine Maintenance Toggle */}

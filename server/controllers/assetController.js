@@ -29,7 +29,7 @@ exports.createAsset = async (req, res) => {
             acquisitionStatus,
             picId, picName,
             vendorName, usefulLife, specification, sourceOfFunds,
-            isLendable,
+            isLendable, rentalFee,
             needsRoutineMaintenance, maintenanceInterval,
             // Additional fields for "Other" options
             newCategoryName, newCategoryCode,
@@ -163,6 +163,7 @@ exports.createAsset = async (req, res) => {
                         sourceOfFunds: sourceOfFunds || "Mandiri",
                         acquisitionStatus: acquisitionStatus || "Pembelian",
                         isLendable: isLendable === true || isLendable === 'true',
+                        rentalFee: rentalFee ? parseFloat(rentalFee) : null,
                         quantity: 1,
                         picId: picId ? parseInt(picId) : null,
                         picName: picName || null,
@@ -424,7 +425,7 @@ exports.updateAsset = async (req, res) => {
             usefulLife, vendorName, specification, sourceOfFunds,
             acquisitionStatus,
             picId, picName,
-            isLendable,
+            isLendable, rentalFee,
             needsRoutineMaintenance,
             maintenanceInterval
         } = req.body;
@@ -451,6 +452,7 @@ exports.updateAsset = async (req, res) => {
                 picId: picId ? parseInt(picId) : null,
                 picName: picName || null,
                 isLendable: isLendable === true || isLendable === 'true',
+                rentalFee: rentalFee ? parseFloat(rentalFee) : null,
                 needsRoutineMaintenance: needsRoutineMaintenance !== undefined ? (needsRoutineMaintenance === true || needsRoutineMaintenance === 'true') : undefined,
                 maintenanceInterval: maintenanceInterval !== undefined ? parseInt(maintenanceInterval) : undefined,
                 image: req.fileUrl || undefined

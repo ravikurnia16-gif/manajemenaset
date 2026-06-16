@@ -290,6 +290,7 @@ model Asset {
   sourceOfFunds     String?   @default("Mandiri")
   acquisitionStatus String?   @default("Pembelian")
   isLendable        Boolean   @default(false)
+  rentalFee         Float?
 
   image   String? @db.LongText
   invoice String? @db.LongText
