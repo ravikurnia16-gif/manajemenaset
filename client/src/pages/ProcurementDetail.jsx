@@ -302,8 +302,9 @@ const Notice = ({ type = 'info', children }) => {
 /* ─────────────────────────────────────────────
     SUB-COMPONENTS
 ───────────────────────────────────────────── */
-const AssetImageUpload = ({ value, onChange, label = 'Foto Aset' }) => {
+const AssetImageUpload = ({ value, onChange, label = 'Foto Aset', disabled }) => {
     const handleFile = (e) => {
+        if (disabled) return;
         const file = e.target.files[0];
         if (!file) return;
         if (file.size > 5 * 1024 * 1024) return alert('File terlalu besar (maks 5MB)');
@@ -318,23 +319,26 @@ const AssetImageUpload = ({ value, onChange, label = 'Foto Aset' }) => {
             <div style={{
                 width: '100%', height: 70, borderRadius: 10, border: `1.5px dashed ${T.border}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                position: 'relative', overflow: 'hidden', background: value ? 'transparent' : T.white,
-                transition: 'all 0.2s ease'
+                position: 'relative', overflow: 'hidden', background: value ? 'transparent' : (disabled ? T.creamDk : T.white),
+                transition: 'all 0.2s ease',
+                cursor: disabled ? 'not-allowed' : 'pointer'
             }}>
                 {value ? (
                     <>
-                        <img src={value} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        <button
-                            type="button"
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange(null); }}
-                            style={{
-                                position: 'absolute', top: 4, right: 4,
-                                background: 'rgba(239, 68, 68, 0.9)', color: 'white',
-                                border: 'none', borderRadius: '50%', width: 18, height: 18,
-                                cursor: 'pointer', fontSize: 10, display: 'flex',
-                                alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
-                            }}
-                        >×</button>
+                        <img src={value} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: disabled ? 0.7 : 1 }} />
+                        {!disabled && (
+                            <button
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange(null); }}
+                                style={{
+                                    position: 'absolute', top: 4, right: 4,
+                                    background: 'rgba(239, 68, 68, 0.9)', color: 'white',
+                                    border: 'none', borderRadius: '50%', width: 18, height: 18,
+                                    cursor: 'pointer', fontSize: 10, display: 'flex',
+                                    alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
+                                }}
+                            >×</button>
+                        )}
                     </>
                 ) : (
                     <div style={{ textAlign: 'center', color: T.border }}>
@@ -344,8 +348,9 @@ const AssetImageUpload = ({ value, onChange, label = 'Foto Aset' }) => {
                 )}
                 <input
                     type="file" accept="image/*"
+                    disabled={disabled}
                     onChange={handleFile}
-                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: disabled ? 'not-allowed' : 'pointer' }}
                 />
             </div>
         </div>
@@ -388,6 +393,7 @@ const ProcurementDetail = () => {
     const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'ADMIN_UNIT', 'KEPALA_BIDANG'].includes(user?.role);
     const isAssignedToAny = req?.items?.some(i => i.assignedToId === user?.id) || false;
     const isAssignedToItem = (item) => item.assignedToId === user?.id;
+    const isRequester = req?.userId === user?.id;
 
     useEffect(() => { fetchDetail(); fetchUsers(); fetchUnits(); fetchCategories(); fetchSettings(); }, [id]);
 
@@ -1331,7 +1337,7 @@ const ProcurementDetail = () => {
                                 {/* Date */}
                                 <div>
                                     <Label>Tanggal Serah Terima</Label>
-                                    <Input type="date" value={bastDate} onChange={e => setBastDate(e.target.value)} />
+                                    <Input type="date" disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)} value={bastDate} onChange={e => setBastDate(e.target.value)} />
                                 </div>
 
                                 {/* Photo Upload */}
@@ -1342,21 +1348,23 @@ const ProcurementDetail = () => {
                                         borderRadius: 14, padding: handoverPhoto ? 12 : 40,
                                         background: handoverPhoto ? T.successBg : T.cream,
                                         textAlign: 'center', position: 'relative',
-                                        cursor: 'pointer', transition: 'all .2s'
+                                        cursor: (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) ? 'not-allowed' : 'pointer', transition: 'all .2s'
                                     }}>
                                         {handoverPhoto ? (
                                             <div style={{ position: 'relative', display: 'inline-block' }}>
                                                 <img src={getMediaUrl(handoverPhoto)} alt="Bukti"
-                                                    style={{ maxHeight: 240, borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }} />
-                                                <button onClick={e => { e.stopPropagation(); setHandoverPhoto(null); }}
-                                                    style={{
-                                                        position: 'absolute', top: -10, right: -10,
-                                                        width: 28, height: 28, borderRadius: '50%',
-                                                        background: T.danger, color: T.white, border: 'none',
-                                                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                                    }}>
-                                                    <XCircle size={18} />
-                                                </button>
+                                                    style={{ maxHeight: 240, borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', opacity: (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) ? 0.7 : 1 }} />
+                                                {!(req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) && (
+                                                    <button onClick={e => { e.stopPropagation(); setHandoverPhoto(null); }}
+                                                        style={{
+                                                            position: 'absolute', top: -10, right: -10,
+                                                            width: 28, height: 28, borderRadius: '50%',
+                                                            background: T.danger, color: T.white, border: 'none',
+                                                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                        }}>
+                                                        <XCircle size={18} />
+                                                    </button>
+                                                )}
                                             </div>
                                         ) : (
                                             <>
@@ -1366,7 +1374,8 @@ const ProcurementDetail = () => {
                                             </>
                                         )}
                                         <input type="file" accept="image/*"
-                                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                                            disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)}
+                                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) ? 'not-allowed' : 'pointer' }}
                                             onChange={e => {
                                                 const f = e.target.files[0];
                                                 if (f) {
@@ -1388,8 +1397,10 @@ const ProcurementDetail = () => {
                                             <span style={{ fontWeight: 700, fontSize: 14, color: T.navy }}>Detail Aset per Item</span>
                                         </div>
                                         {req.items.map((it, idx) => {
+                                            const itemDisabled = req.status === 'COMPLETED' || !(isAdmin || isAssignedToItem(it) || isRequester);
                                             const det = assetDetails[it.id] || {};
                                             const updateDet = (field, val) => {
+                                                if (itemDisabled) return;
                                                 setAssetDetails(p => ({
                                                     ...p,
                                                     [it.id]: { ...p[it.id], [field]: val }
@@ -1409,7 +1420,7 @@ const ProcurementDetail = () => {
                                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
                                                         <div>
                                                             <Label>Kategori *</Label>
-                                                            <Select value={det.categoryId || ''} onChange={e => updateDet('categoryId', e.target.value)}>
+                                                            <Select disabled={itemDisabled} value={det.categoryId || ''} onChange={e => updateDet('categoryId', e.target.value)}>
                                                                 <option value="">— Pilih Kategori —</option>
                                                                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                                             </Select>
@@ -1421,7 +1432,7 @@ const ProcurementDetail = () => {
                                                         </div>
                                                         <div>
                                                             <Label>Kondisi Awal</Label>
-                                                            <Select value={det.condition || 'BAIK'} onChange={e => updateDet('condition', e.target.value)}>
+                                                            <Select disabled={itemDisabled} value={det.condition || 'BAIK'} onChange={e => updateDet('condition', e.target.value)}>
                                                                 <option value="BAIK">Baik</option>
                                                                 <option value="RUSAK_RINGAN">Rusak Ringan</option>
                                                                 <option value="RUSAK_BERAT">Rusak Berat</option>
@@ -1434,13 +1445,14 @@ const ProcurementDetail = () => {
                                                                 <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                                                                     {[['SAME', 'Sama untuk Semua'], ['INDIVIDUAL', 'Berbeda per Unit']].map(([val, label]) => (
                                                                         <button key={val}
+                                                                            disabled={itemDisabled}
                                                                             onClick={() => updateDet('allocationType', val)}
                                                                             style={{
                                                                                 flex: 1, padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
                                                                                 border: `1.5px solid ${det.allocationType === val ? T.navy : T.border}`,
-                                                                                background: det.allocationType === val ? T.navy : T.white,
+                                                                                background: det.allocationType === val ? T.navy : (itemDisabled ? T.creamDk : T.white),
                                                                                 color: det.allocationType === val ? T.white : T.slate,
-                                                                                cursor: 'pointer'
+                                                                                cursor: itemDisabled ? 'not-allowed' : 'pointer'
                                                                             }}>
                                                                             {label}
                                                                         </button>
@@ -1452,7 +1464,7 @@ const ProcurementDetail = () => {
                                                         {det.allocationType === 'SAME' ? (
                                                             <div>
                                                                 <Label>Ruangan *</Label>
-                                                                <Select value={det.roomId || ''} onChange={e => updateDet('roomId', e.target.value)}>
+                                                                <Select disabled={itemDisabled} value={det.roomId || ''} onChange={e => updateDet('roomId', e.target.value)}>
                                                                     <option value="">— Pilih Ruangan —</option>
                                                                     {rooms.map(r => <option key={r.id} value={r.id}>{r.name}{r.building ? ` (${r.building})` : ''}</option>)}
                                                                 </Select>
@@ -1462,7 +1474,7 @@ const ProcurementDetail = () => {
                                                                 {det.units.map((u, uIdx) => (
                                                                     <div key={uIdx} style={{ background: T.white, padding: 10, borderRadius: 8, border: `1px solid ${T.border}` }}>
                                                                         <Label style={{ fontWeight: 800 }}>Unit {uIdx + 1}</Label>
-                                                                        <Select value={u.roomId || ''} onChange={e => {
+                                                                        <Select disabled={itemDisabled} value={u.roomId || ''} onChange={e => {
                                                                             const nextUnits = [...det.units];
                                                                             nextUnits[uIdx].roomId = e.target.value;
                                                                             updateDet('units', nextUnits);
@@ -1471,6 +1483,7 @@ const ProcurementDetail = () => {
                                                                             {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                                                                         </Select>
                                                                         <AssetImageUpload
+                                                                            disabled={itemDisabled}
                                                                             value={u.image}
                                                                             onChange={val => {
                                                                                 const nextUnits = [...det.units];
@@ -1486,7 +1499,7 @@ const ProcurementDetail = () => {
 
                                                         <div>
                                                             <Label>PIC (Opsional)</Label>
-                                                            <Select value={det.picId || ''} onChange={e => updateDet('picId', e.target.value)}>
+                                                            <Select disabled={itemDisabled} value={det.picId || ''} onChange={e => updateDet('picId', e.target.value)}>
                                                                 <option value="">— Tidak ada —</option>
                                                                 {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                             </Select>
@@ -1494,6 +1507,7 @@ const ProcurementDetail = () => {
                                                         {det.allocationType === 'SAME' && (
                                                             <div>
                                                                 <AssetImageUpload
+                                                                    disabled={itemDisabled}
                                                                     value={det.image}
                                                                     onChange={val => updateDet('image', val)}
                                                                     label="Foto Aset (Sama untuk semua)"
@@ -1505,12 +1519,13 @@ const ProcurementDetail = () => {
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.cream, padding: '10px 14px', borderRadius: 8 }}>
                                                             <input
                                                                 type="checkbox"
+                                                                disabled={itemDisabled}
                                                                 id={`lendable-${it.id}`}
                                                                 checked={det.isLendable || false}
                                                                 onChange={e => updateDet('isLendable', e.target.checked)}
-                                                                style={{ cursor: 'pointer', width: 16, height: 16 }}
+                                                                style={{ cursor: itemDisabled ? 'not-allowed' : 'pointer', width: 16, height: 16 }}
                                                             />
-                                                            <label htmlFor={`lendable-${it.id}`} style={{ fontSize: 12, fontWeight: 600, color: T.text, cursor: 'pointer', userSelect: 'none' }}>
+                                                            <label htmlFor={`lendable-${it.id}`} style={{ fontSize: 12, fontWeight: 600, color: T.text, cursor: itemDisabled ? 'not-allowed' : 'pointer', userSelect: 'none' }}>
                                                                 Aset ini bisa dipinjam oleh unit lain
                                                             </label>
                                                         </div>
@@ -1519,16 +1534,17 @@ const ProcurementDetail = () => {
                                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: det.needsRoutineMaintenance ? 12 : 0 }}>
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: det.needsRoutineMaintenance ? '#2c5fc4' : T.border }} />
-                                                                    <label htmlFor={`maint-${it.id}`} style={{ fontSize: 12, fontWeight: 700, color: '#1e3a8a', cursor: 'pointer' }}>
+                                                                    <label htmlFor={`maint-${it.id}`} style={{ fontSize: 12, fontWeight: 700, color: '#1e3a8a', cursor: itemDisabled ? 'not-allowed' : 'pointer' }}>
                                                                         Pemeliharaan Rutin?
                                                                     </label>
                                                                 </div>
                                                                 <input
                                                                     type="checkbox"
+                                                                    disabled={itemDisabled}
                                                                     id={`maint-${it.id}`}
                                                                     checked={det.needsRoutineMaintenance || false}
                                                                     onChange={e => updateDet('needsRoutineMaintenance', e.target.checked)}
-                                                                    style={{ cursor: 'pointer', width: 16, height: 16 }}
+                                                                    style={{ cursor: itemDisabled ? 'not-allowed' : 'pointer', width: 16, height: 16 }}
                                                                 />
                                                             </div>
                                                             {det.needsRoutineMaintenance && (
@@ -1537,6 +1553,7 @@ const ProcurementDetail = () => {
                                                                         <Label>Interval</Label>
                                                                         <Input
                                                                             type="number"
+                                                                            disabled={itemDisabled}
                                                                             value={det.maintenanceInterval || 3}
                                                                             onChange={e => updateDet('maintenanceInterval', e.target.value)}
                                                                             style={{ padding: '6px 10px', fontSize: 12 }}
@@ -1545,6 +1562,7 @@ const ProcurementDetail = () => {
                                                                     <div style={{ flex: 1 }}>
                                                                         <Label>Satuan</Label>
                                                                         <Select
+                                                                            disabled={itemDisabled}
                                                                             value={det.intervalUnit || 'MONTHS'}
                                                                             onChange={e => updateDet('intervalUnit', e.target.value)}
                                                                             style={{ padding: '6px 10px', fontSize: 12 }}
@@ -1564,18 +1582,18 @@ const ProcurementDetail = () => {
                                 )}
 
                                 <button
-                                    disabled={!bastDate}
+                                    disabled={!bastDate || (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester))}
                                     onClick={handleBAST}
                                     style={{
                                         width: '100%', padding: '16px',
                                         borderRadius: 12, fontFamily: "'DM Sans', sans-serif",
                                         fontSize: 15, fontWeight: 700, border: 'none',
-                                        background: bastDate
+                                        background: (bastDate && !(req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)))
                                             ? `linear-gradient(135deg, ${T.success}, #3a9a72)`
                                             : T.creamDk,
-                                        color: bastDate ? T.white : T.slate,
-                                        cursor: bastDate ? 'pointer' : 'not-allowed',
-                                        boxShadow: bastDate ? '0 6px 20px rgba(45,122,95,0.3)' : 'none',
+                                        color: (bastDate && !(req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester))) ? T.white : T.slate,
+                                        cursor: (bastDate && !(req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester))) ? 'pointer' : 'not-allowed',
+                                        boxShadow: (bastDate && !(req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester))) ? '0 6px 20px rgba(45,122,95,0.3)' : 'none',
                                         transition: 'all .25s',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10
                                     }}>
