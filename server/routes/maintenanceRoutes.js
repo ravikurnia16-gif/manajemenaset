@@ -12,6 +12,7 @@ router.post('/', verifyToken, handleBulkUpload('media', 10, 'maintenance'), main
 router.post('/:id/media', verifyToken, handleBulkUpload('media', 5, 'maintenance'), maintenanceController.addMedia);
 router.put('/:id/status', verifyToken, maintenanceController.updateStatus);
 router.put('/quick-complete/:token', maintenanceController.quickComplete);
+router.put('/:id/complete-asset/:assetId', verifyToken, maintenanceController.completeAssetMaintenance);
 router.delete('/:id', verifyToken, authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG']), maintenanceController.deleteReport);
 
 module.exports = router;

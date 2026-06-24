@@ -380,11 +380,16 @@ exports.getAssetById = async (req, res) => {
 
         // 3. Maintenances (Pemeliharaan)
         asset.maintenances.forEach(m => {
+            let noteStr = m.completionNote || m.actionTaken || '';
+            if (m.status === 'REJECTED') noteStr = m.rejectionReason || '';
+
             history.push({
                 type: 'MAINTENANCE',
                 date: m.createdAt,
                 title: 'Pemeliharaan / Perbaikan',
                 description: m.title,
+                issue: m.description,
+                note: noteStr,
                 subTitle: m.technician ? `Teknisi: ${m.technician}` : null,
                 status: m.status,
                 icon: 'Wrench'

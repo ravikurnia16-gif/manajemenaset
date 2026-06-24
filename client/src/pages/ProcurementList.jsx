@@ -122,7 +122,27 @@ const ProcurementList = () => {
     };
 
     // Client-side Pagination Logic (assuming API handles pagination, this part is for display)
-    const filteredRequests = requests; // API already filters, but if we added client search...
+    const statusWeight = {
+        'SUBMITTED': 1,
+        'APPROVED': 2,
+        'PROCESS': 3,
+        'DRAFT': 4,
+        'VALIDATED': 5,
+        'REJECTED': 6,
+        'COMPLETED': 7
+    };
+
+    const filteredRequests = [...requests].sort((a, b) => {
+        const weightA = statusWeight[a.status] || 99;
+        const weightB = statusWeight[b.status] || 99;
+        
+        if (weightA !== weightB) {
+            return weightA - weightB;
+        }
+        
+        // Jika statusnya sama, urutkan dari yang paling lama (ascending date)
+        return new Date(a.createdAt) - new Date(b.createdAt);
+    });
     const totalItems = filteredRequests.length; // This should come from API metadata for true pagination
     const totalPages = pagination.limit === -1 ? 1 : Math.ceil(totalItems / pagination.limit);
 

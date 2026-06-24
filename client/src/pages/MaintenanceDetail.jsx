@@ -81,6 +81,17 @@ const MaintenanceDetail = () => {
         }
     };
 
+    const markAssetAsCompleted = async (assetId) => {
+        if (!confirm('Tandai aset ini sebagai selesai? Prediksi jadwal perbaikannya akan langsung diperbarui.')) return;
+        try {
+            await api.put(`/maintenance/${id}/complete-asset/${assetId}`);
+            showToast('Aset berhasil ditandai selesai');
+            fetchReport(); // Refresh data
+        } catch (error) {
+            showToast(error.response?.data?.error || 'Gagal menandai aset', 'error');
+        }
+    };
+
     const fetchUsers = async () => {
         try {
             const res = await api.get('/users');
@@ -357,22 +368,45 @@ const MaintenanceDetail = () => {
                             <div className="space-y-1">
                                 <span className="text-slate-500">Aset Terkait:</span>
                                 <div className="space-y-1 mt-1">
-                                    {report.assets.map(a => (
-                                        <div key={a.id} className="flex justify-between items-center p-2 bg-slate-50 rounded border border-slate-100 font-mono text-xs">
-                                            <div>
-                                                <span className="font-bold text-blue-600">{a.code}</span>
-                                                <span className="text-slate-600 ml-2">{a.name}</span>
+                                    {report.assets.map(a => {
+                                        const isAssetCompleted = report.aiDiagnosis?.completedAssets?.includes(a.id);
+                                        const canComplete = report.status === 'IN_PROGRESS' || report.status === 'ASSIGNED';
+                                        
+                                        return (
+                                            <div key={a.id} className="flex justify-between items-center p-2 bg-slate-50 rounded border border-slate-100 font-mono text-xs">
+                                                <div>
+                                                    <span className="font-bold text-blue-600">{a.code}</span>
+                                                    <span className="text-slate-600 ml-2">{a.name}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {isAssetCompleted ? (
+                                                        <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded border border-green-200">
+                                                            <CheckCircle2 size={12} /> Selesai
+                                                        </span>
+                                                    ) : (
+                                                        canComplete && (
+                                                            <button 
+                                                                onClick={() => markAssetAsCompleted(a.id)}
+                                                                className="flex items-center gap-1 px-2 py-1 bg-white border border-green-200 rounded text-green-600 hover:bg-green-50 transition-colors"
+                                                                title="Tandai Selesai & Update Jadwal Rutin"
+                                                            >
+                                                                <CheckCircle2 size={12} />
+                                                                <span>Tandai Selesai</span>
+                                                            </button>
+                                                        )
+                                                    )}
+                                                    <button 
+                                                        onClick={() => fetchAssetHistory(a)}
+                                                        className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-blue-600 hover:bg-blue-50 transition-colors"
+                                                        title="Lihat Riwayat Perbaikan"
+                                                    >
+                                                        <Clock size={12} />
+                                                        <span>Riwayat</span>
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <button 
-                                                onClick={() => fetchAssetHistory(a)}
-                                                className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-blue-600 hover:bg-blue-50 transition-colors"
-                                                title="Lihat Riwayat Perbaikan"
-                                            >
-                                                <Clock size={12} />
-                                                <span>Riwayat</span>
-                                            </button>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -1012,6 +1046,19 @@ const MaintenanceDetail = () => {
                                                     <div className="flex items-center gap-1"><Calendar size={12}/> {new Date(item.date).toLocaleDateString('id-ID')}</div>
                                                     {item.subTitle && <div className="flex items-center gap-1"><User size={12}/> {item.subTitle}</div>}
                                                     <div className="font-semibold text-blue-600 mt-1">Status: {item.status}</div>
+                                                    
+                                                    {item.issue && (
+                                                        <div className="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">
+                                                            <span className="font-semibold block mb-0.5">Masalah/Keluhan:</span>
+                                                            <div className="whitespace-pre-wrap">{item.issue}</div>
+                                                        </div>
+                                                    )}
+                                                    {item.note && (
+                                                        <div className="mt-2 text-xs text-slate-600 bg-blue-50 p-2 rounded border border-blue-100">
+                                                            <span className="font-semibold block mb-0.5">Catatan/Tindakan:</span>
+                                                            <div className="whitespace-pre-wrap">{item.note}</div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

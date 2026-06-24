@@ -1212,3 +1212,54 @@ exports.checkUnrespondedReports = async () => {
         console.error('[Scheduler] checkUnrespondedReports Error:', error);
     }
 };
+// Complete a single asset in a maintenance report
+exports.completeAssetMaintenance = async (req, res) => {
+    const { id, assetId } = req.params;
+    
+    try {
+        const report = await prisma.maintenance.findUnique({
+            where: { id: parseInt(id) },
+            include: { assets: true }
+        });
+
+        if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
+        
+        // Ensure the asset belongs to this report
+        const isAssetInReport = report.assets.some(a => a.id === parseInt(assetId));
+        if (!isAssetInReport) {
+            return res.status(400).json({ error: 'Aset tidak terkait dengan laporan ini' });
+        }
+
+        // We use aiDiagnosis field to store generic metadata since it's unused now
+        let metadata = report.aiDiagnosis || {};
+        if (typeof metadata !== 'object' || Array.isArray(metadata)) {
+            metadata = {};
+        }
+
+        const completedIds = metadata.completedAssets || [];
+        
+        if (completedIds.includes(parseInt(assetId))) {
+            return res.status(400).json({ error: 'Aset ini sudah ditandai selesai' });
+        }
+
+        completedIds.push(parseInt(assetId));
+        metadata.completedAssets = completedIds;
+
+        await prisma.maintenance.update({
+            where: { id: parseInt(id) },
+            data: { aiDiagnosis: metadata }
+        });
+
+        // Trigger predictive maintenance for this specific asset
+        try {
+            await predictiveService.predictNextMaintenance(parseInt(assetId));
+            console.log(`[Predictive] Updated prediction for Asset ID: ${assetId} (Partial Completion)`);
+        } catch (err) {
+            console.error(`[Predictive] Error for Asset ${assetId}:`, err);
+        }
+
+        res.json({ message: 'Aset berhasil ditandai selesai', completedAssets: completedIds });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
