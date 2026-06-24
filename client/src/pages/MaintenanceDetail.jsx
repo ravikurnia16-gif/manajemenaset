@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, Edit2, FileText as FileIcon } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, UserPlus, PlayCircle, Wrench, Sparkles, AlertTriangle, Info, Plus, Loader2, ClipboardList, UserCheck, HardHat, Cog, CheckCircle2, Trash2, Edit2, FileText as FileIcon, Clock, Calendar, User } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
 
@@ -38,6 +38,7 @@ const MaintenanceDetail = () => {
 
     // Modal state for actions
     const [actionModal, setActionModal] = useState({ show: false, type: '', nextStatus: '' });
+    const [historyModal, setHistoryModal] = useState({ show: false, asset: null, timeline: [], loading: false });
     const [actionNote, setActionNote] = useState('');
     const [assignUnitId, setAssignUnitId] = useState('');
     const [technicianName, setTechnicianName] = useState('');
@@ -54,6 +55,18 @@ const MaintenanceDetail = () => {
     const showToast = (message, type = 'success') => {
         setToast({ show: true, message, type });
         setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+    };
+
+    const fetchAssetHistory = async (asset) => {
+        try {
+            setHistoryModal({ show: true, asset, timeline: [], loading: true });
+            const res = await api.get(`/assets/${asset.id}`);
+            const maintenanceHistory = (res.data.timeline || []).filter(item => item.type === 'MAINTENANCE');
+            setHistoryModal({ show: true, asset, timeline: maintenanceHistory, loading: false });
+        } catch (err) {
+            showToast('Gagal memuat riwayat aset', 'error');
+            setHistoryModal({ show: false, asset: null, timeline: [], loading: false });
+        }
     };
 
     const fetchReport = async () => {
@@ -345,9 +358,19 @@ const MaintenanceDetail = () => {
                                 <span className="text-slate-500">Aset Terkait:</span>
                                 <div className="space-y-1 mt-1">
                                     {report.assets.map(a => (
-                                        <div key={a.id} className="flex justify-between p-2 bg-slate-50 rounded border border-slate-100 font-mono text-xs">
-                                            <span className="font-bold text-blue-600">{a.code}</span>
-                                            <span className="text-slate-600">{a.name}</span>
+                                        <div key={a.id} className="flex justify-between items-center p-2 bg-slate-50 rounded border border-slate-100 font-mono text-xs">
+                                            <div>
+                                                <span className="font-bold text-blue-600">{a.code}</span>
+                                                <span className="text-slate-600 ml-2">{a.name}</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => fetchAssetHistory(a)}
+                                                className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-blue-600 hover:bg-blue-50 transition-colors"
+                                                title="Lihat Riwayat Perbaikan"
+                                            >
+                                                <Clock size={12} />
+                                                <span>Riwayat</span>
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
@@ -950,6 +973,55 @@ const MaintenanceDetail = () => {
                             >
                                 Konfirmasi
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* History Modal */}
+            {historyModal.show && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-lg space-y-4 shadow-2xl max-h-[80vh] flex flex-col">
+                        <div className="flex justify-between items-center border-b pb-3">
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800">Riwayat Perbaikan Aset</h3>
+                                <p className="text-sm text-slate-500 font-mono">{historyModal.asset?.code} - <span className="font-sans">{historyModal.asset?.name}</span></p>
+                            </div>
+                            <button onClick={() => setHistoryModal({ show: false, asset: null, timeline: [], loading: false })} className="text-slate-400 hover:text-slate-600">
+                                <XCircle size={24} />
+                            </button>
+                        </div>
+                        
+                        <div className="overflow-y-auto flex-1 pr-2 space-y-4">
+                            {historyModal.loading ? (
+                                <div className="flex justify-center items-center py-10 text-slate-400">
+                                    <Loader2 size={24} className="animate-spin" />
+                                </div>
+                            ) : historyModal.timeline.length > 0 ? (
+                                <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
+                                    {historyModal.timeline.map((item, idx) => (
+                                        <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                                            <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-100 text-slate-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+                                                <Wrench size={16} />
+                                            </div>
+                                            <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                                <div className="flex items-center justify-between space-x-2 mb-1">
+                                                    <div className="font-bold text-slate-800 text-sm">{item.description}</div>
+                                                </div>
+                                                <div className="text-xs text-slate-500 space-y-1 mt-2">
+                                                    <div className="flex items-center gap-1"><Calendar size={12}/> {new Date(item.date).toLocaleDateString('id-ID')}</div>
+                                                    {item.subTitle && <div className="flex items-center gap-1"><User size={12}/> {item.subTitle}</div>}
+                                                    <div className="font-semibold text-blue-600 mt-1">Status: {item.status}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-10 text-sm text-slate-500 italic">
+                                    Belum ada riwayat perbaikan untuk aset ini.
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

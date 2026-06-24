@@ -4,7 +4,7 @@ import {
     CheckCircle, XCircle, FileText, Upload, DollarSign, Store,
     ArrowLeft, Plus, Trash2, ShoppingCart, UserCheck, Camera,
     Image, MapPin, ChevronRight, AlertCircle, Package, QrCode,
-    MessageSquare, Clock
+    MessageSquare, Clock, Save
 } from 'lucide-react';
 import api from '../lib/axios';
 import { getMediaUrl } from '../lib/media';
@@ -449,12 +449,15 @@ const ProcurementDetail = () => {
             setRooms(roomsRes.data.filter(r => r.unitId === data.unitId));
             if (data.type === 'ASSET' && data.items.length > 0) {
                 const initDetails = {};
+                const savedDraftStr = localStorage.getItem(`bast_draft_${id}`);
+                const savedDraft = savedDraftStr ? JSON.parse(savedDraftStr) : {};
+
                 data.items.forEach(it => {
                     const units = [];
                     for (let i = 0; i < it.qty; i++) {
                         units.push({ roomId: '', picId: '', image: null });
                     }
-                    initDetails[it.id] = {
+                    initDetails[it.id] = savedDraft[it.id] || {
                         categoryId: '',
                         roomId: '',
                         picId: '',
@@ -534,6 +537,22 @@ const ProcurementDetail = () => {
         setReq(next);
     };
 
+    const handleSaveDraftItem = (itemId) => {
+        const draftStr = localStorage.getItem(`bast_draft_${id}`);
+        const draft = draftStr ? JSON.parse(draftStr) : {};
+        draft[itemId] = assetDetails[itemId];
+        localStorage.setItem(`bast_draft_${id}`, JSON.stringify(draft));
+        alert('Detail item berhasil disimpan sebagai draft.');
+    };
+
+    const handleSaveDraftAll = () => {
+        const draftStr = localStorage.getItem(`bast_draft_${id}`);
+        const draft = draftStr ? JSON.parse(draftStr) : {};
+        const updatedDraft = { ...draft, ...assetDetails };
+        localStorage.setItem(`bast_draft_${id}`, JSON.stringify(updatedDraft));
+        alert('Semua detail berhasil disimpan sebagai draft.');
+    };
+
     const handleBAST = async () => {
         if (!bastDate) return alert('Pilih tanggal serah terima');
         if (req.type === 'ASSET') {
@@ -563,6 +582,8 @@ const ProcurementDetail = () => {
             await api.post(`/procurements/${id}/bast`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
+
+            localStorage.removeItem(`bast_draft_${id}`); // Bersihkan draft jika BAST sukses
 
             alert('BAST Berhasil. Aset telah dibuat.');
             window.location.reload();
@@ -1575,10 +1596,43 @@ const ProcurementDetail = () => {
                                                             )}
                                                         </div>
                                                     </div>
+                                                    
+                                                    <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', paddingTop: 16, borderTop: `1px solid ${T.creamDk}` }}>
+                                                        <button
+                                                            onClick={() => handleSaveDraftItem(it.id)}
+                                                            disabled={itemDisabled}
+                                                            style={{
+                                                                padding: '10px 16px', borderRadius: 8, background: itemDisabled ? T.creamDk : T.goldSoft, color: itemDisabled ? T.slate : T.warn,
+                                                                fontWeight: 700, border: 'none', cursor: itemDisabled ? 'not-allowed' : 'pointer',
+                                                                display: 'flex', alignItems: 'center', gap: 8, fontSize: 13
+                                                            }}
+                                                        >
+                                                            <Save size={16} />
+                                                            Simpan Draft Item
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             );
                                         })}
                                     </div>
+                                )}
+
+                                {req.items.length > 0 && (
+                                    <button
+                                        onClick={handleSaveDraftAll}
+                                        disabled={req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)}
+                                        style={{
+                                            width: '100%', padding: '16px', marginBottom: 12,
+                                            borderRadius: 12, fontFamily: "'DM Sans', sans-serif",
+                                            fontSize: 15, fontWeight: 700, border: `2px solid ${T.goldSoft}`,
+                                            background: T.white,
+                                            color: (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) ? T.slate : T.warn,
+                                            cursor: (req.status === 'COMPLETED' || !(isAdmin || isAssignedToAny || isRequester)) ? 'not-allowed' : 'pointer',
+                                            transition: 'all .25s',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10
+                                        }}>
+                                        <Save size={18} /> Simpan Draft Semua
+                                    </button>
                                 )}
 
                                 <button
