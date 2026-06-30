@@ -3464,6 +3464,20 @@ const VehicleBooking = () => {
                                 />
                             </div>
 
+                            <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-100 rounded-xl">
+                                <input 
+                                    type="checkbox" 
+                                    name="freezeAccount" 
+                                    id="freezeAccount"
+                                    value="true"
+                                    className="mt-1 w-4 h-4 text-red-600 rounded border-red-300 focus:ring-red-500 cursor-pointer" 
+                                />
+                                <div>
+                                    <label htmlFor="freezeAccount" className="text-sm font-bold text-red-800 cursor-pointer">Bekukan Peminjaman Akun User</label>
+                                    <p className="text-[10px] text-red-600 mt-0.5 leading-tight">Jika dicentang, user ini tidak akan bisa meminjam kendaraan (akun disanksi) hingga sanksi dicabut oleh admin.</p>
+                                </div>
+                            </div>
+
                             <div className="pt-4">
                                 <button type="submit" className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-200">
                                     Simpan Pelanggaran

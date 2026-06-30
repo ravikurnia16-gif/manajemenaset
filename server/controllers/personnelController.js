@@ -831,7 +831,7 @@ exports.getDriverViolations = async (req, res) => {
 };
 
 exports.createDriverViolation = async (req, res) => {
-    const { driverId, date, category, description, sanction } = req.body;
+    const { driverId, date, category, description, sanction, freezeAccount } = req.body;
     try {
         // Hanya Admin / Super Admin
         if (!['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET'].includes(req.user.role)) {
@@ -840,16 +840,28 @@ exports.createDriverViolation = async (req, res) => {
 
         const photoUrl = req.fileUrls?.photo || null;
 
-        const newViolation = await prisma.driverViolation.create({
-            data: {
-                driverId: parseInt(driverId),
-                date: new Date(date),
-                category,
-                description,
-                sanction,
-                photoUrl
+        const newViolation = await prisma.$transaction(async (tx) => {
+            const violation = await tx.driverViolation.create({
+                data: {
+                    driverId: parseInt(driverId),
+                    date: new Date(date),
+                    category,
+                    description,
+                    sanction,
+                    photoUrl
+                }
+            });
+
+            if (freezeAccount === 'true' || freezeAccount === true) {
+                await tx.user.update({
+                    where: { id: parseInt(driverId) },
+                    data: { isSanctioned: true, sanctionProposedLift: false }
+                });
             }
+
+            return violation;
         });
+
         res.json({ message: 'Pelanggaran berhasil ditambahkan', data: newViolation });
     } catch (error) {
         res.status(500).json({ error: error.message });
