@@ -149,9 +149,9 @@ const Sidebar = ({ isOpen = true }) => {
                         </Link>
                         {isAdmin && (
                             <>
-                                <Link to="/rkb" className={subNavItemClass('/rkb')}>
+                                {/* <Link to="/rkb" className={subNavItemClass('/rkb')}>
                                     <Calendar size={16} /> Perencanaan (RKB)
-                                </Link>
+                                </Link> */}
                                 <Link to="/procurements" className={subNavItemClass('/procurements')}>
                                     <ShoppingCart size={16} /> Pengadaan
                                 </Link>

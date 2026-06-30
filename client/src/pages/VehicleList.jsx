@@ -9,6 +9,7 @@ const VehicleList = () => {
     const [vehicles, setVehicles] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedType, setSelectedType] = useState('');
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isUser = user.role === 'USER';
@@ -40,10 +41,13 @@ const VehicleList = () => {
         }
     };
 
+    const uniqueTypes = [...new Set(vehicles.map(v => v.type))].filter(Boolean);
+
     const filteredVehicles = vehicles.filter(v =>
-        v.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (selectedType ? v.type === selectedType : true) &&
+        (v.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         v.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.brand.toLowerCase().includes(searchTerm.toLowerCase())
+        v.brand.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     return (
@@ -65,8 +69,8 @@ const VehicleList = () => {
                 )}
             </div>
 
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
-                <div className="relative">
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6 flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input
                         type="text"
@@ -76,6 +80,16 @@ const VehicleList = () => {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
+                <select
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none min-w-[200px]"
+                    value={selectedType}
+                    onChange={(e) => setSelectedType(e.target.value)}
+                >
+                    <option value="">Semua Tipe</option>
+                    {uniqueTypes.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                    ))}
+                </select>
             </div>
 
             {loading ? (

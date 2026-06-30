@@ -311,6 +311,7 @@ const VehicleBooking = () => {
         fetchStaff();
         fetchDrivers();
         fetchCurrentUser();
+        fetchDriverViolations();
 
         // Listen for real-time booking updates
         const handleBookingUpdate = () => {
@@ -578,6 +579,11 @@ const VehicleBooking = () => {
                 showToast(`KM Awal (${inputKm}) tidak boleh lebih kecil dari odometer kendaraan saat ini (${currentOdometer}).`, 'error');
                 return;
             }
+            if ((inputKm - currentOdometer) > 750) {
+                if (!window.confirm(`Terdapat lonjakan odometer sebesar ${inputKm - currentOdometer} km dari pencatatan terakhir (${currentOdometer} km). Apakah Anda yakin angka KM awal (${inputKm}) sudah benar?`)) {
+                    return;
+                }
+            }
 
             setSubmitting(true);
             
@@ -641,6 +647,11 @@ const VehicleBooking = () => {
             if (parseInt(actionData.km) < (showActionModal.data.startKm || 0)) {
                 showToast(`KM Akhir tidak boleh lebih kecil dari KM Awal (${showActionModal.data.startKm || 0})`, 'error');
                 return;
+            }
+            if ((parseInt(actionData.km) - (showActionModal.data.startKm || 0)) > 750) {
+                if (!window.confirm(`Jarak tempuh tercatat sangat jauh (${parseInt(actionData.km) - (showActionModal.data.startKm || 0)} km). Apakah Anda yakin angka KM akhir (${actionData.km}) sudah benar?`)) {
+                    return;
+                }
             }
             setSubmitting(true);
             const finalLocation = actionData.returnLocation === 'Lainnya' ? actionData.customLocation : actionData.returnLocation;
@@ -727,6 +738,11 @@ const VehicleBooking = () => {
             if (actionData.endKm && actionData.startKm && parseInt(actionData.endKm) < parseInt(actionData.startKm)) {
                 showToast(`KM Akhir tidak boleh lebih kecil dari KM Awal`, 'error');
                 return;
+            }
+            if (actionData.endKm && actionData.startKm && (parseInt(actionData.endKm) - parseInt(actionData.startKm)) > 750) {
+                if (!window.confirm(`Jarak tempuh yang diedit sangat jauh (${parseInt(actionData.endKm) - parseInt(actionData.startKm)} km). Yakin data sudah benar?`)) {
+                    return;
+                }
             }
             setSubmitting(true);
             await api.put(`/vehicles/booking/${showActionModal.data.id}/history`, {
@@ -942,6 +958,37 @@ const VehicleBooking = () => {
                                 Usulkan Pencabutan Sanksi
                             </button>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* User Violations Banner */}
+            {driverViolations.filter(v => v.driverId === user.id).length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl shadow-sm flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                            <AlertCircle size={20} />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-bold text-amber-800">Catatan Pelanggaran Anda</h4>
+                            <p className="text-xs text-amber-600">
+                                Anda memiliki {driverViolations.filter(v => v.driverId === user.id).length} catatan pelanggaran yang perlu diperhatikan.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="space-y-2 mt-2">
+                        {driverViolations.filter(v => v.driverId === user.id).map(violation => (
+                            <div key={violation.id} className="bg-white p-3 rounded-xl border border-amber-100 text-sm flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                                <div>
+                                    <span className="font-bold text-amber-900">{violation.category}</span>
+                                    <span className="text-slate-500 text-xs ml-2">{new Date(violation.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                    <p className="text-slate-600 text-xs mt-1">{violation.description}</p>
+                                </div>
+                                <div className="px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold text-center self-start sm:self-auto">
+                                    Sanksi: {violation.sanction}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}

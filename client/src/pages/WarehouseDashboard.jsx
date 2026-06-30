@@ -51,7 +51,6 @@ const WarehouseDashboard = () => {
     if (!data) return <div className="p-10 text-center text-slate-400 font-bold">Gagal memuat data dashboard gudang ustadz.</div>;
 
     const cards = [
-        { label: 'Total Aset (Nilai)', value: `Rp ${data.totalValuation?.toLocaleString('id-ID')}`, icon: <TrendingUp size={24} />, color: 'from-emerald-500 to-teal-500', subValue: `${data.totalItems} Jenis Barang` },
         { label: 'Total Stok Fisik', value: data.totalStock?.toLocaleString('id-ID'), icon: <Warehouse size={24} />, color: 'from-indigo-500 to-purple-500' },
         { label: 'Pesanan Pending', value: data.orderStats?.PENDING || 0, icon: <ShoppingBag size={24} />, color: 'from-blue-500 to-cyan-500', subValue: `Nilai: Rp ${data.orderStats?.totalPendingValue?.toLocaleString('id-ID')}` },
         { label: 'Masuk (Bulan Ini)', value: data.txInThisMonth, icon: <ArrowDownCircle size={24} />, color: 'from-blue-500 to-indigo-500' },

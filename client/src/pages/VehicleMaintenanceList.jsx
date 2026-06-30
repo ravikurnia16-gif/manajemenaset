@@ -9,6 +9,7 @@ const VehicleMaintenanceList = () => {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedVehicleId, setSelectedVehicleId] = useState('');
 
     useEffect(() => {
         fetchLogs();
@@ -70,10 +71,13 @@ const VehicleMaintenanceList = () => {
         XLSX.writeFile(wb, `Data_Pemeliharaan_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
+    const uniqueVehicles = [...new Map(logs.map(log => [log.vehicle?.id, log.vehicle])).values()].filter(Boolean);
+
     const filteredLogs = logs.filter(log =>
-        log.vehicle?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (selectedVehicleId ? log.vehicle?.id === selectedVehicleId : true) &&
+        (log.vehicle?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.vehicle?.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.type.toLowerCase().includes(searchTerm.toLowerCase())
+        log.type.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     return (
@@ -107,8 +111,8 @@ const VehicleMaintenanceList = () => {
                 </div>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
-                <div className="relative">
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6 flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input
                         type="text"
@@ -118,6 +122,16 @@ const VehicleMaintenanceList = () => {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
+                <select
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none min-w-[200px]"
+                    value={selectedVehicleId}
+                    onChange={(e) => setSelectedVehicleId(e.target.value)}
+                >
+                    <option value="">Semua Kendaraan</option>
+                    {uniqueVehicles.map(v => (
+                        <option key={v.id} value={v.id}>{v.name} ({v.plateNumber})</option>
+                    ))}
+                </select>
             </div>
 
             {loading ? (

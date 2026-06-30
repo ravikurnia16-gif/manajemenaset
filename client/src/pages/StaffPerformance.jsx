@@ -6,9 +6,10 @@ import {
     MapPin, Loader2, Target, Timer, TrendingUp, Sparkles, Users,
     Activity, Crown, Medal, Send, Trash2, RotateCcw, Tag, Edit3,
     ShieldCheck, MessageSquare, ListChecks, Flag, LayoutDashboard,
-    PieChart as PieIcon, BarChart3, Coffee, CalendarX, Undo, Camera, Image as ImageIcon, Link2, Search, Save
+    PieChart as PieIcon, BarChart3, Coffee, CalendarX, Undo, Camera, Image as ImageIcon, Link2, Search, Save, Download
 } from 'lucide-react';
 import api from '../lib/axios';
+import * as XLSX from 'xlsx';
 
 // ============================================
 // ERROR BOUNDARY
@@ -483,6 +484,7 @@ const StaffPerformance = () => {
     const [kpiDiag, setKpiDiag] = useState('');
     const [aiSummary, setAiSummary] = useState('');
     const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const [staffList, setStaffList] = useState([]);
     const [pageSize, setPageSize] = useState(20);
     const [pagination, setPagination] = useState({ total: 0, totalPages: 1, currentPage: 1 });
@@ -608,6 +610,89 @@ const StaffPerformance = () => {
         }
     };
 
+    const handleExportExcel = async () => {
+        setIsExporting(true);
+        try {
+            const wb = XLSX.utils.book_new();
+
+            // 1. Leaderboard / KPI
+            if (leaderboard.length > 0) {
+                const kpiData = leaderboard.map((l, i) => ({
+                    'No': i + 1,
+                    'Nama Staf': l.name,
+                    'Jabatan': l.position || '-',
+                    'Skor Akhir': `${l.score}%`,
+                    'Tugas Selesai': l.tasksDone,
+                    'Total Tugas': l.totalTasks,
+                    'Laporan Harian': l.totalLogs
+                }));
+                const wsKPI = XLSX.utils.json_to_sheet(kpiData);
+                XLSX.utils.book_append_sheet(wb, wsKPI, 'Rekap KPI');
+            }
+
+            // 2. Penugasan
+            if (assignments.length > 0) {
+                const assignmentData = assignments.map((a, i) => ({
+                    'No': i + 1,
+                    'Judul Tugas': a.title,
+                    'Deskripsi': a.description || '-',
+                    'Status': a.status,
+                    'Progress': `${a.progressPercentage || 0}%`,
+                    'Penerima Tugas': a.assignee?.name || '-',
+                    'Tenggat Waktu': fmtDate(a.dueDate),
+                    'Tgl Dibuat': fmtDate(a.createdAt)
+                }));
+                const wsTasks = XLSX.utils.json_to_sheet(assignmentData);
+                XLSX.utils.book_append_sheet(wb, wsTasks, 'Daftar Tugas');
+            }
+
+            // 3. Rutinitas
+            if (routineAssignments.length > 0) {
+                const routineData = routineAssignments.map((a, i) => ({
+                    'No': i + 1,
+                    'Nama Rutinitas': a.title?.replace('[RUTIN] ', ''),
+                    'Lokasi': a.location || '-',
+                    'Status': a.status,
+                    'Penerima Tugas': a.assignee?.name || '-',
+                    'Tgl Dibuat': fmtDate(a.createdAt)
+                }));
+                const wsRoutines = XLSX.utils.json_to_sheet(routineData);
+                XLSX.utils.book_append_sheet(wb, wsRoutines, 'Rutinitas');
+            }
+
+            // 4. Laporan Harian
+            if (dailyLogs.length > 0) {
+                const logData = dailyLogs.map((l, i) => {
+                    const items = l.metadata?.items || [];
+                    const activityList = items.map(it => `${it.activity} (${it.status})`).join('; ');
+                    return {
+                        'No': i + 1,
+                        'Nama Staf': l.user?.name || '-',
+                        'Tanggal': fmtDate(l.date),
+                        'Kegiatan': activityList || l.content,
+                        'Mulai': l.metadata?.startTime || '-',
+                        'Selesai': l.metadata?.endTime || '-'
+                    };
+                });
+                const wsLogs = XLSX.utils.json_to_sheet(logData);
+                XLSX.utils.book_append_sheet(wb, wsLogs, 'Laporan Harian');
+            }
+
+            // Fallback if empty
+            if (wb.SheetNames.length === 0) {
+                const wsEmpty = XLSX.utils.json_to_sheet([{ Pesan: 'Tidak ada data untuk periode ini' }]);
+                XLSX.utils.book_append_sheet(wb, wsEmpty, 'Data Kosong');
+            }
+
+            XLSX.writeFile(wb, `Laporan_Kinerja_${months[filterPeriod.month - 1]}_${filterPeriod.year}.xlsx`);
+        } catch (error) {
+            console.error('Export Error:', error);
+            alert('Gagal mengekspor data ke Excel');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     // --- HANDLERS ---
     const handleUpdateAssignment = async (id, data) => {
         try { 
@@ -729,6 +814,14 @@ const StaffPerformance = () => {
                                     <tab.icon size={14} />{tab.label}
                                 </button>
                             ))}
+                            {/* EXPORT BUTTON */}
+                            <button 
+                                onClick={handleExportExcel}
+                                disabled={isExporting || loading}
+                                className="shrink-0 px-4 md:px-5 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all flex items-center gap-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30 ml-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                                EXPORT EXCEL
+                            </button>
                         </div>
                     </div>
                 </div>
