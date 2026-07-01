@@ -273,15 +273,40 @@ exports.importItems = async (req, res) => {
             let created = 0; let updated = 0;
             const sequenceMap = {};
             for (const row of items) {
-                const catId = parseInt(row.categoryId);
+                let catId = parseInt(row.categoryId);
+                
+                // If catId is NaN (could be from export file using category name), find by name
+                if (isNaN(catId) && row.categoryId) {
+                    let category = await tx.warehouseCategory.findFirst({
+                        where: { name: String(row.categoryId).trim() }
+                    });
+                    
+                    if (!category) {
+                        const allCats = await tx.warehouseCategory.findMany();
+                        category = allCats.find(c => c.name.toLowerCase() === String(row.categoryId).trim().toLowerCase());
+                    }
+                    
+                    if (!category) {
+                        category = await tx.warehouseCategory.create({
+                            data: { name: String(row.categoryId).trim() }
+                        });
+                    }
+                    catId = category.id;
+                }
+
+                if (isNaN(catId)) {
+                    throw new Error(`Kategori tidak valid untuk item ${row.name}`);
+                }
+
                 const gender = normalizeGender(row.gender);
                 const name = String(row.name).trim();
                 const size = row.size ? String(row.size).trim() : null;
                 const type = row.type ? String(row.type).trim() : null;
                 const itemUnit = row.itemUnit ? String(row.itemUnit).trim() : null;
+                const purchaseYear = row.purchaseYear ? parseInt(row.purchaseYear) : null;
 
                 const existingItem = await tx.warehouseItem.findFirst({
-                    where: { name, categoryId: catId, gender, size, type, itemUnit }
+                    where: { name, categoryId: catId, gender, size, type, itemUnit, purchaseYear }
                 });
 
                 if (existingItem) {

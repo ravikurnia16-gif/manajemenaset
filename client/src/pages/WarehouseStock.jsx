@@ -92,29 +92,67 @@ const WarehouseStock = () => {
     const handleImport = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        const ext = file.name.split('.').pop().toLowerCase();
+        
         const processRows = async (rows) => {
-            const dataRows = rows.slice(1).filter(r => r[0] && !String(r[0]).startsWith('#'));
-            const items = dataRows.map(cols => ({
-                name: String(cols[0] || '').trim(),
-                categoryId: String(cols[1] || '').trim(),
-                type: String(cols[2] || '').trim() || null,
-                gender: (() => {
-                    const g = String(cols[3] || '').trim().toLowerCase();
-                    if (!g) return null;
-                    if (['l', 'ikhwan', 'laki-laki'].includes(g)) return 'L';
-                    if (['p', 'akhwat', 'perempuan'].includes(g)) return 'P';
-                    return String(cols[3]).trim();
-                })(),
-                size: String(cols[4] || '').trim() || null,
-                purchaseYear: String(cols[5] || '').trim() || null,
-                itemUnit: String(cols[6] || '').trim() || null,
-                stock: String(cols[7] || '').trim() || '0',
-                minStock: String(cols[8] || '').trim() || '5',
-                purchasePrice: String(cols[9] || '').trim() || null,
-                supplier: String(cols[10] || '').trim() || null,
-                location: String(cols[11] || '').trim() || null,
-            })).filter(item => item.name);
+            if (rows.length < 2) {
+                alert('File kosong atau tidak ada data.');
+                return;
+            }
+
+            const headerRow = rows[0].map(h => String(h || '').trim().toLowerCase());
+            
+            const getCol = (names) => {
+                for (const name of names) {
+                    const idx = headerRow.findIndex(h => h === name.toLowerCase());
+                    if (idx !== -1) return idx;
+                }
+                return -1;
+            };
+
+            const idxNama = getCol(['nama', 'nama barang']);
+            const idxKategori = getCol(['kategori', 'kategoriid']);
+            const idxTipe = getCol(['tipe', 'type']);
+            const idxGender = getCol(['gender', 'jenis kelamin']);
+            const idxUkuran = getCol(['ukuran', 'size']);
+            const idxTahun = getCol(['tahun', 'tahunpembelian', 'tahun pembelian']);
+            const idxUnit = getCol(['unit', 'satuan']);
+            const idxStok = getCol(['stok', 'stock']);
+            const idxStokMin = getCol(['stok min', 'stokmin', 'min stock']);
+            const idxHarga = getCol(['harga', 'hargabeli', 'harga beli']);
+            const idxSupplier = getCol(['supplier']);
+            const idxLokasi = getCol(['lokasi']);
+
+            if (idxNama === -1) {
+                alert('Format tidak valid. Kolom Nama tidak ditemukan.');
+                e.target.value = '';
+                return;
+            }
+
+            const dataRows = rows.slice(1).filter(r => r[idxNama] && !String(r[idxNama]).startsWith('#'));
+            const items = dataRows.map(cols => {
+                return {
+                    name: String(cols[idxNama] || '').trim(),
+                    categoryId: idxKategori !== -1 ? String(cols[idxKategori] || '').trim() : '',
+                    type: idxTipe !== -1 ? String(cols[idxTipe] || '').trim() : null,
+                    gender: (() => {
+                        if (idxGender === -1) return null;
+                        const g = String(cols[idxGender] || '').trim().toLowerCase();
+                        if (!g) return null;
+                        if (['l', 'ikhwan', 'laki-laki'].includes(g)) return 'L';
+                        if (['p', 'akhwat', 'perempuan'].includes(g)) return 'P';
+                        return String(cols[idxGender]).trim();
+                    })(),
+                    size: idxUkuran !== -1 ? String(cols[idxUkuran] || '').trim() : null,
+                    purchaseYear: idxTahun !== -1 ? String(cols[idxTahun] || '').trim() : null,
+                    itemUnit: idxUnit !== -1 ? String(cols[idxUnit] || '').trim() : null,
+                    stock: idxStok !== -1 ? String(cols[idxStok] || '').trim() : '0',
+                    minStock: idxStokMin !== -1 ? String(cols[idxStokMin] || '').trim() : '5',
+                    purchasePrice: idxHarga !== -1 ? String(cols[idxHarga] || '').trim() : null,
+                    supplier: idxSupplier !== -1 ? String(cols[idxSupplier] || '').trim() : null,
+                    location: idxLokasi !== -1 ? String(cols[idxLokasi] || '').trim() : null,
+                };
+            }).filter(item => item.name);
+            
             try {
                 const res = await api.post('/warehouse/items/import', { items });
                 alert(res.data.message);
@@ -122,6 +160,7 @@ const WarehouseStock = () => {
             } catch (err) { alert(err.response?.data?.error || 'Gagal import'); }
             e.target.value = '';
         };
+        
         const reader = new FileReader();
         reader.onload = (ev) => {
             const wb = XLSX.read(ev.target.result, { type: 'array' });
