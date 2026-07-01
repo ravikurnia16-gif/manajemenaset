@@ -71,6 +71,11 @@ import AuditList from './pages/AuditList';
 import AuditSessionDetail from './pages/AuditSessionDetail';
 import ConstructionDashboard from './pages/ConstructionDashboard';
 import ContractorList from './pages/ContractorList';
+
+import SecurityDashboard from './pages/Security/SecurityDashboard';
+import SecurityPosts from './pages/Security/SecurityPosts';
+import SecurityGuards from './pages/Security/SecurityGuards';
+import SecuritySchedule from './pages/Security/SecuritySchedule';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import PublicSurvey from './pages/PublicSurvey';
@@ -255,6 +260,12 @@ function App() {
           <Route path="personalia/kalender" element={<SarprasCalendar />} />
           <Route path="personalia/rutin" element={<PersonnelRoutine />} />
           <Route path="personalia/kpi" element={<Navigate to="/personalia/kinerja?tab=KPI" replace />} />
+          
+          <Route path="security/dashboard" element={<SecurityDashboard />} />
+          <Route path="security/pos" element={<SecurityPosts />} />
+          <Route path="security/anggota" element={<SecurityGuards />} />
+          <Route path="security/jadwal" element={<SecuritySchedule />} />
+          
           <Route path="laporan" element={<ReportPage />} />
 
           {/* Module: E-Office */}

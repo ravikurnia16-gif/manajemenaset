@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog } from 'lucide-react';
+import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
 import api from '../lib/axios';
 
@@ -17,7 +17,8 @@ const Sidebar = ({ isOpen = true }) => {
         personnel: false,
         eoffice: false,
         workshop: false,
-        survey: false
+        survey: false,
+        security: false
     });
 
     const [settings, setSettings] = useState(null);
@@ -74,6 +75,8 @@ const Sidebar = ({ isOpen = true }) => {
     const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(user?.role);
 
     const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(user?.role) || ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user?.position);
+    
+    const isSecurityAdmin = isKabidSarpras || (user?.unit?.name || '').toLowerCase().includes('keamanan');
 
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">
@@ -284,6 +287,24 @@ const Sidebar = ({ isOpen = true }) => {
                         <FileSignature size={18} /> E-Office
                     </Link>
                 )}
+
+                {/* 6. Manajemen Security */}
+                {isSecurityAdmin && renderCollapsible('security', <ShieldCheck size={18} />, 'Manajemen Security', (
+                    <>
+                        <Link to="/security/dashboard" className={subNavItemClass('/security/dashboard')}>
+                            <LayoutDashboard size={16} /> Dashboard
+                        </Link>
+                        <Link to="/security/jadwal" className={subNavItemClass('/security/jadwal')}>
+                            <Calendar size={16} /> Jadwal Piket
+                        </Link>
+                        <Link to="/security/pos" className={subNavItemClass('/security/pos')}>
+                            <MapPin size={16} /> Data Pos
+                        </Link>
+                        <Link to="/security/anggota" className={subNavItemClass('/security/anggota')}>
+                            <Users size={16} /> Data Anggota
+                        </Link>
+                    </>
+                ))}
 
                 {/* System & Settings */}
                 <div className="pt-4 mt-2 border-t border-slate-800">

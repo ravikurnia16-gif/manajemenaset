@@ -77,6 +77,7 @@ app.use('/api/contractors', require('./routes/contractorRoutes'));
 app.use('/api/workshop', require('./routes/workshopRoutes'));
 app.use('/api/surveys', require('./routes/surveyRoutes'));
 app.use('/api/vehicle-checklists', require('./routes/vehicleChecklistRoutes'));
+app.use('/api/security', require('./routes/securityRoutes'));
 
 
 // Serve Static Files
