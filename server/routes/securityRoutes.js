@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const securityController = require('../controllers/securityController');
-const { authenticateToken } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/authMiddleware');
 
-router.use(authenticateToken); // Apply auth middleware to all security routes
+router.use(verifyToken); // Apply auth middleware to all security routes
 
 // Dashboard
 router.get('/dashboard', securityController.getDashboard);
