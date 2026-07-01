@@ -171,6 +171,74 @@ const WarehouseStock = () => {
         reader.readAsArrayBuffer(file);
     };
 
+    const handleRollbackImport = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const processRows = async (rows) => {
+            if (rows.length < 2) return;
+
+            const headerRow = rows[0].map(h => String(h || '').trim().toLowerCase());
+            const getCol = (names) => {
+                for (const name of names) {
+                    const idx = headerRow.findIndex(h => h === name.toLowerCase());
+                    if (idx !== -1) return idx;
+                }
+                return -1;
+            };
+
+            const idxNama = getCol(['nama', 'nama barang']);
+            const idxKategori = getCol(['kategori', 'kategoriid']);
+            const idxTipe = getCol(['tipe', 'type']);
+            const idxGender = getCol(['gender', 'jenis kelamin']);
+            const idxUkuran = getCol(['ukuran', 'size']);
+            const idxUnit = getCol(['unit', 'satuan']);
+            const idxStok = getCol(['stok', 'stock']);
+
+            if (idxNama === -1) {
+                alert('Format tidak valid.');
+                e.target.value = '';
+                return;
+            }
+
+            const dataRows = rows.slice(1).filter(r => r[idxNama] && !String(r[idxNama]).startsWith('#'));
+            const items = dataRows.map(cols => {
+                return {
+                    name: String(cols[idxNama] || '').trim(),
+                    categoryId: idxKategori !== -1 ? String(cols[idxKategori] || '').trim() : '',
+                    type: idxTipe !== -1 ? String(cols[idxTipe] || '').trim() : null,
+                    gender: (() => {
+                        if (idxGender === -1) return null;
+                        const g = String(cols[idxGender] || '').trim().toLowerCase();
+                        if (!g) return null;
+                        if (['l', 'ikhwan', 'laki-laki'].includes(g)) return 'L';
+                        if (['p', 'akhwat', 'perempuan'].includes(g)) return 'P';
+                        return String(cols[idxGender]).trim();
+                    })(),
+                    size: idxUkuran !== -1 ? String(cols[idxUkuran] || '').trim() : null,
+                    itemUnit: idxUnit !== -1 ? String(cols[idxUnit] || '').trim() : null,
+                    stock: idxStok !== -1 ? String(cols[idxStok] || '').trim() : '0',
+                };
+            }).filter(item => item.name);
+            
+            try {
+                const res = await api.post('/warehouse/items/rollback-import', { items });
+                alert(res.data.message);
+                fetchData();
+            } catch (err) { alert(err.response?.data?.error || 'Gagal rollback'); }
+            e.target.value = '';
+        };
+        
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const wb = XLSX.read(ev.target.result, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+            processRows(rows);
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
     const years = [...new Set(items.map(i => i.purchaseYear).filter(Boolean))].sort((a, b) => b - a);
 
     // --- DATA TRANSFORMATION ---
@@ -236,6 +304,10 @@ const WarehouseStock = () => {
                     <label className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer">
                         <Download size={14} /> Import
                         <input type="file" accept=".csv,.xlsx,.xls" onChange={handleImport} className="hidden" />
+                    </label>
+                    <label className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer text-orange-600 border-orange-200 bg-orange-50/30">
+                        <Trash2 size={14} /> Rollback
+                        <input type="file" accept=".csv,.xlsx,.xls" onChange={handleRollbackImport} className="hidden" />
                     </label>
                     <button onClick={handleExport} className="flex items-center gap-1 px-3 py-2 border border-slate-200 rounded-lg text-sm hover:bg-slate-50"><Upload size={14} /> Export</button>
 

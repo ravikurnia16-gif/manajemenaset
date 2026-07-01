@@ -19,6 +19,7 @@ router.get('/items/export', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), wh.exp
 router.get('/items/:id', wh.getItemById);
 router.post('/items', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), handleUpload('image', 'warehouse'), wh.createItem);
 router.post('/items/import', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), wh.importItems);
+router.post('/items/rollback-import', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), wh.rollbackImportItems);
 router.put('/items/:id', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), handleUpload('image', 'warehouse'), wh.updateItem);
 router.delete('/items/:id', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), wh.deleteItem);
 

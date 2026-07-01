@@ -355,6 +355,74 @@ exports.importItems = async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
+exports.rollbackImportItems = async (req, res) => {
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'Data import kosong' });
+    
+    const normalizeGender = (val) => {
+        if (!val) return null;
+        const v = String(val).trim().toLowerCase();
+        if (['p', 'perempuan', 'akhwat', 'akhowat', 'wanita'].includes(v)) return 'P';
+        if (['l', 'laki-laki', 'ikhwan', 'pria'].includes(v)) return 'L';
+        return null;
+    };
+
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            let decremented = 0;
+            for (const row of items) {
+                let catId = parseInt(row.categoryId);
+                
+                // If catId is NaN (could be from export file using category name), find by name
+                if (isNaN(catId) && row.categoryId) {
+                    let category = await tx.warehouseCategory.findFirst({
+                        where: { name: String(row.categoryId).trim() }
+                    });
+                    
+                    if (!category) {
+                        const allCats = await tx.warehouseCategory.findMany();
+                        category = allCats.find(c => c.name.toLowerCase() === String(row.categoryId).trim().toLowerCase());
+                    }
+                    if (category) {
+                        catId = category.id;
+                    }
+                }
+
+                const gender = normalizeGender(row.gender);
+                const name = String(row.name).trim();
+                const size = row.size ? String(row.size).trim() : null;
+                const type = row.type ? String(row.type).trim() : null;
+                const itemUnit = row.itemUnit ? String(row.itemUnit).trim() : null;
+                const stockToSubtract = parseInt(row.stock) || 0;
+
+                if (stockToSubtract <= 0) continue;
+
+                // Simulate the BUG: search without purchaseYear
+                const existingItem = await tx.warehouseItem.findFirst({
+                    where: { 
+                        name, 
+                        categoryId: isNaN(catId) ? undefined : catId, 
+                        gender, 
+                        size, 
+                        type, 
+                        itemUnit 
+                    }
+                });
+
+                if (existingItem) {
+                    await tx.warehouseItem.update({
+                        where: { id: existingItem.id },
+                        data: { stock: { decrement: stockToSubtract } }
+                    });
+                    decremented++;
+                }
+            }
+            return { decremented };
+        });
+        res.json({ success: true, message: `Rollback selesai. Berhasil mengurangi stok pada ${result.decremented} baris barang.` });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+};
+
 // ======================== TRANSACTIONS (FIFO) ========================
 const generateTxCode = async () => {
     const year = new Date().getFullYear();
