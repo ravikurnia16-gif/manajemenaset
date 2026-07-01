@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Users, Plus, Trash2, Edit2, ShieldCheck, X, Phone, Calendar } from 'lucide-react';
-import api from '../../../lib/axios';
+import api from '../../lib/axios';
 
 const SecurityGuards = () => {
     const [guards, setGuards] = useState([]);

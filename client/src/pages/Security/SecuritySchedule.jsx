@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, Plus, Trash2, Edit2, ShieldCheck, X, ChevronLeft, ChevronRight, Zap, Clock, MapPin, RefreshCw } from 'lucide-react';
-import api from '../../../lib/axios';
+import api from '../../lib/axios';
 
 const SecuritySchedule = () => {
     const [schedules, setSchedules] = useState([]);

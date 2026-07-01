@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Users, ShieldCheck, MapPin, Zap, CheckCircle2, Clock, Map } from 'lucide-react';
-import api from '../../../lib/axios';
+import api from '../../lib/axios';
 
 const SecurityDashboard = () => {
     const [stats, setStats] = useState({

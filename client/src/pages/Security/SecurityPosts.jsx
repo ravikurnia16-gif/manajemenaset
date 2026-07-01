@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MapPin, Plus, Trash2, Edit2, ShieldCheck, X } from 'lucide-react';
-import api from '../../../lib/axios';
+import api from '../../lib/axios';
 
 const SecurityPosts = () => {
     const [posts, setPosts] = useState([]);
