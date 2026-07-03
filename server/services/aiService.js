@@ -133,6 +133,17 @@ class AIService {
                         },
                         required: ["name"]
                     }
+                },
+                {
+                    name: "cari_data_pemeliharaan",
+                    description: "Membaca data laporan pemeliharaan/maintenance umum (gedung, AC, aset).",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            keyword: { type: "STRING", description: "Kata kunci masalah, judul, atau nama aset. Isi dengan string kosong '' jika mencari semua." }
+                        },
+                        required: ["keyword"]
+                    }
                 }
             ]
         }];
@@ -151,6 +162,7 @@ PERINTAH KHUSUS (WAJIB DIPATUHI JIKA USER MENGETIK INI):
 - "/cek_servis [nama]" -> WAJIB panggil tool "cari_riwayat_perawatan".
 - "/cek_barang [nama]" -> WAJIB panggil tool "cari_data_aset_barang".
 - "/cek_staf [nama]" -> WAJIB panggil tool "cari_data_personel".
+- "/cek_pemeliharaan [nama]" -> WAJIB panggil tool "cari_data_pemeliharaan".
 Jika [nama] dikosongkan (contoh hanya mengetik "/cek_jadwal"), set parameter keyword dengan string kosong "" agar menarik semua data.
 
 Jika pesan berupa pertanyaan biasa (tanpa garis miring), tetap gunakan Tools yang relevan. Jangan berasumsi.
@@ -208,6 +220,15 @@ Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan mark
                         where: { name: { contains: call.args.name || "" } },
                         select: { name: true, position: true, phone: true, unit: { select: { name: true } } },
                         take: 5
+                    });
+                }
+                else if (call.name === 'cari_data_pemeliharaan') {
+                    const kw = call.args.keyword || "";
+                    apiResponse.data = await prisma.maintenance.findMany({
+                        where: { OR: [ { title: { contains: kw } }, { description: { contains: kw } } ] },
+                        select: { code: true, title: true, description: true, status: true, type: true, user: { select: { name: true } } },
+                        orderBy: { id: 'desc' },
+                        take: 10
                     });
                 }
 
