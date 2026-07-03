@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment } from 'react';
-import { Save, Building2, UserCheck, ShieldCheck, Globe, Mail, MapPin, Phone, Eye, EyeOff, Wrench } from 'lucide-react';
+import { Save, Building2, UserCheck, ShieldCheck, Globe, Mail, MapPin, Phone, Eye, EyeOff, Wrench, Smartphone } from 'lucide-react';
 import api from '../lib/axios';
 
 const Settings = () => {
@@ -28,6 +28,10 @@ const Settings = () => {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [currentUser, setCurrentUser] = useState(JSON.parse(localStorage.getItem('user')) || {});
+
+    // WhatsApp State
+    const [waStatus, setWaStatus] = useState({ status: 'LOADING', qr: null });
+    const [loadingWa, setLoadingWa] = useState(false);
 
     // Filter states for Users Tab
     const [userSearch, setUserSearch] = useState('');
@@ -126,6 +130,41 @@ const Settings = () => {
             if (error.response?.status !== 401 && error.response?.status !== 403) {
                 alert("Gagal memuat data pengguna.");
             }
+        }
+    };
+
+    const fetchWaStatus = async () => {
+        try {
+            setLoadingWa(true);
+            const res = await api.get('/whatsapp/status');
+            setWaStatus(res.data);
+        } catch (error) {
+            console.error("Fetch WA status error:", error);
+        } finally {
+            setLoadingWa(false);
+        }
+    };
+
+    const handleWaInit = async () => {
+        try {
+            setLoadingWa(true);
+            await api.post('/whatsapp/init');
+            setTimeout(fetchWaStatus, 3000);
+        } catch (error) {
+            alert('Gagal menginisialisasi ulang WA.');
+            setLoadingWa(false);
+        }
+    };
+
+    const handleWaLogout = async () => {
+        if (!window.confirm('Yakin ingin memutuskan koneksi perangkat WhatsApp ini?')) return;
+        try {
+            setLoadingWa(true);
+            await api.post('/whatsapp/logout');
+            setTimeout(fetchWaStatus, 3000);
+        } catch (error) {
+            alert('Gagal memutuskan koneksi WA.');
+            setLoadingWa(false);
         }
     };
 
@@ -233,6 +272,7 @@ const Settings = () => {
     };
 
     const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'KABID_SARPRAS'].includes(currentUser.role);
+    const isKabidSarpras = currentUser?.position === 'Kepala Bidang Sarana';
 
     const handleFixGenders = async () => {
         if (!window.confirm('Bersihkan data gender "Akhowat/Ikhwan" menjadi "P/L"? Proses ini tidak bisa dibatalkan.')) return;
@@ -293,6 +333,16 @@ const Settings = () => {
                             <ShieldCheck size={16} /> Keamanan
                         </div>
                     </button>
+                    {isKabidSarpras && (
+                        <button
+                            onClick={() => { setActiveTab('whatsapp'); fetchWaStatus(); }}
+                            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'whatsapp' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <div className="flex items-center gap-2 uppercase tracking-tight">
+                                <Smartphone size={16} /> WhatsApp
+                            </div>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -1030,6 +1080,57 @@ const Settings = () => {
                     </div >
                 )
             }
+
+            {activeTab === 'whatsapp' && isKabidSarpras && (
+                <div className="max-w-2xl mx-auto">
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                        <div className="p-6 border-b border-slate-50">
+                            <h2 className="font-bold text-slate-800">Koneksi WhatsApp Lokal</h2>
+                            <p className="text-slate-500 text-xs">Kelola perangkat WhatsApp yang terhubung langsung ke server (Jalur Utama).</p>
+                        </div>
+                        <div className="p-6 flex flex-col items-center justify-center space-y-6">
+                            {loadingWa ? (
+                                <div className="text-slate-500 animate-pulse">Memuat status...</div>
+                            ) : (
+                                <>
+                                    <div className={`px-4 py-2 rounded-full text-sm font-bold border flex items-center gap-2
+                                        ${waStatus.status === 'CONNECTED' ? 'bg-green-50 text-green-600 border-green-200' :
+                                        waStatus.status === 'SCAN_QR' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                                        'bg-red-50 text-red-600 border-red-200'}`}
+                                    >
+                                        <div className={`w-2.5 h-2.5 rounded-full ${waStatus.status === 'CONNECTED' ? 'bg-green-500' : waStatus.status === 'SCAN_QR' ? 'bg-amber-500 animate-pulse' : 'bg-red-500'}`}></div>
+                                        Status: {waStatus.status === 'CONNECTED' ? 'Terhubung' : waStatus.status === 'SCAN_QR' ? 'Menunggu Scan QR' : 'Terputus'}
+                                    </div>
+
+                                    {waStatus.status === 'SCAN_QR' && waStatus.qr && (
+                                        <div className="p-4 bg-white border-2 border-dashed border-slate-200 rounded-xl">
+                                            <img src={waStatus.qr} alt="WhatsApp QR Code" className="w-64 h-64 object-contain" />
+                                            <p className="text-center text-xs text-slate-500 mt-2">Buka WhatsApp di HP Anda, masuk ke Perangkat Tertaut, dan scan kode ini.</p>
+                                        </div>
+                                    )}
+
+                                    <div className="flex gap-4 w-full max-w-sm mt-4">
+                                        <button
+                                            onClick={handleWaInit}
+                                            disabled={loadingWa || waStatus.status === 'CONNECTED'}
+                                            className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
+                                        >
+                                            Muat Ulang QR
+                                        </button>
+                                        <button
+                                            onClick={handleWaLogout}
+                                            disabled={loadingWa || waStatus.status !== 'CONNECTED'}
+                                            className="flex-1 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
+                                        >
+                                            Putuskan (Logout)
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

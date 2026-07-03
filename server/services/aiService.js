@@ -1,14 +1,15 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 /**
- * AI Service for generating narrative summaries using Gemini.
+ * AI Service for generating narrative summaries and chat responses using Gemini.
  */
 class AIService {
     constructor() {
         const apiKey = process.env.GEMINI_API_KEY;
         if (apiKey) {
             this.genAI = new GoogleGenerativeAI(apiKey);
-            this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            // Use flash-8b as requested for high volume / fast responses
+            this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
         } else {
             console.warn("[AIService] GEMINI_API_KEY not found. AI features will be unavailable.");
         }
@@ -61,6 +62,44 @@ class AIService {
         } catch (err) {
             console.error("[AIService] Error generating summary:", err.message);
             throw err;
+        }
+    }
+
+    /**
+     * Generate a chat response for WhatsApp Group Bot.
+     * @param {string} userMessage - The message from the user.
+     * @param {string} groupName - Optional group name for context.
+     * @returns {Promise<string>}
+     */
+    async generateChatResponse(userMessage, groupName = "") {
+        if (!this.model) {
+            throw new Error("AI Service is not configured (missing API Key)");
+        }
+
+        const prompt = `
+            Anda adalah "Admin Sarpras", asisten AI untuk bidang Sarana Prasarana (Sarpras) di Yayasan Dar El Iman.
+            Anda sedang membalas pertanyaan di sebuah grup WhatsApp ${groupName ? `bernama "${groupName}"` : ""}.
+            
+            Karakteristik Anda:
+            - Anda ramah, responsif, sopan, dan sangat membantu.
+            - Jawaban Anda harus selalu singkat, padat, dan jelas karena ini adalah pesan WhatsApp (jangan bertele-tele).
+            - Jika ditanya hal di luar Sarpras, jawab dengan ramah tapi beri tahu bahwa fokus Anda adalah administrasi dan sarana prasarana.
+            - Gunakan formatting WhatsApp (seperti *tebal* atau _miring_) bila perlu, tapi jangan berlebihan.
+            - Jangan memunculkan format markdown yang tidak didukung WhatsApp seperti # atau **. (Untuk tebal gunakan bintang tunggal *teks*).
+            
+            Pertanyaan / Pesan dari User:
+            "${userMessage}"
+            
+            Balasan Anda:
+        `;
+
+        try {
+            const result = await this.model.generateContent(prompt);
+            const response = await result.response;
+            return response.text();
+        } catch (err) {
+            console.error("[AIService] Error generating chat response:", err.message);
+            return "Maaf, Admin Sarpras sedang mengalami sedikit gangguan sistem saat ini 🙏";
         }
     }
 }
