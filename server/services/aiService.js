@@ -8,7 +8,7 @@ class AIService {
         const apiKey = process.env.GEMINI_API_KEY;
         if (apiKey) {
             this.genAI = new GoogleGenerativeAI(apiKey);
-            this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         } else {
             console.warn("[AIService] GEMINI_API_KEY not found. AI features will be unavailable.");
         }
