@@ -140,7 +140,8 @@ class AIService {
                     parameters: {
                         type: "OBJECT",
                         properties: {
-                            keyword: { type: "STRING", description: "Kata kunci masalah, judul, atau nama aset. Isi dengan string kosong '' jika mencari semua." }
+                            keyword: { type: "STRING", description: "Kata kunci masalah, judul, atau nama aset. Isi dengan string kosong '' jika mencari semua." },
+                            status: { type: "STRING", description: "Filter status (SUBMITTED, APPROVED, IN_PROGRESS, COMPLETED, REJECTED). Kosongkan jika tidak mencari status tertentu." }
                         },
                         required: ["keyword"]
                     }
@@ -164,6 +165,7 @@ PERINTAH KHUSUS (WAJIB DIPATUHI JIKA USER MENGETIK INI):
 - "/cek_staf [nama]" -> WAJIB panggil tool "cari_data_personel".
 - "/cek_pemeliharaan [nama]" -> WAJIB panggil tool "cari_data_pemeliharaan".
 Jika [nama] dikosongkan (contoh hanya mengetik "/cek_jadwal"), set parameter keyword dengan string kosong "" agar menarik semua data.
+Pemetaan status database: diajukan=SUBMITTED, disetujui=APPROVED, diproses=IN_PROGRESS, selesai=COMPLETED, ditolak=REJECTED.
 
 Jika pesan berupa pertanyaan biasa (tanpa garis miring), tetap gunakan Tools yang relevan. Jangan berasumsi.
 Jawaban Anda harus ramah, sopan, dan jelas. Jika data kosong/tidak ada, sampaikan dengan baik.
@@ -224,8 +226,15 @@ Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan mark
                 }
                 else if (call.name === 'cari_data_pemeliharaan') {
                     const kw = call.args.keyword || "";
+                    const st = call.args.status || "";
+                    
+                    let whereCondition = { OR: [ { title: { contains: kw } }, { description: { contains: kw } } ] };
+                    if (st) {
+                        whereCondition.status = st;
+                    }
+                    
                     apiResponse.data = await prisma.maintenance.findMany({
-                        where: { OR: [ { title: { contains: kw } }, { description: { contains: kw } } ] },
+                        where: whereCondition,
                         select: { code: true, title: true, description: true, status: true, type: true, user: { select: { name: true } } },
                         orderBy: { id: 'desc' },
                         take: 10
