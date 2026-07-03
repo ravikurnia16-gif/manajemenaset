@@ -75,29 +75,144 @@ class AIService {
             throw new Error("AI Service is not configured (missing API Key)");
         }
 
-        const prompt = `
-            Anda adalah "Admin Sarpras", asisten AI untuk bidang Sarana Prasarana (Sarpras) di Yayasan Dar El Iman.
-            Anda sedang membalas pertanyaan di sebuah grup WhatsApp ${groupName ? `bernama "${groupName}"` : ""}.
-            
-            Karakteristik Anda:
-            - Anda ramah, responsif, sopan, dan sangat membantu.
-            - Jawaban Anda harus selalu singkat, padat, dan jelas karena ini adalah pesan WhatsApp (jangan bertele-tele).
-            - Jika ditanya hal di luar Sarpras, jawab dengan ramah tapi beri tahu bahwa fokus Anda adalah administrasi dan sarana prasarana.
-            - Gunakan formatting WhatsApp (seperti *tebal* atau _miring_) bila perlu, tapi jangan berlebihan.
-            - Jangan memunculkan format markdown yang tidak didukung WhatsApp seperti # atau **. (Untuk tebal gunakan bintang tunggal *teks*).
-            
-            Pertanyaan / Pesan dari User:
-            "${userMessage}"
-            
-            Balasan Anda:
-        `;
+        const { PrismaClient } = require('@prisma/client');
+        const prisma = new PrismaClient();
+
+        const tools = [{
+            functionDeclarations: [
+                {
+                    name: "cari_data_kendaraan",
+                    description: "Membaca data ketersediaan, tipe, plat nomor, status BBM, & odometer kendaraan.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            keyword: { type: "STRING", description: "Pencarian nama kendaraan, plat, atau tipe." }
+                        }
+                    }
+                },
+                {
+                    name: "cari_data_aset_barang",
+                    description: "Membaca data inventaris/barang umum, lokasi ruangan, dan kondisinya.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            keyword: { type: "STRING", description: "Kata kunci nama barang atau kode." }
+                        },
+                        required: ["keyword"]
+                    }
+                },
+                {
+                    name: "cari_riwayat_perawatan",
+                    description: "Membaca data servis, perawatan, atau kerusakan pada kendaraan dan aset.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            keyword: { type: "STRING", description: "Nama kendaraan atau plat nomor." }
+                        },
+                        required: ["keyword"]
+                    }
+                },
+                {
+                    name: "cari_status_peminjaman",
+                    description: "Membaca jadwal peminjaman kendaraan (Vehicle Booking) untuk mengetahui siapa peminjamnya.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            keyword: { type: "STRING", description: "Nama kendaraan yang ingin dicek." }
+                        },
+                        required: ["keyword"]
+                    }
+                },
+                {
+                    name: "cari_data_personel",
+                    description: "Membaca data staf/user (jabatan, unit kerja, kontak).",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            name: { type: "STRING", description: "Nama personel atau staf yang dicari." }
+                        },
+                        required: ["name"]
+                    }
+                }
+            ]
+        }];
+
+        const chatModel = this.genAI.getGenerativeModel({
+            model: "gemini-2.0-flash-lite",
+            tools: tools,
+            systemInstruction: `Anda adalah "Admin Sarpras", asisten AI untuk bidang Sarana Prasarana di Yayasan Dar El Iman.
+Anda sedang membalas pesan di grup WhatsApp ${groupName ? `"${groupName}"` : ""}.
+Jika pesan bertanya tentang data (kendaraan, barang, servis, peminjaman, personel), SELALU gunakan Tools (Fungsi) yang tersedia sebelum menjawab.
+Jawaban Anda harus selalu singkat, padat, ramah dan jelas. 
+Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan markdown seperti # atau **.`
+        });
+
+        const chat = chatModel.startChat();
 
         try {
-            const result = await this.model.generateContent(prompt);
-            const response = await result.response;
-            return response.text();
+            let result = await chat.sendMessage(userMessage);
+            const calls = result.response.functionCalls();
+            
+            if (calls && calls.length > 0) {
+                const call = calls[0]; // Process first function call
+                let apiResponse = { status: "success", data: null };
+                console.log(`[AIService] Tool called: ${call.name} with args`, call.args);
+                
+                if (call.name === 'cari_data_kendaraan') {
+                    const kw = call.args.keyword || "";
+                    apiResponse.data = await prisma.vehicle.findMany({
+                        where: { OR: [{ name: { contains: kw } }, { plateNumber: { contains: kw } }, { type: { contains: kw } }] },
+                        select: { name: true, plateNumber: true, type: true, status: true, lastFuelCondition: true, odometer: true },
+                        take: 15
+                    });
+                } 
+                else if (call.name === 'cari_data_aset_barang') {
+                    apiResponse.data = await prisma.asset.findMany({
+                        where: { name: { contains: call.args.keyword || "" } },
+                        select: { name: true, condition: true, room: { select: { name: true } }, category: { select: { name: true } } },
+                        take: 15
+                    });
+                }
+                else if (call.name === 'cari_riwayat_perawatan') {
+                    apiResponse.data = await prisma.maintenance.findMany({
+                        where: { OR: [ { notes: { contains: call.args.keyword || "" } }, { type: { contains: call.args.keyword || "" } } ] },
+                        select: { type: true, date: true, cost: true, notes: true, status: true },
+                        orderBy: { date: 'desc' },
+                        take: 10
+                    });
+                }
+                else if (call.name === 'cari_status_peminjaman') {
+                    apiResponse.data = await prisma.vehicleBooking.findMany({
+                        where: { vehicle: { name: { contains: call.args.keyword || "" } }, startDate: { gte: new Date() } },
+                        select: { vehicle: { select: { name: true, plateNumber: true } }, user: { select: { name: true } }, startDate: true, endDate: true, status: true, destination: true },
+                        orderBy: { startDate: 'asc' },
+                        take: 5
+                    });
+                }
+                else if (call.name === 'cari_data_personel') {
+                    apiResponse.data = await prisma.user.findMany({
+                        where: { name: { contains: call.args.name || "" } },
+                        select: { name: true, position: true, phone: true, unit: { select: { name: true } } },
+                        take: 5
+                    });
+                }
+
+                // Send function response back to Gemini to get final text
+                result = await chat.sendMessage([{
+                    functionResponse: {
+                        name: call.name,
+                        response: { content: apiResponse }
+                    }
+                }]);
+            }
+
+            const responseText = result.response.text();
+            await prisma.$disconnect();
+            return responseText;
+
         } catch (err) {
             console.error("[AIService] Error generating chat response:", err.message);
+            try { await prisma.$disconnect(); } catch (e) {}
             return "Maaf, Admin Sarpras sedang mengalami sedikit gangguan sistem saat ini 🙏";
         }
     }
