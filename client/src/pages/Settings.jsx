@@ -1096,10 +1096,11 @@ const Settings = () => {
                                     <div className={`px-4 py-2 rounded-full text-sm font-bold border flex items-center gap-2
                                         ${waStatus.status === 'CONNECTED' ? 'bg-green-50 text-green-600 border-green-200' :
                                         waStatus.status === 'SCAN_QR' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                                        waStatus.status === 'INITIALIZING' ? 'bg-blue-50 text-blue-600 border-blue-200' :
                                         'bg-red-50 text-red-600 border-red-200'}`}
                                     >
-                                        <div className={`w-2.5 h-2.5 rounded-full ${waStatus.status === 'CONNECTED' ? 'bg-green-500' : waStatus.status === 'SCAN_QR' ? 'bg-amber-500 animate-pulse' : 'bg-red-500'}`}></div>
-                                        Status: {waStatus.status === 'CONNECTED' ? 'Terhubung' : waStatus.status === 'SCAN_QR' ? 'Menunggu Scan QR' : 'Terputus'}
+                                        <div className={`w-2.5 h-2.5 rounded-full ${waStatus.status === 'CONNECTED' ? 'bg-green-500' : waStatus.status === 'SCAN_QR' ? 'bg-amber-500 animate-pulse' : waStatus.status === 'INITIALIZING' ? 'bg-blue-500 animate-pulse' : 'bg-red-500'}`}></div>
+                                        Status: {waStatus.status === 'CONNECTED' ? 'Terhubung' : waStatus.status === 'SCAN_QR' ? 'Menunggu Scan QR' : waStatus.status === 'INITIALIZING' ? 'Sedang Memulai...' : 'Terputus'}
                                     </div>
 
                                     {waStatus.status === 'SCAN_QR' && waStatus.qr && (

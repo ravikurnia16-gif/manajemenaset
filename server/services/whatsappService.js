@@ -16,7 +16,7 @@ const initializeWhatsApp = () => {
         waClient.destroy().catch(console.error);
     }
     
-    connectionStatus = 'DISCONNECTED';
+    connectionStatus = 'INITIALIZING';
     qrCodeData = null;
     
     waClient = new Client({
