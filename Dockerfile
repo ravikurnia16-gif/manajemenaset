@@ -15,7 +15,7 @@ FROM node:20-slim
 WORKDIR /app
 
 # Install OpenSSL (Penting untuk Prisma agar bisa konek Database)
-RUN apt-get update -y && apt-get install -y openssl
+RUN apt-get update -y && apt-get install -y openssl chromium
 
 # Install dependencies backend
 COPY server/package*.json ./server/
