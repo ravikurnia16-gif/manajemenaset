@@ -174,19 +174,22 @@ Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan mark
                     });
                 }
                 else if (call.name === 'cari_riwayat_perawatan') {
-                    apiResponse.data = await prisma.maintenance.findMany({
-                        where: { OR: [ { notes: { contains: call.args.keyword || "" } }, { type: { contains: call.args.keyword || "" } } ] },
-                        select: { type: true, date: true, cost: true, notes: true, status: true },
+                    const kw = call.args.keyword || "";
+                    apiResponse.data = await prisma.vehicleService.findMany({
+                        where: { OR: [ { vehicle: { name: { contains: kw } } }, { vehicle: { plateNumber: { contains: kw } } } ] },
+                        select: { vehicle: { select: { name: true, plateNumber: true } }, type: true, date: true, cost: true, description: true },
                         orderBy: { date: 'desc' },
                         take: 10
                     });
                 }
                 else if (call.name === 'cari_status_peminjaman') {
+                    const today = new Date();
+                    today.setHours(0,0,0,0);
                     apiResponse.data = await prisma.vehicleBooking.findMany({
-                        where: { vehicle: { name: { contains: call.args.keyword || "" } }, startDate: { gte: new Date() } },
+                        where: { vehicle: { name: { contains: call.args.keyword || "" } }, endDate: { gte: today } },
                         select: { vehicle: { select: { name: true, plateNumber: true } }, user: { select: { name: true } }, startDate: true, endDate: true, status: true, destination: true },
                         orderBy: { startDate: 'asc' },
-                        take: 5
+                        take: 10
                     });
                 }
                 else if (call.name === 'cari_data_personel') {
