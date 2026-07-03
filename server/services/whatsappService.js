@@ -2,6 +2,8 @@ const axios = require('axios');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const { formatPhoneForWA } = require('../utils/phoneFormatter');
 const qrcode = require('qrcode');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
 const WHATSAPP_API_URL = 'https://bidang-sarana-wawebjs.ltdh6w.easypanel.host/api/send-message';
 
@@ -77,7 +79,8 @@ const initializeWhatsApp = () => {
                 return;
             }
 
-            const allowedGroupsRaw = process.env.AI_ALLOWED_GROUPS || "";
+            const settings = await prisma.setting.findUnique({ where: { id: 1 } });
+            const allowedGroupsRaw = settings?.aiAllowedGroups || process.env.AI_ALLOWED_GROUPS || "";
             const allowedGroups = allowedGroupsRaw.split(',').map(g => g.trim());
             if (!allowedGroups.includes(msg.from)) return; // Not an allowed group
 
@@ -125,12 +128,29 @@ const initializeWhatsApp = () => {
 initializeWhatsApp();
 
 // --- EXPOSED METHODS FOR API ---
-exports.getWhatsAppStatus = () => {
+const getWhatsAppStatus = () => {
     return {
         status: connectionStatus,
         qr: qrCodeData
     };
 };
+
+const getWhatsAppGroups = async () => {
+    if (!waClient || connectionStatus !== 'CONNECTED') return [];
+    try {
+        const chats = await waClient.getChats();
+        const groups = chats
+            .filter(c => c.isGroup)
+            .map(g => ({ id: g.id._serialized, name: g.name }));
+        return groups;
+    } catch (error) {
+        console.error('[WhatsApp Local] Error getting groups', error);
+        return [];
+    }
+}
+
+exports.getWhatsAppStatus = getWhatsAppStatus;
+exports.getWhatsAppGroups = getWhatsAppGroups;
 
 exports.logoutWhatsApp = async () => {
     if (waClient && connectionStatus === 'CONNECTED') {

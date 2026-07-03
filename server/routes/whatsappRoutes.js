@@ -30,4 +30,14 @@ router.post('/init', verifyToken, authorizeKabidSarpras, (req, res) => {
     res.json(result);
 });
 
+router.get('/groups', verifyToken, authorizeKabidSarpras, async (req, res) => {
+    try {
+        const { getWhatsAppGroups } = require('../services/whatsappService');
+        const groups = await getWhatsAppGroups();
+        res.json(groups);
+    } catch (error) {
+        res.status(500).json({ error: 'Gagal mengambil daftar grup' });
+    }
+});
+
 module.exports = router;

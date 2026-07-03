@@ -436,6 +436,7 @@ model Setting {
   assetCodePrefix String   @default("AST")
   busInitialFund  Float    @default(0) // Dana awal operasional Bus
   surveyEnabled   Boolean  @default(false)
+  aiAllowedGroups String?  @db.Text
   updatedAt       DateTime @updatedAt
 }
 

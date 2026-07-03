@@ -13,7 +13,8 @@ const Settings = () => {
         orgHeadName: '',
         orgHeadNip: '',
         assetCodePrefix: 'AST',
-        surveyEnabled: false
+        surveyEnabled: false,
+        aiAllowedGroups: ''
     });
     const [myProfile, setMyProfile] = useState({
         name: '',
@@ -32,6 +33,8 @@ const Settings = () => {
     // WhatsApp State
     const [waStatus, setWaStatus] = useState({ status: 'LOADING', qr: null });
     const [loadingWa, setLoadingWa] = useState(false);
+    const [waGroups, setWaGroups] = useState([]);
+    const [loadingWaGroups, setLoadingWaGroups] = useState(false);
 
     // Filter states for Users Tab
     const [userSearch, setUserSearch] = useState('');
@@ -138,10 +141,25 @@ const Settings = () => {
             setLoadingWa(true);
             const res = await api.get('/whatsapp/status');
             setWaStatus(res.data);
+            if (res.data?.status === 'CONNECTED') {
+                fetchWaGroups();
+            }
         } catch (error) {
             console.error("Fetch WA status error:", error);
         } finally {
             setLoadingWa(false);
+        }
+    };
+
+    const fetchWaGroups = async () => {
+        try {
+            setLoadingWaGroups(true);
+            const res = await api.get('/whatsapp/groups');
+            setWaGroups(res.data);
+        } catch (error) {
+            console.error("Fetch WA groups error:", error);
+        } finally {
+            setLoadingWaGroups(false);
         }
     };
 
@@ -194,6 +212,29 @@ const Settings = () => {
             alert('Gagal menyimpan pengaturan instansi.');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleToggleWaGroup = async (groupId) => {
+        const currentList = settings.aiAllowedGroups ? settings.aiAllowedGroups.split(',').map(s => s.trim()).filter(Boolean) : [];
+        const isSelected = currentList.includes(groupId);
+        let newList = [];
+        if (isSelected) {
+            newList = currentList.filter(id => id !== groupId);
+        } else {
+            newList = [...currentList, groupId];
+        }
+        
+        const newSettings = { ...settings, aiAllowedGroups: newList.join(',') };
+        setSettings(newSettings); // Optimistic update
+        
+        try {
+            await api.put('/settings', newSettings);
+        } catch (error) {
+            console.error("Save settings error:", error);
+            alert('Gagal menyimpan preferensi grup.');
+            // Revert on fail
+            setSettings(settings);
         }
     };
 
@@ -1126,9 +1167,44 @@ const Settings = () => {
                                             Putuskan (Logout)
                                         </button>
                                     </div>
-                                </>
+                                </div>
                             )}
                         </div>
+
+                        {waStatus.status === 'CONNECTED' && isKabidSarpras && (
+                            <div className="border-t border-slate-100 p-6 bg-slate-50">
+                                <h3 className="font-bold text-slate-800 mb-1">Grup yang Diizinkan (AI Bot)</h3>
+                                <p className="text-slate-500 text-xs mb-4">Centang grup di bawah ini agar Bot AI merespons pesan secara otomatis di dalam grup tersebut. Jika daftar kosong, pastikan bot telah dimasukkan ke dalam grup.</p>
+                                
+                                {loadingWaGroups ? (
+                                    <div className="text-slate-500 text-sm animate-pulse">Memuat daftar grup...</div>
+                                ) : waGroups.length === 0 ? (
+                                    <div className="text-slate-500 text-sm italic p-4 bg-white border border-slate-200 rounded-lg text-center">
+                                        Tidak ada grup yang ditemukan. Masukkan bot ke dalam grup lalu muat ulang halaman.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                                        {waGroups.map(group => {
+                                            const isSelected = settings.aiAllowedGroups?.includes(group.id);
+                                            return (
+                                                <label key={group.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${isSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200 hover:border-blue-300'}`}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={isSelected || false}
+                                                        onChange={() => handleToggleWaGroup(group.id)}
+                                                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                                    />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-semibold text-sm text-slate-800 truncate">{group.name}</div>
+                                                        <div className="text-[10px] text-slate-400 truncate">{group.id}</div>
+                                                    </div>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

@@ -30,26 +30,26 @@ exports.getSettings = async (req, res) => {
 
 exports.updateSettings = async (req, res) => {
     try {
-        const {
+    const {
+        orgName, orgAddress, orgPhone, orgEmail,
+        orgLogo, orgHeadName, orgHeadNip, assetCodePrefix,
+        busInitialFund, surveyEnabled, aiAllowedGroups
+    } = req.body;
+
+    const settings = await prisma.setting.upsert({
+        where: { id: SETTING_ID },
+        update: {
             orgName, orgAddress, orgPhone, orgEmail,
             orgLogo, orgHeadName, orgHeadNip, assetCodePrefix,
-            busInitialFund, surveyEnabled
-        } = req.body;
-
-        const settings = await prisma.setting.upsert({
-            where: { id: SETTING_ID },
-            update: {
-                orgName, orgAddress, orgPhone, orgEmail,
-                orgLogo, orgHeadName, orgHeadNip, assetCodePrefix,
-                busInitialFund, surveyEnabled
-            },
-            create: {
-                id: SETTING_ID,
-                orgName, orgAddress, orgPhone, orgEmail,
-                orgLogo, orgHeadName, orgHeadNip, assetCodePrefix,
-                busInitialFund, surveyEnabled
-            }
-        });
+            busInitialFund, surveyEnabled, aiAllowedGroups
+        },
+        create: {
+            id: SETTING_ID,
+            orgName, orgAddress, orgPhone, orgEmail,
+            orgLogo, orgHeadName, orgHeadNip, assetCodePrefix,
+            busInitialFund, surveyEnabled, aiAllowedGroups
+        }
+    });
 
         res.json(settings);
     } catch (error) {
