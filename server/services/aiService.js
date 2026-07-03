@@ -8,7 +8,7 @@ class AIService {
         const apiKey = process.env.GEMINI_API_KEY;
         if (apiKey) {
             this.genAI = new GoogleGenerativeAI(apiKey);
-            this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+            this.model = this.genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
         } else {
             console.warn("[AIService] GEMINI_API_KEY not found. AI features will be unavailable.");
         }
@@ -138,7 +138,7 @@ class AIService {
         }];
 
         const chatModel = this.genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.1-flash-lite",
             tools: tools,
             systemInstruction: `Anda adalah "Admin Sarpras", asisten AI untuk bidang Sarana Prasarana di Yayasan Dar El Iman.
 Anda sedang membalas pesan di grup WhatsApp ${groupName ? `"${groupName}"` : ""}.
