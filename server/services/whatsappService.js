@@ -19,13 +19,24 @@ const initializeWhatsApp = () => {
     connectionStatus = 'INITIALIZING';
     qrCodeData = null;
     
+    const puppeteerConfig = {
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+    };
+
+    if (process.env.CHROME_BIN) {
+        puppeteerConfig.executablePath = process.env.CHROME_BIN;
+    } else if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        puppeteerConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    } else if (process.platform === 'linux' && process.arch === 'arm64') {
+        // Fallback common paths for ARM linux/docker
+        puppeteerConfig.executablePath = '/usr/bin/chromium-browser';
+    }
+
     waClient = new Client({
         authStrategy: new LocalAuth({
             dataPath: './.wwebjs_auth'
         }),
-        puppeteer: {
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
-        }
+        puppeteer: puppeteerConfig
     });
 
     waClient.on('qr', async (qr) => {
