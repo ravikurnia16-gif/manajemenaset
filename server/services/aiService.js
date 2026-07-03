@@ -153,7 +153,7 @@ class AIService {
             model: "gemini-3.1-flash-lite",
             tools: tools,
             systemInstruction: `Anda adalah "Admin Sarpras", asisten AI untuk bidang Sarana Prasarana di Yayasan Dar El Iman.
-Anda sedang membalas pesan di grup WhatsApp ${groupName ? \`"\${groupName}"\` : ""}.
+Anda sedang membalas pesan di grup WhatsApp ${groupName ? `"${groupName}"` : ""}.
 Waktu saat ini: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB.
 PENTING: Tanggal dari database (JSON) menggunakan format UTC (lebih lambat 7 jam dari WIB). Harap konversi otomatis ke WIB di pikiran Anda.
 
