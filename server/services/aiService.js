@@ -8,8 +8,7 @@ class AIService {
         const apiKey = process.env.GEMINI_API_KEY;
         if (apiKey) {
             this.genAI = new GoogleGenerativeAI(apiKey);
-            // Use flash-8b as requested for high volume / fast responses
-            this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
+            this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         } else {
             console.warn("[AIService] GEMINI_API_KEY not found. AI features will be unavailable.");
         }
