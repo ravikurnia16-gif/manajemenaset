@@ -70,6 +70,13 @@ const initializeWhatsApp = () => {
             // Check if from allowed group
             if (!msg.from.endsWith('@g.us')) return; // Only process group messages
 
+            // Utility to get group ID easily
+            if (msg.body.trim() === '/idgrup') {
+                const chat = await msg.getChat();
+                await msg.reply(`ID Grup "${chat.name}" adalah:\n*${msg.from}*\n\nMasukkan ID ini ke dalam pengaturan AI_ALLOWED_GROUPS (dipisahkan dengan koma jika lebih dari satu) agar Bot aktif di grup ini.`);
+                return;
+            }
+
             const allowedGroupsRaw = process.env.AI_ALLOWED_GROUPS || "";
             const allowedGroups = allowedGroupsRaw.split(',').map(g => g.trim());
             if (!allowedGroups.includes(msg.from)) return; // Not an allowed group
