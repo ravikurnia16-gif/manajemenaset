@@ -86,7 +86,7 @@ class AIService {
                     parameters: {
                         type: "OBJECT",
                         properties: {
-                            keyword: { type: "STRING", description: "Pencarian nama kendaraan, plat, atau tipe." }
+                            keyword: { type: "STRING", description: "Pencarian nama kendaraan, plat, atau tipe. Isi dengan string kosong '' jika mencari semua kendaraan." }
                         }
                     }
                 },
@@ -96,7 +96,7 @@ class AIService {
                     parameters: {
                         type: "OBJECT",
                         properties: {
-                            keyword: { type: "STRING", description: "Kata kunci nama barang atau kode." }
+                            keyword: { type: "STRING", description: "Kata kunci nama barang atau kode. Isi dengan string kosong '' jika mencari semua barang." }
                         },
                         required: ["keyword"]
                     }
@@ -107,7 +107,7 @@ class AIService {
                     parameters: {
                         type: "OBJECT",
                         properties: {
-                            keyword: { type: "STRING", description: "Nama kendaraan atau plat nomor." }
+                            keyword: { type: "STRING", description: "Nama kendaraan atau plat nomor. Isi dengan string kosong '' jika mencari semua." }
                         },
                         required: ["keyword"]
                     }
@@ -118,7 +118,7 @@ class AIService {
                     parameters: {
                         type: "OBJECT",
                         properties: {
-                            keyword: { type: "STRING", description: "Nama kendaraan yang ingin dicek." }
+                            keyword: { type: "STRING", description: "Nama kendaraan. Isi dengan string kosong '' jika mencari jadwal semua kendaraan." }
                         },
                         required: ["keyword"]
                     }
@@ -142,8 +142,10 @@ class AIService {
             tools: tools,
             systemInstruction: `Anda adalah "Admin Sarpras", asisten AI untuk bidang Sarana Prasarana di Yayasan Dar El Iman.
 Anda sedang membalas pesan di grup WhatsApp ${groupName ? `"${groupName}"` : ""}.
-Jika pesan bertanya tentang data (kendaraan, barang, servis, peminjaman, personel), SELALU gunakan Tools (Fungsi) yang tersedia sebelum menjawab.
-Jawaban Anda harus selalu singkat, padat, ramah dan jelas. 
+Waktu saat ini: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB.
+PENTING: Tanggal dari database (JSON) menggunakan format UTC (lebih lambat 7 jam dari WIB). Harap konversi otomatis ke WIB di pikiran Anda sebelum menyimpulkan "hari ini" atau "besok".
+Jika pesan bertanya tentang data, SELALU gunakan Tools (Fungsi) yang tersedia. Jangan berasumsi.
+Jawaban Anda harus selalu ramah, sopan, dan jelas. Jika data kosong/tidak ada, sampaikan dengan baik.
 Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan markdown seperti # atau **.`
         });
 
