@@ -93,23 +93,19 @@ const initializeWhatsApp = () => {
                     groupName = chat.name || "Grup";
                 }
             } else {
-                // Private logic
+                // Private logic (Only check DB Phone)
                 isPrivate = true;
                 const allowedPrivateNames = ["Ravi Kurnia", "Ringgo Afriwansyah Putra", "Syafriyan", "Rian Yulianto", "Jeri Saputra", "Eldo Darjumeianto Putra"];
-                const contact = await msg.getContact();
-                const waName = (contact.pushname || contact.name || "").toLowerCase();
                 
-                isAllowed = allowedPrivateNames.some(name => waName.includes(name.toLowerCase()));
+                const phone1 = msg.from.split('@')[0];
+                const phone2 = phone1.replace(/^62/, '0');
                 
-                if (!isAllowed) {
-                    const phone1 = msg.from.split('@')[0];
-                    const phone2 = phone1.replace(/^62/, '0');
-                    const dbUser = await prisma.user.findFirst({
-                        where: { OR: [{ phone: phone1 }, { phone: phone2 }] }
-                    });
-                    if (dbUser && allowedPrivateNames.some(name => (dbUser.name || "").toLowerCase().includes(name.toLowerCase()))) {
-                        isAllowed = true;
-                    }
+                const dbUser = await prisma.user.findFirst({
+                    where: { OR: [{ phone: phone1 }, { phone: phone2 }] }
+                });
+                
+                if (dbUser && allowedPrivateNames.some(name => (dbUser.name || "").toLowerCase().includes(name.toLowerCase()))) {
+                    isAllowed = true;
                 }
             }
 
@@ -119,17 +115,14 @@ const initializeWhatsApp = () => {
             let shouldTrigger = false;
             let cleanMessage = msg.body;
 
-            if (isPrivate) {
-                shouldTrigger = true; // Any message in private chat triggers AI
-            } else {
-                const triggerRegex = /\b(admin|min|\@admin)\b/i;
-                const isMentioned = msg.mentionedIds && msg.mentionedIds.includes(waClient.info.wid._serialized);
-                
-                if (triggerRegex.test(msg.body) || isMentioned || msg.body.startsWith('/')) {
-                    shouldTrigger = true;
-                    if (!msg.body.startsWith('/')) {
-                         cleanMessage = msg.body.replace(triggerRegex, '').trim();
-                    }
+            const triggerRegex = /\b(admin|min|\@admin)\b/i;
+            const isMentioned = msg.mentionedIds && msg.mentionedIds.includes(waClient.info.wid._serialized);
+            
+            // Both Private and Group MUST use trigger word or slash command
+            if (triggerRegex.test(msg.body) || isMentioned || msg.body.startsWith('/')) {
+                shouldTrigger = true;
+                if (!msg.body.startsWith('/')) {
+                     cleanMessage = msg.body.replace(triggerRegex, '').trim();
                 }
             }
             
