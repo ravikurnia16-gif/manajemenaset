@@ -84,15 +84,18 @@ const initializeWhatsApp = () => {
             const allowedGroups = allowedGroupsRaw.split(',').map(g => g.trim());
             if (!allowedGroups.includes(msg.from)) return; // Not an allowed group
 
-            // Check trigger: starts with "admin", "min", or mentions "@admin"
-            const triggerRegex = /^(admin|min|\@admin)\b/i;
+            // Check trigger: word "admin", "min", or "@admin" anywhere in the sentence
+            const triggerRegex = /\b(admin|min|\@admin)\b/i;
             const isMentioned = msg.mentionedIds && msg.mentionedIds.includes(waClient.info.wid._serialized);
             
-            if (triggerRegex.test(msg.body) || isMentioned) {
+            if (triggerRegex.test(msg.body) || isMentioned || msg.body.startsWith('/')) {
                 console.log(`[WhatsApp Local AI] Trigger matched in group ${msg.from}. Generating response...`);
                 
-                // Remove the trigger word from the message to clean it up for the AI
-                let cleanMessage = msg.body.replace(triggerRegex, '').trim();
+                // Remove the trigger word from the message to clean it up for the AI (if not slash command)
+                let cleanMessage = msg.body;
+                if (!msg.body.startsWith('/')) {
+                     cleanMessage = msg.body.replace(triggerRegex, '').trim();
+                }
                 
                 // Get chat info to fetch group name
                 const chat = await msg.getChat();
