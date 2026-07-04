@@ -68,9 +68,10 @@ class AIService {
      * Generate a chat response for WhatsApp Group Bot.
      * @param {string} userMessage - The message from the user.
      * @param {string} groupName - Optional group name for context.
+     * @param {string} senderPhone - Optional phone number of sender.
      * @returns {Promise<string>}
      */
-    async generateChatResponse(userMessage, groupName = "") {
+    async generateChatResponse(userMessage, groupName = null, senderPhone = null) {
         if (!this.model) {
             throw new Error("AI Service is not configured (missing API Key)");
         }
@@ -140,10 +141,48 @@ class AIService {
                     parameters: {
                         type: "OBJECT",
                         properties: {
-                            keyword: { type: "STRING", description: "Kata kunci masalah, judul, atau nama aset. Isi dengan string kosong '' jika mencari semua." },
-                            status: { type: "STRING", description: "Filter status (SUBMITTED, APPROVED, IN_PROGRESS, COMPLETED, REJECTED). Kosongkan jika tidak mencari status tertentu." }
+                            status: { type: "STRING", description: "Status: PENDING, IN_PROGRESS, COMPLETED. Isi string kosong '' jika semua status." }
                         },
-                        required: ["keyword"]
+                        required: ["status"]
+                    }
+                },
+                {
+                    name: "buat_pengajuan_peminjaman_mobil",
+                    description: "Membuat draf pengajuan peminjaman mobil (VehicleBooking) dengan status PENDING.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            vehicleId: { type: "NUMBER", description: "ID kendaraan di database" },
+                            tujuan: { type: "STRING", description: "Tujuan peminjaman" },
+                            waktuMulai: { type: "STRING", description: "Waktu mulai format YYYY-MM-DDTHH:mm:ssZ" },
+                            waktuSelesai: { type: "STRING", description: "Waktu selesai format YYYY-MM-DDTHH:mm:ssZ" }
+                        },
+                        required: ["vehicleId", "tujuan", "waktuMulai", "waktuSelesai"]
+                    }
+                },
+                {
+                    name: "kirim_file_excel",
+                    description: "Men-generate data JSON menjadi file Excel (.xlsx) dan mengirimkannya sebagai lampiran WhatsApp.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            dataJsonString: { type: "STRING", description: "Stringify JSON array dari data yang akan direkap (misal hasil dari query_database_bebas)." },
+                            namaFile: { type: "STRING", description: "Nama file Excel, misal 'Rekap_Peminjaman.xlsx'" }
+                        },
+                        required: ["dataJsonString", "namaFile"]
+                    }
+                },
+                {
+                    name: "approve_reject_request",
+                    description: "Menyetujui atau menolak pengajuan. WAJIB mengecek role pengirim. HANYA ROLE TINGGI YANG BISA MEMANGGIL INI.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            tabel: { type: "STRING", description: "Nama tabel: 'VehicleBooking' atau 'Maintenance'" },
+                            idPengajuan: { type: "NUMBER", description: "ID pengajuan di database" },
+                            statusBaru: { type: "STRING", description: "'APPROVED' atau 'REJECTED' atau 'COMPLETED'" }
+                        },
+                        required: ["tabel", "idPengajuan", "statusBaru"]
                     }
                 },
                 {
@@ -176,17 +215,14 @@ PERINTAH KHUSUS (WAJIB DIPATUHI JIKA USER MENGETIK INI):
 - "/cek_servis [nama]" -> WAJIB panggil tool "cari_riwayat_perawatan".
 - "/cek_barang [nama]" -> WAJIB panggil tool "cari_data_aset_barang".
 - "/cek_staf [nama]" -> WAJIB panggil tool "cari_data_personel".
-- "/cek_pemeliharaan [nama]" -> WAJIB panggil tool "cari_data_pemeliharaan".
+- "/cek_pemeliharaan [status]" -> WAJIB panggil tool "cari_data_pemeliharaan".
 Jika [nama] dikosongkan (contoh hanya mengetik "/cek_jadwal"), set parameter keyword dengan string kosong "" agar menarik semua data.
 Pemetaan status database: diajukan=SUBMITTED, disetujui=APPROVED, diproses=IN_PROGRESS, selesai=COMPLETED, ditolak=REJECTED.
 
 KEAMANAN PRIVASI: JANGAN PERNAH menyebarkan Password, NIP, atau Email pengguna kecuali benar-benar relevan atau diminta dengan tujuan jelas.
 
 AKSES GLOBAL DATABASE: Anda memiliki akses ke SELURUH database. Jika pesan berupa pertanyaan biasa tentang data (tanpa garis miring), tetap gunakan Tools yang relevan.
-Jika pesan berupa sapaan, obrolan santai, atau pertanyaan pengetahuan umum yang TIDAK memerlukan data dari database, Anda BEBAS menjawabnya secara langsung dengan natural dan ramah layaknya ChatGPT, tanpa memanggil tool. Jika user menanyakan data spesifik yang tidak bisa dijawab oleh "Perintah Khusus" di atas (misalnya data Vendor, Unit, Ruangan, Pengadaan, dll), Anda WAJIB menggunakan tool "query_database_bebas". Berikut adalah struktur Prisma Schema Anda:
---- SCHEMA START ---
-${prismaSchema}
---- SCHEMA END ---
+Jika pesan berupa sapaan, obrolan santai, atau pertanyaan pengetahuan umum yang TIDAK memerlukan data dari database, Anda BEBAS menjawabnya secara langsung dengan natural dan ramah layaknya ChatGPT, tanpa memanggil tool. Jika user menanyakan data spesifik yang tidak bisa dijawab oleh "Perintah Khusus" di atas (misalnya data Vendor, Unit, Ruangan, Pengadaan, dll), Anda WAJIB menggunakan tool "query_database_bebas".
 
 Jawaban Anda harus ramah, sopan, dan jelas. Jika data kosong/tidak ada, sampaikan dengan baik.
 Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan markdown seperti # atau **.`
@@ -198,12 +234,86 @@ Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan mark
             let result = await chat.sendMessage(userMessage);
             const calls = result.response.functionCalls();
             
+            let mediaAttachment = null;
+            let currentUser = null;
+            if (senderPhone) {
+                const p1 = senderPhone.split('@')[0];
+                const p2 = p1.replace(/^62/, '0');
+                currentUser = await prisma.user.findFirst({ where: { OR: [{ phone: p1 }, { phone: p2 }] } });
+            }
+
             if (calls && calls.length > 0) {
                 const call = calls[0]; // Process first function call
                 let apiResponse = { status: "success", data: null };
                 console.log(`[AIService] Tool called: ${call.name} with args`, call.args);
                 
-                if (call.name === 'cari_data_kendaraan') {
+                if (call.name === "buat_pengajuan_peminjaman_mobil") {
+                    if (!currentUser) {
+                        apiResponse = { status: "error", message: "Maaf, nomor HP Anda belum terdaftar di sistem. Anda tidak bisa mengajukan form." };
+                    } else {
+                        try {
+                            const newBooking = await prisma.vehicleBooking.create({
+                                data: {
+                                    vehicleId: call.args.vehicleId,
+                                    userId: currentUser.id,
+                                    startTime: new Date(call.args.waktuMulai),
+                                    endTime: new Date(call.args.waktuSelesai),
+                                    purpose: call.args.tujuan,
+                                    status: "PENDING"
+                                }
+                            });
+                            apiResponse = { status: "success", message: "Pengajuan berhasil dibuat", data: newBooking };
+                        } catch (e) {
+                            apiResponse = { status: "error", message: `Gagal membuat pengajuan: ${e.message}` };
+                        }
+                    }
+                } 
+                else if (call.name === "kirim_file_excel") {
+                    try {
+                        const parsedData = JSON.parse(call.args.dataJsonString);
+                        if (!Array.isArray(parsedData) || parsedData.length === 0) {
+                            apiResponse = { status: "error", message: "Data kosong atau format JSON salah." };
+                        } else {
+                            const XLSX = require('xlsx');
+                            const ws = XLSX.utils.json_to_sheet(parsedData);
+                            const wb = XLSX.utils.book_new();
+                            XLSX.utils.book_append_sheet(wb, ws, "Rekap");
+                            const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+                            
+                            mediaAttachment = {
+                                buffer: buffer.toString('base64'),
+                                filename: call.args.namaFile.endsWith('.xlsx') ? call.args.namaFile : `${call.args.namaFile}.xlsx`,
+                                mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                            };
+                            apiResponse = { status: "success", message: `File ${mediaAttachment.filename} berhasil di-generate dan siap dikirim.` };
+                        }
+                    } catch (e) {
+                        apiResponse = { status: "error", message: `Gagal parse JSON atau generate Excel: ${e.message}` };
+                    }
+                }
+                else if (call.name === "approve_reject_request") {
+                    if (!currentUser) {
+                        apiResponse = { status: "error", message: "Akses ditolak: Anda tidak terdaftar." };
+                    } else if (!["ADMIN_ASET", "SUPER_ADMIN", "KABID_SARPRAS", "KEPALA_BIDANG"].includes(currentUser.role)) {
+                        apiResponse = { status: "error", message: `Akses ditolak: Jabatan Anda (${currentUser.role}) tidak memiliki wewenang untuk menyetujui pengajuan.` };
+                    } else {
+                        try {
+                            const { tabel, idPengajuan, statusBaru } = call.args;
+                            if (tabel === 'VehicleBooking') {
+                                const res = await prisma.vehicleBooking.update({ where: { id: idPengajuan }, data: { status: statusBaru } });
+                                apiResponse = { status: "success", message: `VehicleBooking ID ${idPengajuan} berhasil diupdate jadi ${statusBaru}.`, data: res };
+                            } else if (tabel === 'Maintenance') {
+                                const res = await prisma.maintenance.update({ where: { id: idPengajuan }, data: { status: statusBaru } });
+                                apiResponse = { status: "success", message: `Maintenance ID ${idPengajuan} berhasil diupdate jadi ${statusBaru}.`, data: res };
+                            } else {
+                                apiResponse = { status: "error", message: `Tabel ${tabel} tidak dikenal.` };
+                            }
+                        } catch (e) {
+                            apiResponse = { status: "error", message: `Gagal update data: ${e.message}` };
+                        }
+                    }
+                }
+                else if (call.name === 'cari_data_kendaraan') {
                     const kw = call.args.keyword || "";
                     apiResponse.data = await prisma.vehicle.findMany({
                         where: { OR: [{ name: { contains: kw } }, { plateNumber: { contains: kw } }, { type: { contains: kw } }] },
@@ -298,6 +408,14 @@ Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan mark
 
             const responseText = result.response.text();
             await prisma.$disconnect();
+            
+            if (mediaAttachment) {
+                return {
+                    text: responseText,
+                    media: mediaAttachment
+                };
+            }
+            
             return responseText;
 
         } catch (err) {

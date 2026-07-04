@@ -133,10 +133,17 @@ const initializeWhatsApp = () => {
                 await chat.sendStateTyping();
 
                 const aiService = require('./aiService');
-                const response = await aiService.generateChatResponse(cleanMessage || msg.body, isPrivate ? null : groupName);
+                const response = await aiService.generateChatResponse(cleanMessage || msg.body, isPrivate ? null : groupName, msg.from);
 
-                exports.sendMessage(msg.from, response, { quotedMessageId: msg.id._serialized });
-                console.log(`[WhatsApp Local AI] Queued AI reply to ${msg.from}`);
+                if (response && typeof response === 'object' && response.media) {
+                    const { MessageMedia } = require('whatsapp-web.js');
+                    const media = new MessageMedia(response.media.mimetype, response.media.buffer, response.media.filename);
+                    exports.sendMessage(msg.from, response.text, { media: media, quotedMessageId: msg.id._serialized });
+                    console.log(`[WhatsApp Local AI] Queued AI reply (with Document) to ${msg.from}`);
+                } else {
+                    exports.sendMessage(msg.from, response, { quotedMessageId: msg.id._serialized });
+                    console.log(`[WhatsApp Local AI] Queued AI reply to ${msg.from}`);
+                }
             }
         } catch (error) {
             console.error('[WhatsApp Local AI] Error handling message:', error);
