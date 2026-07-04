@@ -256,8 +256,9 @@ Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan mark
                                 data: {
                                     vehicleId: call.args.vehicleId,
                                     userId: currentUser.id,
-                                    startTime: new Date(call.args.waktuMulai),
-                                    endTime: new Date(call.args.waktuSelesai),
+                                    startDate: new Date(call.args.waktuMulai),
+                                    endDate: new Date(call.args.waktuSelesai),
+                                    destination: call.args.tujuan,
                                     purpose: call.args.tujuan,
                                     status: "PENDING"
                                 }
