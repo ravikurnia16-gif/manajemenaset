@@ -69,46 +69,79 @@ const initializeWhatsApp = () => {
     // AI BOT Message Listener
     waClient.on('message', async (msg) => {
         try {
-            // Check if from allowed group
-            if (!msg.from.endsWith('@g.us')) return; // Only process group messages
-
             // Utility to get group ID easily
             if (msg.body.trim() === '/idgrup') {
-                const chat = await msg.getChat();
-                await msg.reply(`ID Grup "${chat.name}" adalah:\n*${msg.from}*\n\nMasukkan ID ini ke dalam pengaturan AI_ALLOWED_GROUPS (dipisahkan dengan koma jika lebih dari satu) agar Bot aktif di grup ini.`);
+                if (msg.from.endsWith('@g.us')) {
+                    const chat = await msg.getChat();
+                    await msg.reply(`ID Grup "${chat.name}" adalah:\n*${msg.from}*\n\nMasukkan ID ini ke dalam pengaturan AI_ALLOWED_GROUPS (dipisahkan dengan koma jika lebih dari satu) agar Bot aktif di grup ini.`);
+                }
                 return;
             }
 
-            const settings = await prisma.setting.findUnique({ where: { id: 1 } });
-            const allowedGroupsRaw = settings?.aiAllowedGroups || process.env.AI_ALLOWED_GROUPS || "";
-            const allowedGroups = allowedGroupsRaw.split(',').map(g => g.trim());
-            if (!allowedGroups.includes(msg.from)) return; // Not an allowed group
+            let isAllowed = false;
+            let groupName = null;
+            let isPrivate = false;
 
-            // Check trigger: word "admin", "min", or "@admin" anywhere in the sentence
-            const triggerRegex = /\b(admin|min|\@admin)\b/i;
-            const isMentioned = msg.mentionedIds && msg.mentionedIds.includes(waClient.info.wid._serialized);
-            
-            if (triggerRegex.test(msg.body) || isMentioned || msg.body.startsWith('/')) {
-                console.log(`[WhatsApp Local AI] Trigger matched in group ${msg.from}. Generating response...`);
-                
-                // Remove the trigger word from the message to clean it up for the AI (if not slash command)
-                let cleanMessage = msg.body;
-                if (!msg.body.startsWith('/')) {
-                     cleanMessage = msg.body.replace(triggerRegex, '').trim();
+            if (msg.from.endsWith('@g.us')) {
+                // Group logic
+                const settings = await prisma.setting.findUnique({ where: { id: 1 } });
+                const allowedGroupsRaw = settings?.aiAllowedGroups || process.env.AI_ALLOWED_GROUPS || "";
+                const allowedGroups = allowedGroupsRaw.split(',').map(g => g.trim());
+                if (allowedGroups.includes(msg.from)) {
+                    isAllowed = true;
+                    const chat = await msg.getChat();
+                    groupName = chat.name || "Grup";
                 }
+            } else {
+                // Private logic
+                isPrivate = true;
+                const allowedPrivateNames = ["Ravi Kurnia", "Ringgo Afriwansyah Putra", "Syafriyan", "Rian Yulianto", "Jeri Saputra", "Eldo Darjumeianto Putra"];
+                const contact = await msg.getContact();
+                const waName = (contact.pushname || contact.name || "").toLowerCase();
                 
-                // Get chat info to fetch group name
-                const chat = await msg.getChat();
-                const groupName = chat.name || "Grup";
+                isAllowed = allowedPrivateNames.some(name => waName.includes(name.toLowerCase()));
+                
+                if (!isAllowed) {
+                    const phone1 = msg.from.split('@')[0];
+                    const phone2 = phone1.replace(/^62/, '0');
+                    const dbUser = await prisma.user.findFirst({
+                        where: { OR: [{ phone: phone1 }, { phone: phone2 }] }
+                    });
+                    if (dbUser && allowedPrivateNames.some(name => (dbUser.name || "").toLowerCase().includes(name.toLowerCase()))) {
+                        isAllowed = true;
+                    }
+                }
+            }
 
-                // Simulate typing animation while AI is thinking
+            if (!isAllowed) return; // Not an allowed group or person
+
+            // Check trigger
+            let shouldTrigger = false;
+            let cleanMessage = msg.body;
+
+            if (isPrivate) {
+                shouldTrigger = true; // Any message in private chat triggers AI
+            } else {
+                const triggerRegex = /\b(admin|min|\@admin)\b/i;
+                const isMentioned = msg.mentionedIds && msg.mentionedIds.includes(waClient.info.wid._serialized);
+                
+                if (triggerRegex.test(msg.body) || isMentioned || msg.body.startsWith('/')) {
+                    shouldTrigger = true;
+                    if (!msg.body.startsWith('/')) {
+                         cleanMessage = msg.body.replace(triggerRegex, '').trim();
+                    }
+                }
+            }
+            
+            if (shouldTrigger) {
+                console.log(`[WhatsApp Local AI] Trigger matched for ${msg.from}. Generating response...`);
+                
+                const chat = await msg.getChat();
                 await chat.sendStateTyping();
 
-                // Generate response
                 const aiService = require('./aiService');
-                const response = await aiService.generateChatResponse(cleanMessage || msg.body, groupName);
+                const response = await aiService.generateChatResponse(cleanMessage || msg.body, isPrivate ? null : groupName);
 
-                // Reply via queue so it doesn't clash with automated notifications
                 exports.sendMessage(msg.from, response, { quotedMessageId: msg.id._serialized });
                 console.log(`[WhatsApp Local AI] Queued AI reply to ${msg.from}`);
             }
