@@ -145,6 +145,19 @@ class AIService {
                         },
                         required: ["keyword"]
                     }
+                },
+                {
+                    name: "query_database_bebas",
+                    description: "Membaca data dari SELURUH tabel di database secara dinamis menggunakan Prisma ORM. Gunakan HANYA jika pertanyaan user TIDAK BISA dijawab oleh tool-tool spesifik di atas.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            modelName: { type: "STRING", description: "Nama tabel/model di Prisma (misal: 'user', 'asset', 'vehicle', 'procurement', 'unit', dll). Gunakan camelCase standar Prisma." },
+                            whereJson: { type: "STRING", description: "Kondisi filter (Prisma where object) dalam format JSON string. Contoh: '{\"name\": {\"contains\": \"laptop\"}}' atau '{}' jika ambil semua." },
+                            selectJson: { type: "STRING", description: "Kolom yang diambil (Prisma select object) dalam format JSON string. Contoh: '{\"name\": true, \"status\": true}'. Jangan ambil semua kolom." }
+                        },
+                        required: ["modelName", "whereJson", "selectJson"]
+                    }
                 }
             ]
         }];
@@ -167,7 +180,13 @@ PERINTAH KHUSUS (WAJIB DIPATUHI JIKA USER MENGETIK INI):
 Jika [nama] dikosongkan (contoh hanya mengetik "/cek_jadwal"), set parameter keyword dengan string kosong "" agar menarik semua data.
 Pemetaan status database: diajukan=SUBMITTED, disetujui=APPROVED, diproses=IN_PROGRESS, selesai=COMPLETED, ditolak=REJECTED.
 
-Jika pesan berupa pertanyaan biasa (tanpa garis miring), tetap gunakan Tools yang relevan. Jangan berasumsi.
+KEAMANAN PRIVASI: JANGAN PERNAH menyebarkan Password, NIP, atau Email pengguna kecuali benar-benar relevan atau diminta dengan tujuan jelas.
+
+AKSES GLOBAL DATABASE: Anda memiliki akses ke SELURUH database. Jika user menanyakan data yang tidak bisa dijawab oleh "Perintah Khusus" di atas (misalnya data Vendor, Unit, Ruangan, Pengadaan, dll), Anda WAJIB menggunakan tool "query_database_bebas". Berikut adalah struktur Prisma Schema Anda:
+--- SCHEMA START ---
+${prismaSchema}
+--- SCHEMA END ---
+
 Jawaban Anda harus ramah, sopan, dan jelas. Jika data kosong/tidak ada, sampaikan dengan baik.
 Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan markdown seperti # atau **.`
         });
@@ -239,6 +258,32 @@ Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan mark
                         orderBy: { id: 'desc' },
                         take: 10
                     });
+                }
+                else if (call.name === 'query_database_bebas') {
+                    try {
+                        const modelName = call.args.modelName;
+                        const where = call.args.whereJson ? JSON.parse(call.args.whereJson) : {};
+                        const select = call.args.selectJson ? JSON.parse(call.args.selectJson) : {};
+                        
+                        if (prisma[modelName]) {
+                            const queryArgs = {
+                                where: Object.keys(where).length > 0 ? where : undefined,
+                                take: 20
+                            };
+                            if (Object.keys(select).length > 0) {
+                                queryArgs.select = select;
+                            }
+                            
+                            apiResponse.data = await prisma[modelName].findMany(queryArgs);
+                        } else {
+                            apiResponse.status = "error";
+                            apiResponse.message = `Tabel '${modelName}' tidak ditemukan di Prisma. Gunakan camelCase.`;
+                        }
+                    } catch (e) {
+                        apiResponse.status = "error";
+                        apiResponse.message = `Error saat mengeksekusi query dinamis: ${e.message}`;
+                        console.error("[AIService] Dynamic Query Error:", e);
+                    }
                 }
 
                 // Send function response back to Gemini to get final text
