@@ -260,12 +260,65 @@ exports.getAllAssets = async (req, res) => {
 
         // 5. Search (Name, Code, Unit, or Room)
         if (search) {
-            where.OR = [
-                { name: { contains: search } },
-                { code: { contains: search } },
-                { unit: { name: { contains: search } } },
-                { room: { name: { contains: search } } }
-            ];
+            if (req.query.semanticSearch === 'true') {
+                const aiService = require('../services/aiService');
+                try {
+                    const parsed = await aiService.parseSemanticAssetSearch(search);
+                    
+                    // Build complex condition from parsed JSON
+                    let semanticConditions = [];
+
+                    if (parsed.keywords && parsed.keywords.length > 0) {
+                        // All keywords must match SOMEWHERE in the asset (name, brand, or spec)
+                        const keywordConditions = parsed.keywords.map(kw => ({
+                            OR: [
+                                { name: { contains: kw } },
+                                { brand: { contains: kw } },
+                                { specification: { contains: kw } }
+                            ]
+                        }));
+                        semanticConditions.push({ AND: keywordConditions });
+                    }
+
+                    if (parsed.roomName) {
+                        semanticConditions.push({ room: { name: { contains: parsed.roomName } } });
+                    }
+
+                    if (parsed.categoryName) {
+                        semanticConditions.push({ category: { name: { contains: parsed.categoryName } } });
+                    }
+
+                    if (parsed.condition) {
+                        semanticConditions.push({ condition: parsed.condition });
+                    }
+
+                    if (semanticConditions.length > 0) {
+                        where.AND = where.AND ? [...where.AND, ...semanticConditions] : semanticConditions;
+                    } else {
+                        // Fallback if AI returns empty
+                        where.OR = [
+                            { name: { contains: search } },
+                            { code: { contains: search } }
+                        ];
+                    }
+                } catch (aiError) {
+                    console.error("AI Semantic Search Error:", aiError);
+                    // Fallback to standard search on failure
+                    where.OR = [
+                        { name: { contains: search } },
+                        { code: { contains: search } },
+                        { unit: { name: { contains: search } } },
+                        { room: { name: { contains: search } } }
+                    ];
+                }
+            } else {
+                where.OR = [
+                    { name: { contains: search } },
+                    { code: { contains: search } },
+                    { unit: { name: { contains: search } } },
+                    { room: { name: { contains: search } } }
+                ];
+            }
         }
 
         // 5. Unverified Since (For Periodical Validation)

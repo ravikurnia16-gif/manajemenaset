@@ -425,6 +425,52 @@ Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan mark
             return "Maaf, Admin Sarpras sedang mengalami sedikit gangguan sistem saat ini 🙏";
         }
     }
+    /**
+     * Parse natural language into structured JSON filters for Semantic Asset Search.
+     * @param {string} userQuery - The natural language query
+     * @returns {Promise<Object>} - The parsed filters { keywords, categoryName, roomName, condition }
+     */
+    async parseSemanticAssetSearch(userQuery) {
+        if (!this.model) {
+            throw new Error("AI Service is not configured (missing API Key)");
+        }
+
+        const prompt = `
+            Anda adalah AI parser untuk sistem inventaris/manajemen aset.
+            Tugas Anda adalah mengubah kueri pencarian bahasa alami menjadi JSON terstruktur murni tanpa markdown.
+            Kueri: "${userQuery}"
+
+            Ekstrak ke format JSON berikut:
+            {
+                "keywords": ["array", "kata benda", "merk", "atau", "spesifikasi", "yang", "dicari"],
+                "categoryName": "Kategori barang jika disebutkan eksplisit (misal 'Elektronik', 'Kendaraan', 'Mebel'), atau biarkan kosong",
+                "roomName": "Nama ruangan atau gedung jika disebutkan (misal 'IT', 'Rapat', 'Gudang'), atau biarkan kosong",
+                "condition": "Salah satu dari: 'BAIK', 'RUSAK_RINGAN', 'RUSAK_BERAT', 'HILANG', 'DISPOSED' jika disebutkan, atau kosong"
+            }
+
+            Panduan:
+            - "keywords" harus berisi kata kunci penting yang mungkin cocok dengan nama barang, merek, atau spesifikasi. (Contoh: "laptop tipis asus" -> ["laptop", "tipis", "asus"]).
+            - Abaikan kata sambung seperti "yang", "ada", "di".
+            - Hanya berikan JSON murni. Jangan tambahkan \`\`\`json.
+        `;
+
+        try {
+            const result = await this.model.generateContent(prompt);
+            const responseText = result.response.text().trim();
+            // Membersihkan backticks jika masih ada
+            const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '');
+            return JSON.parse(cleanJson);
+        } catch (err) {
+            console.error("[AIService] Error parsing semantic search:", err.message);
+            // Fallback: return standard keyword extraction
+            return {
+                keywords: userQuery.split(" ").filter(w => w.length > 2),
+                categoryName: "",
+                roomName: "",
+                condition: ""
+            };
+        }
+    }
 }
 
 module.exports = new AIService();

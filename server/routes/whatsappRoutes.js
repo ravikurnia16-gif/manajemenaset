@@ -3,6 +3,8 @@ const router = express.Router();
 const { getWhatsAppStatus, logoutWhatsApp, reinitializeWhatsApp } = require('../services/whatsappService');
 const { verifyToken } = require('../middleware/authMiddleware');
 
+const { getRules, createRule, updateRule, deleteRule } = require('../controllers/whatsappRuleController');
+
 // Custom middleware to check position
 const authorizeKabidSarpras = (req, res, next) => {
     if (req.user.position !== 'Kepala Bidang Sarana') {
@@ -11,6 +13,7 @@ const authorizeKabidSarpras = (req, res, next) => {
     next();
 };
 
+// ... existing routes ...
 router.get('/status', verifyToken, authorizeKabidSarpras, (req, res) => {
     const status = getWhatsAppStatus();
     res.json(status);
@@ -39,5 +42,11 @@ router.get('/groups', verifyToken, authorizeKabidSarpras, async (req, res) => {
         res.status(500).json({ error: 'Gagal mengambil daftar grup' });
     }
 });
+
+// Notification Rule Engine Routes
+router.get('/rules', verifyToken, authorizeKabidSarpras, getRules);
+router.post('/rules', verifyToken, authorizeKabidSarpras, createRule);
+router.put('/rules/:id', verifyToken, authorizeKabidSarpras, updateRule);
+router.delete('/rules/:id', verifyToken, authorizeKabidSarpras, deleteRule);
 
 module.exports = router;

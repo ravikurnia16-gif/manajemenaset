@@ -21,6 +21,7 @@ import WarehouseStockForm from './pages/WarehouseStockForm';
 import WarehouseTransactions from './pages/WarehouseTransactions';
 import WarehouseTransactionForm from './pages/WarehouseTransactionForm';
 import Settings from './pages/Settings';
+import WhatsAppRules from './pages/WhatsAppRules';
 import UniformOrderPage from './pages/UniformOrderPage';
 import UniformOrderAdmin from './pages/UniformOrderAdmin';
 import UnitOrderForm from './pages/UnitOrderForm';
@@ -209,6 +210,7 @@ function App() {
           <Route path="workshop/orders/:id" element={<WorkshopOrderDetail />} />
 
           <Route path="settings" element={<Settings />} />
+          <Route path="whatsapp-rules" element={<WhatsAppRules />} />
           <Route path="mutasi" element={<MutationList />} />
           
           {/* Module: Survey Kepuasan */}

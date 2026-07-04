@@ -314,6 +314,9 @@ const Sidebar = ({ isOpen = true }) => {
                         <Link to="/master" className={navItemClass('/master')}><Database size={18} /> Master Data</Link>
                     )}
                     <Link to="/settings" className={navItemClass('/settings')}><Settings size={18} /> Pengaturan</Link>
+                    {isKabidSarpras && (
+                        <Link to="/whatsapp-rules" className={navItemClass('/whatsapp-rules')}><MessageSquare size={18} /> WA Notifikasi</Link>
+                    )}
                     
                     {settings?.surveyEnabled && (
                         renderCollapsible('survey', <MessageSquare size={18} />, 'Survey Kepuasan', (

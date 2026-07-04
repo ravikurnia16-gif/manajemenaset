@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin, Printer, QrCode, CheckCircle, XCircle, AlertCircle, ArrowLeftRight, Store, Tag, Snowflake, Fan, Laptop, Monitor, Table2, User, Projector, Droplets, LayoutGrid } from 'lucide-react';
+import { Download, Upload, Plus, Search, Filter, Edit, Trash2, Building2, MapPin, Printer, QrCode, CheckCircle, XCircle, AlertCircle, ArrowLeftRight, Store, Tag, Snowflake, Fan, Laptop, Monitor, Table2, User, Projector, Droplets, LayoutGrid, Sparkles } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { LabelPrint, BatchLabelPrint } from '../components/LabelPrint';
@@ -28,6 +28,7 @@ const AssetList = ({ validationMode = false }) => {
 
     // Filter Logic
     const [searchTerm, setSearchTerm] = useState('');
+    const [isSemanticSearch, setIsSemanticSearch] = useState(false);
     const [selectedCondition, setSelectedCondition] = useState('');
     const [selectedIds, setSelectedIds] = useState([]);
     const kirRef = useRef();
@@ -124,6 +125,7 @@ const AssetList = ({ validationMode = false }) => {
                 page: currentPage,
                 limit: itemsPerPage,
                 search: searchTerm,
+                semanticSearch: isSemanticSearch,
                 validationStatus: validationFilter,
                 unitId: selectedUnit,
                 roomId: selectedRoom,
@@ -182,7 +184,7 @@ const AssetList = ({ validationMode = false }) => {
         if (!isGlobalAdmin && currentUser.unitId) {
             setSelectedUnit(currentUser.unitId.toString());
         }
-    }, [itemsPerPage, selectedUnit, selectedRoom, selectedCondition, validationFilter, selectedCategory]);
+    }, [itemsPerPage, selectedUnit, selectedRoom, selectedCondition, validationFilter, selectedCategory, isSemanticSearch]);
 
     // Ref for Print
     const [printAsset, setPrintAsset] = useState(null);
@@ -1030,15 +1032,24 @@ const AssetList = ({ validationMode = false }) => {
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                 {/* Advanced Filter Bar */}
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4">
-                    <div className="lg:col-span-4 relative">
-                        <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Cari nama / kode aset..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                        />
+                    <div className="lg:col-span-4 flex gap-2">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                            <input
+                                type="text"
+                                placeholder={isSemanticSearch ? "Cari pintar dg AI: 'AC warna putih rusak'..." : "Cari nama / kode aset..."}
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className={`w-full bg-white border ${isSemanticSearch ? 'border-purple-400 focus:ring-purple-500' : 'border-slate-200 focus:ring-blue-500'} rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 shadow-sm transition-all`}
+                            />
+                        </div>
+                        <button
+                            onClick={() => setIsSemanticSearch(!isSemanticSearch)}
+                            className={`flex items-center justify-center w-[42px] h-[38px] rounded-xl border transition-all ${isSemanticSearch ? 'bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-200' : 'bg-white border-slate-200 text-slate-400 hover:text-purple-500 hover:bg-purple-50 hover:border-purple-200'}`}
+                            title="Pencarian Pintar AI (Semantic Search)"
+                        >
+                            <Sparkles size={18} className={isSemanticSearch ? 'animate-pulse' : ''} />
+                        </button>
                     </div>
 
                     <div className="lg:col-span-2 relative">

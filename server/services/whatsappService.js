@@ -311,3 +311,39 @@ exports.sendMessage = (phoneNumber, message, options = {}) => {
     // Resolve immediately for the caller so they don't wait for MIN_INTERVAL
     return Promise.resolve({ status: 'queued' });
 };
+/**
+ * Trigger a dynamic WA Notification based on rules
+ */
+exports.triggerWaNotification = async (eventType, data = {}) => {
+    try {
+        const { PrismaClient } = require('@prisma/client');
+        const prisma = new PrismaClient();
+        
+        // Cek tabel apakah ada
+        const rules = await prisma.notificationRule.findMany({
+            where: { eventName: eventType, isActive: true }
+        });
+
+        for (const rule of rules) {
+            if (!rule.targetGroup) continue;
+
+            let finalMessage = rule.messageTpl;
+            // Replace templates, e.g. [NAMA] -> data.nama
+            for (const key in data) {
+                const regex = new RegExp(`\\[${key}\\]`, 'g');
+                finalMessage = finalMessage.replace(regex, data[key] || '');
+            }
+
+            console.log(`[WA Rule Engine] Firing event ${eventType} to ${rule.targetGroup}`);
+            // Menggunakan queue untuk menghindari spamming
+            exports.sendMessage(rule.targetGroup, finalMessage);
+        }
+    } catch (error) {
+        // Abaikan jika tabel belum ada (saat migrasi belum push)
+        if (error.code === 'P2021' || error.message.includes('does not exist')) {
+            console.log(`[WA Rule Engine] Tabel belum ada, abaikan event ${eventType}`);
+        } else {
+            console.error('[WA Rule Engine] Error:', error.message);
+        }
+    }
+};

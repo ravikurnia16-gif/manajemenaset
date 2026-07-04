@@ -250,6 +250,18 @@ exports.requestBooking = async (req, res) => {
             }
         }
 
+        // Notify WA Rule Engine
+        const { triggerWaNotification } = require('../services/whatsappService');
+        await triggerWaNotification('NEW_VEHICLE_BOOKING', {
+            NAMA_PEMINJAM: booking.user.name,
+            KENDARAAN: vehicle.name,
+            PLAT: vehicle.plateNumber,
+            TUJUAN: destination,
+            KEPERLUAN: purpose,
+            START: formatWAWaktu(startDate),
+            END: formatWAWaktu(endDate)
+        });
+
         // Special Notification to Head of Sarpras for Yayasan usage
         if (isYayasan) {
             const headSarpras = await prisma.user.findFirst({
@@ -430,6 +442,15 @@ exports.reviewBooking = async (req, res) => {
             status === 'APPROVED' ? 'SUCCESS' : 'WARNING',
             isRental ? '/kendaraan/sewa' : '/kendaraan/peminjaman'
         );
+
+        // Notify WA Rule Engine
+        const { triggerWaNotification } = require('../services/whatsappService');
+        await triggerWaNotification('VEHICLE_BOOKING_STATUS_CHANGED', {
+            NAMA_PEMINJAM: booking.user.name,
+            KENDARAAN: booking.vehicle.name,
+            STATUS: status === 'APPROVED' ? 'Disetujui' : 'Ditolak',
+            CATATAN: adminNote || '-'
+        });
 
         res.json(updated);
     } catch (error) {

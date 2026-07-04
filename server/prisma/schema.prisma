@@ -1677,3 +1677,14 @@ model SecuritySchedule {
   @@index([date])
   @@index([guardId])
 }
+
+model NotificationRule {
+  id          Int      @id @default(autoincrement())
+  eventName   String
+  messageTpl  String   @db.Text
+  targetGroup String?  @db.Text
+  cronTime    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
