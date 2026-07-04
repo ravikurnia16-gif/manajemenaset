@@ -101,13 +101,16 @@ const initializeWhatsApp = () => {
                 const chat = await msg.getChat();
                 const groupName = chat.name || "Grup";
 
+                // Simulate typing animation while AI is thinking
+                await chat.sendStateTyping();
+
                 // Generate response
                 const aiService = require('./aiService');
                 const response = await aiService.generateChatResponse(cleanMessage || msg.body, groupName);
 
-                // Reply
-                await msg.reply(response);
-                console.log(`[WhatsApp Local AI] Replied to ${msg.from}`);
+                // Reply via queue so it doesn't clash with automated notifications
+                exports.sendMessage(msg.from, response, { quotedMessageId: msg.id._serialized });
+                console.log(`[WhatsApp Local AI] Queued AI reply to ${msg.from}`);
             }
         } catch (error) {
             console.error('[WhatsApp Local AI] Error handling message:', error);
@@ -197,7 +200,7 @@ const processQueue = async () => {
             await new Promise(r => setTimeout(r, waitTime));
         }
 
-        const { phoneNumber, message, resolve, reject } = messageQueue.shift();
+        const { phoneNumber, message, options, resolve, reject } = messageQueue.shift();
 
         try {
             let formattedPhone = phoneNumber;
@@ -209,9 +212,9 @@ const processQueue = async () => {
             let sentLocally = false;
             if (connectionStatus === 'CONNECTED' && waClient) {
                 try {
-                    // wa-web.js format uses @c.us for numbers
+                    // wa-web.js format uses @c.us for numbers, but group uses @g.us
                     const waWebJsPhone = formattedPhone.includes('@') ? formattedPhone : `${formattedPhone}@c.us`;
-                    await waClient.sendMessage(waWebJsPhone, message);
+                    await waClient.sendMessage(waWebJsPhone, message, options || {});
                     console.log(`[WhatsApp Local] Sent success to ${waWebJsPhone}: ${message.substring(0, 30)}...`);
                     sentLocally = true;
                 } catch (localErr) {
@@ -256,7 +259,7 @@ const processQueue = async () => {
  * Public sendMessage function (now queues messages)
  * Resolved immediately after queuing to avoid blocking API responses
  */
-exports.sendMessage = (phoneNumber, message) => {
+exports.sendMessage = (phoneNumber, message, options = {}) => {
     if (!phoneNumber) return Promise.resolve(null);
 
     // Create a background promise for the queue item
@@ -264,6 +267,7 @@ exports.sendMessage = (phoneNumber, message) => {
     messageQueue.push({ 
         phoneNumber, 
         message, 
+        options,
         resolve: (data) => { /* Background resolve */ }, 
         reject: (err) => { /* Background reject */ } 
     });
