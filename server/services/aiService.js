@@ -19,7 +19,19 @@ class AIService {
      */
     async generateContentWithFallback(prompt) {
         if (!this.genAI) throw new Error("AI Service is not configured (missing API Key)");
-        const fallbackModels = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.0-pro"];
+        const fallbackModels = [
+            "gemini-1.5-flash", 
+            "gemini-1.5-flash-8b", 
+            "gemini-2.5-flash", 
+            "gemini-2.0-flash", 
+            "gemini-1.5-pro", 
+            "gemini-1.0-pro",
+            "gemini-pro",
+            "gemini-3.5-flash",
+            "gemini-3.1-flash",
+            "gemini-3.1-flash-lite",
+            "gemini-3.0-flash"
+        ];
         let lastError = null;
         for (const modelName of fallbackModels) {
             try {
@@ -251,12 +263,17 @@ PANDUAN MENJAWAB:
 
         // Daftar model Gemini untuk fallback jika kuota (Rate Limit) habis
         const fallbackModels = [
-            "gemini-1.5-flash",      // Cepat & Pintar (Utama)
-            "gemini-1.5-flash-8b",   // Sangat Cepat & Ringan
-            "gemini-2.5-flash",      // Versi baru (jika tersedia)
-            "gemini-2.0-flash",      // Versi baru (jika tersedia)
-            "gemini-1.5-pro",        // Paling Pintar (Limit ketat)
-            "gemini-1.0-pro"         // Legacy model
+            "gemini-1.5-flash",
+            "gemini-1.5-flash-8b",
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-pro",
+            "gemini-1.0-pro",
+            "gemini-pro", // Legacy name that usually works on all keys
+            "gemini-3.5-flash",
+            "gemini-3.1-flash",
+            "gemini-3.1-flash-lite", // The user's original model
+            "gemini-3.0-flash"
         ];
 
         let chat = null;
