@@ -58,7 +58,6 @@ const initializeWhatsApp = () => {
             '--disable-setuid-sandbox', 
             '--disable-dev-shm-usage', 
             '--disable-gpu',
-            '--no-zygote',
             '--disable-accelerated-2d-canvas',
             '--disable-software-rasterizer',
             '--no-first-run',
