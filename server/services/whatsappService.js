@@ -21,20 +21,33 @@ const initializeWhatsApp = () => {
     }
     
     // Hapus file lock sisa (jika browser sebelumnya crash)
-    // Tidak menggunakan existsSync karena SingletonLock di Linux adalah symlink, 
-    // dan jika symlink-nya rusak (menunjuk ke container lama), existsSync mengembalikan false!
-    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
-    lockFiles.forEach(file => {
-        const filePath = path.join(process.cwd(), '.wwebjs_auth', 'session', file);
+    // Mencari secara rekursif karena SingletonLock mungkin ada di subfolder 'Default'
+    const cleanLockFiles = (dir) => {
         try {
-            fs.unlinkSync(filePath);
-            console.log(`[WhatsApp Local] Menghapus sisa lockfile: ${file}`);
-        } catch (e) {
-            if (e.code !== 'ENOENT') {
-                console.error(`[WhatsApp Local] Gagal menghapus lockfile ${file}:`, e.message);
+            if (!fs.existsSync(dir)) return;
+            const items = fs.readdirSync(dir);
+            for (const item of items) {
+                const fullPath = path.join(dir, item);
+                try {
+                    const stat = fs.lstatSync(fullPath);
+                    if (stat.isDirectory()) {
+                        cleanLockFiles(fullPath);
+                    } else if (item.startsWith('Singleton') || item === 'lockfile') {
+                        fs.unlinkSync(fullPath);
+                        console.log(`[WhatsApp Local] Menghapus sisa lockfile: ${fullPath}`);
+                    }
+                } catch (err) {
+                    if (item.startsWith('Singleton') || item === 'lockfile') {
+                        try { fs.unlinkSync(fullPath); } catch (e) {}
+                    }
+                }
             }
+        } catch (error) {
+            console.error('[WhatsApp Local] Error membersihkan lock files:', error.message);
         }
-    });
+    };
+
+    cleanLockFiles(path.join(process.cwd(), '.wwebjs_auth'));
 
     connectionStatus = 'INITIALIZING';
     qrCodeData = null;
