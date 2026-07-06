@@ -220,32 +220,17 @@ const getWhatsAppStatus = () => {
     };
 };
 
-let cachedGroups = null;
-let lastGroupFetchTime = 0;
-
 const getWhatsAppGroups = async () => {
     if (!waClient || connectionStatus !== 'CONNECTED') return [];
-    
-    // Gunakan cache memori jika usia pengambilan terakhir kurang dari 5 menit
-    // Ini mempercepat tampilan daftar grup di frontend drastis
-    if (cachedGroups && (Date.now() - lastGroupFetchTime < 5 * 60 * 1000)) {
-        return cachedGroups;
-    }
-
     try {
-        console.log('[WhatsApp Local] Mengambil ulang daftar chat dari WhatsApp...');
         const chats = await waClient.getChats();
         const groups = chats
             .filter(c => c.isGroup)
             .map(g => ({ id: g.id._serialized, name: g.name }));
-            
-        cachedGroups = groups;
-        lastGroupFetchTime = Date.now();
-        console.log(`[WhatsApp Local] Berhasil mengambil ${groups.length} grup.`);
         return groups;
     } catch (error) {
         console.error('[WhatsApp Local] Error getting groups', error);
-        return cachedGroups || [];
+        return [];
     }
 }
 
@@ -273,7 +258,7 @@ exports.reinitializeWhatsApp = () => {
 let messageQueue = [];
 let isProcessing = false;
 let lastSentTime = 0;
-const MIN_INTERVAL = 30000; // Minimum 30 seconds global interval
+const MIN_INTERVAL = 1500; // Minimum 1.5 seconds global interval
 
 /**
  * Worker that processes the queue one by one with mandatory delays
@@ -290,7 +275,6 @@ const processQueue = async () => {
         const timeSinceLast = now - lastSentTime;
         if (timeSinceLast < MIN_INTERVAL) {
             const waitTime = MIN_INTERVAL - timeSinceLast;
-            console.log(`[WhatsApp Queue] Global cooldown active. Waiting ${Math.round(waitTime / 1000)}s...`);
             await new Promise(r => setTimeout(r, waitTime));
         }
 
@@ -308,8 +292,14 @@ const processQueue = async () => {
                 try {
                     // wa-web.js format uses @c.us for numbers, but group uses @g.us
                     const waWebJsPhone = formattedPhone.includes('@') ? formattedPhone : `${formattedPhone}@c.us`;
-                    await waClient.sendMessage(waWebJsPhone, message, options || {});
-                    console.log(`[WhatsApp Local] Sent success to ${waWebJsPhone}: ${message.substring(0, 30)}...`);
+                    
+                    // JIKA pesan kosong dari AI, ganti dengan fallback
+                    const finalMessage = (!message || message.trim() === '') 
+                        ? "Maaf, tidak ada data spesifik yang bisa dirangkum atau AI mengembalikan respon kosong."
+                        : message;
+
+                    await waClient.sendMessage(waWebJsPhone, finalMessage, options || {});
+                    console.log(`[WhatsApp Local] Sent success to ${waWebJsPhone}`);
                     sentLocally = true;
                 } catch (localErr) {
                     console.error(`[WhatsApp Local Error] Failed to send to ${formattedPhone}, falling back to Backup Lane. Error:`, localErr.message);
@@ -321,11 +311,10 @@ const processQueue = async () => {
                 console.log(`[WhatsApp Backup] Using external API for ${formattedPhone}...`);
                 await axios.post(WHATSAPP_API_URL, {
                     number: formattedPhone,
-                    message: message
+                    message: message || "Data kosong."
                 }, {
                     headers: { 'Content-Type': 'application/json' }
                 });
-                console.log(`[WhatsApp Backup] Sent success to ${formattedPhone}: ${message.substring(0, 30)}...`);
             }
 
             lastSentTime = Date.now(); // Update last success time
@@ -337,10 +326,9 @@ const processQueue = async () => {
             resolve(null);
         }
 
-        // 3. Stagger: Add a random delay (15s to 60s) if more items exist
+        // 3. Stagger: Add a small delay (2s to 4s) if more items exist
         if (messageQueue.length > 0) {
-            const staggerMs = Math.floor(Math.random() * (60000 - 15000 + 1)) + 15000;
-            console.log(`[WhatsApp Queue] Randomized stagger: ${Math.round(staggerMs / 1000)}s...`);
+            const staggerMs = Math.floor(Math.random() * (4000 - 2000 + 1)) + 2000;
             await new Promise(r => setTimeout(r, staggerMs));
         }
     }

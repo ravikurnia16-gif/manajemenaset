@@ -407,9 +407,13 @@ Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan mark
                 }]);
             }
 
-            const responseText = result.response.text();
+            let responseText = result.response.text();
             await prisma.$disconnect();
             
+            if (!responseText || responseText.trim() === '') {
+                responseText = "Mohon maaf, saya telah memproses data tersebut namun kesulitan menampilkannya. Silakan coba persempit kata kuncinya.";
+            }
+
             if (mediaAttachment) {
                 return {
                     text: responseText,
