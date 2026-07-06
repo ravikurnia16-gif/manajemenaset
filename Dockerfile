@@ -31,6 +31,8 @@ RUN apt-get update -y && apt-get install -y \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+# Matikan D-Bus sepenuhnya agar Chromium tidak crash mencari socket
+ENV DBUS_SESSION_BUS_ADDRESS=/dev/null
 
 # Install dependencies backend (Puppeteer TIDAK akan download Chrome karena ENV di atas)
 COPY server/package*.json ./server/

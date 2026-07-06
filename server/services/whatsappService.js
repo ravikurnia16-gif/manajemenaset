@@ -61,7 +61,10 @@ const initializeWhatsApp = () => {
             '--disable-gpu',
             '--disable-software-rasterizer',
             '--no-first-run',
-            '--disable-extensions'
+            '--disable-extensions',
+            '--disable-features=dbus',
+            '--disable-breakpad',
+            '--disable-crash-reporter'
         ]
     };
 
