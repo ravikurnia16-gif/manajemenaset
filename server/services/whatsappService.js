@@ -21,16 +21,18 @@ const initializeWhatsApp = () => {
     }
     
     // Hapus file lock sisa (jika browser sebelumnya crash)
+    // Tidak menggunakan existsSync karena SingletonLock di Linux adalah symlink, 
+    // dan jika symlink-nya rusak (menunjuk ke container lama), existsSync mengembalikan false!
     const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
     lockFiles.forEach(file => {
         const filePath = path.join(process.cwd(), '.wwebjs_auth', 'session', file);
         try {
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
-                console.log(`[WhatsApp Local] Menghapus sisa lockfile: ${file}`);
-            }
+            fs.unlinkSync(filePath);
+            console.log(`[WhatsApp Local] Menghapus sisa lockfile: ${file}`);
         } catch (e) {
-            console.error(`[WhatsApp Local] Gagal menghapus lockfile ${file}:`, e.message);
+            if (e.code !== 'ENOENT') {
+                console.error(`[WhatsApp Local] Gagal menghapus lockfile ${file}:`, e.message);
+            }
         }
     });
 
