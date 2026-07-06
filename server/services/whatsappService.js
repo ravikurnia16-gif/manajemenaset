@@ -85,29 +85,14 @@ const initializeWhatsApp = () => {
         puppeteerConfig.executablePath = '/usr/bin/chromium';
     }
 
-    // --- DIAGNOSTIC: TEST CHROMIUM LAUNCH DIRECTLY ---
-    try {
-        const { spawn } = require('child_process');
-        console.log('[WhatsApp Local] DIAGNOSTIC: Mencoba menjalankan Chromium secara langsung...');
-        const chromeTest = spawn(puppeteerConfig.executablePath || 'chromium', puppeteerConfig.args.concat(['--headless']));
-        
-        chromeTest.stdout.on('data', (data) => console.log(`[DIAGNOSTIC STDOUT]: ${data}`));
-        chromeTest.stderr.on('data', (data) => console.error(`[DIAGNOSTIC STDERR]: ${data}`));
-        
-        chromeTest.on('close', (code, signal) => {
-            console.log(`[WhatsApp Local] DIAGNOSTIC SELESAI: Chromium exit code: ${code}, signal: ${signal}`);
-            if (signal === 'SIGKILL') {
-                console.error('!!! FATAL ERROR: CHROMIUM TERKENA SIGKILL. INI 100% KARENA KEHABISAN RAM (OOM) DI SERVER ANDA !!!');
-            } else if (signal === 'SIGSEGV') {
-                console.error('!!! FATAL ERROR: CHROMIUM TERKENA SIGSEGV (SEGMENTATION FAULT). BINARY TIDAK COCOK DENGAN CPU/OS !!!');
-            } else if (signal === 'SIGILL') {
-                console.error('!!! FATAL ERROR: CHROMIUM TERKENA SIGILL (ILLEGAL INSTRUCTION). CPU ARM ANDA TIDAK MENDUKUNG INSTRUKSI INI !!!');
-            }
-        });
-    } catch (err) {
-        console.error('[WhatsApp Local] DIAGNOSTIC ERROR:', err.message);
+    const os = require('os');
+    const totalRamMb = Math.round(os.totalmem() / 1024 / 1024);
+    const freeRamMb = Math.round(os.freemem() / 1024 / 1024);
+    console.log(`[WhatsApp Local] SYSTEM MEMORY CHECK: Total RAM: ${totalRamMb} MB, Free RAM: ${freeRamMb} MB`);
+    
+    if (freeRamMb < 300) {
+        console.warn('!!! PERINGATAN KERAS: SISA RAM SANGAT KECIL (< 300MB). BROWSER CHROMIUM KEMUNGKINAN BESAR AKAN DI MATIKAN PAKSA OLEH SISTEM (OOM KILLER) DAN MENGHASILKAN ERROR "Code: null" !!!');
     }
-    // -------------------------------------------------
 
     waClient = new Client({
         authStrategy: new LocalAuth({
