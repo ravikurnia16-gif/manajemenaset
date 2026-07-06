@@ -1,5 +1,5 @@
 # --- STAGE 1: Membangun Tampilan (Frontend) ---
-FROM node:20-slim AS build-stage
+FROM node:20 AS build-stage
 WORKDIR /app
 
 # Install dependencies frontend
@@ -11,16 +11,17 @@ COPY client/ ./client/
 RUN cd client && npm run build
 
 # --- STAGE 2: Menjalankan Server (Backend) ---
-FROM node:20-slim
+FROM node:20
 WORKDIR /app
 
 # Install Chromium SISTEM (bukan download dari Puppeteer) beserta SEMUA dependensinya.
 # JANGAN pakai --no-install-recommends agar semua paket pendukung Chromium terinstall.
-# Install juga 'dbus' agar Chromium tidak crash mencari dbus socket.
+# Install 'dbus' dan 'dumb-init'
 RUN apt-get update -y && apt-get install -y \
     openssl \
     chromium \
     dbus \
+    dumb-init \
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================================
@@ -31,8 +32,6 @@ RUN apt-get update -y && apt-get install -y \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-# Matikan D-Bus sepenuhnya agar Chromium tidak crash mencari socket
-ENV DBUS_SESSION_BUS_ADDRESS=/dev/null
 
 # Install dependencies backend (Puppeteer TIDAK akan download Chrome karena ENV di atas)
 COPY server/package*.json ./server/
@@ -49,5 +48,8 @@ RUN cd server && npx prisma generate
 # Easypanel menggunakan port 3000
 EXPOSE 3000
 
+# Gunakan dumb-init untuk menangani process (mencegah zombie process dan issue Code: null)
+ENTRYPOINT ["dumb-init", "--"]
+
 # Buat direktori dbus sebelum jalankan aplikasi agar Chromium tidak crash
-CMD ["sh", "-c", "mkdir -p /run/dbus && cd server && npx prisma db push --accept-data-loss && node index.js"]
+CMD ["sh", "-c", "mkdir -p /run/dbus && dbus-daemon --system --fork || true && cd server && npx prisma db push --accept-data-loss && node index.js"]
