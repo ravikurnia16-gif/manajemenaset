@@ -82,9 +82,6 @@ const initializeWhatsApp = () => {
         puppeteerConfig.executablePath = process.env.CHROME_BIN;
     } else if (process.env.PUPPETEER_EXECUTABLE_PATH) {
         puppeteerConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-    } else if (process.platform === 'linux') {
-        // Fallback common paths for linux/docker (Debian/Ubuntu)
-        puppeteerConfig.executablePath = '/usr/bin/chromium';
     }
 
     waClient = new Client({
