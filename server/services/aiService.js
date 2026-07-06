@@ -187,13 +187,13 @@ class AIService {
                 },
                 {
                     name: "query_database_bebas",
-                    description: "Membaca data dari SELURUH tabel di database secara dinamis menggunakan Prisma ORM. Gunakan HANYA jika pertanyaan user TIDAK BISA dijawab oleh tool-tool spesifik di atas.",
+                    description: "Akses DATABASE FULL (Prisma). Gunakan ini jika user menanyakan data Pengadaan (procurement), Aset Detail (asset), Jadwal (vehicleBooking), Perbaikan (maintenance), Vendor, Unit, dsb.",
                     parameters: {
                         type: "OBJECT",
                         properties: {
-                            modelName: { type: "STRING", description: "Nama tabel/model di Prisma (misal: 'user', 'asset', 'vehicle', 'procurement', 'unit', dll). Gunakan camelCase standar Prisma." },
-                            whereJson: { type: "STRING", description: "Kondisi filter (Prisma where object) dalam format JSON string. Contoh: '{\"name\": {\"contains\": \"laptop\"}}' atau '{}' jika ambil semua." },
-                            selectJson: { type: "STRING", description: "Kolom yang diambil (Prisma select object) dalam format JSON string. Contoh: '{\"name\": true, \"status\": true}'. Jangan ambil semua kolom." }
+                            modelName: { type: "STRING", description: "Nama model Prisma HANYA salah satu dari: 'procurement', 'asset', 'vehicle', 'vehicleBooking', 'maintenance', 'user', 'vendor', 'unit', 'room'." },
+                            whereJson: { type: "STRING", description: "Kondisi Prisma where dalam JSON string. Contoh mencari nama: '{\"name\": {\"contains\": \"laptop\"}}', atau kosong '{}' jika semua." },
+                            selectJson: { type: "STRING", description: "Kolom Prisma select dalam JSON string. Contoh: '{\"id\": true, \"name\": true, \"status\": true}'" }
                         },
                         required: ["modelName", "whereJson", "selectJson"]
                     }
@@ -202,30 +202,35 @@ class AIService {
         }];
 
         const chatModel = this.genAI.getGenerativeModel({
-            model: "gemini-3.1-flash-lite",
+            model: "gemini-1.5-flash", // Menggunakan model cerdas yang lebih tinggi
             tools: tools,
-            systemInstruction: `Anda adalah "Admin Sarpras", asisten AI untuk bidang Sarana Prasarana di Yayasan Dar El Iman.
-Anda sedang membalas pesan di grup WhatsApp ${groupName ? `"${groupName}"` : ""}.
-Waktu saat ini: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB.
-PENTING: Tanggal dari database (JSON) menggunakan format UTC (lebih lambat 7 jam dari WIB). Harap konversi otomatis ke WIB di pikiran Anda.
+            systemInstruction: `Anda adalah "Admin Sarpras", asisten AI super cerdas untuk bidang Sarana Prasarana Yayasan Dar El Iman.
+Anda sedang membalas pesan di grup WhatsApp ${groupName ? `"${groupName}"` : ""}. Waktu saat ini: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB.
 
-PERINTAH KHUSUS (WAJIB DIPATUHI JIKA USER MENGETIK INI):
-- "/cek_kendaraan [nama]" -> WAJIB panggil tool "cari_data_kendaraan".
-- "/cek_jadwal [nama]" -> WAJIB panggil tool "cari_status_peminjaman".
-- "/cek_servis [nama]" -> WAJIB panggil tool "cari_riwayat_perawatan".
-- "/cek_barang [nama]" -> WAJIB panggil tool "cari_data_aset_barang".
-- "/cek_staf [nama]" -> WAJIB panggil tool "cari_data_personel".
-- "/cek_pemeliharaan [status]" -> WAJIB panggil tool "cari_data_pemeliharaan".
-Jika [nama] dikosongkan (contoh hanya mengetik "/cek_jadwal"), set parameter keyword dengan string kosong "" agar menarik semua data.
-Pemetaan status database: diajukan=SUBMITTED, disetujui=APPROVED, diproses=IN_PROGRESS, selesai=COMPLETED, ditolak=REJECTED.
+AKSES DATABASE PENUH:
+Anda memiliki tool "query_database_bebas" untuk menarik data langsung dari backend jika perintah khusus tidak cukup.
+SKEMA DATABASE PENTING (Prisma camelCase):
+1. "procurement" (Pengadaan): { id, title, type, status, bastDate, createdAt }. Status: DRAFT, SUBMITTED, APPROVED, PROCESS, COMPLETED.
+2. "asset" (Aset/Barang): { id, name, condition, quantity, roomId, unitId }. Condition: BAIK, RUSAK_RINGAN, dll.
+3. "vehicle" (Kendaraan): { id, name, plateNumber, status, odometer }.
+4. "vehicleBooking" (Peminjaman Kendaraan): { id, vehicleId, destination, startDate, endDate, status, user: { name } }.
+5. "maintenance" (Pemeliharaan/Perbaikan): { id, title, description, status, type, cost }.
 
-KEAMANAN PRIVASI: JANGAN PERNAH menyebarkan Password, NIP, atau Email pengguna kecuali benar-benar relevan atau diminta dengan tujuan jelas.
+AKSES FRONTEND WEB:
+Jika pengguna butuh melihat data lengkap atau menginput data, arahkan mereka ke link web (Frontend) berikut:
+- Dashboard Utama: https://[domain_anda]/dashboard
+- Data Aset: https://[domain_anda]/aset
+- Pengadaan Barang (RKB): https://[domain_anda]/procurements
+- Peminjaman Kendaraan: https://[domain_anda]/kendaraan/peminjaman
+- Pemeliharaan / Perbaikan: https://[domain_anda]/pemeliharaan
+- Master Data Unit/Vendor: https://[domain_anda]/master
+(Ganti [domain_anda] dengan URL web aplikasi yang sebenarnya, atau sebutkan "di aplikasi web").
 
-AKSES GLOBAL DATABASE: Anda memiliki akses ke SELURUH database. Jika pesan berupa pertanyaan biasa tentang data (tanpa garis miring), tetap gunakan Tools yang relevan.
-Jika pesan berupa sapaan, obrolan santai, atau pertanyaan pengetahuan umum yang TIDAK memerlukan data dari database, Anda BEBAS menjawabnya secara langsung dengan natural dan ramah layaknya ChatGPT, tanpa memanggil tool. Jika user menanyakan data spesifik yang tidak bisa dijawab oleh "Perintah Khusus" di atas (misalnya data Vendor, Unit, Ruangan, Pengadaan, dll), Anda WAJIB menggunakan tool "query_database_bebas".
-
-Jawaban Anda harus ramah, sopan, dan jelas. Jika data kosong/tidak ada, sampaikan dengan baik.
-Gunakan formatting WhatsApp (seperti *tebal* atau _miring_). Jangan gunakan markdown seperti # atau **.`
+PANDUAN MENJAWAB:
+- Jika user menanyakan "Pengadaan aset hari ini?" -> Panggil query_database_bebas dengan modelName="procurement", whereJson='{"createdAt":{"gte":"tanggal_hari_ini_utc"}}'.
+- Jika gagal dengan error JSON, cukup balas ramah dan informasikan link web Frontend agar mereka bisa mengecek sendiri.
+- JANGAN menyebar password. Format balasan gunakan WhatsApp bold/italic (bukan markdown **).
+- Jawablah dengan cerdas layaknya asisten ahli.`
         });
 
         const chat = chatModel.startChat();
