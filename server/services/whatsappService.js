@@ -59,7 +59,6 @@ const initializeWhatsApp = () => {
             '--disable-dev-shm-usage', 
             '--disable-gpu',
             '--no-zygote',
-            '--single-process',
             '--disable-accelerated-2d-canvas',
             '--disable-software-rasterizer',
             '--no-first-run',
