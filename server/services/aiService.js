@@ -8,10 +8,30 @@ class AIService {
         const apiKey = process.env.GEMINI_API_KEY;
         if (apiKey) {
             this.genAI = new GoogleGenerativeAI(apiKey);
-            this.model = this.genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+            this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         } else {
             console.warn("[AIService] GEMINI_API_KEY not found. AI features will be unavailable.");
         }
+    }
+
+    /**
+     * Helper to try multiple models if quota exceeds
+     */
+    async generateContentWithFallback(prompt) {
+        if (!this.genAI) throw new Error("AI Service is not configured (missing API Key)");
+        const fallbackModels = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.0-pro"];
+        let lastError = null;
+        for (const modelName of fallbackModels) {
+            try {
+                const model = this.genAI.getGenerativeModel({ model: modelName });
+                const result = await model.generateContent(prompt);
+                return result;
+            } catch (err) {
+                console.warn(`[AIService] Model ${modelName} gagal generateContent: ${err.message}`);
+                lastError = err;
+            }
+        }
+        throw new Error(`Semua model Gemini gagal generateContent. Error: ${lastError?.message}`);
     }
 
     /**
@@ -20,7 +40,7 @@ class AIService {
      * @returns {Promise<string>} - Generated narrative summary.
      */
     async generatePersonnelSummary(data) {
-        if (!this.model) {
+        if (!this.genAI) {
             throw new Error("AI Service is not configured (missing API Key)");
         }
 
@@ -55,7 +75,7 @@ class AIService {
         `;
 
         try {
-            const result = await this.model.generateContent(prompt);
+            const result = await this.generateContentWithFallback(prompt);
             const response = await result.response;
             return response.text();
         } catch (err) {
@@ -201,10 +221,7 @@ class AIService {
             ]
         }];
 
-        const chatModel = this.genAI.getGenerativeModel({
-            model: "gemini-1.5-flash", // Menggunakan model cerdas yang lebih tinggi
-            tools: tools,
-            systemInstruction: `Anda adalah "Admin Sarpras", asisten AI super cerdas untuk bidang Sarana Prasarana Yayasan Dar El Iman.
+        const systemInstruction = `Anda adalah "Admin Sarpras", asisten AI super cerdas untuk bidang Sarana Prasarana Yayasan Dar El Iman.
 Anda sedang membalas pesan di grup WhatsApp ${groupName ? `"${groupName}"` : ""}. Waktu saat ini: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB.
 
 AKSES DATABASE PENUH:
@@ -230,13 +247,45 @@ PANDUAN MENJAWAB:
 - Jika user menanyakan "Pengadaan aset hari ini?" -> Panggil query_database_bebas dengan modelName="procurement", whereJson='{"createdAt":{"gte":"tanggal_hari_ini_utc"}}'.
 - Jika gagal dengan error JSON, cukup balas ramah dan informasikan link web Frontend agar mereka bisa mengecek sendiri.
 - JANGAN menyebar password. Format balasan gunakan WhatsApp bold/italic (bukan markdown **).
-- Jawablah dengan cerdas layaknya asisten ahli.`
-        });
+- Jawablah dengan cerdas layaknya asisten ahli.`;
 
-        const chat = chatModel.startChat();
+        // Daftar model Gemini untuk fallback jika kuota (Rate Limit) habis
+        const fallbackModels = [
+            "gemini-1.5-flash",      // Cepat & Pintar (Utama)
+            "gemini-1.5-flash-8b",   // Sangat Cepat & Ringan
+            "gemini-2.5-flash",      // Versi baru (jika tersedia)
+            "gemini-2.0-flash",      // Versi baru (jika tersedia)
+            "gemini-1.5-pro",        // Paling Pintar (Limit ketat)
+            "gemini-1.0-pro"         // Legacy model
+        ];
+
+        let chat = null;
+        let result = null;
+        let lastError = null;
+
+        for (const modelName of fallbackModels) {
+            try {
+                const chatModel = this.genAI.getGenerativeModel({
+                    model: modelName,
+                    tools: tools,
+                    systemInstruction: systemInstruction
+                });
+                
+                chat = chatModel.startChat();
+                result = await chat.sendMessage(userMessage);
+                console.log(`[AIService] Berhasil menggunakan model: ${modelName}`);
+                break; // Keluar dari loop jika sukses
+            } catch (err) {
+                console.warn(`[AIService] Model ${modelName} gagal (${err.message}). Mencoba model berikutnya...`);
+                lastError = err;
+            }
+        }
+
+        if (!result) {
+            throw new Error(`Semua model Gemini kehabisan kuota atau gagal. Error terakhir: ${lastError?.message}`);
+        }
 
         try {
-            let result = await chat.sendMessage(userMessage);
             const calls = result.response.functionCalls();
             
             let mediaAttachment = null;
@@ -440,7 +489,7 @@ PANDUAN MENJAWAB:
      * @returns {Promise<Object>} - The parsed filters { keywords, categoryName, roomName, condition }
      */
     async parseSemanticAssetSearch(userQuery) {
-        if (!this.model) {
+        if (!this.genAI) {
             throw new Error("AI Service is not configured (missing API Key)");
         }
 
@@ -464,7 +513,7 @@ PANDUAN MENJAWAB:
         `;
 
         try {
-            const result = await this.model.generateContent(prompt);
+            const result = await this.generateContentWithFallback(prompt);
             const responseText = result.response.text().trim();
             // Membersihkan backticks jika masih ada
             const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '');
