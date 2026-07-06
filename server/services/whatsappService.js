@@ -3,6 +3,8 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const { formatPhoneForWA } = require('../utils/phoneFormatter');
 const qrcode = require('qrcode');
 const { PrismaClient } = require('@prisma/client');
+const fs = require('fs');
+const path = require('path');
 const prisma = new PrismaClient();
 
 const WHATSAPP_API_URL = 'https://bidang-sarana-wawebjs.ltdh6w.easypanel.host/api/send-message';
@@ -18,6 +20,20 @@ const initializeWhatsApp = () => {
         waClient.destroy().catch(console.error);
     }
     
+    // Hapus file lock sisa (jika browser sebelumnya crash)
+    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+    lockFiles.forEach(file => {
+        const filePath = path.join(process.cwd(), '.wwebjs_auth', 'session', file);
+        try {
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+                console.log(`[WhatsApp Local] Menghapus sisa lockfile: ${file}`);
+            }
+        } catch (e) {
+            console.error(`[WhatsApp Local] Gagal menghapus lockfile ${file}:`, e.message);
+        }
+    });
+
     connectionStatus = 'INITIALIZING';
     qrCodeData = null;
     
