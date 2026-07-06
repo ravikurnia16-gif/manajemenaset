@@ -53,46 +53,28 @@ const initializeWhatsApp = () => {
     qrCodeData = null;
     
     const puppeteerConfig = {
+        headless: true,
         args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox', 
-            '--disable-dev-shm-usage', 
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
             '--disable-gpu',
-            '--disable-accelerated-2d-canvas',
             '--disable-software-rasterizer',
             '--no-first-run',
-            '--disable-background-networking',
-            '--disable-default-apps',
-            '--disable-extensions',
-            '--disable-sync',
-            '--disable-translate',
-            '--hide-scrollbars',
-            '--metrics-recording-only',
-            '--mute-audio',
-            '--no-default-browser-check',
-            '--safebrowsing-disable-auto-update',
-            '--ignore-certificate-errors',
-            '--ignore-certificate-errors-spki-list',
-            '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            '--disable-extensions'
         ]
     };
 
-    if (process.env.CHROME_BIN) {
-        puppeteerConfig.executablePath = process.env.CHROME_BIN;
-    } else if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    // Gunakan Chromium sistem di Linux/Docker (wajib untuk server ARM)
+    // ENV PUPPETEER_EXECUTABLE_PATH sudah di-set di Dockerfile
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
         puppeteerConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
     } else if (process.platform === 'linux') {
         puppeteerConfig.executablePath = '/usr/bin/chromium';
     }
 
-    const os = require('os');
-    const totalRamMb = Math.round(os.totalmem() / 1024 / 1024);
-    const freeRamMb = Math.round(os.freemem() / 1024 / 1024);
-    console.log(`[WhatsApp Local] SYSTEM MEMORY CHECK: Total RAM: ${totalRamMb} MB, Free RAM: ${freeRamMb} MB`);
-    
-    if (freeRamMb < 300) {
-        console.warn('!!! PERINGATAN KERAS: SISA RAM SANGAT KECIL (< 300MB). BROWSER CHROMIUM KEMUNGKINAN BESAR AKAN DI MATIKAN PAKSA OLEH SISTEM (OOM KILLER) DAN MENGHASILKAN ERROR "Code: null" !!!');
-    }
+    console.log(`[WhatsApp Local] Chromium path: ${puppeteerConfig.executablePath || 'bundled'}`);
+    console.log(`[WhatsApp Local] Platform: ${process.platform}, Arch: ${process.arch}`);
 
     waClient = new Client({
         authStrategy: new LocalAuth({
