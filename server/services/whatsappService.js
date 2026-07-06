@@ -220,17 +220,32 @@ const getWhatsAppStatus = () => {
     };
 };
 
+let cachedGroups = null;
+let lastGroupFetchTime = 0;
+
 const getWhatsAppGroups = async () => {
     if (!waClient || connectionStatus !== 'CONNECTED') return [];
+    
+    // Gunakan cache memori jika usia pengambilan terakhir kurang dari 5 menit
+    // Ini mempercepat tampilan daftar grup di frontend drastis
+    if (cachedGroups && (Date.now() - lastGroupFetchTime < 5 * 60 * 1000)) {
+        return cachedGroups;
+    }
+
     try {
+        console.log('[WhatsApp Local] Mengambil ulang daftar chat dari WhatsApp...');
         const chats = await waClient.getChats();
         const groups = chats
             .filter(c => c.isGroup)
             .map(g => ({ id: g.id._serialized, name: g.name }));
+            
+        cachedGroups = groups;
+        lastGroupFetchTime = Date.now();
+        console.log(`[WhatsApp Local] Berhasil mengambil ${groups.length} grup.`);
         return groups;
     } catch (error) {
         console.error('[WhatsApp Local] Error getting groups', error);
-        return [];
+        return cachedGroups || [];
     }
 }
 

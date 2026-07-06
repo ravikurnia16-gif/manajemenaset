@@ -139,18 +139,6 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`   - Interface: 0.0.0.0`);
     console.log(`   - Frontend Path: ${distPath}`);
 
-    // --- GLOBAL RAM MONITOR (Pendeteksi OOM Killer) ---
-    setInterval(() => {
-        const os = require('os');
-        const totalRam = Math.round(os.totalmem() / 1024 / 1024);
-        const freeRam = Math.round(os.freemem() / 1024 / 1024);
-        console.log(`[MONITOR RAM] Total: ${totalRam}MB | Sisa: ${freeRam}MB`);
-        if (freeRam < 200) {
-            console.warn(`[BAHAYA] Sisa RAM sangat kritis (${freeRam}MB). Server rentan terkena OOM Killer!`);
-        }
-    }, 2000);
-    // --------------------------------------------------
-
     // Run vehicle notifications on start
     // Initialize Scheduler for Cron Jobs (Reminders, Summaries, Checks)
     try {
