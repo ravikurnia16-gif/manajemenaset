@@ -82,9 +82,32 @@ const initializeWhatsApp = () => {
     } else if (process.env.PUPPETEER_EXECUTABLE_PATH) {
         puppeteerConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
     } else if (process.platform === 'linux') {
-        // Fallback to OS native chromium for ARM servers (e.g. Oracle Cloud, AWS Graviton)
         puppeteerConfig.executablePath = '/usr/bin/chromium';
     }
+
+    // --- DIAGNOSTIC: TEST CHROMIUM LAUNCH DIRECTLY ---
+    try {
+        const { spawn } = require('child_process');
+        console.log('[WhatsApp Local] DIAGNOSTIC: Mencoba menjalankan Chromium secara langsung...');
+        const chromeTest = spawn(puppeteerConfig.executablePath || 'chromium', puppeteerConfig.args.concat(['--headless']));
+        
+        chromeTest.stdout.on('data', (data) => console.log(`[DIAGNOSTIC STDOUT]: ${data}`));
+        chromeTest.stderr.on('data', (data) => console.error(`[DIAGNOSTIC STDERR]: ${data}`));
+        
+        chromeTest.on('close', (code, signal) => {
+            console.log(`[WhatsApp Local] DIAGNOSTIC SELESAI: Chromium exit code: ${code}, signal: ${signal}`);
+            if (signal === 'SIGKILL') {
+                console.error('!!! FATAL ERROR: CHROMIUM TERKENA SIGKILL. INI 100% KARENA KEHABISAN RAM (OOM) DI SERVER ANDA !!!');
+            } else if (signal === 'SIGSEGV') {
+                console.error('!!! FATAL ERROR: CHROMIUM TERKENA SIGSEGV (SEGMENTATION FAULT). BINARY TIDAK COCOK DENGAN CPU/OS !!!');
+            } else if (signal === 'SIGILL') {
+                console.error('!!! FATAL ERROR: CHROMIUM TERKENA SIGILL (ILLEGAL INSTRUCTION). CPU ARM ANDA TIDAK MENDUKUNG INSTRUKSI INI !!!');
+            }
+        });
+    } catch (err) {
+        console.error('[WhatsApp Local] DIAGNOSTIC ERROR:', err.message);
+    }
+    // -------------------------------------------------
 
     waClient = new Client({
         authStrategy: new LocalAuth({
