@@ -225,7 +225,8 @@ const MaintenanceList = () => {
                 'Judul': r.title,
                 'Deskripsi': r.description,
                 'Urgensi': urgencyLabels[r.urgency] || r.urgency,
-                'Pelapor': `${r.user?.name || ''} (${r.unit?.name || ''})`,
+                'Pelapor': r.user?.name || '',
+                'Unit': r.unit?.name || '',
                 'Aset': r.assets?.map(a => `${a.name} (${a.code})`).join(', ') || '-',
                 'Masa': r.category === 'ROUTINE' ? 'Rutin' : 'Insidentil',
                 'Bidang': r.targetDept === 'PEMBANGUNAN' ? 'Pembangunan' : 'Sarpras',
@@ -242,6 +243,7 @@ const MaintenanceList = () => {
                 { wch: 40 },  // Deskripsi
                 { wch: 15 },  // Urgensi
                 { wch: 25 },  // Pelapor
+                { wch: 25 },  // Unit
                 { wch: 40 },  // Aset
                 { wch: 15 },  // Masa
                 { wch: 15 },  // Bidang
