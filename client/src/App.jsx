@@ -24,6 +24,7 @@ import Settings from './pages/Settings';
 import WhatsAppRules from './pages/WhatsAppRules';
 import UniformOrderPage from './pages/UniformOrderPage';
 import UniformOrderAdmin from './pages/UniformOrderAdmin';
+import UniformManagement from './pages/UniformManagement';
 import UnitOrderForm from './pages/UnitOrderForm';
 import VehicleDashboard from './pages/VehicleDashboard';
 import PersonnelDashboard from './pages/PersonnelDashboard';
@@ -251,6 +252,7 @@ function App() {
           <Route path="gudang/transaksi/input" element={<WarehouseTransactionForm />} />
           <Route path="gudang/pesanan" element={<UniformOrderAdmin />} />
           <Route path="gudang/pesanan/unit" element={<UnitOrderForm />} />
+          <Route path="gudang/seragam" element={<UniformManagement />} />
 
           {/* Module: Manajemen Personalia */}
           <Route path="personalia/dashboard" element={

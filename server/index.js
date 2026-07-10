@@ -79,6 +79,7 @@ app.use('/api/surveys', require('./routes/surveyRoutes'));
 app.use('/api/vehicle-checklists', require('./routes/vehicleChecklistRoutes'));
 app.use('/api/security', require('./routes/securityRoutes'));
 app.use('/api/whatsapp', require('./routes/whatsappRoutes'));
+app.use('/api/uniforms', require('./routes/uniformRoutes'));
 
 
 // Serve Static Files

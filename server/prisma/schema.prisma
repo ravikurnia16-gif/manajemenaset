@@ -1688,3 +1688,262 @@ model NotificationRule {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+// === MODUL MANAJEMEN SERAGAM ===
+
+// Lokasi gudang seragam (Multi-Warehouse)
+model UniformWarehouse {
+  id          Int      @id @default(autoincrement())
+  name        String   // "Gudang Pusat", "Gudang SMP", dll
+  address     String?  @db.Text
+  picName     String?  // Penanggung Jawab
+  picPhone    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stocks              UniformStock[]
+  stockTransactions   UniformStockTransaction[]  @relation("TrxWarehouse")
+  stockTransactionsTo UniformStockTransaction[]  @relation("TrxWarehouseTo")
+  sales               UniformSale[]
+}
+
+// Kategori seragam: Nasional, Batik, Muslim, Pramuka, Olahraga, Jubah, Atribut
+model UniformCategory {
+  id    Int          @id @default(autoincrement())
+  name  String       @unique // "Nasional", "Batik", "Muslim", dll
+  items UniformItem[]
+}
+
+// Barang induk seragam
+model UniformItem {
+  id           Int              @id @default(autoincrement())
+  code         String           @unique // SRG/PDH/001
+  name         String           // "Kemeja Putih PDH"
+  categoryId   Int
+  category     UniformCategory  @relation(fields: [categoryId], references: [id])
+  type         String?          // BAJU, CELANA, JILBAB, TOPI, DASI, ATRIBUT
+  gender       String?          // L, P, UNISEX
+  targetUnit   String?          // TK, SD, SMP, SMA (jenjang sekolah)
+  description  String?          @db.Text
+  image        String?          @db.LongText
+  sellPrice    Float            @default(0)  // Harga Jual default
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  variants     UniformVariant[]
+  packageItems UniformPackageItem[]
+}
+
+// Variasi per ukuran (SKU): setiap kombinasi Item + Size = 1 SKU
+model UniformVariant {
+  id        Int          @id @default(autoincrement())
+  itemId    Int
+  item      UniformItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  size      String       // S, M, L, XL, XXL, Custom
+  sku       String       @unique // Auto: SRG/PDH/001-M
+  sellPrice Float?       // Override harga jual per ukuran (null = pakai harga induk)
+  isActive  Boolean      @default(true)
+
+  stocks            UniformStock[]
+  saleItems         UniformSaleItem[]
+  stockTransactions UniformStockTransaction[]
+  exchangesFrom     UniformExchange[]  @relation("ExchangeFrom")
+  exchangesTo       UniformExchange[]  @relation("ExchangeTo")
+
+  @@unique([itemId, size])
+}
+
+// Stok per Variant per Gudang (Multi-Warehouse)
+model UniformStock {
+  id           Int              @id @default(autoincrement())
+  variantId    Int
+  variant      UniformVariant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  warehouseId  Int
+  warehouse    UniformWarehouse @relation(fields: [warehouseId], references: [id])
+  quantity     Int              @default(0)
+  minStock     Int              @default(5)   // Batas minimum stok
+  avgCost      Float            @default(0)   // HPP Rata-rata (Average Cost)
+  location     String?          // Rak / posisi di gudang
+
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([variantId, warehouseId])
+}
+
+// Paket SPMB (Bundle): Contoh "Paket Siswa Baru SMP Putra"
+model UniformPackage {
+  id          Int                  @id @default(autoincrement())
+  name        String               // "Paket Siswa Baru SMP Putra"
+  targetUnit  String?              // TK, SD, SMP, SMA
+  gender      String?              // L, P, UNISEX
+  price       Float                @default(0) // Harga paket (bisa fixed)
+  isFixedPrice Boolean             @default(true) // true = harga fixed, false = jumlah item
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  items       UniformPackageItem[]
+  sales       UniformSale[]
+}
+
+// Item di dalam paket
+model UniformPackageItem {
+  id         Int             @id @default(autoincrement())
+  packageId  Int
+  package    UniformPackage  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  itemId     Int
+  item       UniformItem     @relation(fields: [itemId], references: [id])
+  qty        Int             @default(1)
+}
+
+// Transaksi Penjualan / SPMB (Invoice)
+model UniformSale {
+  id              Int              @id @default(autoincrement())
+  code            String           @unique // INV/SRG/2026/001
+  type            String           @default("RETAIL") // RETAIL, SPMB, UNIT_ORDER
+  warehouseId     Int
+  warehouse       UniformWarehouse @relation(fields: [warehouseId], references: [id])
+
+  // Info Pelanggan
+  customerName    String           // Nama Wali Murid / Unit
+  customerPhone   String?
+  studentName     String?          // Nama Siswa (untuk SPMB)
+  studentClass    String?          // Kelas
+  targetUnit      String?          // TK, SD, SMP, SMA
+
+  // Paket (jika SPMB)
+  packageId       Int?
+  package         UniformPackage?  @relation(fields: [packageId], references: [id])
+
+  // Keuangan
+  subtotal        Float            @default(0)
+  discount        Float            @default(0)
+  totalAmount     Float            @default(0)
+  paidAmount      Float            @default(0)
+  paymentStatus   String           @default("UNPAID") // UNPAID, PARTIAL, PAID
+  paymentMethod   String?          // CASH, TRANSFER, QRIS
+
+  // Fulfillment
+  status          String           @default("PENDING") // PENDING, PARTIAL_DELIVERED, COMPLETED, CANCELLED
+
+  // Jadwal
+  scheduleId      Int?
+  schedule        UniformSchedule? @relation(fields: [scheduleId], references: [id])
+
+  // Tanda Tangan Penerima
+  signatureData   String?          @db.LongText
+
+  note            String?          @db.Text
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  items           UniformSaleItem[]
+}
+
+// Item di dalam penjualan (mendukung Partial Delivery)
+model UniformSaleItem {
+  id            Int             @id @default(autoincrement())
+  saleId        Int
+  sale          UniformSale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  variantId     Int
+  variant       UniformVariant  @relation(fields: [variantId], references: [id])
+  itemName      String          // Snapshot nama barang
+  size          String          // Snapshot ukuran
+  qty           Int             // Jumlah dipesan
+  qtyDelivered  Int             @default(0) // Jumlah sudah diserahkan (Partial Delivery)
+  unitPrice     Float           @default(0)
+  totalPrice    Float           @default(0)
+  status        String          @default("PENDING") // PENDING, READY, BACKORDER, DELIVERED
+}
+
+// Jurnal Stok (semua mutasi masuk, keluar, pindah, adjustment)
+model UniformStockTransaction {
+  id            Int              @id @default(autoincrement())
+  code          String           @unique // TRX/SRG/2026/001
+  type          String           // IN, OUT, MUTATION, ADJUSTMENT
+  variantId     Int
+  variant       UniformVariant   @relation(fields: [variantId], references: [id])
+  warehouseId   Int
+  warehouse     UniformWarehouse @relation("TrxWarehouse", fields: [warehouseId], references: [id])
+
+  // Untuk MUTATION: gudang tujuan
+  toWarehouseId Int?
+  toWarehouse   UniformWarehouse? @relation("TrxWarehouseTo", fields: [toWarehouseId], references: [id])
+
+  quantity      Int              // Jumlah (positif untuk IN, negatif untuk OUT/ADJ)
+  costPerUnit   Float            @default(0) // Harga beli per unit (untuk IN / Average Cost)
+  totalCost     Float            @default(0)
+
+  // Referensi
+  referenceType String?          // PURCHASE, SALE, EXCHANGE, OPNAME
+  referenceId   Int?             // ID dari tabel terkait
+  vendorId      Int?
+  vendor        UniformVendor?   @relation(fields: [vendorId], references: [id])
+
+  reason        String?          @db.Text // Alasan (wajib untuk ADJUSTMENT: Cacat, Hilang, dll)
+  note          String?          @db.Text
+  createdById   Int?
+  createdAt     DateTime         @default(now())
+}
+
+// Vendor / Penjahit Seragam
+model UniformVendor {
+  id             Int      @id @default(autoincrement())
+  name           String   // "Konveksi Minang Jaya"
+  phone          String?
+  address        String?  @db.Text
+  contactPerson  String?
+  email          String?
+  description    String?  @db.Text
+
+  // Evaluasi
+  rating         Float    @default(0) // 0-5
+  totalOrders    Int      @default(0)
+  onTimeRate     Float    @default(0) // Persentase tepat waktu (0-100)
+  rejectRate     Float    @default(0) // Persentase barang cacat (0-100)
+
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  stockTransactions UniformStockTransaction[]
+}
+
+// Tukar Ukuran (Return/Exchange) — hanya tukar barang, bukan uang
+model UniformExchange {
+  id            Int             @id @default(autoincrement())
+  code          String          @unique // EXC/SRG/2026/001
+  customerName  String
+  studentName   String?
+  reason        String?         @db.Text // "Kebesaran", "Kekecilan"
+
+  fromVariantId Int
+  fromVariant   UniformVariant  @relation("ExchangeFrom", fields: [fromVariantId], references: [id])
+  toVariantId   Int
+  toVariant     UniformVariant  @relation("ExchangeTo", fields: [toVariantId], references: [id])
+  qty           Int             @default(1)
+
+  status        String          @default("PENDING") // PENDING, COMPLETED, REJECTED
+  note          String?         @db.Text
+  createdById   Int?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+// Jadwal Pengambilan (Sesi/Slot Waktu untuk SPMB)
+model UniformSchedule {
+  id          Int      @id @default(autoincrement())
+  title       String   // "Sesi 1 - Senin Pagi"
+  date        DateTime
+  startTime   String   // "08:00"
+  endTime     String   // "10:00"
+  maxSlot     Int      @default(50) // Kapasitas per sesi
+  bookedSlot  Int      @default(0)
+  note        String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sales       UniformSale[]
+}

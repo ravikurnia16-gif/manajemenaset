@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck, Shirt } from 'lucide-react';
 import { cn } from '../lib/utils';
 import api from '../lib/axios';
 
@@ -247,6 +247,11 @@ const Sidebar = ({ isOpen = true }) => {
                         {(isAdmin || user?.role === 'USER') && (
                             <Link to="/gudang/pesanan" className={subNavItemClass('/gudang/pesanan')}>
                                 <ShoppingCart size={16} /> Pesanan
+                            </Link>
+                        )}
+                        {isWarehouseAdmin && (
+                            <Link to="/gudang/seragam" className={subNavItemClass('/gudang/seragam')}>
+                                <Shirt size={16} /> Manajemen Seragam
                             </Link>
                         )}
                     </>
