@@ -177,6 +177,14 @@ const UniformOrderAdmin = () => {
         return 6;
     };
 
+    const getGender = (order) => {
+        if (order.note) {
+            const match = order.note.match(/GENDER:\s*([^\n]+)/i);
+            if (match) return match[1].trim();
+        }
+        return '-';
+    };
+
     const displayedOrders = orders.filter(order => {
         const isUnit = (order.note && order.note.includes('PESANAN UNIT INTERNAL')) ||
             (order.studentName && order.studentName.toUpperCase().includes('PESANAN UNIT'));
@@ -257,7 +265,9 @@ const UniformOrderAdmin = () => {
                         <div className="p-4 flex flex-wrap items-center gap-4 bg-slate-50/50">
                             <div className="font-mono font-bold text-indigo-600 w-32">{order.code}</div>
                             <div className="flex-1">
-                                <div className="font-bold text-slate-800">{order.studentName} <span className="text-xs font-normal text-slate-500">({order.customerUnit})</span></div>
+                                <div className="font-bold text-slate-800">
+                                    {order.studentName} <span className="text-xs font-normal text-slate-500">({order.customerUnit} • {getGender(order)})</span>
+                                </div>
                                 <div className="text-[10px] text-slate-500 uppercase tracking-tight">Pemesan: {order.customerName || '-'} • 📱 {order.customerPhone}</div>
                             </div>
                             <div className="text-center">

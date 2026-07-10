@@ -437,6 +437,7 @@ exports.getAssetById = async (req, res) => {
             if (m.status === 'REJECTED') noteStr = m.rejectionReason || '';
 
             history.push({
+                id: m.id,
                 type: 'MAINTENANCE',
                 date: m.createdAt,
                 title: 'Pemeliharaan / Perbaikan',

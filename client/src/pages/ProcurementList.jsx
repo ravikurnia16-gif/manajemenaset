@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Eye, ShoppingCart, Filter, Files, Trash2 } from 'lucide-react';
+import { Plus, Eye, ShoppingCart, Filter, Files, Trash2, Search } from 'lucide-react';
 
 import api from '../lib/axios';
 
@@ -10,7 +10,7 @@ const ProcurementList = () => {
     const navigate = useNavigate();
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState({ categoryId: '', status: '', unitId: '' });
+    const [filter, setFilter] = useState({ categoryId: '', status: '', unitId: '', search: '' });
     const [units, setUnits] = useState([]);
     const [categories, setCategories] = useState([]);
     const [selectedIds, setSelectedIds] = useState([]);
@@ -22,8 +22,11 @@ const ProcurementList = () => {
     }, []);
 
     useEffect(() => {
-        fetchRequests();
-        setSelectedIds([]); // Reset selection on filter change
+        const timeoutId = setTimeout(() => {
+            fetchRequests();
+            setSelectedIds([]); // Reset selection on filter change
+        }, 500);
+        return () => clearTimeout(timeoutId);
     }, [filter, pagination.limit, pagination.page]); // Add pagination dependencies
 
     const fetchUnits = async () => {
@@ -52,6 +55,7 @@ const ProcurementList = () => {
             if (filter.categoryId) params.append('categoryId', filter.categoryId);
             if (filter.status) params.append('status', filter.status);
             if (filter.unitId) params.append('unitId', filter.unitId);
+            if (filter.search) params.append('search', filter.search);
             params.append('limit', pagination.limit);
             params.append('page', pagination.page);
 
@@ -186,6 +190,17 @@ const ProcurementList = () => {
                 <div className="flex items-center gap-2 text-slate-500">
                     <Filter size={16} />
                     <span className="text-xs font-bold uppercase tracking-wider">Filter:</span>
+                </div>
+
+                <div className="relative flex-1 min-w-[200px] max-w-full sm:max-w-[300px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input
+                        type="text"
+                        placeholder="Cari kode, judul, atau nama barang..."
+                        className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border-none rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-blue-100 outline-none text-slate-600 font-medium"
+                        value={filter.search || ''}
+                        onChange={e => setFilter({ ...filter, search: e.target.value })}
+                    />
                 </div>
 
                 <select

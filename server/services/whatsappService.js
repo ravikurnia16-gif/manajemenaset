@@ -54,7 +54,7 @@ const initializeWhatsApp = () => {
     
     const puppeteerConfig = {
         headless: true,
-        dumpio: true, // INI SANGAT PENTING: Untuk melihat error asli dari Chromium
+        dumpio: false, // Diset false agar log Chromium (seperti dbus error) tidak memenuhi terminal
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',

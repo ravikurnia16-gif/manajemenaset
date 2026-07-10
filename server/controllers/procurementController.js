@@ -41,7 +41,7 @@ const generateCode = async () => {
 
 // Get all procurements
 exports.getAllProcurements = async (req, res) => {
-    const { status, type, unitId, categoryId } = req.query;
+    const { status, type, unitId, categoryId, search } = req.query;
     const user = req.user;
 
     try {
@@ -53,12 +53,30 @@ exports.getAllProcurements = async (req, res) => {
             whereClause.items = { some: { categoryId: parseInt(categoryId) } };
         }
 
+        const andConditions = [];
+
+        if (search) {
+            andConditions.push({
+                OR: [
+                    { title: { contains: search } },
+                    { code: { contains: search } },
+                    { items: { some: { name: { contains: search } } } }
+                ]
+            });
+        }
+
         if (['ADMIN_UNIT', 'USER'].includes(user.role)) {
-            whereClause.OR = [
-                { unitId: user.unitId },
-                { userId: user.id },
-                { items: { some: { assignedToId: user.id } } }
-            ];
+            andConditions.push({
+                OR: [
+                    { unitId: user.unitId },
+                    { userId: user.id },
+                    { items: { some: { assignedToId: user.id } } }
+                ]
+            });
+        }
+
+        if (andConditions.length > 0) {
+            whereClause.AND = andConditions;
         }
 
         const procurements = await prisma.procurement.findMany({

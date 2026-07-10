@@ -1041,6 +1041,17 @@ const MaintenanceDetail = () => {
                                             <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                                                 <div className="flex items-center justify-between space-x-2 mb-1">
                                                     <div className="font-bold text-slate-800 text-sm">{item.description}</div>
+                                                    {item.id && item.type === 'MAINTENANCE' && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                setHistoryModal({ show: false, asset: null, timeline: [], loading: false });
+                                                                navigate(`/pemeliharaan/${item.id}`);
+                                                            }}
+                                                            className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                                                        >
+                                                            Lihat Detail
+                                                        </button>
+                                                    )}
                                                 </div>
                                                 <div className="text-xs text-slate-500 space-y-1 mt-2">
                                                     <div className="flex items-center gap-1"><Calendar size={12}/> {new Date(item.date).toLocaleDateString('id-ID')}</div>
