@@ -62,6 +62,7 @@ import SarprasRules from './pages/SarprasRules';
 import SarprasCalendar from './pages/SarprasCalendar';
 import VendorManagement from './pages/VendorManagement';
 import ReportPage from './pages/ReportPage';
+import LaporanStaff from './pages/LaporanStaff';
 import ModulePlaceholder from './components/ModulePlaceholder';
 import OfficialResidence from './pages/OfficialResidence';
 import QuickComplete from './pages/QuickComplete';
@@ -74,10 +75,10 @@ import AuditSessionDetail from './pages/AuditSessionDetail';
 import ConstructionDashboard from './pages/ConstructionDashboard';
 import ContractorList from './pages/ContractorList';
 
-import SecurityDashboard from './pages/Security/SecurityDashboard';
-import SecurityPosts from './pages/Security/SecurityPosts';
-import SecurityGuards from './pages/Security/SecurityGuards';
-import SecuritySchedule from './pages/Security/SecuritySchedule';
+// import SecurityDashboard from './pages/Security/SecurityDashboard';
+// import SecurityPosts from './pages/Security/SecurityPosts';
+// import SecurityGuards from './pages/Security/SecurityGuards';
+// import SecuritySchedule from './pages/Security/SecuritySchedule';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import PublicSurvey from './pages/PublicSurvey';
@@ -265,12 +266,13 @@ function App() {
           <Route path="personalia/rutin" element={<PersonnelRoutine />} />
           <Route path="personalia/kpi" element={<Navigate to="/personalia/kinerja?tab=KPI" replace />} />
           
-          <Route path="security/dashboard" element={<SecurityDashboard />} />
+          {/* <Route path="security/dashboard" element={<SecurityDashboard />} />
           <Route path="security/pos" element={<SecurityPosts />} />
           <Route path="security/anggota" element={<SecurityGuards />} />
-          <Route path="security/jadwal" element={<SecuritySchedule />} />
+          <Route path="security/jadwal" element={<SecuritySchedule />} /> */}
           
           <Route path="laporan" element={<ReportPage />} />
+          <Route path="laporan/:category" element={<LaporanStaff />} />
 
           {/* Module: E-Office */}
           <Route path="e-office" element={

@@ -43,6 +43,10 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Auto-Reporting Middleware (Intercepts modifying requests to log activities)
+const autoReportMiddleware = require('./middleware/autoReportMiddleware');
+app.use(autoReportMiddleware);
+
 // Routes API
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/assets', require('./routes/assetRoutes'));
@@ -80,6 +84,7 @@ app.use('/api/vehicle-checklists', require('./routes/vehicleChecklistRoutes'));
 app.use('/api/security', require('./routes/securityRoutes'));
 app.use('/api/whatsapp', require('./routes/whatsappRoutes'));
 app.use('/api/uniforms', require('./routes/uniformRoutes'));
+app.use('/api/laporan', require('./routes/laporanRoutes'));
 
 
 // Serve Static Files

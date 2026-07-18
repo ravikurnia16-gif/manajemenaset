@@ -15,6 +15,7 @@ const Sidebar = ({ isOpen = true }) => {
         vehicles: false,
         warehouse: false,
         personnel: false,
+        laporan: false,
         eoffice: false,
         workshop: false,
         survey: false,
@@ -76,7 +77,16 @@ const Sidebar = ({ isOpen = true }) => {
 
     const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(user?.role) || ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user?.position);
     
-    const isSecurityAdmin = isKabidSarpras || (user?.unit?.name || '').toLowerCase().includes('keamanan');
+    // Laporan Role Checks
+    const pos = (user?.position || '').toLowerCase();
+    const isStaffGudang = pos.includes('gudang') || pos.includes('logistik');
+    const isStaffAset = pos.includes('aset');
+    const isStaffTeknisi = pos.includes('teknisi');
+    const isStaffKendaraan = pos.includes('kendaraan');
+    const isStaffAdminKeuangan = pos.includes('administrasi') || pos.includes('keuangan');
+    
+    // Security menu hidden based on user request
+    const isSecurityAdmin = false; // isKabidSarpras || (user?.unit?.name || '').toLowerCase().includes('keamanan');
 
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">
@@ -260,29 +270,36 @@ const Sidebar = ({ isOpen = true }) => {
 
 
 
-                {/* 4. Manajemen Personalia - Restricted to Global Access or Sarpras Unit */}
-                {((isGlobalAdmin || user.role === 'KEPALA_BIDANG') ||
-                    user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) &&
-                    renderCollapsible('personnel', <Users size={18} />, 'Personalia', (
-                        <>
-                            {(isGlobalAdmin || user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) && (
-                                <Link to="/personalia/dashboard" className={subNavItemClass('/personalia/dashboard')}>
-                                    <LayoutDashboard size={16} /> Dashboard
-                                </Link>
-                            )}
-                            {/* Only Sarpras or Global Admin can see active reports & assignments */}
-                            {(isGlobalAdmin || user.unit?.name?.toLowerCase().includes('sarana dan prasarana')) && (
-                                <Link to="/personalia/kinerja" className={subNavItemClass('/personalia/kinerja')}>
-                                    <TrendingUp size={16} /> Kinerja Staf
-                                </Link>
-                            )}
-                            {isGlobalAdmin && (
-                                <Link to="/personalia/kalender" className={subNavItemClass('/personalia/kalender')}>
-                                    <Calendar size={16} /> Kalender Kerja
-                                </Link>
-                            )}
-                        </>
-                    ))}
+                {/* 4. Menu Laporan (Menggantikan Personalia) */}
+                {renderCollapsible('laporan', <FileText size={18} />, 'Laporan Harian', (
+                    <>
+                        {(isGlobalAdmin || isStaffGudang) && (
+                            <Link to="/laporan/gudang" className={subNavItemClass('/laporan/gudang')}>
+                                <Warehouse size={16} /> Laporan Gudang
+                            </Link>
+                        )}
+                        {(isGlobalAdmin || isStaffAset) && (
+                            <Link to="/laporan/aset" className={subNavItemClass('/laporan/aset')}>
+                                <Box size={16} /> Laporan Aset
+                            </Link>
+                        )}
+                        {(isGlobalAdmin || isStaffTeknisi) && (
+                            <Link to="/laporan/teknisi" className={subNavItemClass('/laporan/teknisi')}>
+                                <Wrench size={16} /> Laporan Pemeliharaan
+                            </Link>
+                        )}
+                        {(isGlobalAdmin || isStaffKendaraan) && (
+                            <Link to="/laporan/kendaraan" className={subNavItemClass('/laporan/kendaraan')}>
+                                <Truck size={16} /> Laporan Kendaraan
+                            </Link>
+                        )}
+                        {(isGlobalAdmin || isStaffAdminKeuangan) && (
+                            <Link to="/laporan/keuangan" className={subNavItemClass('/laporan/keuangan')}>
+                                <FileSignature size={16} /> Laporan Keuangan & Admin
+                            </Link>
+                        )}
+                    </>
+                ))}
 
 
 

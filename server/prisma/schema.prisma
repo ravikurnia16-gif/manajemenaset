@@ -17,7 +17,6 @@ enum Role {
   USER
   KABID_SARPRAS
   ADMIN_PBG
-  GLOBAL_TERBATAS
 }
 
 enum Condition {
