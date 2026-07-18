@@ -22,7 +22,8 @@ const LaporanStaff = () => {
     const [saving, setSaving] = useState(false);
     const [reports, setReports] = useState([]);
     const [myReport, setMyReport] = useState(null);
-    const [manualContent, setManualContent] = useState('');
+    const [autoContent, setAutoContent] = useState('');
+    const [manualPoints, setManualPoints] = useState(['']);
     const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
@@ -44,10 +45,10 @@ const LaporanStaff = () => {
             if (res.data.success) {
                 setReports(res.data.reports || []);
                 setMyReport(res.data.myReport || null);
-                // Extract only manual part if needed, or just let them edit the whole block.
-                // For simplicity, we just allow them to append to the report or we can just keep the whole content editable.
-                // We'll keep the whole content editable so they see automatic logs and can type below.
-                setManualContent(res.data.myReport?.content || '');
+                // Separate auto logs (content) and manual points (metadata.manualPoints)
+                setAutoContent(res.data.myReport?.content || '');
+                const fetchedPoints = res.data.myReport?.metadata?.manualPoints || [];
+                setManualPoints(fetchedPoints.length > 0 ? fetchedPoints : ['']);
             }
         } catch (error) {
             console.error('Error fetching reports:', error);
@@ -61,7 +62,8 @@ const LaporanStaff = () => {
             setSaving(true);
             const res = await api.post('/laporan/my', {
                 category: apiCategory,
-                content: manualContent
+                targetDate: selectedDate,
+                manualPoints: manualPoints.filter(p => p.trim() !== '')
             });
             if (res.data.success) {
                 alert('Laporan berhasil disimpan!');
@@ -75,7 +77,6 @@ const LaporanStaff = () => {
         }
     };
 
-    const isToday = selectedDate === dayjs().format('YYYY-MM-DD');
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-10">
@@ -116,29 +117,47 @@ const LaporanStaff = () => {
                         </h3>
                         <p className="text-xs text-slate-500 mb-4">Kegiatan otomatis tercatat di bawah ini. Anda dapat menambahkan catatan manual tambahan.</p>
                         
-                        <textarea
-                            className="flex-1 w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-700 min-h-[250px] focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                            placeholder="Ketik laporan manual Anda di sini..."
-                            value={manualContent}
-                            onChange={(e) => setManualContent(e.target.value)}
-                            readOnly={!isToday}
-                        ></textarea>
+                        <div className="text-sm font-medium text-slate-600 whitespace-pre-wrap bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-4 empty:hidden">
+                            {autoContent}
+                        </div>
 
-                        {isToday && (
+                        <div className="space-y-3 flex-1 overflow-y-auto pr-2">
+                            {manualPoints.map((point, index) => (
+                                <div key={index} className="flex gap-2">
+                                    <input
+                                        className="flex-1 w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                        placeholder={`Kegiatan ke-${index + 1}...`}
+                                        value={point}
+                                        onChange={(e) => {
+                                            const newPoints = [...manualPoints];
+                                            newPoints[index] = e.target.value;
+                                            setManualPoints(newPoints);
+                                        }}
+                                    />
+                                    <button 
+                                        onClick={() => setManualPoints(manualPoints.filter((_, i) => i !== index))}
+                                        className="px-3 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all font-bold"
+                                    >
+                                        &times;
+                                    </button>
+                                </div>
+                            ))}
                             <button
-                                onClick={handleSave}
-                                disabled={saving}
-                                className="mt-4 flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50"
+                                onClick={() => setManualPoints([...manualPoints, ''])}
+                                className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 mt-2 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
                             >
-                                {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                                Simpan Laporan
+                                <Plus size={14} /> Tambah Poin Kegiatan
                             </button>
-                        )}
-                        {!isToday && (
-                            <div className="mt-4 text-xs font-bold text-amber-500 bg-amber-50 p-3 rounded-xl border border-amber-100">
-                                Laporan hari sebelumnya tidak dapat diubah.
-                            </div>
-                        )}
+                        </div>
+
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="mt-6 w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50"
+                        >
+                            {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                            Simpan Laporan
+                        </button>
                     </div>
 
                     {/* Right: Laporan Tim (Khusus Admin atau untuk melihat laporan rekan) */}
@@ -164,8 +183,21 @@ const LaporanStaff = () => {
                                                     {dayjs(report.updatedAt).format('HH:mm')}
                                                 </div>
                                             </div>
-                                            <div className="text-sm text-slate-600 whitespace-pre-wrap font-medium">
-                                                {report.content || '- Kosong -'}
+                                            <div className="text-sm text-slate-600 font-medium">
+                                                {report.content && (
+                                                    <div className="whitespace-pre-wrap mb-2 text-[11px] text-slate-400 bg-white p-2 rounded-lg border border-slate-100">
+                                                        {report.content}
+                                                    </div>
+                                                )}
+                                                {report.metadata?.manualPoints?.length > 0 ? (
+                                                    <ul className="list-disc pl-5 space-y-1">
+                                                        {report.metadata.manualPoints.map((pt, idx) => (
+                                                            <li key={idx}>{pt}</li>
+                                                        ))}
+                                                    </ul>
+                                                ) : (
+                                                    !report.content && <span className="italic text-slate-400 text-[11px]">- Kosong -</span>
+                                                )}
                                             </div>
                                         </div>
                                     ))

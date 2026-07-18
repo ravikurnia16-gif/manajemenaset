@@ -64,10 +64,15 @@ exports.getReports = async (req, res) => {
 
 exports.updateMyReport = async (req, res) => {
     try {
-        const { category, content } = req.body;
+        const { category, targetDate, manualPoints } = req.body;
         
-        const todayStart = dayjs().tz('Asia/Jakarta').startOf('day').toDate();
-        const todayEnd = dayjs().tz('Asia/Jakarta').endOf('day').toDate();
+        let reportDate = dayjs().tz('Asia/Jakarta');
+        if (targetDate) {
+            reportDate = dayjs(targetDate).tz('Asia/Jakarta');
+        }
+
+        const dateStart = reportDate.startOf('day').toDate();
+        const dateEnd = reportDate.endOf('day').toDate();
 
         let report = await prisma.personnelReport.findFirst({
             where: {
@@ -75,16 +80,23 @@ exports.updateMyReport = async (req, res) => {
                 type: 'DAILY',
                 category: category || 'UMUM',
                 date: {
-                    gte: todayStart,
-                    lte: todayEnd
+                    gte: dateStart,
+                    lte: dateEnd
                 }
             }
         });
 
+        // Ensure we preserve existing metadata, just update manualPoints
         if (report) {
+            const existingMetadata = typeof report.metadata === 'object' && report.metadata !== null ? report.metadata : {};
             report = await prisma.personnelReport.update({
                 where: { id: report.id },
-                data: { content }
+                data: { 
+                    metadata: {
+                        ...existingMetadata,
+                        manualPoints: manualPoints || []
+                    }
+                }
             });
         } else {
             report = await prisma.personnelReport.create({
@@ -92,8 +104,11 @@ exports.updateMyReport = async (req, res) => {
                     userId: req.user.id,
                     type: 'DAILY',
                     category: category || 'UMUM',
-                    content,
-                    date: new Date()
+                    content: '', // manual points are in metadata
+                    metadata: {
+                        manualPoints: manualPoints || []
+                    },
+                    date: reportDate.toDate()
                 }
             });
         }
