@@ -79,11 +79,23 @@ exports.getReports = async (req, res) => {
             let summaryLines = [];
             
             if (vehicleBookings.length > 0) {
-                const names = vehicleBookings.map(b => {
+                const userBookings = {};
+                vehicleBookings.forEach(b => {
                     const userName = b.user?.name || 'Anonim';
                     const vehicleName = b.vehicle?.name || b.vehicle?.plateNumber || 'Kendaraan';
-                    return `${userName} (${vehicleName})`;
+                    if (!userBookings[userName]) userBookings[userName] = {};
+                    if (!userBookings[userName][vehicleName]) userBookings[userName][vehicleName] = 0;
+                    userBookings[userName][vehicleName]++;
+                });
+
+                const names = Object.keys(userBookings).map(userName => {
+                    const vehicles = Object.keys(userBookings[userName]).map(vName => {
+                        const count = userBookings[userName][vName];
+                        return count > 1 ? `${vName} x${count}` : vName;
+                    }).join(', ');
+                    return `${userName} (${vehicles})`;
                 }).join(', ');
+                
                 summaryLines.push(`- Terdapat ${vehicleBookings.length} peminjaman kendaraan operasional hari ini (Peminjam: ${names}).`);
             }
             
