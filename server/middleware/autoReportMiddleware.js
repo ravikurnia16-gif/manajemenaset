@@ -21,22 +21,11 @@ const autoReportMiddleware = (req, res, next) => {
             else if (url.includes('/api/warehouse') || url.includes('/api/uniforms')) { 
                 category = 'GUDANG'; target = 'barang/gudang'; shouldLog = true; 
             }
-            else if (url.includes('/api/vehicles') || url.includes('/api/vehicle')) { 
-                category = 'KENDARAAN'; target = 'kendaraan'; shouldLog = true; 
-            }
             else if (url.includes('/api/maintenance')) { 
                 category = 'UMUM'; target = 'pemeliharaan'; shouldLog = true; 
             }
             else if (url.includes('/api/e-office') || url.includes('/api/office-documents')) {
                 category = 'KEUANGAN'; target = 'dokumen e-office'; shouldLog = true;
-            }
-            else if (url.includes('/api/bus-bookings')) {
-                // Only log scheduling (creating) and bus/driver assignment
-                if (req.method === 'POST' && (url.match(/\/api\/bus-bookings\/?$/) || url.match(/\/api\/bus-bookings\/public\/?$/))) {
-                    category = 'KENDARAAN'; target = 'jadwal pemesanan bus'; shouldLog = true;
-                } else if (req.method === 'PUT' && url.includes('/assign-driver')) {
-                    category = 'KENDARAAN'; target = 'penugasan bus & sopir'; shouldLog = true;
-                }
             }
 
             if (shouldLog) {

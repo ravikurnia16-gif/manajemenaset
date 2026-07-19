@@ -46,7 +46,7 @@ const LaporanStaff = () => {
                 setReports(res.data.reports || []);
                 setMyReport(res.data.myReport || null);
                 // Separate auto logs (content) and manual points (metadata.manualPoints)
-                setAutoContent(res.data.myReport?.content || '');
+                setAutoContent(res.data.globalSummary || res.data.myReport?.content || '');
                 const fetchedPoints = res.data.myReport?.metadata?.manualPoints || [];
                 const formattedPoints = fetchedPoints.length > 0 
                     ? fetchedPoints.map(p => typeof p === 'string' ? { text: p, photo: null, timestamp: null } : p)

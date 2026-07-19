@@ -54,7 +54,53 @@ exports.getReports = async (req, res) => {
         // Also if user is viewing their own and report doesn't exist, return empty
         let myReport = reports.find(r => r.userId === req.user.id);
 
-        res.json({ success: true, reports, myReport });
+        // Compute Global Summary for KENDARAAN
+        let globalSummary = null;
+        if (category === 'KENDARAAN') {
+            const vehicleBookings = await prisma.vehicleBooking.findMany({
+                where: { createdAt: { gte: startOfDay, lte: endOfDay } },
+                include: { user: true }
+            });
+            const busBookings = await prisma.busBooking.findMany({
+                where: { createdAt: { gte: startOfDay, lte: endOfDay } }
+            });
+            const vehicleServices = await prisma.vehicleService.findMany({
+                where: { createdAt: { gte: startOfDay, lte: endOfDay } }
+            });
+
+            let summaryLines = [];
+            
+            if (vehicleBookings.length > 0) {
+                const names = vehicleBookings.map(b => b.user?.name || 'Anonim').join(', ');
+                summaryLines.push(`- Terdapat ${vehicleBookings.length} peminjaman kendaraan operasional hari ini (Peminjam: ${names}).`);
+            }
+            
+            if (busBookings.length > 0) {
+                const unassignedBus = busBookings.filter(b => b.status === 'PENDING' || !b.driverName).length;
+                const assignedBus = busBookings.filter(b => b.driverName).length;
+                let busTxt = `- Terdapat ${busBookings.length} pesanan bus hari ini.`;
+                if (unassignedBus > 0) busTxt += ` ${unassignedBus} pesanan belum ditugaskan.`;
+                if (assignedBus > 0) busTxt += ` ${assignedBus} pesanan sudah ditugaskan ke sopir.`;
+                summaryLines.push(busTxt);
+            }
+            
+            if (vehicleServices.length > 0) {
+                const pendingSvc = vehicleServices.filter(s => s.status === 'PENDING').length;
+                const completedSvc = vehicleServices.filter(s => s.status === 'COMPLETED').length;
+                let svcTxt = `- Terdapat ${vehicleServices.length} kendaraan masuk servis hari ini.`;
+                if (pendingSvc > 0) svcTxt += ` ${pendingSvc} kendaraan belum diservis.`;
+                if (completedSvc > 0) svcTxt += ` ${completedSvc} kendaraan sudah diservis.`;
+                summaryLines.push(svcTxt);
+            }
+
+            if (summaryLines.length > 0) {
+                globalSummary = "Rangkuman Aktivitas Divisi Hari Ini:\n" + summaryLines.join('\n');
+            } else {
+                globalSummary = "Belum ada aktivitas kendaraan/bus yang tercatat hari ini.";
+            }
+        }
+
+        res.json({ success: true, reports, myReport, globalSummary });
 
     } catch (error) {
         console.error('Error fetching reports:', error);
