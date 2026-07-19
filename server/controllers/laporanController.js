@@ -51,6 +51,13 @@ exports.getReports = async (req, res) => {
             }
         });
 
+        // Bersihkan log spam lokasi lama agar tidak tampil di frontend
+        reports.forEach(r => {
+            if (r.content && r.category === 'KENDARAAN') {
+                r.content = r.content.split('\n').filter(line => !line.includes('/location')).join('\n').trim();
+            }
+        });
+
         // Also if user is viewing their own and report doesn't exist, return empty
         let myReport = reports.find(r => r.userId === req.user.id);
 
@@ -59,7 +66,7 @@ exports.getReports = async (req, res) => {
         if (category === 'KENDARAAN') {
             const vehicleBookings = await prisma.vehicleBooking.findMany({
                 where: { createdAt: { gte: startOfDay, lte: endOfDay } },
-                include: { user: true }
+                include: { user: true, vehicle: true }
             });
             const busBookings = await prisma.busBooking.findMany({
                 where: { createdAt: { gte: startOfDay, lte: endOfDay } }
@@ -71,7 +78,11 @@ exports.getReports = async (req, res) => {
             let summaryLines = [];
             
             if (vehicleBookings.length > 0) {
-                const names = vehicleBookings.map(b => b.user?.name || 'Anonim').join(', ');
+                const names = vehicleBookings.map(b => {
+                    const userName = b.user?.name || 'Anonim';
+                    const vehicleName = b.vehicle?.name || b.vehicle?.plateNumber || 'Kendaraan';
+                    return `${userName} (${vehicleName})`;
+                }).join(', ');
                 summaryLines.push(`- Terdapat ${vehicleBookings.length} peminjaman kendaraan operasional hari ini (Peminjam: ${names}).`);
             }
             
