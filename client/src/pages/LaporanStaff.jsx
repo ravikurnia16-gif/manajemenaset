@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { FileText, Calendar, Plus, Save, RefreshCw, Loader2, User, Camera, X } from 'lucide-react';
+import { FileText, Calendar, Plus, Save, RefreshCw, Loader2, User, Camera, X, MapPin } from 'lucide-react';
 import api from '../lib/axios';
 import dayjs from 'dayjs';
 
@@ -23,7 +23,7 @@ const LaporanStaff = () => {
     const [reports, setReports] = useState([]);
     const [myReport, setMyReport] = useState(null);
     const [autoContent, setAutoContent] = useState('');
-    const [manualPoints, setManualPoints] = useState([{ text: '', photo: null }]);
+    const [manualPoints, setManualPoints] = useState([{ text: '', photo: null, location: null }]);
     const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
@@ -49,8 +49,8 @@ const LaporanStaff = () => {
                 setAutoContent(res.data.myReport?.content || '');
                 const fetchedPoints = res.data.myReport?.metadata?.manualPoints || [];
                 const formattedPoints = fetchedPoints.length > 0 
-                    ? fetchedPoints.map(p => typeof p === 'string' ? { text: p, photo: null } : p)
-                    : [{ text: '', photo: null }];
+                    ? fetchedPoints.map(p => typeof p === 'string' ? { text: p, photo: null, location: null } : p)
+                    : [{ text: '', photo: null, location: null }];
                 setManualPoints(formattedPoints);
             }
         } catch (error) {
@@ -86,7 +86,21 @@ const LaporanStaff = () => {
         reader.onload = (e) => {
             const newPoints = [...manualPoints];
             newPoints[index].photo = e.target.result;
-            setManualPoints(newPoints);
+            
+            // Try to capture geolocation
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    const npWithLoc = [...newPoints];
+                    npWithLoc[index].location = loc;
+                    setManualPoints(npWithLoc);
+                }, (err) => {
+                    console.warn("Geolocation failed", err);
+                    setManualPoints([...newPoints]);
+                }, { enableHighAccuracy: true, timeout: 10000 });
+            } else {
+                setManualPoints([...newPoints]);
+            }
         };
         reader.readAsDataURL(file);
     };
@@ -161,21 +175,29 @@ const LaporanStaff = () => {
                                         </button>
                                     </div>
                                     {point.photo && (
-                                        <div className="relative w-32 h-32 rounded-xl overflow-hidden border border-slate-200 group/photo">
-                                            <img src={point.photo} alt="Lampiran" className="w-full h-full object-cover" />
-                                            <button 
-                                                onClick={() => { const np = [...manualPoints]; np[index].photo = null; setManualPoints(np); }} 
-                                                className="absolute top-1 right-1 bg-white/90 p-1 rounded-full text-rose-500 opacity-0 group-hover/photo:opacity-100 transition-opacity shadow-sm"
-                                                title="Hapus Foto"
-                                            >
-                                                <X size={14} />
-                                            </button>
+                                        <div className="flex gap-4 items-end bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                            <div className="relative w-32 h-32 rounded-xl overflow-hidden border border-slate-200 group/photo shrink-0">
+                                                <img src={point.photo} alt="Lampiran" className="w-full h-full object-cover" />
+                                                <button 
+                                                    onClick={() => { const np = [...manualPoints]; np[index].photo = null; np[index].location = null; setManualPoints(np); }} 
+                                                    className="absolute top-1 right-1 bg-white/90 p-1 rounded-full text-rose-500 opacity-0 group-hover/photo:opacity-100 transition-opacity shadow-sm"
+                                                    title="Hapus Foto"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                            {point.location && (
+                                                <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1 bg-white px-2 py-1.5 rounded-lg border border-slate-200 shadow-sm mb-1">
+                                                    <MapPin size={12} className="text-emerald-500" />
+                                                    {point.location.lat.toFixed(6)}, {point.location.lng.toFixed(6)}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
                             ))}
                             <button
-                                onClick={() => setManualPoints([...manualPoints, { text: '', photo: null }])}
+                                onClick={() => setManualPoints([...manualPoints, { text: '', photo: null, location: null }])}
                                 className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 mt-2 px-3 py-2 rounded-xl hover:bg-blue-50 transition-colors border border-dashed border-blue-200 w-full justify-center"
                             >
                                 <Plus size={14} /> Tambah Poin Kegiatan
@@ -226,6 +248,7 @@ const LaporanStaff = () => {
                                                         {report.metadata.manualPoints.map((pt, idx) => {
                                                             const text = typeof pt === 'string' ? pt : pt.text;
                                                             const photo = typeof pt === 'string' ? null : pt.photo;
+                                                            const loc = typeof pt === 'string' ? null : pt.location;
                                                             return (
                                                                 <li key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
                                                                     <div className="flex gap-2 items-start">
@@ -233,9 +256,23 @@ const LaporanStaff = () => {
                                                                         <div className="flex-1">
                                                                             <p className="text-sm text-slate-700">{text}</p>
                                                                             {photo && (
-                                                                                <a href={photo} target="_blank" rel="noreferrer" className="mt-2 block w-32 h-32 rounded-lg overflow-hidden border border-slate-200 hover:opacity-80 transition-opacity">
-                                                                                    <img src={photo} alt={`Lampiran ${idx + 1}`} className="w-full h-full object-cover" />
-                                                                                </a>
+                                                                                <div className="mt-2 flex gap-4 items-start">
+                                                                                    <a href={photo} target="_blank" rel="noreferrer" className="block w-32 h-32 rounded-lg overflow-hidden border border-slate-200 hover:opacity-80 transition-opacity">
+                                                                                        <img src={photo} alt={`Lampiran ${idx + 1}`} className="w-full h-full object-cover" />
+                                                                                    </a>
+                                                                                    {loc && (
+                                                                                        <a 
+                                                                                            href={`https://www.google.com/maps?q=${loc.lat},${loc.lng}`}
+                                                                                            target="_blank"
+                                                                                            rel="noreferrer"
+                                                                                            className="text-[10px] font-bold text-blue-600 flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-2 py-1.5 rounded-lg border border-blue-200 shadow-sm transition-colors mt-1"
+                                                                                            title="Buka di Google Maps"
+                                                                                        >
+                                                                                            <MapPin size={12} className="text-blue-500" />
+                                                                                            Buka Peta Lokasi
+                                                                                        </a>
+                                                                                    )}
+                                                                                </div>
                                                                             )}
                                                                         </div>
                                                                     </div>
