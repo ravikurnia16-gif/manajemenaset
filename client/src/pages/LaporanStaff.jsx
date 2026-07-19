@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { FileText, Calendar, Plus, Save, RefreshCw, Loader2, User } from 'lucide-react';
+import { FileText, Calendar, Plus, Save, RefreshCw, Loader2, User, Camera, X } from 'lucide-react';
 import api from '../lib/axios';
 import dayjs from 'dayjs';
 
@@ -23,7 +23,7 @@ const LaporanStaff = () => {
     const [reports, setReports] = useState([]);
     const [myReport, setMyReport] = useState(null);
     const [autoContent, setAutoContent] = useState('');
-    const [manualPoints, setManualPoints] = useState(['']);
+    const [manualPoints, setManualPoints] = useState([{ text: '', photo: null }]);
     const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
@@ -48,7 +48,10 @@ const LaporanStaff = () => {
                 // Separate auto logs (content) and manual points (metadata.manualPoints)
                 setAutoContent(res.data.myReport?.content || '');
                 const fetchedPoints = res.data.myReport?.metadata?.manualPoints || [];
-                setManualPoints(fetchedPoints.length > 0 ? fetchedPoints : ['']);
+                const formattedPoints = fetchedPoints.length > 0 
+                    ? fetchedPoints.map(p => typeof p === 'string' ? { text: p, photo: null } : p)
+                    : [{ text: '', photo: null }];
+                setManualPoints(formattedPoints);
             }
         } catch (error) {
             console.error('Error fetching reports:', error);
@@ -63,7 +66,7 @@ const LaporanStaff = () => {
             const res = await api.post('/laporan/my', {
                 category: apiCategory,
                 targetDate: selectedDate,
-                manualPoints: manualPoints.filter(p => p.trim() !== '')
+                manualPoints: manualPoints.filter(p => (p.text && p.text.trim() !== '') || p.photo)
             });
             if (res.data.success) {
                 alert('Laporan berhasil disimpan!');
@@ -77,6 +80,16 @@ const LaporanStaff = () => {
         }
     };
 
+    const handlePhotoUpload = (index, file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const newPoints = [...manualPoints];
+            newPoints[index].photo = e.target.result;
+            setManualPoints(newPoints);
+        };
+        reader.readAsDataURL(file);
+    };
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-10">
@@ -121,30 +134,49 @@ const LaporanStaff = () => {
                             {autoContent}
                         </div>
 
-                        <div className="space-y-3 flex-1 overflow-y-auto pr-2">
+                        <div className="space-y-4 flex-1 overflow-y-auto pr-2">
                             {manualPoints.map((point, index) => (
-                                <div key={index} className="flex gap-2">
-                                    <input
-                                        className="flex-1 w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                        placeholder={`Kegiatan ke-${index + 1}...`}
-                                        value={point}
-                                        onChange={(e) => {
-                                            const newPoints = [...manualPoints];
-                                            newPoints[index] = e.target.value;
-                                            setManualPoints(newPoints);
-                                        }}
-                                    />
-                                    <button 
-                                        onClick={() => setManualPoints(manualPoints.filter((_, i) => i !== index))}
-                                        className="px-3 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all font-bold"
-                                    >
-                                        &times;
-                                    </button>
+                                <div key={index} className="flex flex-col gap-2 p-3 bg-white border border-slate-200 rounded-2xl shadow-sm relative group">
+                                    <div className="flex gap-2">
+                                        <input
+                                            className="flex-1 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                            placeholder={`Kegiatan ke-${index + 1}...`}
+                                            value={point.text}
+                                            onChange={(e) => {
+                                                const newPoints = [...manualPoints];
+                                                newPoints[index].text = e.target.value;
+                                                setManualPoints(newPoints);
+                                            }}
+                                        />
+                                        <label className="p-2 cursor-pointer text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-slate-200 bg-slate-50" title="Lampirkan Foto">
+                                            <Camera size={18} />
+                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhotoUpload(index, e.target.files[0])} />
+                                        </label>
+                                        <button 
+                                            onClick={() => setManualPoints(manualPoints.filter((_, i) => i !== index))}
+                                            className="px-3 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all font-bold border border-transparent hover:border-rose-200"
+                                            title="Hapus Poin"
+                                        >
+                                            &times;
+                                        </button>
+                                    </div>
+                                    {point.photo && (
+                                        <div className="relative w-32 h-32 rounded-xl overflow-hidden border border-slate-200 group/photo">
+                                            <img src={point.photo} alt="Lampiran" className="w-full h-full object-cover" />
+                                            <button 
+                                                onClick={() => { const np = [...manualPoints]; np[index].photo = null; setManualPoints(np); }} 
+                                                className="absolute top-1 right-1 bg-white/90 p-1 rounded-full text-rose-500 opacity-0 group-hover/photo:opacity-100 transition-opacity shadow-sm"
+                                                title="Hapus Foto"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                             <button
-                                onClick={() => setManualPoints([...manualPoints, ''])}
-                                className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 mt-2 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                                onClick={() => setManualPoints([...manualPoints, { text: '', photo: null }])}
+                                className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 mt-2 px-3 py-2 rounded-xl hover:bg-blue-50 transition-colors border border-dashed border-blue-200 w-full justify-center"
                             >
                                 <Plus size={14} /> Tambah Poin Kegiatan
                             </button>
@@ -190,10 +222,26 @@ const LaporanStaff = () => {
                                                     </div>
                                                 )}
                                                 {report.metadata?.manualPoints?.length > 0 ? (
-                                                    <ul className="list-disc pl-5 space-y-1">
-                                                        {report.metadata.manualPoints.map((pt, idx) => (
-                                                            <li key={idx}>{pt}</li>
-                                                        ))}
+                                                    <ul className="list-none space-y-3 mt-2">
+                                                        {report.metadata.manualPoints.map((pt, idx) => {
+                                                            const text = typeof pt === 'string' ? pt : pt.text;
+                                                            const photo = typeof pt === 'string' ? null : pt.photo;
+                                                            return (
+                                                                <li key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                                                                    <div className="flex gap-2 items-start">
+                                                                        <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{idx + 1}</div>
+                                                                        <div className="flex-1">
+                                                                            <p className="text-sm text-slate-700">{text}</p>
+                                                                            {photo && (
+                                                                                <a href={photo} target="_blank" rel="noreferrer" className="mt-2 block w-32 h-32 rounded-lg overflow-hidden border border-slate-200 hover:opacity-80 transition-opacity">
+                                                                                    <img src={photo} alt={`Lampiran ${idx + 1}`} className="w-full h-full object-cover" />
+                                                                                </a>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </li>
+                                                            );
+                                                        })}
                                                     </ul>
                                                 ) : (
                                                     !report.content && <span className="italic text-slate-400 text-[11px]">- Kosong -</span>
