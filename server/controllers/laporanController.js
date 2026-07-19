@@ -51,10 +51,11 @@ exports.getReports = async (req, res) => {
             }
         });
 
-        // Bersihkan log spam lokasi lama agar tidak tampil di frontend
+        // Bersihkan log mentah (rute API) lama agar tidak tampil di frontend
+        // Karena sekarang sudah digantikan oleh Global Summary
         reports.forEach(r => {
-            if (r.content && r.category === 'KENDARAAN') {
-                r.content = r.content.split('\n').filter(line => !line.includes('/location')).join('\n').trim();
+            if (r.category === 'KENDARAAN') {
+                r.content = '';
             }
         });
 
