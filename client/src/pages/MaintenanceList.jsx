@@ -45,25 +45,51 @@ const MaintenanceList = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isDashboardAuthorized = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
     const isTukangAuthorized = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
-    const [search, setSearch] = useState('');
-    const [debouncedSearch, setDebouncedSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState('');
-    const [typeFilter, setTypeFilter] = useState('');
-    const [targetDeptFilter, setTargetDeptFilter] = useState('');
-    const [unitFilter, setUnitFilter] = useState('');
-    const [units, setUnits] = useState([]);
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-    const [limit, setLimit] = useState(10);
-    const [page, setPage] = useState(1);
-    const [activeTab, setActiveTab] = useState('list'); // 'dashboard', 'schedule', 'list'
-    const navigate = useNavigate();
     const location = useLocation();
-
+    
     // Get category and targetDept from query param
     const queryParams = new URLSearchParams(location.search);
     const categoryFromUrl = queryParams.get('category');
     const targetDeptFromUrl = queryParams.get('targetDept');
+
+    let savedFilters = {};
+    try {
+        savedFilters = JSON.parse(sessionStorage.getItem('maintenanceFilters') || '{}');
+    } catch (e) {
+        console.error('Failed to parse maintenanceFilters from sessionStorage', e);
+    }
+
+    const [search, setSearch] = useState(savedFilters.search || '');
+    const [debouncedSearch, setDebouncedSearch] = useState(savedFilters.search || '');
+    const [statusFilter, setStatusFilter] = useState(savedFilters.statusFilter || '');
+    const [typeFilter, setTypeFilter] = useState(savedFilters.typeFilter || '');
+    const [targetDeptFilter, setTargetDeptFilter] = useState(targetDeptFromUrl || savedFilters.targetDeptFilter || '');
+    const [categoryFilter, setCategoryFilter] = useState(categoryFromUrl || savedFilters.categoryFilter || '');
+    const [unitFilter, setUnitFilter] = useState(savedFilters.unitFilter || '');
+    const [units, setUnits] = useState([]);
+    const [startDate, setStartDate] = useState(savedFilters.startDate || '');
+    const [endDate, setEndDate] = useState(savedFilters.endDate || '');
+    const [limit, setLimit] = useState(savedFilters.limit || 10);
+    const [page, setPage] = useState(savedFilters.page || 1);
+    const [activeTab, setActiveTab] = useState(savedFilters.activeTab || 'list'); // 'dashboard', 'schedule', 'list'
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        sessionStorage.setItem('maintenanceFilters', JSON.stringify({
+            search,
+            statusFilter,
+            typeFilter,
+            targetDeptFilter,
+            categoryFilter,
+            unitFilter,
+            startDate,
+            endDate,
+            limit,
+            page,
+            activeTab
+        }));
+    }, [search, statusFilter, typeFilter, targetDeptFilter, categoryFilter, unitFilter, startDate, endDate, limit, page, activeTab]);
+
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -84,7 +110,7 @@ const MaintenanceList = () => {
                 type: typeFilter,
                 targetDept: targetDeptFilter,
                 unitId: unitFilter,
-                category: categoryFromUrl,
+                category: categoryFilter,
                 startDate,
                 endDate
             };
@@ -105,7 +131,7 @@ const MaintenanceList = () => {
             const params = {};
             if (debouncedSearch) params.search = debouncedSearch;
             if (unitFilter) params.unitId = unitFilter;
-            if (categoryFromUrl) params.category = categoryFromUrl;
+            if (categoryFilter) params.category = categoryFilter;
             const res = await api.get('/maintenance/schedule', { params });
             setSchedule(res.data || []);
         } catch (err) {
@@ -134,12 +160,16 @@ const MaintenanceList = () => {
     }, [targetDeptFromUrl]);
 
     useEffect(() => {
+        if (categoryFromUrl) setCategoryFilter(categoryFromUrl);
+    }, [categoryFromUrl]);
+
+    useEffect(() => {
         if (activeTab === 'list') {
             fetchReports();
         } else if (activeTab === 'schedule') {
             fetchSchedule();
         }
-    }, [activeTab, statusFilter, typeFilter, targetDeptFilter, unitFilter, categoryFromUrl, debouncedSearch, page, limit, startDate, endDate]);
+    }, [activeTab, statusFilter, typeFilter, targetDeptFilter, unitFilter, categoryFilter, debouncedSearch, page, limit, startDate, endDate]);
 
     // Group schedule by Unit
     const groupedSchedule = schedule.reduce((acc, item) => {
@@ -212,7 +242,7 @@ const MaintenanceList = () => {
                 type: typeFilter,
                 targetDept: targetDeptFilter,
                 unitId: unitFilter,
-                category: categoryFromUrl,
+                category: categoryFilter,
                 startDate,
                 endDate
             };
@@ -503,10 +533,14 @@ const MaintenanceList = () => {
                     />
                 </div>
                 <select
-                    value={categoryFromUrl || ''}
+                    value={categoryFilter}
                     onChange={e => {
                         const val = e.target.value;
-                        navigate(val ? `/pemeliharaan?category=${val}` : '/pemeliharaan');
+                        setCategoryFilter(val);
+                        const params = new URLSearchParams(location.search);
+                        if (val) params.set('category', val);
+                        else params.delete('category');
+                        navigate(`/pemeliharaan?${params.toString()}`);
                     }}
                     className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm min-w-[140px]"
                 >
