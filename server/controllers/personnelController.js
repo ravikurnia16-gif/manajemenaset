@@ -1402,9 +1402,9 @@ exports.getKPILeaderboard = async (req, res) => {
         const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
         const userPosition = (currentUser?.position || '').toLowerCase();
 
-        // Lenient matching: Must have "Kepala Bidang" AND ("Sarana dan Prasarana" OR "Sarpras")
+        // Matching: Must have "Kepala Bidang" AND "Sarana dan Prasarana"
         const isKabidTitle = userPosition.includes('kepala bidang');
-        const isSarprasUnit = userPosition.includes('sarana dan prasarana') || userPosition.includes('sarpras');
+        const isSarprasUnit = userPosition.includes('sarana dan prasarana');
 
         // TEMPORARY: Allow role-based access if position check fails but it's a known KEPALA_BIDANG
         const isAdminRole = currentUser?.role === 'SUPER_ADMIN';
@@ -1591,8 +1591,19 @@ exports.sendDailyPersonnelSummary = async () => {
             summaryText += `👤 *${name}*:\n`;
             userReports.forEach(r => {
                 const items = r.metadata?.items || [];
-                const completed = items.filter(i => i.status === 'SELESAI').length;
-                summaryText += `- ${r.category}: ${items.length} aktivitas (${completed} selesai)\n`;
+                let totalCount = 0;
+                let completedCount = 0;
+
+                if (Array.isArray(items) && items.length > 0) {
+                    totalCount = items.length;
+                    completedCount = items.filter(i => i.status === 'SELESAI' || i.percentage === 100).length;
+                } else if (r.content && r.content.trim()) {
+                    const lines = r.content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                    totalCount = lines.length;
+                    completedCount = lines.length; // Count non-empty content lines as completed activities
+                }
+
+                summaryText += `- ${r.category}: ${totalCount} aktivitas (${completedCount} selesai)\n`;
             });
             summaryText += `\n`;
         }

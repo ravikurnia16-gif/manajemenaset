@@ -8,13 +8,27 @@ import * as XLSX from 'xlsx'; // Import XLSX
 
 const ProcurementList = () => {
     const navigate = useNavigate();
+    let savedFilters = {};
+    try {
+        savedFilters = JSON.parse(sessionStorage.getItem('procurementFilters') || '{}');
+    } catch (e) {
+        console.error('Failed to parse procurementFilters from sessionStorage', e);
+    }
+
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState({ categoryId: '', status: '', unitId: '', search: '' });
+    const [filter, setFilter] = useState(savedFilters.filter || { categoryId: '', status: '', unitId: '', search: '' });
     const [units, setUnits] = useState([]);
     const [categories, setCategories] = useState([]);
     const [selectedIds, setSelectedIds] = useState([]);
-    const [pagination, setPagination] = useState({ limit: 10, page: 1 });
+    const [pagination, setPagination] = useState(savedFilters.pagination || { limit: 10, page: 1 });
+
+    useEffect(() => {
+        sessionStorage.setItem('procurementFilters', JSON.stringify({
+            filter,
+            pagination
+        }));
+    }, [filter, pagination]);
 
     useEffect(() => {
         fetchUnits();
