@@ -273,7 +273,7 @@ const Sidebar = ({ isOpen = true }) => {
                 {/* 4. Menu Laporan (Menggantikan Personalia) */}
                 {renderCollapsible('laporan', <FileText size={18} />, 'Laporan Harian', (
                     <>
-                        {(isGlobalAdmin || isStaffGudang) && (
+                        {isStaffGudang && (
                             <Link to="/laporan/gudang" className={subNavItemClass('/laporan/gudang')}>
                                 <Warehouse size={16} /> Laporan Gudang
                             </Link>

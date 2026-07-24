@@ -9,7 +9,7 @@ const aiService = require('../services/aiService');
 const isSarprasUnit = async (unitId) => {
     if (!unitId) return false;
     const unit = await prisma.unit.findUnique({ where: { id: unitId } });
-    return unit && unit.name.toLowerCase().includes('sarana dan prasarana');
+    return unit && (unit.name.toLowerCase().includes('sarana dan prasarana') || unit.name.toLowerCase().includes('sarpras'));
 };
 
 // Helper to sync personnel plan to SarprasCalendarEvent
@@ -1553,10 +1553,23 @@ exports.sendDailyPersonnelSummary = async () => {
     const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
 
     try {
+        const allowedPositions = [
+            'Staff Manajemen Aset',
+            'Staff Gudang dan Logistik',
+            'Staff Kendaraan',
+            'Staff Teknisi Aset',
+            'Staff Keuangan dan Administrasi (Sarpras)'
+        ];
+
         const reports = await prisma.personnelReport.findMany({
             where: {
                 type: 'DAILY',
-                date: { gte: startOfToday, lte: endOfToday }
+                date: { gte: startOfToday, lte: endOfToday },
+                user: {
+                    position: {
+                        in: allowedPositions
+                    }
+                }
             },
             include: { user: true }
         });

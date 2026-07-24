@@ -478,8 +478,8 @@ exports.createReport = async (req, res) => {
                 const submitterInfo = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true, username: true } });
                 const submitterName = submitterInfo?.name || submitterInfo?.username || 'Seseorang';
 
-                // 1. In-App Notification (Dynamic based on targetDept)
-                const inAppRoles = [{ position: { contains: 'Staff Manajemen Aset' } }];
+                // 1. In-App Notification
+                const inAppRoles = [{ position: { contains: 'Kepala Bidang Sarana' } }];
 
                 const notifRecipients = await prisma.user.findMany({
                     where: {
@@ -522,8 +522,8 @@ exports.createReport = async (req, res) => {
                     await whatsappService.sendMessage(submitter.phone, msgSubmitter);
                 }
 
-                // 2. WhatsApp Notification (Dynamic based on targetDept)
-                const waRoles = [{ position: { contains: 'Manajemen Aset' } }];
+                // 2. WhatsApp Notification
+                const waRoles = [{ position: { contains: 'Kepala Bidang Sarana' } }];
 
                 const waRecipients = await prisma.user.findMany({
                     where: {
@@ -1031,7 +1031,7 @@ exports.getMaintenanceSchedule = async (req, res) => {
 
 /**
  * Scheduled Task: Send daily reminders for overdue/soon routine maintenance
- * to Staff Manajemen Aset via WhatsApp.
+ * to Kepala Bidang Sarana via WhatsApp.
  */
 exports.checkAssetMaintenanceReminders = async () => {
     try {
@@ -1087,10 +1087,10 @@ exports.checkAssetMaintenanceReminders = async () => {
         msg += `Silakan cek detail dan proses di menu *Jadwal Servis* pada aplikasi.\n\n` +
             `_Sistem Manajemen Aset_`;
 
-        // 3. Find Recipients (Staff Manajemen Aset)
+        // 3. Find Recipients (Kepala Bidang Sarana)
         const recipients = await prisma.user.findMany({
             where: {
-                position: { contains: 'Manajemen Aset' },
+                position: { contains: 'Kepala Bidang Sarana' },
                 phone: { not: null, not: '' }
             }
         });
@@ -1114,7 +1114,7 @@ exports.checkAssetMaintenanceReminders = async () => {
  * Scheduled Task: Send daily notification at 08:30 WIB for Sarpras reports
  * that have been in SUBMITTED status for more than 48 hours (calendar hours
  * from business-day-adjusted createdAt).
- * Recipients: Staff Manajemen Aset (WhatsApp + In-App Notification)
+ * Recipients: Kepala Bidang Sarana (WhatsApp + In-App Notification)
  */
 exports.checkUnrespondedReports = async () => {
     try {
@@ -1171,10 +1171,10 @@ exports.checkUnrespondedReports = async () => {
         msg += `Mohon segera ditindaklanjuti.\n\n` +
             `_Sistem Manajemen Aset_`;
 
-        // Find Recipients (Staff Manajemen Aset)
+        // Find Recipients (Kepala Bidang Sarana)
         const recipients = await prisma.user.findMany({
             where: {
-                position: { contains: 'Manajemen Aset' },
+                position: { contains: 'Kepala Bidang Sarana' },
                 phone: { not: null, not: '' }
             }
         });
@@ -1189,22 +1189,22 @@ exports.checkUnrespondedReports = async () => {
             }
         }
 
-        // Send In-App Notification to all Staff Manajemen Aset
-        const allStaffAset = await prisma.user.findMany({
-            where: { position: { contains: 'Manajemen Aset' } }
+        // Send In-App Notification to all Kepala Bidang Sarana
+        const allKabidSarana = await prisma.user.findMany({
+            where: { position: { contains: 'Kepala Bidang Sarana' } }
         });
 
-        for (const staff of allStaffAset) {
+        for (const kabid of allKabidSarana) {
             try {
                 await createNotification(
-                    staff.id,
+                    kabid.id,
                     '⚠️ Laporan Belum Direspon >48 Jam',
                     `Ada ${overdueReports.length} laporan pemeliharaan Sarpras yang belum direspon lebih dari 48 jam. Mohon segera ditindaklanjuti.`,
                     'WARNING',
                     '/pemeliharaan'
                 );
             } catch (e) {
-                console.error(`[Scheduler] In-app notif error for ${staff.username}:`, e.message);
+                console.error(`[Scheduler] In-app notif error for ${kabid.username}:`, e.message);
             }
         }
 
