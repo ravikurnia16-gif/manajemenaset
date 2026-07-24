@@ -478,8 +478,10 @@ exports.createReport = async (req, res) => {
                 const submitterInfo = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true, username: true } });
                 const submitterName = submitterInfo?.name || submitterInfo?.username || 'Seseorang';
 
-                // 1. In-App Notification
-                const inAppRoles = [{ position: { contains: 'Kepala Bidang Sarana' } }];
+                const inAppRoles = [
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { position: { contains: 'Staff Manajemen Aset' } }
+                ];
 
                 const notifRecipients = await prisma.user.findMany({
                     where: {
@@ -523,7 +525,10 @@ exports.createReport = async (req, res) => {
                 }
 
                 // 2. WhatsApp Notification
-                const waRoles = [{ position: { contains: 'Kepala Bidang Sarana' } }];
+                const waRoles = [
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { position: { contains: 'Staff Manajemen Aset' } }
+                ];
 
                 const waRecipients = await prisma.user.findMany({
                     where: {
@@ -1087,10 +1092,13 @@ exports.checkAssetMaintenanceReminders = async () => {
         msg += `Silakan cek detail dan proses di menu *Jadwal Servis* pada aplikasi.\n\n` +
             `_Sistem Manajemen Aset_`;
 
-        // 3. Find Recipients (Kepala Bidang Sarana)
+        // 3. Find Recipients (Kepala Bidang Sarana & Staff Manajemen Aset)
         const recipients = await prisma.user.findMany({
             where: {
-                position: { contains: 'Kepala Bidang Sarana' },
+                OR: [
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { position: { contains: 'Staff Manajemen Aset' } }
+                ],
                 phone: { not: null, not: '' }
             }
         });
@@ -1171,10 +1179,13 @@ exports.checkUnrespondedReports = async () => {
         msg += `Mohon segera ditindaklanjuti.\n\n` +
             `_Sistem Manajemen Aset_`;
 
-        // Find Recipients (Kepala Bidang Sarana)
+        // Find Recipients (Kepala Bidang Sarana & Staff Manajemen Aset)
         const recipients = await prisma.user.findMany({
             where: {
-                position: { contains: 'Kepala Bidang Sarana' },
+                OR: [
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { position: { contains: 'Staff Manajemen Aset' } }
+                ],
                 phone: { not: null, not: '' }
             }
         });
@@ -1189,9 +1200,14 @@ exports.checkUnrespondedReports = async () => {
             }
         }
 
-        // Send In-App Notification to all Kepala Bidang Sarana
+        // Send In-App Notification to Kepala Bidang Sarana & Staff Manajemen Aset
         const allKabidSarana = await prisma.user.findMany({
-            where: { position: { contains: 'Kepala Bidang Sarana' } }
+            where: {
+                OR: [
+                    { position: { contains: 'Kepala Bidang Sarana' } },
+                    { position: { contains: 'Staff Manajemen Aset' } }
+                ]
+            }
         });
 
         for (const kabid of allKabidSarana) {
