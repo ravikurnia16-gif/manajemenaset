@@ -79,11 +79,13 @@ const Sidebar = ({ isOpen = true }) => {
     
     // Laporan Role Checks
     const pos = (user?.position || '').toLowerCase();
-    const isStaffGudang = pos.includes('gudang') || pos.includes('logistik');
+    const isStaffGudang = pos === 'kepala bidang sarana' || pos === 'staff gudang dan logistik';
     const isStaffAset = pos.includes('aset');
-    const isStaffTeknisi = pos.includes('teknisi');
+    const canViewLaporanTeknisi = pos === 'kepala bidang sarana' || pos === 'staff teknisi aset';
     const isStaffKendaraan = pos.includes('kendaraan');
-    const isStaffAdminKeuangan = pos.includes('administrasi') || pos.includes('keuangan');
+    const canViewLaporanKendaraan = pos === 'kepala bidang sarana' || pos === 'staff kendaraan';
+    const canViewLaporanKeuangan = pos === 'kepala bidang sarana' || pos === 'staff keuangan dan administrasi (sarpras)';
+    const canViewLaporanAset = pos === 'kepala bidang sarana' || pos === 'staff manajemen aset';
     
     // Security menu hidden based on user request
     const isSecurityAdmin = false; // isKabidSarpras || (user?.unit?.name || '').toLowerCase().includes('keamanan');
@@ -278,22 +280,22 @@ const Sidebar = ({ isOpen = true }) => {
                                 <Warehouse size={16} /> Laporan Gudang
                             </Link>
                         )}
-                        {(isGlobalAdmin || isStaffAset) && (
+                        {canViewLaporanAset && (
                             <Link to="/laporan/aset" className={subNavItemClass('/laporan/aset')}>
                                 <Box size={16} /> Laporan Aset
                             </Link>
                         )}
-                        {(isGlobalAdmin || isStaffTeknisi) && (
+                        {canViewLaporanTeknisi && (
                             <Link to="/laporan/teknisi" className={subNavItemClass('/laporan/teknisi')}>
-                                <Wrench size={16} /> Laporan Pemeliharaan
+                                <Wrench size={16} /> Laporan Teknisi Aset
                             </Link>
                         )}
-                        {(isGlobalAdmin || isStaffKendaraan) && (
+                        {canViewLaporanKendaraan && (
                             <Link to="/laporan/kendaraan" className={subNavItemClass('/laporan/kendaraan')}>
                                 <Truck size={16} /> Laporan Kendaraan
                             </Link>
                         )}
-                        {(isGlobalAdmin || isStaffAdminKeuangan) && (
+                        {canViewLaporanKeuangan && (
                             <Link to="/laporan/keuangan" className={subNavItemClass('/laporan/keuangan')}>
                                 <FileSignature size={16} /> Laporan Keuangan & Admin
                             </Link>
