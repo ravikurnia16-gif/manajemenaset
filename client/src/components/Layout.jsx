@@ -13,6 +13,7 @@ const Layout = () => {
     const [loadingNotif, setLoadingNotif] = useState(false);
     const [selectedNotif, setSelectedNotif] = useState(null);
     const [hasReported, setHasReported] = useState(true); // default true to prevent flash
+    const [reportWarningType, setReportWarningType] = useState('');
     const location = useLocation();
     const navigate = useNavigate();
 
@@ -41,13 +42,37 @@ const Layout = () => {
 
     useEffect(() => {
         const checkReportStatus = async () => {
-            const sarprasKeywords = ['manajemen aset', 'gudang dan logistik', 'teknisi', 'keuangan dan administrasi', 'kendaraan', 'kepala bidang sarana'];
+            const sarprasKeywords = ['manajemen aset', 'admin aset', 'gudang dan logistik', 'teknisi', 'keuangan dan administrasi', 'kendaraan', 'kepala bidang sarana'];
             const isSarpras = user?.position && sarprasKeywords.some(kw => user.position.toLowerCase().includes(kw));
             if (!isSarpras) return;
 
             try {
                 const res = await api.get('/laporan/status');
-                setHasReported(res.data.hasReported);
+                
+                const now = new Date();
+                const hour = now.getHours();
+                const minute = now.getMinutes();
+                const currentTime = hour + (minute / 60);
+
+                let shouldWarn = false;
+                let warningType = '';
+
+                // Laporan Pagi: check if missing after 12:00
+                if (currentTime >= 12 && !res.data.hasMorning) {
+                    shouldWarn = true;
+                    warningType = 'Pagi';
+                }
+
+                // Laporan Siang: check if missing after 16:16
+                // 16.16 in decimal is 16 + 16/60 = 16.266...
+                if (currentTime >= 16.266 && !res.data.hasAfternoon) {
+                    shouldWarn = true;
+                    warningType = warningType ? 'Pagi & Siang' : 'Siang';
+                }
+
+                setHasReported(!shouldWarn);
+                if (shouldWarn) setReportWarningType(warningType);
+
             } catch (err) {
                 console.error('Failed to fetch report status', err);
             }
@@ -284,7 +309,7 @@ const Layout = () => {
                     <div className="bg-rose-500 text-white px-4 py-2 flex items-center justify-between shadow-md shrink-0 z-20 animate-in slide-in-from-top-2">
                         <div className="flex items-center gap-2 text-sm font-bold">
                             <AlertCircle size={18} className="animate-pulse" />
-                            Anda belum mengisi Laporan Kegiatan hari ini!
+                            Anda belum mengisi Laporan Kegiatan {reportWarningType || ''} hari ini!
                         </div>
                         <Link 
                             to="/laporan/umum" 

@@ -63,6 +63,22 @@ exports.getReports = async (req, res) => {
         // Also if user is viewing their own and report doesn't exist, return empty
         let myReport = reports.find(r => r.userId === req.user.id);
 
+        // Filter reports for the "Rekap Laporan Tim" feed so we don't show empty auto-reports
+        const filteredReports = reports.filter(r => {
+            if (!r.metadata || !r.metadata.manualPoints) return false;
+            const pts = r.metadata.manualPoints;
+            
+            if (Array.isArray(pts)) {
+                return pts.length > 0;
+            } else {
+                const m = pts.morningPoints || pts.morning || [];
+                const a = pts.afternoonPoints || pts.afternoon || [];
+                const hasM = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                const hasA = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                return hasM || hasA;
+            }
+        });
+
         // Compute Global Summary for KENDARAAN
         let globalSummary = null;
         if (category === 'KENDARAAN') {
@@ -125,7 +141,7 @@ exports.getReports = async (req, res) => {
             }
         }
 
-        res.json({ success: true, reports, myReport, globalSummary });
+        res.json({ success: true, reports: filteredReports, myReport, globalSummary });
 
     } catch (error) {
         console.error('Error fetching reports:', error);
@@ -206,15 +222,20 @@ exports.getReportStatus = async (req, res) => {
             }
         });
 
-        let hasReported = false;
+        let hasMorning = false;
+        let hasAfternoon = false;
+        
         if (report && report.metadata && report.metadata.manualPoints) {
             const { morningPoints, afternoonPoints } = report.metadata.manualPoints;
-            const hasMorning = Array.isArray(morningPoints) && morningPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
-            const hasAfternoon = Array.isArray(afternoonPoints) && afternoonPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
-            hasReported = hasMorning || hasAfternoon;
+            hasMorning = Array.isArray(morningPoints) && morningPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+            hasAfternoon = Array.isArray(afternoonPoints) && afternoonPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
         }
 
-        res.json({ hasReported });
+        res.json({ 
+            hasReported: hasMorning || hasAfternoon, 
+            hasMorning, 
+            hasAfternoon 
+        });
     } catch (error) {
         console.error('Error fetching report status:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
