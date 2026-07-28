@@ -226,9 +226,11 @@ exports.getReportStatus = async (req, res) => {
         let hasAfternoon = false;
         
         if (report && report.metadata && report.metadata.manualPoints) {
-            const { morningPoints, afternoonPoints } = report.metadata.manualPoints;
-            hasMorning = Array.isArray(morningPoints) && morningPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
-            hasAfternoon = Array.isArray(afternoonPoints) && afternoonPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+            const pts = report.metadata.manualPoints;
+            const m = pts.morningPoints || pts.morning || [];
+            const a = pts.afternoonPoints || pts.afternoon || [];
+            hasMorning = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+            hasAfternoon = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
         }
 
         res.json({ 
@@ -286,9 +288,11 @@ exports.getKabidSummary = async (req, res) => {
             let hasAfternoon = false;
 
             if (userReport && userReport.metadata && userReport.metadata.manualPoints) {
-                const { morningPoints, afternoonPoints } = userReport.metadata.manualPoints;
-                hasMorning = Array.isArray(morningPoints) && morningPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
-                hasAfternoon = Array.isArray(afternoonPoints) && afternoonPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                const pts = userReport.metadata.manualPoints;
+                const m = pts.morningPoints || pts.morning || [];
+                const a = pts.afternoonPoints || pts.afternoon || [];
+                hasMorning = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                hasAfternoon = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
             }
 
             let status = 'BELUM';
@@ -348,11 +352,13 @@ exports.sendReportReminders = async () => {
             let hasReported = false;
 
             if (userReport && userReport.metadata && userReport.metadata.manualPoints) {
-                const { morningPoints, afternoonPoints } = userReport.metadata.manualPoints;
+                const pts = userReport.metadata.manualPoints;
+                const m = pts.morningPoints || pts.morning || [];
+                const a = pts.afternoonPoints || pts.afternoon || [];
                 if (isMorningShift) {
-                    hasReported = Array.isArray(morningPoints) && morningPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                    hasReported = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
                 } else {
-                    hasReported = Array.isArray(afternoonPoints) && afternoonPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                    hasReported = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
                 }
             }
 
