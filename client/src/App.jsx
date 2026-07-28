@@ -273,8 +273,12 @@ function App() {
           <Route path="security/jadwal" element={<SecuritySchedule />} /> */}
           
           <Route path="laporan" element={<ReportPage />} />
-          <Route path="laporan/kabid" element={<LaporanKabid />} />
-          <Route path="laporan/:category" element={<LaporanStaff />} />
+          <Route path="laporan/kabid" element={
+            isStaffSarpras ? <LaporanKabid /> : <Navigate to="/dashboard" />
+          } />
+          <Route path="laporan/:category" element={
+            isStaffSarpras ? <LaporanStaff /> : <Navigate to="/dashboard" />
+          } />
 
           {/* Module: E-Office */}
           <Route path="e-office" element={

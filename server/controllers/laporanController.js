@@ -214,7 +214,7 @@ exports.getReportStatus = async (req, res) => {
         const startOfDay = targetDate.startOf('day').toDate();
         const endOfDay = targetDate.endOf('day').toDate();
 
-        const report = await prisma.personnelReport.findFirst({
+        const reports = await prisma.personnelReport.findMany({
             where: {
                 userId,
                 type: 'DAILY',
@@ -225,12 +225,19 @@ exports.getReportStatus = async (req, res) => {
         let hasMorning = false;
         let hasAfternoon = false;
         
-        if (report && report.metadata && report.metadata.manualPoints) {
-            const pts = report.metadata.manualPoints;
-            const m = pts.morningPoints || pts.morning || [];
-            const a = pts.afternoonPoints || pts.afternoon || [];
-            hasMorning = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
-            hasAfternoon = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+        for (const report of reports) {
+            if (report.metadata && report.metadata.manualPoints) {
+                const pts = report.metadata.manualPoints;
+                const m = pts.morningPoints || pts.morning || [];
+                const a = pts.afternoonPoints || pts.afternoon || [];
+                if (!hasMorning) {
+                    hasMorning = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                }
+                if (!hasAfternoon) {
+                    hasAfternoon = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                }
+            }
+            if (hasMorning && hasAfternoon) break;
         }
 
         res.json({ 
@@ -283,16 +290,24 @@ exports.getKabidSummary = async (req, res) => {
         });
 
         const summary = users.map(user => {
-            const userReport = reports.find(r => r.userId === user.id);
+            // Find ALL reports for this user on this day (across all categories)
+            const userReports = reports.filter(r => r.userId === user.id);
             let hasMorning = false;
             let hasAfternoon = false;
 
-            if (userReport && userReport.metadata && userReport.metadata.manualPoints) {
-                const pts = userReport.metadata.manualPoints;
-                const m = pts.morningPoints || pts.morning || [];
-                const a = pts.afternoonPoints || pts.afternoon || [];
-                hasMorning = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
-                hasAfternoon = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+            for (const userReport of userReports) {
+                if (userReport.metadata && userReport.metadata.manualPoints) {
+                    const pts = userReport.metadata.manualPoints;
+                    const m = pts.morningPoints || pts.morning || [];
+                    const a = pts.afternoonPoints || pts.afternoon || [];
+                    if (!hasMorning) {
+                        hasMorning = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                    }
+                    if (!hasAfternoon) {
+                        hasAfternoon = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                    }
+                }
+                if (hasMorning && hasAfternoon) break; // Already LENGKAP, no need to check more
             }
 
             let status = 'BELUM';
@@ -304,8 +319,8 @@ exports.getKabidSummary = async (req, res) => {
                 hasMorning,
                 hasAfternoon,
                 status,
-                reportId: userReport ? userReport.id : null,
-                reportData: userReport ? userReport.metadata.manualPoints : null
+                reportId: userReports.length > 0 ? userReports[0].id : null,
+                reportData: userReports.length > 0 ? userReports[0].metadata?.manualPoints : null
             };
         });
 
@@ -348,18 +363,21 @@ exports.sendReportReminders = async () => {
         for (const user of users) {
             if (!user.phone) continue;
             
-            const userReport = reports.find(r => r.userId === user.id);
+            const userReports = reports.filter(r => r.userId === user.id);
             let hasReported = false;
 
-            if (userReport && userReport.metadata && userReport.metadata.manualPoints) {
-                const pts = userReport.metadata.manualPoints;
-                const m = pts.morningPoints || pts.morning || [];
-                const a = pts.afternoonPoints || pts.afternoon || [];
-                if (isMorningShift) {
-                    hasReported = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
-                } else {
-                    hasReported = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+            for (const userReport of userReports) {
+                if (userReport.metadata && userReport.metadata.manualPoints) {
+                    const pts = userReport.metadata.manualPoints;
+                    const m = pts.morningPoints || pts.morning || [];
+                    const a = pts.afternoonPoints || pts.afternoon || [];
+                    if (isMorningShift) {
+                        hasReported = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                    } else {
+                        hasReported = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                    }
                 }
+                if (hasReported) break;
             }
 
             if (!hasReported) {

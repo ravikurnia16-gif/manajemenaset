@@ -275,8 +275,8 @@ const Sidebar = ({ isOpen = true }) => {
 
 
 
-                {/* 4. Menu Laporan (Menggantikan Personalia) */}
-                {renderCollapsible('laporan', <FileText size={18} />, 'Laporan Harian', (
+                {/* 4. Menu Laporan (Menggantikan Personalia) - Hanya untuk staff Sarpras */}
+                {isStaffSarpras && renderCollapsible('laporan', <FileText size={18} />, 'Laporan Harian', (
                     <>
                         {isStaffGudang && (
                             <Link to="/laporan/gudang" className={subNavItemClass('/laporan/gudang')}>
