@@ -32,6 +32,21 @@ const VehicleBooking = () => {
     const [vTypeFilter, setVTypeFilter] = useState('ALL');
 
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
+    const [hideSanctionBanner, setHideSanctionBanner] = useState(false);
+
+    useEffect(() => {
+        if (currentUserProfile) {
+            if (!currentUserProfile.isSanctioned) {
+                localStorage.removeItem(`hideSanction_${currentUserProfile.id}`);
+                setHideSanctionBanner(false);
+            } else {
+                const isHidden = localStorage.getItem(`hideSanction_${currentUserProfile.id}`);
+                if (isHidden === 'true') {
+                    setHideSanctionBanner(true);
+                }
+            }
+        }
+    }, [currentUserProfile]);
 
     // Driver States
     const [driverSubTab, setDriverSubTab] = useState('DATABASE');
@@ -931,9 +946,19 @@ const VehicleBooking = () => {
             </div>
 
             {/* Sanction Banner */}
-            {currentUserProfile?.isSanctioned && (
-                <div className="bg-red-50 border border-red-200 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-center gap-4 justify-between">
-                    <div className="flex items-center gap-3">
+            {(currentUserProfile?.isSanctioned && !hideSanctionBanner) && (
+                <div className="bg-red-50 border border-red-200 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-start md:items-center gap-4 justify-between relative">
+                    <button 
+                        onClick={() => {
+                            setHideSanctionBanner(true);
+                            localStorage.setItem(`hideSanction_${currentUserProfile.id}`, 'true');
+                        }}
+                        className="absolute top-2 right-2 text-red-400 hover:text-red-600 bg-white hover:bg-red-100 rounded-full p-1 transition-all"
+                        title="Tutup Peringatan"
+                    >
+                        <X size={16} />
+                    </button>
+                    <div className="flex items-center gap-3 pr-8">
                         <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
                             <AlertCircle size={20} />
                         </div>
