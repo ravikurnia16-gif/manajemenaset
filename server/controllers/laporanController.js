@@ -3,6 +3,7 @@ const prisma = new PrismaClient();
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
+const whatsappService = require('../services/whatsappService');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -187,5 +188,160 @@ exports.updateMyReport = async (req, res) => {
     } catch (error) {
         console.error('Error updating report:', error);
         res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+};
+
+exports.getReportStatus = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const targetDate = dayjs().tz('Asia/Jakarta');
+        const startOfDay = targetDate.startOf('day').toDate();
+        const endOfDay = targetDate.endOf('day').toDate();
+
+        const report = await prisma.personnelReport.findFirst({
+            where: {
+                userId,
+                type: 'DAILY',
+                date: { gte: startOfDay, lte: endOfDay }
+            }
+        });
+
+        let hasReported = false;
+        if (report && report.metadata && report.metadata.manualPoints) {
+            const { morningPoints, afternoonPoints } = report.metadata.manualPoints;
+            const hasMorning = Array.isArray(morningPoints) && morningPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+            const hasAfternoon = Array.isArray(afternoonPoints) && afternoonPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+            hasReported = hasMorning || hasAfternoon;
+        }
+
+        res.json({ hasReported });
+    } catch (error) {
+        console.error('Error fetching report status:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+exports.getKabidSummary = async (req, res) => {
+    try {
+        const { date } = req.query;
+        let targetDate = dayjs().tz('Asia/Jakarta');
+        if (date) {
+            targetDate = dayjs(date).tz('Asia/Jakarta');
+        }
+        const startOfDay = targetDate.startOf('day').toDate();
+        const endOfDay = targetDate.endOf('day').toDate();
+
+        const sarprasPositions = [
+            'Staff Manajemen Aset',
+            'Staff Gudang dan Logistik',
+            'Staff Kendaraan',
+            'Staff Teknisi Aset',
+            'Staff Keuangan dan Administrasi (Sarpras)',
+            'Kepala Bidang Sarana'
+        ];
+
+        const users = await prisma.user.findMany({
+            where: {
+                position: { in: sarprasPositions },
+                isActive: true
+            },
+            select: {
+                id: true,
+                name: true,
+                position: true
+            }
+        });
+
+        const reports = await prisma.personnelReport.findMany({
+            where: {
+                type: 'DAILY',
+                date: { gte: startOfDay, lte: endOfDay }
+            }
+        });
+
+        const summary = users.map(user => {
+            const userReport = reports.find(r => r.userId === user.id);
+            let hasMorning = false;
+            let hasAfternoon = false;
+
+            if (userReport && userReport.metadata && userReport.metadata.manualPoints) {
+                const { morningPoints, afternoonPoints } = userReport.metadata.manualPoints;
+                hasMorning = Array.isArray(morningPoints) && morningPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                hasAfternoon = Array.isArray(afternoonPoints) && afternoonPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+            }
+
+            let status = 'BELUM';
+            if (hasMorning && hasAfternoon) status = 'LENGKAP';
+            else if (hasMorning || hasAfternoon) status = 'PARSIAL';
+
+            return {
+                ...user,
+                hasMorning,
+                hasAfternoon,
+                status,
+                reportId: userReport ? userReport.id : null,
+                reportData: userReport ? userReport.metadata.manualPoints : null
+            };
+        });
+
+        res.json(summary);
+    } catch (error) {
+        console.error('Error fetching kabid summary:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+exports.sendReportReminders = async () => {
+    try {
+        const targetDate = dayjs().tz('Asia/Jakarta');
+        const startOfDay = targetDate.startOf('day').toDate();
+        const endOfDay = targetDate.endOf('day').toDate();
+        const hour = targetDate.hour();
+        const isMorningShift = hour < 14;
+
+        const sarprasPositions = [
+            'Staff Manajemen Aset',
+            'Staff Gudang dan Logistik',
+            'Staff Kendaraan',
+            'Staff Teknisi Aset',
+            'Staff Keuangan dan Administrasi (Sarpras)',
+            'Kepala Bidang Sarana'
+        ];
+
+        const users = await prisma.user.findMany({
+            where: {
+                position: { in: sarprasPositions },
+                isActive: true
+            },
+            select: { id: true, name: true, phone: true }
+        });
+
+        const reports = await prisma.personnelReport.findMany({
+            where: { type: 'DAILY', date: { gte: startOfDay, lte: endOfDay } }
+        });
+
+        for (const user of users) {
+            if (!user.phone) continue;
+            
+            const userReport = reports.find(r => r.userId === user.id);
+            let hasReported = false;
+
+            if (userReport && userReport.metadata && userReport.metadata.manualPoints) {
+                const { morningPoints, afternoonPoints } = userReport.metadata.manualPoints;
+                if (isMorningShift) {
+                    hasReported = Array.isArray(morningPoints) && morningPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                } else {
+                    hasReported = Array.isArray(afternoonPoints) && afternoonPoints.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                }
+            }
+
+            if (!hasReported) {
+                const shiftName = isMorningShift ? 'Pagi (07.30 - 12.00)' : 'Siang (13.00 - 16.15)';
+                const msg = `Halo ${user.name},\n\nAnda belum mengisi *Laporan Kegiatan ${shiftName}* hari ini.\nMohon segera melengkapi laporan Anda pada menu "Laporan Saya" di Sistem Manajemen Aset.\n\nTerima kasih.`;
+                await whatsappService.sendMessage(user.phone, msg);
+            }
+        }
+    } catch (error) {
+        console.error('Error sending report reminders:', error);
     }
 };

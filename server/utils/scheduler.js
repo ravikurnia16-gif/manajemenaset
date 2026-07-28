@@ -18,6 +18,7 @@ const { sendUniformOrderSummary } = require('./uniformSummaryNotification');
 const { checkAssetMaintenanceReminders, checkUnrespondedReports } = require('../controllers/maintenanceController');
 const { checkBusBookingNotifications, checkUnpaidBusInvoices } = require('../controllers/busBookingController');
 const { checkInvoiceDueDates } = require('../controllers/officeDocumentController');
+const { sendReportReminders } = require('../controllers/laporanController');
 const checklistController = require('../controllers/vehicleChecklistController');
 
 let schedulerInterval = null;
@@ -45,6 +46,18 @@ const initScheduler = () => {
                 await generateRoutineTasks();
             } catch (err) {
                 console.error('[Scheduler] Error in Routine Task Generation:', err);
+            }
+        }
+
+        // ----------------------------------------------------
+        // 0.5 REPORT REMINDERS (Daily at 11:52 and 16:07)
+        // ----------------------------------------------------
+        if ((hour === 11 && minute === 52) || (hour === 16 && minute === 7)) {
+            console.log('[Scheduler] Executing Report Reminders...');
+            try {
+                await sendReportReminders();
+            } catch (err) {
+                console.error('[Scheduler] Error in Report Reminders:', err);
             }
         }
 

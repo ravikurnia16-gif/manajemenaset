@@ -63,6 +63,7 @@ import SarprasCalendar from './pages/SarprasCalendar';
 import VendorManagement from './pages/VendorManagement';
 import ReportPage from './pages/ReportPage';
 import LaporanStaff from './pages/LaporanStaff';
+import LaporanKabid from './pages/LaporanKabid';
 import ModulePlaceholder from './components/ModulePlaceholder';
 import OfficialResidence from './pages/OfficialResidence';
 import QuickComplete from './pages/QuickComplete';
@@ -272,6 +273,7 @@ function App() {
           <Route path="security/jadwal" element={<SecuritySchedule />} /> */}
           
           <Route path="laporan" element={<ReportPage />} />
+          <Route path="laporan/kabid" element={<LaporanKabid />} />
           <Route path="laporan/:category" element={<LaporanStaff />} />
 
           {/* Module: E-Office */}

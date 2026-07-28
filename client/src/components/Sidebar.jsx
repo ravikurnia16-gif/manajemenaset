@@ -300,6 +300,11 @@ const Sidebar = ({ isOpen = true }) => {
                                 <FileSignature size={16} /> Laporan Keuangan & Admin
                             </Link>
                         )}
+                        {pos === 'kepala bidang sarana' && (
+                            <Link to="/laporan/kabid" className={subNavItemClass('/laporan/kabid')}>
+                                <FileText size={16} /> Laporan Kabid
+                            </Link>
+                        )}
                     </>
                 ))}
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
-import { Menu, Bell, X, Check, Clock, ExternalLink, Loader2, Truck, Box, ShoppingCart } from 'lucide-react';
+import { Menu, Bell, X, Check, Clock, ExternalLink, Loader2, Truck, Box, ShoppingCart, AlertCircle } from 'lucide-react';
 import Sidebar from './Sidebar';
 import api from '../lib/axios';
 import { cn } from '../lib/utils';
@@ -12,6 +12,7 @@ const Layout = () => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [loadingNotif, setLoadingNotif] = useState(false);
     const [selectedNotif, setSelectedNotif] = useState(null);
+    const [hasReported, setHasReported] = useState(true); // default true to prevent flash
     const location = useLocation();
     const navigate = useNavigate();
 
@@ -37,6 +38,22 @@ const Layout = () => {
         const interval = setInterval(fetchNotifications, 180000);
         return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+        const checkReportStatus = async () => {
+            const sarprasKeywords = ['manajemen aset', 'gudang dan logistik', 'teknisi', 'keuangan dan administrasi', 'kendaraan', 'kepala bidang sarana'];
+            const isSarpras = user?.position && sarprasKeywords.some(kw => user.position.toLowerCase().includes(kw));
+            if (!isSarpras) return;
+
+            try {
+                const res = await api.get('/laporan/status');
+                setHasReported(res.data.hasReported);
+            } catch (err) {
+                console.error('Failed to fetch report status', err);
+            }
+        };
+        checkReportStatus();
+    }, [location.pathname]);
 
     // --- PUSH NOTIFICATION REGISTRATION ---
     useEffect(() => {
@@ -262,6 +279,22 @@ const Layout = () => {
                         </div>
                     </div>
                 </header>
+                
+                {!hasReported && !location.pathname.startsWith('/laporan') && (
+                    <div className="bg-rose-500 text-white px-4 py-2 flex items-center justify-between shadow-md shrink-0 z-20 animate-in slide-in-from-top-2">
+                        <div className="flex items-center gap-2 text-sm font-bold">
+                            <AlertCircle size={18} className="animate-pulse" />
+                            Anda belum mengisi Laporan Kegiatan hari ini!
+                        </div>
+                        <Link 
+                            to="/laporan/umum" 
+                            className="bg-white text-rose-600 px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider hover:bg-rose-50 transition-colors shadow-sm"
+                        >
+                            Isi Sekarang
+                        </Link>
+                    </div>
+                )}
+
                 <main className="flex-1 overflow-auto p-4 lg:p-8 relative custom-scrollbar pb-16 lg:pb-8">
                     <Outlet />
                 </main>

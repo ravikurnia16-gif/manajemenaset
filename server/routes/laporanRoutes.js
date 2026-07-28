@@ -7,5 +7,7 @@ router.use(verifyToken);
 
 router.get('/', laporanController.getReports);
 router.post('/my', laporanController.updateMyReport);
+router.get('/kabid/summary', laporanController.getKabidSummary);
+router.get('/status', laporanController.getReportStatus);
 
 module.exports = router;

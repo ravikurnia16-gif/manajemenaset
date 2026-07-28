@@ -144,7 +144,7 @@ const createOrder = async (req, res) => {
                         `Pesanan seragam atas nama *${order.studentName}* telah kami terima.\n` +
                         `📋 Kode Pesanan: *${order.code}*\n\n` +
                         `*Rincian Pesanan:*\n${itemListText}\n\n` +
-                        `InsyaaAllah akan segera diproses.\n` +
+                        `InsyaaAllah pesanan akan segera diproses. Mohon ditunggu, kami akan menginformasikan ketersediaan seragam melalui balasan pesan WhatsApp ini.\n\n` +
                         `Jazaakumullahu khairan.`;
 
                     await sendMessage(order.customerPhone, customerMsg);

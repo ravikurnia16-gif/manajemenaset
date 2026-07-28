@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { CheckCircle, AlertCircle, Camera, Save, RefreshCw, Calendar, Clock, Filter, Plus } from 'lucide-react';
 import api from '../lib/axios';
 
-const DAILY_ITEMS = ['Kebersihan Eksterior', 'Kebersihan Interior', 'Tekanan Ban', 'Lampu Utama', 'Lampu Sein & Rem', 'Indikator Dashboard', 'Wiper & Air Washer'];
-const WEEKLY_ITEMS = ['Cek Air Aki', 'Cek Minyak Power Steering', 'Tekanan Ban Serep', 'Fungsi Klakson', 'Cek Sabuk Pengaman', 'Air Radiator', 'Oli Mesin'];
+const DAILY_ITEMS = ['Kebersihan Eksterior', 'Kebersihan Interior', 'Tekanan Ban', 'Lampu Utama', 'Lampu Sein & Rem', 'Indikator Dashboard', 'Wiper & Air Washer', 'Cek Oli Mesin', 'Cek Air Radiator', 'Cek Minyak Rem'];
+const WEEKLY_ITEMS = ['Cek Air Aki', 'Cek Minyak Power Steering', 'Tekanan Ban Serep', 'Fungsi Klakson', 'Cek Sabuk Pengaman'];
 const MONTHLY_ITEMS = ['Cek Kampas Rem', 'Cek Filter Udara', 'Cek Filter AC', 'Ketebalan Ban', 'Cek Tali Kipas (Fan Belt)'];
 
 export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAdmin }) {
