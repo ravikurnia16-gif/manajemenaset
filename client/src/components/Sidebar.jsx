@@ -70,15 +70,18 @@ const Sidebar = ({ isOpen = true }) => {
 
     const isWarehouseAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(user?.role);
     const isSuperAdmin = ['SUPER_ADMIN', 'KABID_SARPRAS'].includes(user?.role);
-    const isKabidSarpras = user?.position === 'Kepala Bidang Sarana';
-    const isAdminAset = user?.role === 'ADMIN_ASET';
-    const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop') || user?.role === 'AUDITOR';
-    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(user?.role);
+    
+    const pos = (user?.position || '').toLowerCase();
+    const role = user?.role || '';
+    const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+    
+    const isAdminAset = role === 'ADMIN_ASET';
+    const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop') || role === 'AUDITOR';
+    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(role);
 
-    const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(user?.role) || ['Kepala Bidang Pembangunan', 'Staff Pembangunan'].includes(user?.position);
+    const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(role) || pos.includes('kepala bidang pembangunan') || pos.includes('staff pembangunan');
     
     // Laporan Role Checks
-    const pos = (user?.position || '').toLowerCase();
     const isStaffGudang = isKabidSarpras || pos.includes('gudang dan logistik');
     const isStaffAset = isKabidSarpras || pos.includes('aset');
     const canViewLaporanTeknisi = isKabidSarpras || pos.includes('teknisi');
@@ -300,7 +303,7 @@ const Sidebar = ({ isOpen = true }) => {
                                 <FileSignature size={16} /> Laporan Keuangan & Admin
                             </Link>
                         )}
-                        {pos === 'kepala bidang sarana' && (
+                        {isKabidSarpras && (
                             <Link to="/laporan/kabid" className={subNavItemClass('/laporan/kabid')}>
                                 <FileText size={16} /> Laporan Kabid
                             </Link>
