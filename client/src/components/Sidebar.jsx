@@ -79,13 +79,13 @@ const Sidebar = ({ isOpen = true }) => {
     
     // Laporan Role Checks
     const pos = (user?.position || '').toLowerCase();
-    const isStaffGudang = pos === 'kepala bidang sarana' || pos === 'staff gudang dan logistik';
-    const isStaffAset = pos.includes('aset');
-    const canViewLaporanTeknisi = pos === 'kepala bidang sarana' || pos === 'staff teknisi aset';
+    const isStaffGudang = isKabidSarpras || pos.includes('gudang dan logistik');
+    const isStaffAset = isKabidSarpras || pos.includes('aset');
+    const canViewLaporanTeknisi = isKabidSarpras || pos.includes('teknisi');
     const isStaffKendaraan = pos.includes('kendaraan');
-    const canViewLaporanKendaraan = pos === 'kepala bidang sarana' || pos === 'staff kendaraan';
-    const canViewLaporanKeuangan = pos === 'kepala bidang sarana' || pos === 'staff keuangan dan administrasi (sarpras)';
-    const canViewLaporanAset = pos === 'kepala bidang sarana' || pos === 'staff manajemen aset';
+    const canViewLaporanKendaraan = isKabidSarpras || pos.includes('kendaraan');
+    const canViewLaporanKeuangan = isKabidSarpras || pos.includes('keuangan dan administrasi');
+    const canViewLaporanAset = isKabidSarpras || pos.includes('aset');
     
     // Security menu hidden based on user request
     const isSecurityAdmin = false; // isKabidSarpras || (user?.unit?.name || '').toLowerCase().includes('keamanan');
