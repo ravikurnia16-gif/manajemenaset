@@ -908,6 +908,7 @@ enum PersonnelReportCategory {
   GUDANG
   KENDARAAN
   UMUM
+  TEKNISI
 }
 
 model PersonnelReport {

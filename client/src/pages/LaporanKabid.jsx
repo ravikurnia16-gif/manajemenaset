@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Users, AlertCircle, FileText, CheckCircle2, Clock } from 'lucide-react';
 import api from '../lib/axios';
+import dayjs from 'dayjs';
 import LaporanStaff from './LaporanStaff'; // Import for the "Laporan Saya" part
 
 const LaporanKabid = () => {
     const [summary, setSummary] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('dashboard');
-    const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
+    const [currentDate, setCurrentDate] = useState(dayjs().format('YYYY-MM-DD'));
 
     useEffect(() => {
         if (activeTab === 'dashboard') {

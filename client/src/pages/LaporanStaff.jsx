@@ -11,7 +11,7 @@ const LaporanStaff = () => {
     const categoryMap = {
         'gudang': 'GUDANG',
         'aset': 'ASET',
-        'teknisi': 'UMUM', // Or another mapping if preferred
+        'teknisi': 'TEKNISI',
         'kendaraan': 'KENDARAAN',
         'keuangan': 'KEUANGAN'
     };
