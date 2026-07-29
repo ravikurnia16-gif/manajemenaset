@@ -34,6 +34,7 @@ const ManajemenSeragam = () => {
     const [categories, setCategories] = useState([]);
     const [clothingTypes, setClothingTypes] = useState([]);
     const [sizes, setSizes] = useState([]);
+    const [units, setUnits] = useState([]);
     const [items, setItems] = useState([]);
     const [stocks, setStocks] = useState([]);
     const [packages, setPackages] = useState([]);
@@ -50,18 +51,20 @@ const ManajemenSeragam = () => {
         setLoading(true);
         try {
             // Always fetch master data (needed for dropdowns)
-            const [whRes, catRes, ctRes, szRes, vnRes] = await Promise.all([
+            const [whRes, catRes, ctRes, szRes, vnRes, unRes] = await Promise.all([
                 api.get('/uniforms/warehouses'),
                 api.get('/uniforms/categories'),
                 api.get('/uniforms/clothing-types'),
                 api.get('/uniforms/sizes'),
-                api.get('/uniforms/vendors')
+                api.get('/uniforms/vendors'),
+                api.get('/uniforms/units')
             ]);
             setWarehouses(whRes.data);
             setCategories(catRes.data);
             setClothingTypes(ctRes.data);
             setSizes(szRes.data);
             setVendors(vnRes.data);
+            setUnits(unRes.data);
 
             if (activeTab === 'dashboard') {
                 const r = await api.get('/uniforms/dashboard');
@@ -175,7 +178,7 @@ const ManajemenSeragam = () => {
             return <SimpleForm fields={[{ name: 'name', label: 'Nama Gudang', required: true }, { name: 'location', label: 'Lokasi Gudang' }]} initialData={data} onSave={handleSaveWarehouse} />;
         }
         if (type === 'item') {
-            return <ItemForm categories={categories} clothingTypes={clothingTypes} sizes={sizes} vendors={vendors} initialData={data} onSave={handleSaveItem} />;
+            return <ItemForm categories={categories} clothingTypes={clothingTypes} sizes={sizes} vendors={vendors} units={units} initialData={data} onSave={handleSaveItem} />;
         }
         if (type === 'vendor') {
             return <SimpleForm fields={[{ name: 'name', label: 'Nama Vendor/Konveksi', required: true }, { name: 'phone', label: 'No. Telepon' }, { name: 'contactPerson', label: 'Contact Person' }, { name: 'address', label: 'Alamat' }, { name: 'email', label: 'Email' }, { name: 'description', label: 'Keterangan' }]} initialData={data} onSave={handleSaveVendor} />;
@@ -184,7 +187,7 @@ const ManajemenSeragam = () => {
             return <TransactionForm warehouses={warehouses} vendors={vendors} onSave={handleSaveTransaction} />;
         }
         if (type === 'package') {
-            return <PackageForm items={items.length ? items : []} onSave={handleSavePackage} initialData={data} />;
+            return <PackageForm items={items.length ? items : []} units={units} onSave={handleSavePackage} initialData={data} />;
         }
         return null;
     };
@@ -213,7 +216,7 @@ const ManajemenSeragam = () => {
 
                 <div className="p-4 sm:p-5">
                     {activeTab === 'dashboard' && <DashboardTab stats={stats} />}
-                    {activeTab === 'master' && <MasterDataTab categories={categories} clothingTypes={clothingTypes} sizes={sizes} fetchData={fetchData} />}
+                    {activeTab === 'master' && <MasterDataTab categories={categories} clothingTypes={clothingTypes} sizes={sizes} units={units} fetchData={fetchData} />}
                     {activeTab === 'items' && <ItemsTab items={items} loading={loading} search={search} setSearch={setSearch} openModal={openModal} />}
                     {activeTab === 'stock' && <StockTab stocks={stocks} loading={loading} search={search} setSearch={setSearch} selectedWarehouse={selectedWarehouse} setSelectedWarehouse={setSelectedWarehouse} warehouses={warehouses} openModal={openModal} />}
                     {activeTab === 'packages' && <PackagesTab packages={packages} openModal={openModal} />}

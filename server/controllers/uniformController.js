@@ -198,6 +198,50 @@ exports.deleteSize = async (req, res) => {
     }
 };
 
+// ========== UNIT (JENJANG SEKOLAH) ==========
+
+exports.getUnits = async (req, res) => {
+    try {
+        const data = await prisma.uniformUnit.findMany({
+            orderBy: { id: 'asc' },
+            include: { _count: { select: { items: true } } }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createUnit = async (req, res) => {
+    try {
+        const data = await prisma.uniformUnit.create({ data: { name: req.body.name } });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateUnit = async (req, res) => {
+    try {
+        const data = await prisma.uniformUnit.update({
+            where: { id: parseInt(req.params.id) },
+            data: { name: req.body.name }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteUnit = async (req, res) => {
+    try {
+        await prisma.uniformUnit.delete({ where: { id: parseInt(req.params.id) } });
+        res.json({ message: 'Unit berhasil dihapus' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // ========== ITEM & VARIANT ==========
 
 exports.getItems = async (req, res) => {
@@ -219,6 +263,7 @@ exports.getItems = async (req, res) => {
             include: {
                 category: true,
                 clothingType: true,
+                unit: true,
                 vendor: { select: { id: true, name: true } },
                 variants: {
                     where: { isActive: true },
@@ -243,6 +288,7 @@ exports.getItemById = async (req, res) => {
             include: {
                 category: true,
                 clothingType: true,
+                unit: true,
                 vendor: true,
                 variants: {
                     include: {
@@ -260,7 +306,7 @@ exports.getItemById = async (req, res) => {
 };
 
 exports.createItem = async (req, res) => {
-    const { name, categoryId, clothingTypeId, gender, targetUnit, vendorId, description, image, sellPrice, sizes } = req.body;
+    const { name, categoryId, clothingTypeId, unitId, gender, targetUnit, vendorId, description, image, sellPrice, sizes } = req.body;
     try {
         const code = await generateCode('SRG', 'uniformItem');
 
@@ -269,7 +315,9 @@ exports.createItem = async (req, res) => {
                 code, name, 
                 categoryId: parseInt(categoryId),
                 clothingTypeId: clothingTypeId ? parseInt(clothingTypeId) : null,
-                gender, targetUnit, 
+                unitId: unitId ? parseInt(unitId) : null,
+                gender, 
+                targetUnit: targetUnit || null, 
                 vendorId: vendorId ? parseInt(vendorId) : null,
                 description, image,
                 sellPrice: parseFloat(sellPrice || 0)
@@ -295,7 +343,7 @@ exports.createItem = async (req, res) => {
 
         const result = await prisma.uniformItem.findUnique({
             where: { id: item.id },
-            include: { category: true, clothingType: true, vendor: true, variants: { include: { size: true } } }
+            include: { category: true, clothingType: true, unit: true, vendor: true, variants: { include: { size: true } } }
         });
         res.json(result);
     } catch (error) {
@@ -311,15 +359,16 @@ exports.updateItem = async (req, res) => {
                 name: req.body.name,
                 categoryId: req.body.categoryId ? parseInt(req.body.categoryId) : undefined,
                 clothingTypeId: req.body.clothingTypeId ? parseInt(req.body.clothingTypeId) : undefined,
+                unitId: req.body.unitId ? parseInt(req.body.unitId) : undefined,
                 gender: req.body.gender,
-                targetUnit: req.body.targetUnit,
+                targetUnit: req.body.targetUnit || undefined,
                 vendorId: req.body.vendorId ? parseInt(req.body.vendorId) : undefined,
                 description: req.body.description,
                 image: req.body.image,
                 sellPrice: req.body.sellPrice ? parseFloat(req.body.sellPrice) : undefined,
                 isActive: req.body.isActive
             },
-            include: { category: true, clothingType: true, vendor: true, variants: { include: { size: true } } }
+            include: { category: true, clothingType: true, unit: true, vendor: true, variants: { include: { size: true } } }
         });
         res.json(data);
     } catch (error) {

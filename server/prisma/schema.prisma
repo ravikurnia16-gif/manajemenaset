@@ -1735,6 +1735,14 @@ model UniformSize {
   variants UniformVariant[]
 }
 
+// Master Unit (Jenjang Sekolah): TK, SD, SMP, SMA, dll
+model UniformUnit {
+  @@map("seragam_unit")
+  id    Int          @id @default(autoincrement())
+  name  String       @unique // "TK", "SD", "SMP", "SMA"
+  items UniformItem[]
+}
+
 // Barang induk seragam
 model UniformItem {
   @@map("seragam_barang")
@@ -1746,7 +1754,9 @@ model UniformItem {
   clothingTypeId  Int?
   clothingType    UniformClothingType?  @relation(fields: [clothingTypeId], references: [id])
   gender          String?               // IKHWAN, AKHWAT, UNISEX
-  targetUnit      String?               // TK, SD, SMP, SMA (jenjang sekolah)
+  unitId          Int?
+  unit            UniformUnit?          @relation(fields: [unitId], references: [id])
+  targetUnit      String?               // TK, SD, SMP, SMA (legacy, will be replaced by unit)
   vendorId        Int?
   vendor          UniformVendor?        @relation(fields: [vendorId], references: [id])
   description     String?               @db.Text

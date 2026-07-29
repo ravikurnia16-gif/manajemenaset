@@ -2,23 +2,21 @@ import { useState } from 'react';
 import { Plus, Pencil, Trash2, Tag, Shirt, Ruler } from 'lucide-react';
 import api from '../../../lib/axios';
 
-const MasterCard = ({ title, icon: Icon, items, onAdd, onEdit, onDelete, renderExtra }) => {
+const MasterCard = ({ title, icon: Icon, items, onAdd, onEdit, onDelete }) => {
     const [showForm, setShowForm] = useState(false);
     const [editItem, setEditItem] = useState(null);
     const [name, setName] = useState('');
-    const [sortOrder, setSortOrder] = useState(0);
 
     const handleSubmit = async () => {
         try {
             if (!name.trim()) return;
-            const payload = renderExtra ? { name, sortOrder: parseInt(sortOrder) || 0 } : { name };
+            const payload = { name };
             if (editItem) {
                 await onEdit(editItem.id, payload);
             } else {
                 await onAdd(payload);
             }
             setName('');
-            setSortOrder(0);
             setEditItem(null);
             setShowForm(false);
         } catch (err) {
@@ -29,7 +27,6 @@ const MasterCard = ({ title, icon: Icon, items, onAdd, onEdit, onDelete, renderE
     const startEdit = (item) => {
         setEditItem(item);
         setName(item.name);
-        setSortOrder(item.sortOrder || 0);
         setShowForm(true);
     };
 
@@ -52,12 +49,6 @@ const MasterCard = ({ title, icon: Icon, items, onAdd, onEdit, onDelete, renderE
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Nama</label>
                         <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Masukkan nama..." className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100" onKeyDown={e => e.key === 'Enter' && handleSubmit()} />
                     </div>
-                    {renderExtra && (
-                        <div className="w-24">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Urutan</label>
-                            <input type="number" value={sortOrder} onChange={e => setSortOrder(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100" />
-                        </div>
-                    )}
                     <button onClick={handleSubmit} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm hover:bg-blue-700 transition-colors whitespace-nowrap">
                         {editItem ? 'Update' : 'Simpan'}
                     </button>
@@ -86,7 +77,7 @@ const MasterCard = ({ title, icon: Icon, items, onAdd, onEdit, onDelete, renderE
     );
 };
 
-export const MasterDataTab = ({ categories, clothingTypes, sizes, fetchData }) => {
+export const MasterDataTab = ({ categories, clothingTypes, sizes, units, fetchData }) => {
     // Kategori handlers
     const addCategory = async (data) => { await api.post('/uniforms/categories', data); fetchData(); };
     const editCategory = async (id, data) => { await api.put(`/uniforms/categories/${id}`, data); fetchData(); };
@@ -102,13 +93,19 @@ export const MasterDataTab = ({ categories, clothingTypes, sizes, fetchData }) =
     const editSize = async (id, data) => { await api.put(`/uniforms/sizes/${id}`, data); fetchData(); };
     const deleteSize = async (id) => { if (confirm('Hapus ukuran ini?')) { await api.delete(`/uniforms/sizes/${id}`); fetchData(); } };
 
+    // Unit handlers
+    const addUnit = async (data) => { await api.post('/uniforms/units', data); fetchData(); };
+    const editUnit = async (id, data) => { await api.put(`/uniforms/units/${id}`, data); fetchData(); };
+    const deleteUnit = async (id) => { if (confirm('Hapus unit ini?')) { await api.delete(`/uniforms/units/${id}`); fetchData(); } };
+
     return (
         <div className="space-y-4">
             <p className="text-sm text-slate-500">Kelola data referensi yang digunakan sebagai pilihan dropdown di seluruh modul seragam.</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <MasterCard title="Kategori" icon={Tag} items={categories} onAdd={addCategory} onEdit={editCategory} onDelete={deleteCategory} />
                 <MasterCard title="Jenis Pakaian" icon={Shirt} items={clothingTypes} onAdd={addClothingType} onEdit={editClothingType} onDelete={deleteClothingType} />
-                <MasterCard title="Ukuran" icon={Ruler} items={sizes} onAdd={addSize} onEdit={editSize} onDelete={deleteSize} renderExtra />
+                <MasterCard title="Unit / Jenjang" icon={Tag} items={units} onAdd={addUnit} onEdit={editUnit} onDelete={deleteUnit} />
+                <MasterCard title="Ukuran" icon={Ruler} items={sizes} onAdd={addSize} onEdit={editSize} onDelete={deleteSize} />
             </div>
         </div>
     );

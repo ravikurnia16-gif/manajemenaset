@@ -23,6 +23,12 @@ router.post('/clothing-types', c.createClothingType);
 router.put('/clothing-types/:id', c.updateClothingType);
 router.delete('/clothing-types/:id', c.deleteClothingType);
 
+// Unit (Jenjang Sekolah)
+router.get('/units', c.getUnits);
+router.post('/units', c.createUnit);
+router.put('/units/:id', c.updateUnit);
+router.delete('/units/:id', c.deleteUnit);
+
 // Size (Ukuran)
 router.get('/sizes', c.getSizes);
 router.post('/sizes', c.createSize);
