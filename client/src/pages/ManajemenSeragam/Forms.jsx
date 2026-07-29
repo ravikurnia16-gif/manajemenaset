@@ -15,17 +15,19 @@ export const SimpleForm = ({ fields, initialData, onSave }) => {
     );
 };
 
-export const ItemForm = ({ categories, initialData, onSave }) => {
-    const [form, setForm] = useState(initialData || { sizes: ['S', 'M', 'L', 'XL', 'XXL'] });
-    const [sizeInput, setSizeInput] = useState('');
+export const ItemForm = ({ categories, clothingTypes, sizes, vendors, initialData, onSave }) => {
+    const [form, setForm] = useState(initialData || { sizes: [] });
+    const [selectedSizeId, setSelectedSizeId] = useState('');
 
     const addSize = () => {
-        if (sizeInput && !form.sizes?.includes(sizeInput.toUpperCase())) {
-            setForm({ ...form, sizes: [...(form.sizes || []), sizeInput.toUpperCase()] });
-            setSizeInput('');
+        if (!selectedSizeId) return;
+        const sizeObj = sizes.find(s => String(s.id) === String(selectedSizeId));
+        if (sizeObj && !form.sizes?.some(s => String(s.sizeId) === String(sizeObj.id))) {
+            setForm({ ...form, sizes: [...(form.sizes || []), { sizeId: sizeObj.id, name: sizeObj.name }] });
+            setSelectedSizeId('');
         }
     };
-    const removeSize = (s) => setForm({ ...form, sizes: form.sizes.filter(x => x !== s) });
+    const removeSize = (sizeId) => setForm({ ...form, sizes: form.sizes.filter(x => String(x.sizeId) !== String(sizeId)) });
 
     return (
         <div className="space-y-4">
@@ -36,20 +38,15 @@ export const ItemForm = ({ categories, initialData, onSave }) => {
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </SelectField>
             </div>
-            <div className="grid grid-cols-3 gap-4">
-                <SelectField label="Tipe" value={form.type || ''} onChange={e => setForm({ ...form, type: e.target.value })}>
-                    <option value="">Pilih Tipe</option>
-                    <option value="BAJU">Baju</option>
-                    <option value="CELANA">Celana</option>
-                    <option value="JILBAB">Jilbab</option>
-                    <option value="TOPI">Topi</option>
-                    <option value="DASI">Dasi</option>
-                    <option value="ATRIBUT">Atribut</option>
+            <div className="grid grid-cols-4 gap-4">
+                <SelectField label="Jenis Pakaian" value={form.clothingTypeId || ''} onChange={e => setForm({ ...form, clothingTypeId: e.target.value })}>
+                    <option value="">Pilih Jenis</option>
+                    {clothingTypes?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </SelectField>
                 <SelectField label="Gender" value={form.gender || ''} onChange={e => setForm({ ...form, gender: e.target.value })}>
                     <option value="">Semua</option>
-                    <option value="L">Laki-laki</option>
-                    <option value="P">Perempuan</option>
+                    <option value="IKHWAN">Ikhwan</option>
+                    <option value="AKHWAT">Akhwat</option>
                     <option value="UNISEX">Unisex</option>
                 </SelectField>
                 <SelectField label="Jenjang" value={form.targetUnit || ''} onChange={e => setForm({ ...form, targetUnit: e.target.value })}>
@@ -59,19 +56,26 @@ export const ItemForm = ({ categories, initialData, onSave }) => {
                     <option value="SMP">SMP</option>
                     <option value="SMA">SMA</option>
                 </SelectField>
+                <SelectField label="Vendor" value={form.vendorId || ''} onChange={e => setForm({ ...form, vendorId: e.target.value })}>
+                    <option value="">Pilih Vendor</option>
+                    {vendors?.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </SelectField>
             </div>
             <InputField label="Harga Jual (Rp)" type="number" value={form.sellPrice || ''} onChange={e => setForm({ ...form, sellPrice: e.target.value })} />
             <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1.5">Ukuran</label>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                     {(form.sizes || []).map(s => (
-                        <span key={s} className="px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1">
-                            {s} <button onClick={() => removeSize(s)} className="hover:text-red-500"><X size={12} /></button>
+                        <span key={s.sizeId || s.name || s} className="px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1">
+                            {s.name || s} <button onClick={() => removeSize(s.sizeId || s.name || s)} className="hover:text-red-500"><X size={12} /></button>
                         </span>
                     ))}
                 </div>
                 <div className="flex gap-2">
-                    <input className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm" value={sizeInput} onChange={e => setSizeInput(e.target.value)} placeholder="Tambah ukuran" onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addSize())} />
+                    <select className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white" value={selectedSizeId} onChange={e => setSelectedSizeId(e.target.value)}>
+                        <option value="">Pilih Ukuran dari Master Data</option>
+                        {sizes?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
                     <button onClick={addSize} className="px-3 py-2 bg-slate-100 rounded-xl text-sm font-bold hover:bg-slate-200"><Plus size={14} /></button>
                 </div>
             </div>
@@ -163,7 +167,7 @@ export const PackageForm = ({ items, initialData, onSave }) => {
                 </SelectField>
                 <SelectField label="Gender" value={form.gender || ''} onChange={e => setForm({ ...form, gender: e.target.value })}>
                     <option value="">Semua</option>
-                    <option value="L">Putra</option><option value="P">Putri</option>
+                    <option value="IKHWAN">Ikhwan</option><option value="AKHWAT">Akhwat</option>
                 </SelectField>
                 <InputField label="Harga Paket (Rp)" type="number" value={form.price || ''} onChange={e => setForm({ ...form, price: e.target.value })} />
             </div>

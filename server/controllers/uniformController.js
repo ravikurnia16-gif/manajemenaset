@@ -45,9 +45,10 @@ exports.createWarehouse = async (req, res) => {
 
 exports.updateWarehouse = async (req, res) => {
     try {
+        const { name, location } = req.body;
         const data = await prisma.uniformWarehouse.update({
             where: { id: parseInt(req.params.id) },
-            data: req.body
+            data: { name, location }
         });
         res.json(data);
     } catch (error) {
@@ -108,6 +109,95 @@ exports.deleteCategory = async (req, res) => {
     }
 };
 
+// ========== JENIS PAKAIAN (CLOTHING TYPE) ==========
+
+exports.getClothingTypes = async (req, res) => {
+    try {
+        const data = await prisma.uniformClothingType.findMany({
+            orderBy: { name: 'asc' },
+            include: { _count: { select: { items: true } } }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createClothingType = async (req, res) => {
+    try {
+        const data = await prisma.uniformClothingType.create({ data: { name: req.body.name } });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateClothingType = async (req, res) => {
+    try {
+        const data = await prisma.uniformClothingType.update({
+            where: { id: parseInt(req.params.id) },
+            data: { name: req.body.name }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteClothingType = async (req, res) => {
+    try {
+        await prisma.uniformClothingType.delete({ where: { id: parseInt(req.params.id) } });
+        res.json({ message: 'Jenis pakaian berhasil dihapus' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// ========== UKURAN (SIZE) ==========
+
+exports.getSizes = async (req, res) => {
+    try {
+        const data = await prisma.uniformSize.findMany({
+            orderBy: { sortOrder: 'asc' }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createSize = async (req, res) => {
+    try {
+        const { name, sortOrder } = req.body;
+        const data = await prisma.uniformSize.create({ data: { name, sortOrder: parseInt(sortOrder || 0) } });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateSize = async (req, res) => {
+    try {
+        const { name, sortOrder } = req.body;
+        const data = await prisma.uniformSize.update({
+            where: { id: parseInt(req.params.id) },
+            data: { name, sortOrder: sortOrder !== undefined ? parseInt(sortOrder) : undefined }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deleteSize = async (req, res) => {
+    try {
+        await prisma.uniformSize.delete({ where: { id: parseInt(req.params.id) } });
+        res.json({ message: 'Ukuran berhasil dihapus' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // ========== ITEM & VARIANT ==========
 
 exports.getItems = async (req, res) => {
@@ -128,9 +218,12 @@ exports.getItems = async (req, res) => {
             where,
             include: {
                 category: true,
+                clothingType: true,
+                vendor: { select: { id: true, name: true } },
                 variants: {
                     where: { isActive: true },
                     include: {
+                        size: true,
                         stocks: { include: { warehouse: { select: { id: true, name: true } } } }
                     }
                 }
@@ -149,8 +242,11 @@ exports.getItemById = async (req, res) => {
             where: { id: parseInt(req.params.id) },
             include: {
                 category: true,
+                clothingType: true,
+                vendor: true,
                 variants: {
                     include: {
+                        size: true,
                         stocks: { include: { warehouse: true } }
                     }
                 }
@@ -164,27 +260,34 @@ exports.getItemById = async (req, res) => {
 };
 
 exports.createItem = async (req, res) => {
-    const { name, categoryId, type, gender, targetUnit, description, image, sellPrice, sizes } = req.body;
+    const { name, categoryId, clothingTypeId, gender, targetUnit, vendorId, description, image, sellPrice, sizes } = req.body;
     try {
         const code = await generateCode('SRG', 'uniformItem');
 
         const item = await prisma.uniformItem.create({
             data: {
-                code, name, categoryId: parseInt(categoryId),
-                type, gender, targetUnit, description, image,
+                code, name, 
+                categoryId: parseInt(categoryId),
+                clothingTypeId: clothingTypeId ? parseInt(clothingTypeId) : null,
+                gender, targetUnit, 
+                vendorId: vendorId ? parseInt(vendorId) : null,
+                description, image,
                 sellPrice: parseFloat(sellPrice || 0)
             }
         });
 
         // Auto-create variants for each size
         if (sizes && Array.isArray(sizes)) {
-            for (const size of sizes) {
+            for (const sz of sizes) {
+                const sizeName = sz.name || sz;
+                const sizeId = sz.sizeId ? parseInt(sz.sizeId) : null;
                 await prisma.uniformVariant.create({
                     data: {
                         itemId: item.id,
-                        size: size.name || size,
-                        sku: `${code}-${(size.name || size).toUpperCase()}`,
-                        sellPrice: size.sellPrice ? parseFloat(size.sellPrice) : null
+                        sizeId,
+                        sizeName,
+                        sku: `${code}-${sizeName.toUpperCase()}`,
+                        sellPrice: sz.sellPrice ? parseFloat(sz.sellPrice) : null
                     }
                 });
             }
@@ -192,7 +295,7 @@ exports.createItem = async (req, res) => {
 
         const result = await prisma.uniformItem.findUnique({
             where: { id: item.id },
-            include: { category: true, variants: true }
+            include: { category: true, clothingType: true, vendor: true, variants: { include: { size: true } } }
         });
         res.json(result);
     } catch (error) {
@@ -207,15 +310,16 @@ exports.updateItem = async (req, res) => {
             data: {
                 name: req.body.name,
                 categoryId: req.body.categoryId ? parseInt(req.body.categoryId) : undefined,
-                type: req.body.type,
+                clothingTypeId: req.body.clothingTypeId ? parseInt(req.body.clothingTypeId) : undefined,
                 gender: req.body.gender,
                 targetUnit: req.body.targetUnit,
+                vendorId: req.body.vendorId ? parseInt(req.body.vendorId) : undefined,
                 description: req.body.description,
                 image: req.body.image,
                 sellPrice: req.body.sellPrice ? parseFloat(req.body.sellPrice) : undefined,
                 isActive: req.body.isActive
             },
-            include: { category: true, variants: true }
+            include: { category: true, clothingType: true, vendor: true, variants: { include: { size: true } } }
         });
         res.json(data);
     } catch (error) {
@@ -239,7 +343,7 @@ exports.deleteItem = async (req, res) => {
 // ========== VARIANT ==========
 
 exports.createVariant = async (req, res) => {
-    const { itemId, size, sellPrice } = req.body;
+    const { itemId, sizeName, sizeId, sellPrice } = req.body;
     try {
         const item = await prisma.uniformItem.findUnique({ where: { id: parseInt(itemId) } });
         if (!item) return res.status(404).json({ error: 'Item tidak ditemukan' });
@@ -247,8 +351,9 @@ exports.createVariant = async (req, res) => {
         const variant = await prisma.uniformVariant.create({
             data: {
                 itemId: parseInt(itemId),
-                size,
-                sku: `${item.code}-${size.toUpperCase()}`,
+                sizeId: sizeId ? parseInt(sizeId) : null,
+                sizeName: sizeName || 'DEFAULT',
+                sku: `${item.code}-${(sizeName || 'DEFAULT').toUpperCase()}`,
                 sellPrice: sellPrice ? parseFloat(sellPrice) : null
             }
         });
@@ -283,7 +388,8 @@ exports.getStocks = async (req, res) => {
             include: {
                 variant: {
                     include: {
-                        item: { include: { category: true } }
+                        item: { include: { category: true, clothingType: true, vendor: true } },
+                        size: true
                     }
                 },
                 warehouse: true
@@ -297,7 +403,8 @@ exports.getStocks = async (req, res) => {
             const q = search.toLowerCase();
             filtered = data.filter(s =>
                 s.variant.item.name.toLowerCase().includes(q) ||
-                s.variant.sku.toLowerCase().includes(q)
+                s.variant.sku.toLowerCase().includes(q) ||
+                s.variant.sizeName.toLowerCase().includes(q)
             );
         }
 
@@ -373,7 +480,7 @@ exports.createStockTransaction = async (req, res) => {
 
                 await tx.uniformStock.upsert({
                     where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } },
-                    create: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId), quantity: qty, avgCost: newAvgCost },
+                    create: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId), quantity: qty, avgCost: newAvgCost, modalAwal: cost },
                     update: { quantity: { increment: qty }, avgCost: newAvgCost }
                 });
             } else if (type === 'OUT' || type === 'ADJUSTMENT') {
@@ -826,11 +933,10 @@ exports.getDashboardStats = async (req, res) => {
         const { warehouseId } = req.query;
         const stockWhere = warehouseId ? { warehouseId: parseInt(warehouseId) } : {};
 
-        const [totalItems, totalVariants, totalStock, lowStock, totalSales, pendingSales, warehouses] = await Promise.all([
+        const [totalItems, totalVariants, totalStock, totalSales, pendingSales, warehouseCount] = await Promise.all([
             prisma.uniformItem.count({ where: { isActive: true } }),
             prisma.uniformVariant.count({ where: { isActive: true } }),
             prisma.uniformStock.aggregate({ where: stockWhere, _sum: { quantity: true } }),
-            prisma.uniformStock.count({ where: { ...stockWhere, quantity: { lte: prisma.uniformStock.fields?.minStock || 5 } } }).catch(() => 0),
             prisma.uniformSale.count(),
             prisma.uniformSale.count({ where: { status: { in: ['PENDING', 'PARTIAL_DELIVERED'] } } }),
             prisma.uniformWarehouse.count({ where: { isActive: true } })
@@ -838,11 +944,11 @@ exports.getDashboardStats = async (req, res) => {
 
         // Low stock: find items where quantity <= minStock
         const lowStockItems = await prisma.$queryRaw`
-            SELECT us.id, us.quantity, us.minStock, uv.size, uv.sku, ui.name as itemName, uw.name as warehouseName
-            FROM UniformStock us
-            JOIN UniformVariant uv ON us.variantId = uv.id
-            JOIN UniformItem ui ON uv.itemId = ui.id
-            JOIN UniformWarehouse uw ON us.warehouseId = uw.id
+            SELECT us.id, us.quantity, us.minStock, us.modalAwal, uv.sizeName, uv.sku, ui.name as itemName, uw.name as warehouseName
+            FROM seragam_stok us
+            JOIN seragam_varian uv ON us.variantId = uv.id
+            JOIN seragam_barang ui ON uv.itemId = ui.id
+            JOIN seragam_gudang uw ON us.warehouseId = uw.id
             WHERE us.quantity <= us.minStock
             ORDER BY us.quantity ASC
             LIMIT 20
@@ -856,7 +962,7 @@ exports.getDashboardStats = async (req, res) => {
             lowStockItems,
             totalSales,
             pendingSales,
-            warehouses
+            warehouses: warehouseCount
         });
     } catch (error) {
         res.status(500).json({ error: error.message });

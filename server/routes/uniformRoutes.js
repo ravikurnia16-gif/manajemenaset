@@ -11,11 +11,23 @@ router.post('/warehouses', c.createWarehouse);
 router.put('/warehouses/:id', c.updateWarehouse);
 router.delete('/warehouses/:id', c.deleteWarehouse);
 
-// Category
+// Category (Kategori)
 router.get('/categories', c.getCategories);
 router.post('/categories', c.createCategory);
 router.put('/categories/:id', c.updateCategory);
 router.delete('/categories/:id', c.deleteCategory);
+
+// Clothing Type (Jenis Pakaian)
+router.get('/clothing-types', c.getClothingTypes);
+router.post('/clothing-types', c.createClothingType);
+router.put('/clothing-types/:id', c.updateClothingType);
+router.delete('/clothing-types/:id', c.deleteClothingType);
+
+// Size (Ukuran)
+router.get('/sizes', c.getSizes);
+router.post('/sizes', c.createSize);
+router.put('/sizes/:id', c.updateSize);
+router.delete('/sizes/:id', c.deleteSize);
 
 // Items (Barang Induk)
 router.get('/items', c.getItems);

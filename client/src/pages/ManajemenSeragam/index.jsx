@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Shirt, Package, Users, ArrowLeftRight, ShoppingCart, BarChart3, Boxes, RefreshCw } from 'lucide-react';
+import { Shirt, Package, Users, ArrowLeftRight, ShoppingCart, BarChart3, Boxes, RefreshCw, Database } from 'lucide-react';
 import api from '../../lib/axios';
 
 import { Modal } from './UIComponents';
@@ -13,9 +13,11 @@ import { VendorsTab } from './VendorsTab';
 import { SalesTab } from './SalesTab';
 import { TransactionsTab } from './TransactionsTab';
 import { ExchangesTab } from './ExchangesTab';
+import { MasterDataTab } from './tabs/MasterDataTab';
 
 const TABS = [
     { key: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={16} /> },
+    { key: 'master', label: 'Master Data', icon: <Database size={16} /> },
     { key: 'items', label: 'Data Barang', icon: <Shirt size={16} /> },
     { key: 'stock', label: 'Stok Gudang', icon: <Boxes size={16} /> },
     { key: 'packages', label: 'Paket SPMB', icon: <Package size={16} /> },
@@ -30,6 +32,8 @@ const ManajemenSeragam = () => {
     const [stats, setStats] = useState({});
     const [warehouses, setWarehouses] = useState([]);
     const [categories, setCategories] = useState([]);
+    const [clothingTypes, setClothingTypes] = useState([]);
+    const [sizes, setSizes] = useState([]);
     const [items, setItems] = useState([]);
     const [stocks, setStocks] = useState([]);
     const [packages, setPackages] = useState([]);
@@ -45,12 +49,19 @@ const ManajemenSeragam = () => {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const [whRes, catRes] = await Promise.all([
+            // Always fetch master data (needed for dropdowns)
+            const [whRes, catRes, ctRes, szRes, vnRes] = await Promise.all([
                 api.get('/uniforms/warehouses'),
-                api.get('/uniforms/categories')
+                api.get('/uniforms/categories'),
+                api.get('/uniforms/clothing-types'),
+                api.get('/uniforms/sizes'),
+                api.get('/uniforms/vendors')
             ]);
             setWarehouses(whRes.data);
             setCategories(catRes.data);
+            setClothingTypes(ctRes.data);
+            setSizes(szRes.data);
+            setVendors(vnRes.data);
 
             if (activeTab === 'dashboard') {
                 const r = await api.get('/uniforms/dashboard');
@@ -64,9 +75,6 @@ const ManajemenSeragam = () => {
             } else if (activeTab === 'packages') {
                 const r = await api.get('/uniforms/packages');
                 setPackages(r.data);
-            } else if (activeTab === 'vendors') {
-                const r = await api.get('/uniforms/vendors');
-                setVendors(r.data);
             } else if (activeTab === 'sales') {
                 const r = await api.get('/uniforms/sales', { params: { search } });
                 setSales(r.data);
@@ -100,20 +108,6 @@ const ManajemenSeragam = () => {
                 await api.put(`/uniforms/warehouses/${formData.id}`, formData);
             } else {
                 await api.post('/uniforms/warehouses', formData);
-            }
-            closeModal();
-            fetchData();
-        } catch (err) {
-            alert(err.response?.data?.error || 'Gagal menyimpan');
-        }
-    };
-
-    const handleSaveCategory = async (formData) => {
-        try {
-            if (formData.id) {
-                await api.put(`/uniforms/categories/${formData.id}`, formData);
-            } else {
-                await api.post('/uniforms/categories', formData);
             }
             closeModal();
             fetchData();
@@ -178,13 +172,10 @@ const ManajemenSeragam = () => {
         const { type, data } = modal;
 
         if (type === 'warehouse') {
-            return <SimpleForm fields={[{ name: 'name', label: 'Nama Gudang', required: true }, { name: 'address', label: 'Alamat' }, { name: 'picName', label: 'PIC' }, { name: 'picPhone', label: 'No. HP PIC' }]} initialData={data} onSave={handleSaveWarehouse} />;
-        }
-        if (type === 'category') {
-            return <SimpleForm fields={[{ name: 'name', label: 'Nama Kategori', required: true, placeholder: 'Contoh: Nasional, Batik, Muslim' }]} initialData={data} onSave={handleSaveCategory} />;
+            return <SimpleForm fields={[{ name: 'name', label: 'Nama Gudang', required: true }, { name: 'location', label: 'Lokasi Gudang' }]} initialData={data} onSave={handleSaveWarehouse} />;
         }
         if (type === 'item') {
-            return <ItemForm categories={categories} initialData={data} onSave={handleSaveItem} />;
+            return <ItemForm categories={categories} clothingTypes={clothingTypes} sizes={sizes} vendors={vendors} initialData={data} onSave={handleSaveItem} />;
         }
         if (type === 'vendor') {
             return <SimpleForm fields={[{ name: 'name', label: 'Nama Vendor/Konveksi', required: true }, { name: 'phone', label: 'No. Telepon' }, { name: 'contactPerson', label: 'Contact Person' }, { name: 'address', label: 'Alamat' }, { name: 'email', label: 'Email' }, { name: 'description', label: 'Keterangan' }]} initialData={data} onSave={handleSaveVendor} />;
@@ -222,6 +213,7 @@ const ManajemenSeragam = () => {
 
                 <div className="p-4 sm:p-5">
                     {activeTab === 'dashboard' && <DashboardTab stats={stats} />}
+                    {activeTab === 'master' && <MasterDataTab categories={categories} clothingTypes={clothingTypes} sizes={sizes} fetchData={fetchData} />}
                     {activeTab === 'items' && <ItemsTab items={items} loading={loading} search={search} setSearch={setSearch} openModal={openModal} />}
                     {activeTab === 'stock' && <StockTab stocks={stocks} loading={loading} search={search} setSearch={setSearch} selectedWarehouse={selectedWarehouse} setSelectedWarehouse={setSelectedWarehouse} warehouses={warehouses} openModal={openModal} />}
                     {activeTab === 'packages' && <PackagesTab packages={packages} openModal={openModal} />}
@@ -235,7 +227,6 @@ const ManajemenSeragam = () => {
             {/* Modal */}
             <Modal isOpen={modal.open} onClose={closeModal} title={
                 modal.type === 'warehouse' ? 'Kelola Gudang' :
-                modal.type === 'category' ? 'Kelola Kategori' :
                 modal.type === 'item' ? (modal.data ? 'Edit Barang' : 'Tambah Barang') :
                 modal.type === 'vendor' ? (modal.data ? 'Edit Vendor' : 'Tambah Vendor') :
                 modal.type === 'transaction' ? 'Transaksi Stok' :

@@ -1699,9 +1699,7 @@ model UniformWarehouse {
   @@map("seragam_gudang")
   id          Int      @id @default(autoincrement())
   name        String   // "Gudang Pusat", "Gudang SMP", dll
-  address     String?  @db.Text
-  picName     String?  // Penanggung Jawab
-  picPhone    String?
+  location    String?  @db.Text // Lokasi / alamat gudang
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1720,23 +1718,43 @@ model UniformCategory {
   items UniformItem[]
 }
 
+// Master Jenis Pakaian: Kemeja, Celana, Rok, Jilbab, Jubah, Dasi, Topi, dll
+model UniformClothingType {
+  @@map("seragam_jenis_pakaian")
+  id    Int          @id @default(autoincrement())
+  name  String       @unique // "Kemeja", "Celana", "Rok", "Jilbab", dll
+  items UniformItem[]
+}
+
+// Master Ukuran: S, M, L, XL, XXL, 28, 30, 32, dll
+model UniformSize {
+  @@map("seragam_ukuran")
+  id       Int              @id @default(autoincrement())
+  name     String           @unique // "S", "M", "L", "XL", "XXL", "28", "30"
+  sortOrder Int             @default(0) // Urutan tampilan
+  variants UniformVariant[]
+}
+
 // Barang induk seragam
 model UniformItem {
   @@map("seragam_barang")
-  id           Int              @id @default(autoincrement())
-  code         String           @unique // SRG/PDH/001
-  name         String           // "Kemeja Putih PDH"
-  categoryId   Int
-  category     UniformCategory  @relation(fields: [categoryId], references: [id])
-  type         String?          // BAJU, CELANA, JILBAB, TOPI, DASI, ATRIBUT
-  gender       String?          // L, P, UNISEX
-  targetUnit   String?          // TK, SD, SMP, SMA (jenjang sekolah)
-  description  String?          @db.Text
-  image        String?          @db.LongText
-  sellPrice    Float            @default(0)  // Harga Jual default
-  isActive     Boolean          @default(true)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id              Int                   @id @default(autoincrement())
+  code            String                @unique // SRG/PDH/001
+  name            String                // "Kemeja Putih PDH"
+  categoryId      Int
+  category        UniformCategory       @relation(fields: [categoryId], references: [id])
+  clothingTypeId  Int?
+  clothingType    UniformClothingType?  @relation(fields: [clothingTypeId], references: [id])
+  gender          String?               // IKHWAN, AKHWAT, UNISEX
+  targetUnit      String?               // TK, SD, SMP, SMA (jenjang sekolah)
+  vendorId        Int?
+  vendor          UniformVendor?        @relation(fields: [vendorId], references: [id])
+  description     String?               @db.Text
+  image           String?               @db.LongText
+  sellPrice       Float                 @default(0)  // Harga Jual default
+  isActive        Boolean               @default(true)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
   variants     UniformVariant[]
   packageItems UniformPackageItem[]
@@ -1748,7 +1766,9 @@ model UniformVariant {
   id        Int          @id @default(autoincrement())
   itemId    Int
   item      UniformItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  size      String       // S, M, L, XL, XXL, Custom
+  sizeId    Int?
+  size      UniformSize? @relation(fields: [sizeId], references: [id])
+  sizeName  String       // Snapshot nama ukuran: "S", "M", "L" (untuk backward compat)
   sku       String       @unique // Auto: SRG/PDH/001-M
   sellPrice Float?       // Override harga jual per ukuran (null = pakai harga induk)
   isActive  Boolean      @default(true)
@@ -1759,7 +1779,7 @@ model UniformVariant {
   exchangesFrom     UniformExchange[]  @relation("ExchangeFrom")
   exchangesTo       UniformExchange[]  @relation("ExchangeTo")
 
-  @@unique([itemId, size])
+  @@unique([itemId, sizeName])
 }
 
 // Stok per Variant per Gudang (Multi-Warehouse)
@@ -1771,7 +1791,8 @@ model UniformStock {
   warehouseId  Int
   warehouse    UniformWarehouse @relation(fields: [warehouseId], references: [id])
   quantity     Int              @default(0)
-  minStock     Int              @default(5)   // Batas minimum stok
+  minStock     Int              @default(5)   // Stok Minimal
+  modalAwal    Float            @default(0)   // Modal Awal / Harga Beli
   avgCost      Float            @default(0)   // HPP Rata-rata (Average Cost)
   location     String?          // Rak / posisi di gudang
 
@@ -1923,6 +1944,7 @@ model UniformVendor {
   updatedAt      DateTime @updatedAt
 
   stockTransactions UniformStockTransaction[]
+  items             UniformItem[]
 }
 
 // Tukar Ukuran (Return/Exchange) — hanya tukar barang, bukan uang

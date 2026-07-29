@@ -26,23 +26,25 @@ export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse
                         <th className="p-3 text-center">Gudang</th>
                         <th className="p-3 text-center">Stok</th>
                         <th className="p-3 text-center">Min</th>
+                        <th className="p-3 text-right">Modal Awal</th>
                         <th className="p-3 text-right">HPP</th>
                         <th className="p-3 text-center">Status</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                     {loading ? (
-                        <tr><td colSpan="8" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
+                        <tr><td colSpan="9" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
                     ) : stocks.length === 0 ? (
-                        <tr><td colSpan="8" className="p-8 text-center text-slate-400">Belum ada data stok.</td></tr>
+                        <tr><td colSpan="9" className="p-8 text-center text-slate-400">Belum ada data stok.</td></tr>
                     ) : stocks.map(s => (
                         <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="p-3 font-mono text-xs text-slate-400">{s.variant?.sku}</td>
                             <td className="p-3 font-bold text-slate-800">{s.variant?.item?.name}</td>
-                            <td className="p-3 text-center"><Badge>{s.variant?.size}</Badge></td>
+                            <td className="p-3 text-center"><Badge>{s.variant?.sizeName}</Badge></td>
                             <td className="p-3 text-center text-xs text-slate-500">{s.warehouse?.name}</td>
                             <td className="p-3 text-center"><span className={`font-extrabold text-lg ${s.quantity <= s.minStock ? 'text-red-500' : 'text-slate-700'}`}>{s.quantity}</span></td>
                             <td className="p-3 text-center text-slate-400">{s.minStock}</td>
+                            <td className="p-3 text-right text-slate-600">Rp {(s.modalAwal || 0).toLocaleString('id-ID')}</td>
                             <td className="p-3 text-right text-slate-600">Rp {(s.avgCost || 0).toLocaleString('id-ID')}</td>
                             <td className="p-3 text-center">
                                 {s.quantity <= 0 ? <Badge color="red">Habis</Badge> : s.quantity <= s.minStock ? <Badge color="orange">Menipis</Badge> : <Badge color="green">Aman</Badge>}

@@ -1,4 +1,4 @@
-import { Search, Tag, Warehouse, Plus, Shirt } from 'lucide-react';
+import { Search, Plus, Shirt, Warehouse } from 'lucide-react';
 import { Badge } from './UIComponents';
 
 export const ItemsTab = ({ items, loading, search, setSearch, openModal }) => (
@@ -8,9 +8,6 @@ export const ItemsTab = ({ items, loading, search, setSearch, openModal }) => (
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input type="text" placeholder="Cari nama atau kode barang..." className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-            <button onClick={() => openModal('category')} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors">
-                <Tag size={14} /> Kategori
-            </button>
             <button onClick={() => openModal('warehouse')} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors">
                 <Warehouse size={14} /> Gudang
             </button>
@@ -25,16 +22,18 @@ export const ItemsTab = ({ items, loading, search, setSearch, openModal }) => (
                         <th className="p-3 text-left">Kode</th>
                         <th className="p-3 text-left">Nama Barang</th>
                         <th className="p-3 text-center">Kategori</th>
-                        <th className="p-3 text-center">Jenjang</th>
+                        <th className="p-3 text-center">Jenis</th>
+                        <th className="p-3 text-center">Gender</th>
+                        <th className="p-3 text-center">Unit</th>
                         <th className="p-3 text-center">Ukuran Tersedia</th>
                         <th className="p-3 text-right">Harga Jual</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                     {loading ? (
-                        <tr><td colSpan="6" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
+                        <tr><td colSpan="8" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
                     ) : items.length === 0 ? (
-                        <tr><td colSpan="6" className="p-8 text-center text-slate-400">Belum ada data barang. Klik "Tambah Barang" untuk memulai.</td></tr>
+                        <tr><td colSpan="8" className="p-8 text-center text-slate-400">Belum ada data barang. Klik "Tambah Barang" untuk memulai.</td></tr>
                     ) : items.map(item => (
                         <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
                             <td className="p-3 font-mono text-xs text-slate-400">{item.code}</td>
@@ -43,17 +42,19 @@ export const ItemsTab = ({ items, loading, search, setSearch, openModal }) => (
                                     <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 shrink-0"><Shirt size={18} /></div>
                                     <div>
                                         <div className="font-bold text-slate-800">{item.name}</div>
-                                        <div className="text-[10px] text-slate-400">{item.gender === 'L' ? 'Laki-laki' : item.gender === 'P' ? 'Perempuan' : 'Unisex'} • {item.type || '-'}</div>
+                                        <div className="text-[10px] text-slate-400">{item.vendor?.name || '-'}</div>
                                     </div>
                                 </div>
                             </td>
                             <td className="p-3 text-center"><Badge color="indigo">{item.category?.name}</Badge></td>
+                            <td className="p-3 text-center"><Badge color="purple">{item.clothingType?.name || '-'}</Badge></td>
+                            <td className="p-3 text-center"><Badge color={item.gender === 'IKHWAN' ? 'blue' : item.gender === 'AKHWAT' ? 'pink' : 'slate'}>{item.gender === 'IKHWAN' ? 'Ikhwan' : item.gender === 'AKHWAT' ? 'Akhwat' : 'Unisex'}</Badge></td>
                             <td className="p-3 text-center"><Badge>{item.targetUnit || '-'}</Badge></td>
                             <td className="p-3 text-center">
                                 <div className="flex flex-wrap gap-1 justify-center">
                                     {item.variants?.map(v => {
                                         const totalStock = v.stocks?.reduce((s, st) => s + st.quantity, 0) || 0;
-                                        return <span key={v.id} className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${totalStock <= 0 ? 'bg-red-50 text-red-500 border-red-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{v.size} ({totalStock})</span>;
+                                        return <span key={v.id} className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${totalStock <= 0 ? 'bg-red-50 text-red-500 border-red-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{v.sizeName} ({totalStock})</span>;
                                     })}
                                 </div>
                             </td>
