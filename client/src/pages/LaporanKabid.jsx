@@ -322,13 +322,13 @@ const LaporanKabid = () => {
                                 <FileText size={18} className="text-blue-500" />
                                 Rincian Kedisiplinan {isMultiDay ? 'Mingguan/Bulanan' : 'Harian'}
                             </h2>
-                            {!isMultiDay && <p className="text-xs text-slate-400">Klik baris untuk melihat isi laporan</p>}
+                            <p className="text-xs text-slate-400">Klik baris untuk melihat isi laporan</p>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50">
                                     <tr>
-                                        {!isMultiDay && <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-8"></th>}
+                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-8"></th>
                                         <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nama Staf</th>
                                         
                                         {/* Dynamic Columns based on Date Range */}
@@ -352,17 +352,15 @@ const LaporanKabid = () => {
                                     {summary.map(user => (
                                         <React.Fragment key={user.id}>
                                             <tr 
-                                                className={`transition-colors ${!isMultiDay ? 'hover:bg-slate-50/50 cursor-pointer' : ''}`}
-                                                onClick={() => !isMultiDay && toggleExpand(user.id)}
+                                                className="transition-colors hover:bg-slate-50/50 cursor-pointer"
+                                                onClick={() => toggleExpand(user.id)}
                                             >
-                                                {!isMultiDay && (
-                                                    <td className="pl-6 py-4">
-                                                        {expandedUserId === user.id 
-                                                            ? <ChevronDown size={16} className="text-blue-500" /> 
-                                                            : <ChevronRight size={16} className="text-slate-400" />
-                                                        }
-                                                    </td>
-                                                )}
+                                                <td className="pl-6 py-4 w-8">
+                                                    {expandedUserId === user.id 
+                                                        ? <ChevronDown size={16} className="text-blue-500" /> 
+                                                        : <ChevronRight size={16} className="text-slate-400" />
+                                                    }
+                                                </td>
                                                 
                                                 <td className="px-6 py-4">
                                                     <div className="font-bold text-slate-700">{user.name}</div>
@@ -410,19 +408,40 @@ const LaporanKabid = () => {
                                                 )}
                                             </tr>
                                             
-                                            {/* Expanded View (Only for 1 day mode) */}
-                                            {!isMultiDay && expandedUserId === user.id && (
+                                            {/* Expanded View (For both single and multi-day modes) */}
+                                            {expandedUserId === user.id && (
                                                 <tr>
-                                                    <td colSpan="6" className="px-6 py-4 bg-slate-50/80">
+                                                    <td colSpan={isMultiDay ? dateRangeStr.length + 2 : 6} className="px-6 py-4 bg-slate-50/80">
                                                         <div className="p-4 border border-slate-200 rounded-2xl bg-white shadow-sm">
-                                                            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
-                                                                <FileText size={14} className="text-blue-500" />
-                                                                <span className="text-xs font-black text-slate-600 uppercase tracking-wider">
+                                                            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                                                                <FileText size={16} className="text-blue-500" />
+                                                                <span className="text-sm font-black text-slate-700 uppercase tracking-wider">
                                                                     Isi Laporan — {user.name}
                                                                 </span>
                                                             </div>
-                                                            <div className="text-sm text-slate-600 font-medium">
-                                                                {renderReportContent(user.reportData)}
+                                                            <div className="text-sm text-slate-600 font-medium flex flex-col gap-6">
+                                                                {isMultiDay ? (
+                                                                    dateRangeStr.map((d, dIdx) => {
+                                                                        const repData = user.summaryByDate?.[d]?.reportData;
+                                                                        if (!repData) return null;
+                                                                        return (
+                                                                            <div key={dIdx} className="bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                                                                                <div className="text-xs font-black text-slate-500 mb-3 bg-white px-3 py-1.5 rounded-lg border border-slate-200 inline-block">
+                                                                                    {dayjs(d).format('DD MMMM YYYY')}
+                                                                                </div>
+                                                                                {renderReportContent(repData)}
+                                                                            </div>
+                                                                        );
+                                                                    })
+                                                                ) : (
+                                                                    renderReportContent(user.reportData)
+                                                                )}
+                                                                
+                                                                {isMultiDay && dateRangeStr.every(d => !user.summaryByDate?.[d]?.reportData) && (
+                                                                    <div className="text-center text-slate-400 italic text-xs py-4">
+                                                                        Belum ada isi laporan dalam rentang tanggal ini.
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </td>
