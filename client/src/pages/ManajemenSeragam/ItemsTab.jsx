@@ -1,5 +1,5 @@
 import { Search, Tag, Warehouse, Plus, Shirt } from 'lucide-react';
-import { Badge } from '../components/UIComponents';
+import { Badge } from './UIComponents';
 
 export const ItemsTab = ({ items, loading, search, setSearch, openModal }) => (
     <div className="space-y-4">

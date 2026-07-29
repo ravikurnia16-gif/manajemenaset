@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, X } from 'lucide-react';
-import api from '../../../lib/axios';
+import api from '../../lib/axios';
 import { InputField, SelectField } from './UIComponents';
 
 export const SimpleForm = ({ fields, initialData, onSave }) => {

@@ -2,17 +2,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { Shirt, Package, Users, ArrowLeftRight, ShoppingCart, BarChart3, Boxes, RefreshCw } from 'lucide-react';
 import api from '../../lib/axios';
 
-import { Modal } from './components/UIComponents';
-import { SimpleForm, ItemForm, TransactionForm, PackageForm } from './components/Forms';
+import { Modal } from './UIComponents';
+import { SimpleForm, ItemForm, TransactionForm, PackageForm } from './Forms';
 
-import { DashboardTab } from './tabs/DashboardTab';
-import { ItemsTab } from './tabs/ItemsTab';
-import { StockTab } from './tabs/StockTab';
-import { PackagesTab } from './tabs/PackagesTab';
-import { VendorsTab } from './tabs/VendorsTab';
-import { SalesTab } from './tabs/SalesTab';
-import { TransactionsTab } from './tabs/TransactionsTab';
-import { ExchangesTab } from './tabs/ExchangesTab';
+import { DashboardTab } from './DashboardTab';
+import { ItemsTab } from './ItemsTab';
+import { StockTab } from './StockTab';
+import { PackagesTab } from './PackagesTab';
+import { VendorsTab } from './VendorsTab';
+import { SalesTab } from './SalesTab';
+import { TransactionsTab } from './TransactionsTab';
+import { ExchangesTab } from './ExchangesTab';
 
 const TABS = [
     { key: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={16} /> },

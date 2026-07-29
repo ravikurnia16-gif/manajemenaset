@@ -1,5 +1,5 @@
 import { RefreshCw } from 'lucide-react';
-import { Badge } from '../components/UIComponents';
+import { Badge } from './UIComponents';
 
 export const ExchangesTab = ({ exchanges, openModal }) => (
     <div className="space-y-4">

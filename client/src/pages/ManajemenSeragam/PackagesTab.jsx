@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import { Badge } from '../components/UIComponents';
+import { Badge } from './UIComponents';
 
 export const PackagesTab = ({ packages, openModal }) => (
     <div className="space-y-4">

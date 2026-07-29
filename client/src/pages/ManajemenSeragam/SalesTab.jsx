@@ -1,5 +1,5 @@
 import { Search, ShoppingCart } from 'lucide-react';
-import { Badge } from '../components/UIComponents';
+import { Badge } from './UIComponents';
 
 export const SalesTab = ({ sales, loading, search, setSearch, openModal }) => (
     <div className="space-y-4">

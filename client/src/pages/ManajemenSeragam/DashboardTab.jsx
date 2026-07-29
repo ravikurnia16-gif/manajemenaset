@@ -1,5 +1,5 @@
 import { Shirt, Package, AlertCircle, ShoppingCart } from 'lucide-react';
-import { StatCard, Badge } from '../components/UIComponents';
+import { StatCard, Badge } from './UIComponents';
 
 export const DashboardTab = ({ stats }) => (
     <div className="space-y-6">
