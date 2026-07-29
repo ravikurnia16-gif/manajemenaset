@@ -261,17 +261,19 @@ exports.getKabidSummary = async (req, res) => {
         const startOfDay = targetDate.startOf('day').toDate();
         const endOfDay = targetDate.endOf('day').toDate();
 
-        const sarprasPositions = [
-            'Staff Manajemen Aset',
-            'Staff Gudang dan Logistik',
-            'Staff Kendaraan',
-            'Staff Teknisi Aset',
-            'Staff Keuangan dan Administrasi (Sarpras)'
+        const sarprasKeywords = [
+            'manajemen aset',
+            'gudang dan logistik',
+            'kendaraan',
+            'teknisi aset',
+            'keuangan dan administrasi'
         ];
 
         const users = await prisma.user.findMany({
             where: {
-                position: { in: sarprasPositions }
+                OR: sarprasKeywords.map(keyword => ({
+                    position: { contains: keyword }
+                }))
             },
             select: {
                 id: true,
@@ -346,18 +348,19 @@ exports.sendReportReminders = async () => {
         const hour = targetDate.hour();
         const isMorningShift = hour < 14;
 
-        const sarprasPositions = [
-            'Staff Manajemen Aset',
-            'Staff Gudang dan Logistik',
-            'Staff Kendaraan',
-            'Staff Teknisi Aset',
-            'Staff Keuangan dan Administrasi (Sarpras)',
-            'Kepala Bidang Sarana'
+        const sarprasKeywords = [
+            'manajemen aset',
+            'gudang dan logistik',
+            'kendaraan',
+            'teknisi aset',
+            'keuangan dan administrasi'
         ];
 
         const users = await prisma.user.findMany({
             where: {
-                position: { in: sarprasPositions }
+                OR: sarprasKeywords.map(keyword => ({
+                    position: { contains: keyword }
+                }))
             },
             select: { id: true, name: true, phone: true }
         });
