@@ -223,10 +223,19 @@ const getWhatsAppStatus = () => {
 const getWhatsAppGroups = async () => {
     if (!waClient || connectionStatus !== 'CONNECTED') return [];
     try {
-        const chats = await waClient.getChats();
-        const groups = chats
-            .filter(c => c.isGroup)
-            .map(g => ({ id: g.id._serialized, name: g.name }));
+        let groups = [];
+        try {
+            const chats = await waClient.getChats();
+            groups = chats
+                .filter(c => c.isGroup)
+                .map(g => ({ id: g.id._serialized, name: g.name }));
+        } catch (err) {
+            console.log('[WhatsApp Local] getChats() failed, falling back to getContacts()...', err.message);
+            const contacts = await waClient.getContacts();
+            groups = contacts
+                .filter(c => c.isGroup || (c.id && c.id.server === 'g.us'))
+                .map(g => ({ id: g.id._serialized, name: g.name || g.pushname || g.number || 'Unnamed Group' }));
+        }
         return groups;
     } catch (error) {
         console.error('[WhatsApp Local] Error getting groups', error);
