@@ -75,7 +75,7 @@ const TABS = [
 
 // ========== MAIN COMPONENT ==========
 
-const UniformManagement = () => {
+const ManajemenSeragam = () => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [stats, setStats] = useState({});
     const [warehouses, setWarehouses] = useState([]);
@@ -874,4 +874,4 @@ const PackageForm = ({ items, initialData, onSave }) => {
     );
 };
 
-export default UniformManagement;
+export default ManajemenSeragam;
