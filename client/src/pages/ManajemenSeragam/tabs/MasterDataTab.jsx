@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, Pencil, Trash2, Tag, Shirt, Ruler } from 'lucide-react';
-import api from '../../lib/axios';
+import api from '../../../lib/axios';
 
 const MasterCard = ({ title, icon: Icon, items, onAdd, onEdit, onDelete, renderExtra }) => {
     const [showForm, setShowForm] = useState(false);
