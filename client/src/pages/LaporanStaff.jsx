@@ -34,7 +34,7 @@ const LaporanStaff = () => {
     const [assignmentForm, setAssignmentForm] = useState({ title: '', description: '', assigneeId: '', dueDate: '' });
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
-    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(user.role);
+    const isAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'KABID_SARPRAS'].includes(user.role);
     const isKabidSarpras = user.role === 'KABID_SARPRAS' || (user.position && user.position.toLowerCase().includes('kepala bidang') && user.position.toLowerCase().includes('sarana'));
 
     useEffect(() => {

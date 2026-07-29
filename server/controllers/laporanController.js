@@ -21,7 +21,8 @@ exports.getReports = async (req, res) => {
         const endOfDay = targetDate.endOf('day').toDate();
 
         // Determine if user is admin/viewer or viewing their own
-        const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'ADMIN_ASET', 'KABID_SARPRAS'].includes(req.user.role);
+        // Note: ADMIN_ASET is a regular staff role, so they should only see their own.
+        const isGlobalAdmin = ['SUPER_ADMIN', 'BIDANG_IT', 'KABID_SARPRAS'].includes(req.user.role);
         
         let whereClause = {
             type: 'DAILY',
