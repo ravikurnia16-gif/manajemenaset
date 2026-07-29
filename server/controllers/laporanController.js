@@ -253,13 +253,11 @@ exports.getReportStatus = async (req, res) => {
 
 exports.getKabidSummary = async (req, res) => {
     try {
-        const { date } = req.query;
-        let targetDate = dayjs().tz('Asia/Jakarta');
-        if (date) {
-            targetDate = dayjs(date).tz('Asia/Jakarta');
-        }
-        const startOfDay = targetDate.startOf('day').toDate();
-        const endOfDay = targetDate.endOf('day').toDate();
+        const targetStartDate = req.query.startDate ? dayjs(req.query.startDate).tz('Asia/Jakarta') : (req.query.date ? dayjs(req.query.date).tz('Asia/Jakarta') : dayjs().tz('Asia/Jakarta'));
+        const targetEndDate = req.query.endDate ? dayjs(req.query.endDate).tz('Asia/Jakarta') : targetStartDate;
+        
+        const startOfDay = targetStartDate.startOf('day').toDate();
+        const endOfDay = targetEndDate.endOf('day').toDate();
 
         const sarprasKeywords = [
             'manajemen aset',
@@ -289,51 +287,93 @@ exports.getKabidSummary = async (req, res) => {
             }
         });
 
+        // Generate date array
+        const dateRange = [];
+        let curr = targetStartDate.startOf('day');
+        while (curr.isBefore(targetEndDate.endOf('day'))) {
+            dateRange.push(curr.format('YYYY-MM-DD'));
+            curr = curr.add(1, 'day');
+        }
+
         const summary = users.map(user => {
-            // Find ALL reports for this user on this day (across all categories)
             const userReports = reports.filter(r => r.userId === user.id);
-            let hasMorning = false;
-            let hasAfternoon = false;
+            const summaryByDate = {};
+            
+            // Default for the single selected day (for backwards compatibility)
+            let rootHasMorning = false;
+            let rootHasAfternoon = false;
+            let rootStatus = 'BELUM';
+            let rootReportData = null;
+            let rootReportId = null;
 
-            // Collect all manual points across all categories
-            let allMorningPoints = [];
-            let allAfternoonPoints = [];
+            dateRange.forEach((dateStr, idx) => {
+                const dateStart = dayjs.tz(dateStr, 'Asia/Jakarta').startOf('day');
+                const dateEnd = dayjs.tz(dateStr, 'Asia/Jakarta').endOf('day');
+                
+                const dailyReports = userReports.filter(r => 
+                    dayjs(r.date).isAfter(dateStart.subtract(1, 'second')) && 
+                    dayjs(r.date).isBefore(dateEnd.add(1, 'second'))
+                );
 
-            for (const userReport of userReports) {
-                if (userReport.metadata && userReport.metadata.manualPoints) {
-                    const pts = userReport.metadata.manualPoints;
-                    const m = pts.morningPoints || pts.morning || [];
-                    const a = pts.afternoonPoints || pts.afternoon || [];
-                    if (!hasMorning) {
-                        hasMorning = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                let hasMorning = false;
+                let hasAfternoon = false;
+                let allMorningPoints = [];
+                let allAfternoonPoints = [];
+
+                for (const r of dailyReports) {
+                    if (r.metadata && r.metadata.manualPoints) {
+                        const pts = r.metadata.manualPoints;
+                        const m = pts.morningPoints || pts.morning || [];
+                        const a = pts.afternoonPoints || pts.afternoon || [];
+                        if (!hasMorning) hasMorning = Array.isArray(m) && m.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                        if (!hasAfternoon) hasAfternoon = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
+                        
+                        if (Array.isArray(m)) allMorningPoints = allMorningPoints.concat(m.filter(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== '')));
+                        if (Array.isArray(a)) allAfternoonPoints = allAfternoonPoints.concat(a.filter(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== '')));
                     }
-                    if (!hasAfternoon) {
-                        hasAfternoon = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
-                    }
-                    // Accumulate points
-                    if (Array.isArray(m)) allMorningPoints = allMorningPoints.concat(m.filter(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== '')));
-                    if (Array.isArray(a)) allAfternoonPoints = allAfternoonPoints.concat(a.filter(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== '')));
                 }
-                if (hasMorning && hasAfternoon) break; // Already LENGKAP, no need to check more
-            }
 
-            let status = 'BELUM';
-            if (hasMorning && hasAfternoon) status = 'LENGKAP';
-            else if (hasMorning || hasAfternoon) status = 'PARSIAL';
+                let status = 'BELUM';
+                if (hasMorning && hasAfternoon) status = 'LENGKAP';
+                else if (hasMorning || hasAfternoon) status = 'PARSIAL';
+
+                const reportData = (allMorningPoints.length > 0 || allAfternoonPoints.length > 0)
+                    ? { morning: allMorningPoints, afternoon: allAfternoonPoints }
+                    : null;
+
+                summaryByDate[dateStr] = {
+                    hasMorning,
+                    hasAfternoon,
+                    status,
+                    reportId: dailyReports.length > 0 ? dailyReports[0].id : null,
+                    reportData
+                };
+
+                // Root props map to the first date in range
+                if (idx === 0) {
+                    rootHasMorning = hasMorning;
+                    rootHasAfternoon = hasAfternoon;
+                    rootStatus = status;
+                    rootReportData = reportData;
+                    rootReportId = dailyReports.length > 0 ? dailyReports[0].id : null;
+                }
+            });
 
             return {
                 ...user,
-                hasMorning,
-                hasAfternoon,
-                status,
-                reportId: userReports.length > 0 ? userReports[0].id : null,
-                reportData: (allMorningPoints.length > 0 || allAfternoonPoints.length > 0)
-                    ? { morning: allMorningPoints, afternoon: allAfternoonPoints }
-                    : null
+                hasMorning: rootHasMorning,
+                hasAfternoon: rootHasAfternoon,
+                status: rootStatus,
+                reportId: rootReportId,
+                reportData: rootReportData,
+                summaryByDate
             };
         });
 
-        res.json(summary);
+        res.json({
+            dateRange,
+            summary
+        });
     } catch (error) {
         console.error('Error fetching kabid summary:', error);
         res.status(500).json({ message: 'Server error', error: error.message });

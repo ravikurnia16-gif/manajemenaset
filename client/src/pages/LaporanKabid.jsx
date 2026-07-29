@@ -1,29 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, Users, AlertCircle, FileText, CheckCircle2, Clock, ChevronDown, ChevronRight, Camera } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Calendar, Users, AlertCircle, FileText, CheckCircle2, Clock, ChevronDown, ChevronRight, Download, Award, AlertTriangle } from 'lucide-react';
 import api from '../lib/axios';
 import dayjs from 'dayjs';
-import LaporanStaff from './LaporanStaff'; // Import for the "Laporan Saya" part
+import LaporanStaff from './LaporanStaff';
+import * as XLSX from 'xlsx';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
 
 const LaporanKabid = () => {
     const [summary, setSummary] = useState([]);
+    const [dateRangeStr, setDateRangeStr] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('dashboard');
-    const [currentDate, setCurrentDate] = useState(dayjs().format('YYYY-MM-DD'));
+    const [startDate, setStartDate] = useState(dayjs().format('YYYY-MM-DD'));
+    const [endDate, setEndDate] = useState(dayjs().format('YYYY-MM-DD'));
     const [expandedUserId, setExpandedUserId] = useState(null);
 
     useEffect(() => {
         if (activeTab === 'dashboard') {
             fetchSummary();
         }
-    }, [activeTab, currentDate]);
+    }, [activeTab, startDate, endDate]);
 
     const fetchSummary = async () => {
         try {
             setLoading(true);
             const res = await api.get('/laporan/kabid/summary', {
-                params: { date: currentDate }
+                params: { startDate, endDate }
             });
-            setSummary(res.data);
+            if (res.data.summary) {
+                setSummary(res.data.summary);
+                setDateRangeStr(res.data.dateRange || []);
+            } else {
+                // Backward compatibility if API hasn't restarted yet
+                setSummary(res.data);
+                setDateRangeStr([startDate]);
+            }
         } catch (error) {
             console.error('Failed to fetch kabid summary', error);
         } finally {
@@ -34,6 +45,71 @@ const LaporanKabid = () => {
     const toggleExpand = (userId) => {
         setExpandedUserId(expandedUserId === userId ? null : userId);
     };
+
+    const handleExportExcel = () => {
+        if (!summary || summary.length === 0) return;
+
+        const data = summary.map(user => {
+            const row = {
+                'Nama Staf': user.name,
+                'Posisi': user.position
+            };
+            dateRangeStr.forEach(d => {
+                row[dayjs(d).format('DD MMM YYYY')] = user.summaryByDate?.[d]?.status || user.status;
+            });
+            return row;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Rekap_Laporan');
+        XLSX.writeFile(wb, `Rekap_Laporan_Sarpras_${startDate}_to_${endDate}.xlsx`);
+    };
+
+    // --- Analytics Derived Data ---
+    const chartData = useMemo(() => {
+        if (!dateRangeStr || dateRangeStr.length === 0) return [];
+        return dateRangeStr.map(date => {
+            let lengkap = 0;
+            let parsial = 0;
+            let belum = 0;
+            summary.forEach(user => {
+                const s = user.summaryByDate?.[date]?.status || 'BELUM';
+                if (s === 'LENGKAP') lengkap++;
+                else if (s === 'PARSIAL') parsial++;
+                else belum++;
+            });
+            return {
+                name: dayjs(date).format('DD MMM'),
+                Lengkap: lengkap,
+                Parsial: parsial,
+                Belum: belum
+            };
+        });
+    }, [summary, dateRangeStr]);
+
+    const leaderboards = useMemo(() => {
+        if (!summary || summary.length === 0) return { top: [], bottom: [] };
+        const stats = summary.map(user => {
+            let totalLengkap = 0;
+            let totalBelum = 0;
+            dateRangeStr.forEach(d => {
+                const s = user.summaryByDate?.[d]?.status || 'BELUM';
+                if (s === 'LENGKAP') totalLengkap++;
+                if (s === 'BELUM') totalBelum++;
+            });
+            return { ...user, totalLengkap, totalBelum };
+        });
+        
+        const sortedLengkap = [...stats].sort((a, b) => b.totalLengkap - a.totalLengkap);
+        const sortedBelum = [...stats].sort((a, b) => b.totalBelum - a.totalBelum);
+        
+        return {
+            top: sortedLengkap.slice(0, 3).filter(u => u.totalLengkap > 0),
+            bottom: sortedBelum.slice(0, 3).filter(u => u.totalBelum > 0)
+        };
+    }, [summary, dateRangeStr]);
+
 
     const renderReportContent = (reportData) => {
         if (!reportData) return <span className="italic text-slate-400 text-[11px]">- Belum ada isi laporan -</span>;
@@ -116,9 +192,7 @@ const LaporanKabid = () => {
         );
     }
 
-    const belumLapor = summary.filter(s => s.status === 'BELUM');
-    const parsialLapor = summary.filter(s => s.status === 'PARSIAL');
-    const lengkapLapor = summary.filter(s => s.status === 'LENGKAP');
+    const isMultiDay = dateRangeStr.length > 1;
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -129,6 +203,12 @@ const LaporanKabid = () => {
                 </div>
                 
                 <div className="flex items-center gap-4">
+                    <button 
+                        onClick={handleExportExcel}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-emerald-500 text-white shadow-sm hover:bg-emerald-600 transition-all"
+                    >
+                        <Download size={16} /> Export Excel
+                    </button>
                     <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
                         <button 
                             className="px-4 py-2 rounded-lg text-sm font-bold bg-white text-blue-600 shadow-sm transition-all"
@@ -145,18 +225,34 @@ const LaporanKabid = () => {
                 </div>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row items-center gap-6">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-500">
                         <Calendar size={20} />
                     </div>
                     <div>
-                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tanggal Laporan</div>
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Mulai Tanggal</div>
                         <input 
                             type="date"
-                            value={currentDate}
-                            onChange={(e) => setCurrentDate(e.target.value)}
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
                             className="font-bold text-slate-700 bg-transparent border-none p-0 focus:ring-0"
+                        />
+                    </div>
+                </div>
+                <div className="hidden md:block w-px h-10 bg-slate-200"></div>
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center text-orange-500">
+                        <Calendar size={20} />
+                    </div>
+                    <div>
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sampai Tanggal</div>
+                        <input 
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="font-bold text-slate-700 bg-transparent border-none p-0 focus:ring-0"
+                            min={startDate}
                         />
                     </div>
                 </div>
@@ -168,107 +264,154 @@ const LaporanKabid = () => {
                 </div>
             ) : (
                 <>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-start justify-between">
-                            <div>
-                                <p className="text-xs font-bold text-slate-400 uppercase mb-1">Total Staf</p>
-                                <h3 className="text-3xl font-black text-slate-800">{summary.length}</h3>
+                    {/* Analytics Section (Only show if date range > 1 day) */}
+                    {isMultiDay && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="md:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                                <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider">Tren Kedisiplinan</h3>
+                                <div className="h-64 w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                            <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                            <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                            <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 600 }} />
+                                            <Bar dataKey="Lengkap" stackId="a" fill="#10b981" radius={[0, 0, 4, 4]} />
+                                            <Bar dataKey="Parsial" stackId="a" fill="#f59e0b" />
+                                            <Bar dataKey="Belum" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
-                            <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center">
-                                <Users size={24} />
+                            
+                            <div className="space-y-6">
+                                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                                    <h3 className="text-xs font-black text-emerald-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+                                        <Award size={16} /> Staf Terdisiplin
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {leaderboards.top.length > 0 ? leaderboards.top.map((u, i) => (
+                                            <div key={i} className="flex justify-between items-center text-sm">
+                                                <span className="font-bold text-slate-700 truncate max-w-[150px]">{u.name}</span>
+                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold text-xs">{u.totalLengkap} LENGKAP</span>
+                                            </div>
+                                        )) : <span className="text-xs text-slate-400">Belum ada data</span>}
+                                    </div>
+                                </div>
+                                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                                    <h3 className="text-xs font-black text-rose-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+                                        <AlertTriangle size={16} /> Butuh Perhatian
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {leaderboards.bottom.length > 0 ? leaderboards.bottom.map((u, i) => (
+                                            <div key={i} className="flex justify-between items-center text-sm">
+                                                <span className="font-bold text-slate-700 truncate max-w-[150px]">{u.name}</span>
+                                                <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-bold text-xs">{u.totalBelum} ALPA</span>
+                                            </div>
+                                        )) : <span className="text-xs text-slate-400">Semua aman!</span>}
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-start justify-between">
-                            <div>
-                                <p className="text-xs font-bold text-emerald-500 uppercase mb-1">Lengkap Lapor</p>
-                                <h3 className="text-3xl font-black text-emerald-600">{lengkapLapor.length}</h3>
-                            </div>
-                            <div className="w-12 h-12 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center">
-                                <CheckCircle2 size={24} />
-                            </div>
-                        </div>
-                        <div className="bg-white p-6 rounded-2xl border border-rose-100 shadow-sm flex items-start justify-between relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50 rounded-full blur-3xl -mr-10 -mt-10"></div>
-                            <div className="relative z-10">
-                                <p className="text-xs font-bold text-rose-500 uppercase mb-1">Belum Lapor</p>
-                                <h3 className="text-3xl font-black text-rose-600">{belumLapor.length}</h3>
-                            </div>
-                            <div className="relative z-10 w-12 h-12 bg-rose-100 text-rose-500 rounded-2xl flex items-center justify-center">
-                                <AlertCircle size={24} />
-                            </div>
-                        </div>
-                    </div>
+                    )}
 
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                         <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                             <h2 className="font-bold text-slate-800 flex items-center gap-2">
                                 <FileText size={18} className="text-blue-500" />
-                                Rincian Kedisiplinan Laporan
+                                Rincian Kedisiplinan {isMultiDay ? 'Mingguan/Bulanan' : 'Harian'}
                             </h2>
-                            <p className="text-xs text-slate-400">Klik baris untuk melihat isi laporan</p>
+                            {!isMultiDay && <p className="text-xs text-slate-400">Klik baris untuk melihat isi laporan</p>}
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50">
                                     <tr>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-8"></th>
+                                        {!isMultiDay && <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-8"></th>}
                                         <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nama Staf</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Posisi</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Sesi Pagi</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Sesi Siang</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Status</th>
+                                        
+                                        {/* Dynamic Columns based on Date Range */}
+                                        {isMultiDay ? (
+                                            dateRangeStr.map((d, i) => (
+                                                <th key={i} className="px-4 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">
+                                                    {dayjs(d).format('DD/MM')}
+                                                </th>
+                                            ))
+                                        ) : (
+                                            <>
+                                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Posisi</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Sesi Pagi</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Sesi Siang</th>
+                                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Status</th>
+                                            </>
+                                        )}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {summary.map(user => (
                                         <React.Fragment key={user.id}>
                                             <tr 
-                                                className="hover:bg-slate-50/50 transition-colors cursor-pointer"
-                                                onClick={() => toggleExpand(user.id)}
+                                                className={`transition-colors ${!isMultiDay ? 'hover:bg-slate-50/50 cursor-pointer' : ''}`}
+                                                onClick={() => !isMultiDay && toggleExpand(user.id)}
                                             >
-                                                <td className="pl-6 py-4">
-                                                    {expandedUserId === user.id 
-                                                        ? <ChevronDown size={16} className="text-blue-500" /> 
-                                                        : <ChevronRight size={16} className="text-slate-400" />
-                                                    }
-                                                </td>
+                                                {!isMultiDay && (
+                                                    <td className="pl-6 py-4">
+                                                        {expandedUserId === user.id 
+                                                            ? <ChevronDown size={16} className="text-blue-500" /> 
+                                                            : <ChevronRight size={16} className="text-slate-400" />
+                                                        }
+                                                    </td>
+                                                )}
+                                                
                                                 <td className="px-6 py-4">
                                                     <div className="font-bold text-slate-700">{user.name}</div>
+                                                    {isMultiDay && <div className="text-[10px] font-medium text-slate-400">{user.position}</div>}
                                                 </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded w-fit">
-                                                        {user.position}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    {user.hasMorning ? (
-                                                        <div className="inline-flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full">
-                                                            <CheckCircle2 size={16} />
-                                                        </div>
-                                                    ) : (
-                                                        <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-400 rounded-full">
-                                                            <Clock size={16} />
-                                                        </div>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    {user.hasAfternoon ? (
-                                                        <div className="inline-flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full">
-                                                            <CheckCircle2 size={16} />
-                                                        </div>
-                                                    ) : (
-                                                        <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-400 rounded-full">
-                                                            <Clock size={16} />
-                                                        </div>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    {user.status === 'LENGKAP' && <span className="inline-flex px-2 py-1 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded-md">LENGKAP</span>}
-                                                    {user.status === 'PARSIAL' && <span className="inline-flex px-2 py-1 text-[10px] font-bold bg-orange-100 text-orange-700 rounded-md">PARSIAL</span>}
-                                                    {user.status === 'BELUM' && <span className="inline-flex px-2 py-1 text-[10px] font-bold bg-rose-100 text-rose-700 rounded-md">BELUM LAPOR</span>}
-                                                </td>
+
+                                                {isMultiDay ? (
+                                                    dateRangeStr.map((d, i) => {
+                                                        const stat = user.summaryByDate?.[d]?.status;
+                                                        return (
+                                                            <td key={i} className="px-4 py-4 text-center">
+                                                                {stat === 'LENGKAP' && <div className="mx-auto w-6 h-6 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center" title="Lengkap"><CheckCircle2 size={12} /></div>}
+                                                                {stat === 'PARSIAL' && <div className="mx-auto w-6 h-6 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center font-bold text-[10px]" title="Parsial">1/2</div>}
+                                                                {(!stat || stat === 'BELUM') && <div className="mx-auto w-6 h-6 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center" title="Belum Lapor"><AlertCircle size={12} /></div>}
+                                                            </td>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    <>
+                                                        <td className="px-6 py-4">
+                                                            <div className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded w-fit">
+                                                                {user.position}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            {user.hasMorning ? (
+                                                                <div className="inline-flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full"><CheckCircle2 size={16} /></div>
+                                                            ) : (
+                                                                <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-400 rounded-full"><Clock size={16} /></div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            {user.hasAfternoon ? (
+                                                                <div className="inline-flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full"><CheckCircle2 size={16} /></div>
+                                                            ) : (
+                                                                <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-400 rounded-full"><Clock size={16} /></div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            {user.status === 'LENGKAP' && <span className="inline-flex px-2 py-1 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded-md">LENGKAP</span>}
+                                                            {user.status === 'PARSIAL' && <span className="inline-flex px-2 py-1 text-[10px] font-bold bg-orange-100 text-orange-700 rounded-md">PARSIAL</span>}
+                                                            {user.status === 'BELUM' && <span className="inline-flex px-2 py-1 text-[10px] font-bold bg-rose-100 text-rose-700 rounded-md">BELUM LAPOR</span>}
+                                                        </td>
+                                                    </>
+                                                )}
                                             </tr>
-                                            {expandedUserId === user.id && (
+                                            
+                                            {/* Expanded View (Only for 1 day mode) */}
+                                            {!isMultiDay && expandedUserId === user.id && (
                                                 <tr>
                                                     <td colSpan="6" className="px-6 py-4 bg-slate-50/80">
                                                         <div className="p-4 border border-slate-200 rounded-2xl bg-white shadow-sm">
@@ -289,7 +432,7 @@ const LaporanKabid = () => {
                                     ))}
                                     {summary.length === 0 && (
                                         <tr>
-                                            <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
+                                            <td colSpan={isMultiDay ? dateRangeStr.length + 1 : 6} className="px-6 py-12 text-center text-slate-400">
                                                 Belum ada data staf untuk ditampilkan.
                                             </td>
                                         </tr>
