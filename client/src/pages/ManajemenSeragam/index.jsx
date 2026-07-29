@@ -6,7 +6,6 @@ import { Modal } from './UIComponents';
 import { SimpleForm, ItemForm, TransactionForm, PackageForm, ImportItemForm } from './Forms';
 
 import { DashboardTab } from './DashboardTab';
-import { ItemsTab } from './ItemsTab';
 import { StockTab } from './StockTab';
 import { PackagesTab } from './PackagesTab';
 import { VendorsTab } from './VendorsTab';
@@ -18,7 +17,6 @@ import { MasterDataTab } from './tabs/MasterDataTab';
 const TABS = [
     { key: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={16} /> },
     { key: 'master', label: 'Master Data', icon: <Database size={16} /> },
-    { key: 'items', label: 'Data Barang', icon: <Shirt size={16} /> },
     { key: 'stock', label: 'Stok Gudang', icon: <Boxes size={16} /> },
     { key: 'packages', label: 'Paket SPMB', icon: <Package size={16} /> },
     { key: 'sales', label: 'Penjualan', icon: <ShoppingCart size={16} /> },
@@ -238,7 +236,6 @@ const ManajemenSeragam = () => {
                 <div className="p-4 sm:p-5">
                     {activeTab === 'dashboard' && <DashboardTab stats={stats} />}
                     {activeTab === 'master' && <MasterDataTab categories={categories} clothingTypes={clothingTypes} sizes={sizes} units={units} warehouses={warehouses} fetchData={fetchData} />}
-                    {activeTab === 'items' && <ItemsTab items={items} loading={loading} search={search} setSearch={setSearch} openModal={openModal} />}
                     {activeTab === 'stock' && <StockTab stocks={stocks} loading={loading} search={search} setSearch={setSearch} selectedWarehouse={selectedWarehouse} setSelectedWarehouse={setSelectedWarehouse} warehouses={warehouses} openModal={openModal} fetchStocks={fetchData} />}
                     {activeTab === 'packages' && <PackagesTab packages={packages} openModal={openModal} />}
                     {activeTab === 'vendors' && <VendorsTab vendors={vendors} openModal={openModal} />}
