@@ -1753,7 +1753,7 @@ model UniformItem {
   category        UniformCategory       @relation(fields: [categoryId], references: [id])
   clothingTypeId  Int?
   clothingType    UniformClothingType?  @relation(fields: [clothingTypeId], references: [id])
-  gender          String?               // IKHWAN, AKHWAT, UNISEX
+  gender          String?               // IKHWAN, AKHWAT
   unitId          Int?
   unit            UniformUnit?          @relation(fields: [unitId], references: [id])
   targetUnit      String?               // TK, SD, SMP, SMA (legacy, will be replaced by unit)
