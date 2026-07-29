@@ -77,7 +77,88 @@ const MasterCard = ({ title, icon: Icon, items, onAdd, onEdit, onDelete }) => {
     );
 };
 
-export const MasterDataTab = ({ categories, clothingTypes, sizes, units, fetchData }) => {
+const WarehouseCard = ({ title, icon: Icon, items, onAdd, onEdit, onDelete }) => {
+    const [showForm, setShowForm] = useState(false);
+    const [editItem, setEditItem] = useState(null);
+    const [name, setName] = useState('');
+    const [location, setLocation] = useState('');
+
+    const handleSubmit = async () => {
+        try {
+            if (!name.trim()) return;
+            const payload = { name, location };
+            if (editItem) {
+                await onEdit(editItem.id, payload);
+            } else {
+                await onAdd(payload);
+            }
+            setName('');
+            setLocation('');
+            setEditItem(null);
+            setShowForm(false);
+        } catch (err) {
+            alert(err.response?.data?.error || 'Gagal menyimpan data');
+        }
+    };
+
+    const startEdit = (item) => {
+        setEditItem(item);
+        setName(item.name);
+        setLocation(item.location || '');
+        setShowForm(true);
+    };
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden md:col-span-2 lg:col-span-4">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center"><Icon size={16} className="text-indigo-600" /></div>
+                    <h3 className="font-bold text-slate-800">{title}</h3>
+                    <span className="text-xs text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">{items.length}</span>
+                </div>
+                <button onClick={() => { setShowForm(!showForm); setEditItem(null); setName(''); setLocation(''); }} className="text-indigo-600 hover:bg-indigo-50 p-1.5 rounded-lg transition-colors">
+                    <Plus size={16} />
+                </button>
+            </div>
+
+            {showForm && (
+                <div className="p-4 bg-indigo-50/50 border-b border-slate-100 flex flex-wrap gap-2 items-end">
+                    <div className="flex-1 min-w-[200px]">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Nama Gudang</label>
+                        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Misal: Gudang Utama" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-100" />
+                    </div>
+                    <div className="flex-1 min-w-[200px]">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Lokasi</label>
+                        <input type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Misal: Gedung A" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-100" onKeyDown={e => e.key === 'Enter' && handleSubmit()} />
+                    </div>
+                    <button onClick={handleSubmit} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm hover:bg-indigo-700 transition-colors whitespace-nowrap">
+                        {editItem ? 'Update' : 'Simpan'}
+                    </button>
+                    <button onClick={() => { setShowForm(false); setEditItem(null); }} className="text-slate-400 hover:text-red-500 px-2 py-2 transition-colors">✕</button>
+                </div>
+            )}
+
+            <div className="divide-y divide-slate-50 max-h-[300px] overflow-y-auto">
+                {items.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-sm">Belum ada data.</div>
+                ) : items.map(item => (
+                    <div key={item.id} className="flex items-center justify-between px-4 py-3 hover:bg-slate-50/80 transition-colors group">
+                        <div className="flex flex-col">
+                            <span className="text-sm font-bold text-slate-700">{item.name}</span>
+                            {item.location && <span className="text-xs text-slate-500">{item.location}</span>}
+                        </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => startEdit(item)} className="text-slate-400 hover:text-indigo-600 p-1.5 rounded bg-white shadow-sm border border-slate-100"><Pencil size={13} /></button>
+                            <button onClick={() => onDelete(item.id)} className="text-slate-400 hover:text-red-500 p-1.5 rounded bg-white shadow-sm border border-slate-100"><Trash2 size={13} /></button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+export const MasterDataTab = ({ categories, clothingTypes, sizes, units, warehouses, fetchData }) => {
     // Kategori handlers
     const addCategory = async (data) => { await api.post('/uniforms/categories', data); fetchData(); };
     const editCategory = async (id, data) => { await api.put(`/uniforms/categories/${id}`, data); fetchData(); };
@@ -98,6 +179,11 @@ export const MasterDataTab = ({ categories, clothingTypes, sizes, units, fetchDa
     const editUnit = async (id, data) => { await api.put(`/uniforms/units/${id}`, data); fetchData(); };
     const deleteUnit = async (id) => { if (confirm('Hapus unit ini?')) { await api.delete(`/uniforms/units/${id}`); fetchData(); } };
 
+    // Gudang handlers
+    const addWarehouse = async (data) => { await api.post('/uniforms/warehouses', data); fetchData(); };
+    const editWarehouse = async (id, data) => { await api.put(`/uniforms/warehouses/${id}`, data); fetchData(); };
+    const deleteWarehouse = async (id) => { if (confirm('Hapus gudang ini? Seluruh stok di dalamnya akan hilang!')) { await api.delete(`/uniforms/warehouses/${id}`); fetchData(); } };
+
     return (
         <div className="space-y-4">
             <p className="text-sm text-slate-500">Kelola data referensi yang digunakan sebagai pilihan dropdown di seluruh modul seragam.</p>
@@ -106,6 +192,7 @@ export const MasterDataTab = ({ categories, clothingTypes, sizes, units, fetchDa
                 <MasterCard title="Jenis Pakaian" icon={Shirt} items={clothingTypes} onAdd={addClothingType} onEdit={editClothingType} onDelete={deleteClothingType} />
                 <MasterCard title="Unit / Jenjang" icon={Tag} items={units} onAdd={addUnit} onEdit={editUnit} onDelete={deleteUnit} />
                 <MasterCard title="Ukuran" icon={Ruler} items={sizes} onAdd={addSize} onEdit={editSize} onDelete={deleteSize} />
+                <WarehouseCard title="Gudang Seragam" icon={Tag} items={warehouses} onAdd={addWarehouse} onEdit={editWarehouse} onDelete={deleteWarehouse} />
             </div>
         </div>
     );

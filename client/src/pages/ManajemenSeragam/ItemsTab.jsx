@@ -8,9 +8,6 @@ export const ItemsTab = ({ items, loading, search, setSearch, openModal }) => (
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input type="text" placeholder="Cari nama atau kode barang..." className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-            <button onClick={() => openModal('warehouse')} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors">
-                <Warehouse size={14} /> Gudang
-            </button>
             <button onClick={() => openModal('item')} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-blue-500/20 transition-all">
                 <Plus size={14} /> Tambah Barang
             </button>
