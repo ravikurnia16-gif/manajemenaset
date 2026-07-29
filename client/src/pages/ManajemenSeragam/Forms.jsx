@@ -117,7 +117,7 @@ export const TransactionForm = ({ warehouses, vendors, onSave }) => {
             </SelectField>
             <SelectField label="Barang (Variant)" value={form.variantId || ''} onChange={e => setForm({ ...form, variantId: e.target.value })}>
                 <option value="">Pilih Barang</option>
-                {allVariants.map(v => <option key={v.id} value={v.id}>{v.itemName} - {v.size} ({v.sku})</option>)}
+                {allVariants.map(v => <option key={v.id} value={v.id}>{v.itemName} - {v.sizeName} ({v.sku})</option>)}
             </SelectField>
             <div className="grid grid-cols-2 gap-4">
                 <SelectField label="Gudang Asal" value={form.warehouseId || ''} onChange={e => setForm({ ...form, warehouseId: e.target.value })}>
