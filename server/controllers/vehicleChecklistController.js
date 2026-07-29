@@ -51,11 +51,7 @@ exports.createChecklist = async (req, res) => {
 const getStaffKendaraan = async () => {
     return prisma.user.findMany({
         where: {
-            OR: [
-                { role: 'ADMIN_ASET' },
-                { role: 'SUPER_ADMIN' },
-                { position: { contains: 'Kendaraan' } }
-            ],
+            position: { contains: 'Kendaraan' },
             phone: { not: null }
         }
     });

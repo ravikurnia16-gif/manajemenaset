@@ -17,6 +17,7 @@ import LiveTrackingMap from '../components/LiveTrackingMap';
 const VehicleBooking = () => {
     const [activeTab, setActiveTab] = useState('CURRENT_FLEET');
     const [vehicles, setVehicles] = useState([]);
+    const [checklists, setChecklists] = useState([]);
     const [bookings, setBookings] = useState([]);
     const [staff, setStaff] = useState([]);
     const [drivers, setDrivers] = useState([]);
@@ -914,6 +915,26 @@ const VehicleBooking = () => {
         ...(isKabidSarpras ? [{ id: 'TRACKING_MAP', label: 'Peta Pelacakan', icon: <MapPin size={16} /> }] : [])
     ];
 
+    useEffect(() => {
+        if (isStaffKendaraan) {
+            api.get('/vehicle-checklists')
+                .then(res => setChecklists(res.data))
+                .catch(err => console.error('Error fetching checklists:', err));
+        }
+    }, [isStaffKendaraan]);
+
+    const uncheckedVehicles = useMemo(() => {
+        if (!isStaffKendaraan || vehicles.length === 0) return [];
+        const today = new Date().toISOString().split('T')[0];
+        const todayChecklists = checklists.filter(c => {
+            if (c.type !== 'DAILY') return false;
+            const checkDate = new Date(c.createdAt).toISOString().split('T')[0];
+            return today === checkDate;
+        });
+        const checkedVehicleIds = todayChecklists.map(c => c.vehicleId);
+        return vehicles.filter(v => v.status === 'ACTIVE' && v.requireDailyChecklist !== false && !checkedVehicleIds.includes(v.id));
+    }, [isStaffKendaraan, vehicles, checklists]);
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* GPS Companion App Banner (HIDDEN AS REQUESTED)
@@ -984,6 +1005,30 @@ const VehicleBooking = () => {
                             </button>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* Unchecked Vehicles Banner (Staff Kendaraan Only) */}
+            {isStaffKendaraan && uncheckedVehicles.length > 0 && (
+                <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-start md:items-center gap-4 justify-between relative">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+                            <CheckCircle size={20} />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-bold text-orange-800">Pengecekan Kendaraan Harian</h4>
+                            <p className="text-xs text-orange-600">
+                                Terdapat {uncheckedVehicles.length} kendaraan aktif yang belum dilakukan ceklis harian hari ini. 
+                                ({uncheckedVehicles.map(v => v.name).join(', ')})
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setActiveTab('CHECKLISTS')}
+                        className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-orange-200 whitespace-nowrap shrink-0"
+                    >
+                        Lakukan Pengecekan
+                    </button>
                 </div>
             )}
 

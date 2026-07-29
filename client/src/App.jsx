@@ -161,6 +161,10 @@ function App() {
   ];
   const isStaffSarpras = isGlobalAdmin || sarprasKeywords.some(kw => user?.position && user.position.toLowerCase().includes(kw));
 
+  const role = user?.role || '';
+  const pos = (user?.position || '').toLowerCase();
+  const canViewEOffice = role === 'ADMIN_ASET' || pos.includes('kepala bidang sarana');
+
   return (
     <BrowserRouter>
       <Routes>
@@ -282,10 +286,10 @@ function App() {
 
           {/* Module: E-Office */}
           <Route path="e-office" element={
-            isStaffSarpras ? <EOffice /> : <Navigate to="/dashboard" />
+            canViewEOffice ? <EOffice /> : <Navigate to="/dashboard" />
           } />
           <Route path="e-office/:tab" element={
-            isStaffSarpras ? <EOffice /> : <Navigate to="/dashboard" />
+            canViewEOffice ? <EOffice /> : <Navigate to="/dashboard" />
           } />
 
 

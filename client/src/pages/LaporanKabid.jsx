@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Users, AlertCircle, FileText, CheckCircle2, Clock } from 'lucide-react';
+import { Calendar, Users, AlertCircle, FileText, CheckCircle2, Clock, ChevronDown, ChevronRight, Camera } from 'lucide-react';
 import api from '../lib/axios';
 import dayjs from 'dayjs';
 import LaporanStaff from './LaporanStaff'; // Import for the "Laporan Saya" part
@@ -9,6 +9,7 @@ const LaporanKabid = () => {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('dashboard');
     const [currentDate, setCurrentDate] = useState(dayjs().format('YYYY-MM-DD'));
+    const [expandedUserId, setExpandedUserId] = useState(null);
 
     useEffect(() => {
         if (activeTab === 'dashboard') {
@@ -28,6 +29,70 @@ const LaporanKabid = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const toggleExpand = (userId) => {
+        setExpandedUserId(expandedUserId === userId ? null : userId);
+    };
+
+    const renderReportContent = (reportData) => {
+        if (!reportData) return <span className="italic text-slate-400 text-[11px]">- Belum ada isi laporan -</span>;
+
+        const renderList = (title, list) => {
+            if (!list || list.length === 0) return null;
+            return (
+                <div className="mb-4 last:mb-0">
+                    {title && <div className="text-[10px] font-black text-slate-400 uppercase mb-2 border-b border-slate-100 pb-1">{title}</div>}
+                    <ul className="list-none space-y-3">
+                        {list.map((pt, idx) => {
+                            const text = typeof pt === 'string' ? pt : pt.text;
+                            let photos = [];
+                            if (typeof pt !== 'string') {
+                                if (pt.photos && Array.isArray(pt.photos)) photos = pt.photos;
+                                else if (pt.photo) photos = [{ url: pt.photo, timestamp: pt.timestamp }];
+                            }
+                            return (
+                                <li key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                                    <div className="flex gap-2 items-start">
+                                        <div className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{idx + 1}</div>
+                                        <div className="flex-1 overflow-hidden">
+                                            <p className="text-sm text-slate-700">{text}</p>
+                                            {photos.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap gap-4 items-start">
+                                                    {photos.map((ph, pIdx) => (
+                                                        <div key={pIdx} className="flex flex-col gap-1">
+                                                            <a href={ph.url} target="_blank" rel="noreferrer" className="block w-28 h-28 rounded-lg overflow-hidden border border-slate-200 hover:opacity-80 transition-opacity">
+                                                                <img src={ph.url} alt={`Lampiran ${idx + 1}-${pIdx + 1}`} className="w-full h-full object-cover" />
+                                                            </a>
+                                                            {ph.timestamp && (
+                                                                <div className="text-[9px] font-bold text-slate-500 flex items-center justify-center gap-1 bg-slate-50 px-1 py-1 rounded-md border border-slate-200 shadow-sm">
+                                                                    <Clock size={10} className="text-blue-500" />
+                                                                    {dayjs(ph.timestamp).format('HH:mm')}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </div>
+            );
+        };
+
+        const m = reportData.morning || [];
+        const a = reportData.afternoon || [];
+        if (m.length === 0 && a.length === 0) return <span className="italic text-slate-400 text-[11px]">- Belum ada isi laporan -</span>;
+        return (
+            <>
+                {renderList('Kegiatan Pagi (07.30 - 12.00)', m)}
+                {renderList('Kegiatan Siang (13.00 - 16.15)', a)}
+            </>
+        );
     };
 
     if (activeTab === 'laporan-saya') {
@@ -140,11 +205,13 @@ const LaporanKabid = () => {
                                 <FileText size={18} className="text-blue-500" />
                                 Rincian Kedisiplinan Laporan
                             </h2>
+                            <p className="text-xs text-slate-400">Klik baris untuk melihat isi laporan</p>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50">
                                     <tr>
+                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-8"></th>
                                         <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nama Staf</th>
                                         <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Posisi</th>
                                         <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Sesi Pagi</th>
@@ -154,47 +221,75 @@ const LaporanKabid = () => {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {summary.map(user => (
-                                        <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="px-6 py-4">
-                                                <div className="font-bold text-slate-700">{user.name}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded w-fit">
-                                                    {user.position}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                {user.hasMorning ? (
-                                                    <div className="inline-flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full">
-                                                        <CheckCircle2 size={16} />
+                                        <React.Fragment key={user.id}>
+                                            <tr 
+                                                className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                                                onClick={() => toggleExpand(user.id)}
+                                            >
+                                                <td className="pl-6 py-4">
+                                                    {expandedUserId === user.id 
+                                                        ? <ChevronDown size={16} className="text-blue-500" /> 
+                                                        : <ChevronRight size={16} className="text-slate-400" />
+                                                    }
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="font-bold text-slate-700">{user.name}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded w-fit">
+                                                        {user.position}
                                                     </div>
-                                                ) : (
-                                                    <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-400 rounded-full">
-                                                        <Clock size={16} />
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                {user.hasAfternoon ? (
-                                                    <div className="inline-flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full">
-                                                        <CheckCircle2 size={16} />
-                                                    </div>
-                                                ) : (
-                                                    <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-400 rounded-full">
-                                                        <Clock size={16} />
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                {user.status === 'LENGKAP' && <span className="inline-flex px-2 py-1 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded-md">LENGKAP</span>}
-                                                {user.status === 'PARSIAL' && <span className="inline-flex px-2 py-1 text-[10px] font-bold bg-orange-100 text-orange-700 rounded-md">PARSIAL</span>}
-                                                {user.status === 'BELUM' && <span className="inline-flex px-2 py-1 text-[10px] font-bold bg-rose-100 text-rose-700 rounded-md">BELUM LAPOR</span>}
-                                            </td>
-                                        </tr>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    {user.hasMorning ? (
+                                                        <div className="inline-flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full">
+                                                            <CheckCircle2 size={16} />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-400 rounded-full">
+                                                            <Clock size={16} />
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    {user.hasAfternoon ? (
+                                                        <div className="inline-flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full">
+                                                            <CheckCircle2 size={16} />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 text-slate-400 rounded-full">
+                                                            <Clock size={16} />
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    {user.status === 'LENGKAP' && <span className="inline-flex px-2 py-1 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded-md">LENGKAP</span>}
+                                                    {user.status === 'PARSIAL' && <span className="inline-flex px-2 py-1 text-[10px] font-bold bg-orange-100 text-orange-700 rounded-md">PARSIAL</span>}
+                                                    {user.status === 'BELUM' && <span className="inline-flex px-2 py-1 text-[10px] font-bold bg-rose-100 text-rose-700 rounded-md">BELUM LAPOR</span>}
+                                                </td>
+                                            </tr>
+                                            {expandedUserId === user.id && (
+                                                <tr>
+                                                    <td colSpan="6" className="px-6 py-4 bg-slate-50/80">
+                                                        <div className="p-4 border border-slate-200 rounded-2xl bg-white shadow-sm">
+                                                            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
+                                                                <FileText size={14} className="text-blue-500" />
+                                                                <span className="text-xs font-black text-slate-600 uppercase tracking-wider">
+                                                                    Isi Laporan — {user.name}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-sm text-slate-600 font-medium">
+                                                                {renderReportContent(user.reportData)}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
                                     ))}
                                     {summary.length === 0 && (
                                         <tr>
-                                            <td colSpan="5" className="px-6 py-12 text-center text-slate-400">
+                                            <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
                                                 Belum ada data staf untuk ditampilkan.
                                             </td>
                                         </tr>

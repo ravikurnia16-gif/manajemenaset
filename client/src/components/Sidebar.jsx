@@ -93,6 +93,8 @@ const Sidebar = ({ isOpen = true }) => {
     // Security menu hidden based on user request
     const isSecurityAdmin = false; // isKabidSarpras || (user?.unit?.name || '').toLowerCase().includes('keamanan');
 
+    const canViewEOffice = role === 'ADMIN_ASET' || pos.includes('kepala bidang sarana');
+
     const renderCollapsible = (key, icon, label, children) => (
         <div className="mb-2">
             <button
@@ -314,7 +316,7 @@ const Sidebar = ({ isOpen = true }) => {
 
 
                 {/* 5. E-Office (Document Management) */}
-                {isWarehouseAdmin && (
+                {canViewEOffice && (
                     <Link to="/e-office" className={navItemClass('/e-office')}>
                         <FileSignature size={18} /> E-Office
                     </Link>

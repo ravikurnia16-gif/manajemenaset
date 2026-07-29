@@ -266,8 +266,7 @@ exports.getKabidSummary = async (req, res) => {
             'Staff Gudang dan Logistik',
             'Staff Kendaraan',
             'Staff Teknisi Aset',
-            'Staff Keuangan dan Administrasi (Sarpras)',
-            'Kepala Bidang Sarana'
+            'Staff Keuangan dan Administrasi (Sarpras)'
         ];
 
         const users = await prisma.user.findMany({
@@ -295,6 +294,10 @@ exports.getKabidSummary = async (req, res) => {
             let hasMorning = false;
             let hasAfternoon = false;
 
+            // Collect all manual points across all categories
+            let allMorningPoints = [];
+            let allAfternoonPoints = [];
+
             for (const userReport of userReports) {
                 if (userReport.metadata && userReport.metadata.manualPoints) {
                     const pts = userReport.metadata.manualPoints;
@@ -306,6 +309,9 @@ exports.getKabidSummary = async (req, res) => {
                     if (!hasAfternoon) {
                         hasAfternoon = Array.isArray(a) && a.some(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== ''));
                     }
+                    // Accumulate points
+                    if (Array.isArray(m)) allMorningPoints = allMorningPoints.concat(m.filter(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== '')));
+                    if (Array.isArray(a)) allAfternoonPoints = allAfternoonPoints.concat(a.filter(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== '')));
                 }
                 if (hasMorning && hasAfternoon) break; // Already LENGKAP, no need to check more
             }
@@ -320,7 +326,9 @@ exports.getKabidSummary = async (req, res) => {
                 hasAfternoon,
                 status,
                 reportId: userReports.length > 0 ? userReports[0].id : null,
-                reportData: userReports.length > 0 ? userReports[0].metadata?.manualPoints : null
+                reportData: (allMorningPoints.length > 0 || allAfternoonPoints.length > 0)
+                    ? { morning: allMorningPoints, afternoon: allAfternoonPoints }
+                    : null
             };
         });
 
