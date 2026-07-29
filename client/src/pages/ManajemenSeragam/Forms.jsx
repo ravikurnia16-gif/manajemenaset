@@ -31,8 +31,7 @@ export const ItemForm = ({ categories, clothingTypes, sizes, vendors, units, ini
 
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-                <InputField label="Nama Barang" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Kemeja Putih PDH" required />
+            <div className="grid grid-cols-1 gap-4">
                 <SelectField label="Kategori" value={form.categoryId || ''} onChange={e => setForm({ ...form, categoryId: e.target.value })}>
                     <option value="">Pilih Kategori</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -75,7 +74,16 @@ export const ItemForm = ({ categories, clothingTypes, sizes, vendors, units, ini
                     <button onClick={addSize} className="px-3 py-2 bg-slate-100 rounded-xl text-sm font-bold hover:bg-slate-200"><Plus size={14} /></button>
                 </div>
             </div>
-            <button onClick={() => onSave(form)} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700 transition-all">Simpan</button>
+            <button onClick={() => {
+                const categoryName = categories.find(c => String(c.id) === String(form.categoryId))?.name || '';
+                const clothingTypeName = clothingTypes.find(c => String(c.id) === String(form.clothingTypeId))?.name || '';
+                const unitName = units?.find(u => String(u.id) === String(form.unitId))?.name || '';
+                const genderName = form.gender === 'IKHWAN' ? 'Ikhwan' : form.gender === 'AKHWAT' ? 'Akhwat' : '';
+                
+                const generatedName = [clothingTypeName, categoryName, genderName, unitName].filter(Boolean).join(' ');
+                
+                onSave({ ...form, name: generatedName });
+            }} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700 transition-all">Simpan</button>
         </div>
     );
 };
