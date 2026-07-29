@@ -391,17 +391,16 @@ const LaporanStaff = () => {
                         </button>
                     </div>
 
-                    {/* Right: Laporan Tim (Khusus Admin atau untuk melihat laporan rekan) */}
-                    {isAdmin && (
-                        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col h-full">
-                            <h3 className="text-sm font-black text-slate-800 mb-6 uppercase tracking-wider flex items-center gap-2">
-                                <User size={18} className="text-emerald-600" /> Rekap Laporan Tim
-                            </h3>
-                            <div className="flex-1 overflow-y-auto space-y-4">
-                                {reports.length === 0 ? (
-                                    <div className="text-center text-slate-400 text-sm py-10 italic">
-                                        Belum ada laporan dari tim untuk tanggal ini.
-                                    </div>
+                    {/* Right: Laporan Tim / Saya */}
+                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col h-full">
+                        <h3 className="text-sm font-black text-slate-800 mb-6 uppercase tracking-wider flex items-center gap-2">
+                            <User size={18} className="text-emerald-600" /> {isAdmin ? 'Rekap Laporan Tim' : 'Rekap Laporan Saya'}
+                        </h3>
+                        <div className="flex-1 overflow-y-auto space-y-4">
+                            {reports.length === 0 ? (
+                                <div className="text-center text-slate-400 text-sm py-10 italic">
+                                    Belum ada laporan untuk tanggal ini.
+                                </div>
                                 ) : (
                                     reports.map(report => (
                                         <div key={report.id} className="p-4 border border-slate-100 rounded-2xl bg-slate-50">
@@ -485,8 +484,7 @@ const LaporanStaff = () => {
                                 )}
                             </div>
                         </div>
-                    )}
-                </div>
+                    </div>
                 )}
 
                 {activeTab === 'penugasan' && (
