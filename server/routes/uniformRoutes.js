@@ -41,9 +41,6 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 
 
-// Variants (Ukuran/SKU)
-router.post('/variants', c.createVariant);
-router.delete('/variants/:id', c.deleteVariant);
 
 // Stock (Multi-Warehouse)
 router.get('/stocks', c.getStocks);
