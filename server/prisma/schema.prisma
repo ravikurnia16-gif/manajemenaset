@@ -867,6 +867,7 @@ model WarehouseStockDeduction {
 // --- PESANAN SERAGAM PUBLIK ---
 
 model UniformOrder {
+  @@map("seragam_pesanan")
   id            Int                @id @default(autoincrement())
   code          String             @unique // ORD/2026/001
   customerName  String // Nama pemesan (ortu/wali)
@@ -883,6 +884,7 @@ model UniformOrder {
 }
 
 model UniformOrderItem {
+  @@map("seragam_pesanan_item")
   id            Int            @id @default(autoincrement())
   orderId       Int
   order         UniformOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -1694,6 +1696,7 @@ model NotificationRule {
 
 // Lokasi gudang seragam (Multi-Warehouse)
 model UniformWarehouse {
+  @@map("seragam_gudang")
   id          Int      @id @default(autoincrement())
   name        String   // "Gudang Pusat", "Gudang SMP", dll
   address     String?  @db.Text
@@ -1711,6 +1714,7 @@ model UniformWarehouse {
 
 // Kategori seragam: Nasional, Batik, Muslim, Pramuka, Olahraga, Jubah, Atribut
 model UniformCategory {
+  @@map("seragam_kategori")
   id    Int          @id @default(autoincrement())
   name  String       @unique // "Nasional", "Batik", "Muslim", dll
   items UniformItem[]
@@ -1718,6 +1722,7 @@ model UniformCategory {
 
 // Barang induk seragam
 model UniformItem {
+  @@map("seragam_barang")
   id           Int              @id @default(autoincrement())
   code         String           @unique // SRG/PDH/001
   name         String           // "Kemeja Putih PDH"
@@ -1739,6 +1744,7 @@ model UniformItem {
 
 // Variasi per ukuran (SKU): setiap kombinasi Item + Size = 1 SKU
 model UniformVariant {
+  @@map("seragam_varian")
   id        Int          @id @default(autoincrement())
   itemId    Int
   item      UniformItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
@@ -1758,6 +1764,7 @@ model UniformVariant {
 
 // Stok per Variant per Gudang (Multi-Warehouse)
 model UniformStock {
+  @@map("seragam_stok")
   id           Int              @id @default(autoincrement())
   variantId    Int
   variant      UniformVariant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
@@ -1775,6 +1782,7 @@ model UniformStock {
 
 // Paket SPMB (Bundle): Contoh "Paket Siswa Baru SMP Putra"
 model UniformPackage {
+  @@map("seragam_paket")
   id          Int                  @id @default(autoincrement())
   name        String               // "Paket Siswa Baru SMP Putra"
   targetUnit  String?              // TK, SD, SMP, SMA
@@ -1791,6 +1799,7 @@ model UniformPackage {
 
 // Item di dalam paket
 model UniformPackageItem {
+  @@map("seragam_paket_item")
   id         Int             @id @default(autoincrement())
   packageId  Int
   package    UniformPackage  @relation(fields: [packageId], references: [id], onDelete: Cascade)
@@ -1801,6 +1810,7 @@ model UniformPackageItem {
 
 // Transaksi Penjualan / SPMB (Invoice)
 model UniformSale {
+  @@map("seragam_penjualan")
   id              Int              @id @default(autoincrement())
   code            String           @unique // INV/SRG/2026/001
   type            String           @default("RETAIL") // RETAIL, SPMB, UNIT_ORDER
@@ -1845,6 +1855,7 @@ model UniformSale {
 
 // Item di dalam penjualan (mendukung Partial Delivery)
 model UniformSaleItem {
+  @@map("seragam_penjualan_item")
   id            Int             @id @default(autoincrement())
   saleId        Int
   sale          UniformSale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
@@ -1861,6 +1872,7 @@ model UniformSaleItem {
 
 // Jurnal Stok (semua mutasi masuk, keluar, pindah, adjustment)
 model UniformStockTransaction {
+  @@map("seragam_transaksi_stok")
   id            Int              @id @default(autoincrement())
   code          String           @unique // TRX/SRG/2026/001
   type          String           // IN, OUT, MUTATION, ADJUSTMENT
@@ -1891,6 +1903,7 @@ model UniformStockTransaction {
 
 // Vendor / Penjahit Seragam
 model UniformVendor {
+  @@map("seragam_vendor")
   id             Int      @id @default(autoincrement())
   name           String   // "Konveksi Minang Jaya"
   phone          String?
@@ -1914,6 +1927,7 @@ model UniformVendor {
 
 // Tukar Ukuran (Return/Exchange) — hanya tukar barang, bukan uang
 model UniformExchange {
+  @@map("seragam_tukar")
   id            Int             @id @default(autoincrement())
   code          String          @unique // EXC/SRG/2026/001
   customerName  String
@@ -1935,6 +1949,7 @@ model UniformExchange {
 
 // Jadwal Pengambilan (Sesi/Slot Waktu untuk SPMB)
 model UniformSchedule {
+  @@map("seragam_jadwal")
   id          Int      @id @default(autoincrement())
   title       String   // "Sesi 1 - Senin Pagi"
   date        DateTime
