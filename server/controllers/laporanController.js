@@ -31,16 +31,17 @@ exports.getReports = async (req, res) => {
             }
         };
 
-        if (category) {
-            whereClause.category = category;
-        }
+        // DO NOT filter by category for DAILY reports so we get the unified team feed
+        // if (category) {
+        //     whereClause.category = category;
+        // }
 
         // If not an admin, they can only view their own report
         if (!isGlobalAdmin) {
             whereClause.userId = req.user.id;
         }
 
-        const reports = await prisma.personnelReport.findMany({
+        const rawReports = await prisma.personnelReport.findMany({
             where: whereClause,
             include: {
                 user: {
@@ -52,13 +53,35 @@ exports.getReports = async (req, res) => {
             }
         });
 
-        // Bersihkan log mentah (rute API) lama agar tidak tampil di frontend
-        // Karena sekarang sudah digantikan oleh Global Summary
-        reports.forEach(r => {
+        // Merge duplicate reports by userId (in case they saved under different categories previously)
+        const userReportsMap = {};
+        for (const r of rawReports) {
+            // Bersihkan log mentah (rute API) lama agar tidak tampil di frontend
             if (r.category === 'KENDARAAN') {
                 r.content = '';
             }
-        });
+
+            if (!userReportsMap[r.userId]) {
+                // Clone the report and reset manualPoints for merging
+                userReportsMap[r.userId] = { 
+                    ...r, 
+                    metadata: { 
+                        ...r.metadata, 
+                        manualPoints: { morning: [], afternoon: [] } 
+                    } 
+                };
+            }
+            
+            const targetPts = userReportsMap[r.userId].metadata.manualPoints;
+            const pts = r.metadata?.manualPoints || {};
+            const m = pts.morningPoints || pts.morning || [];
+            const a = pts.afternoonPoints || pts.afternoon || [];
+            
+            if (Array.isArray(m)) targetPts.morning = targetPts.morning.concat(m.filter(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== '')));
+            if (Array.isArray(a)) targetPts.afternoon = targetPts.afternoon.concat(a.filter(p => p && (typeof p === 'string' ? p.trim() !== '' : p.text && p.text.trim() !== '')));
+        }
+
+        const reports = Object.values(userReportsMap);
 
         // Also if user is viewing their own and report doesn't exist, return empty
         let myReport = reports.find(r => r.userId === req.user.id);
@@ -165,7 +188,7 @@ exports.updateMyReport = async (req, res) => {
             where: {
                 userId: req.user.id,
                 type: 'DAILY',
-                category: category || 'UMUM',
+                // Remove category filter so we only ever have ONE daily report per user per day
                 date: {
                     gte: dateStart,
                     lte: dateEnd
