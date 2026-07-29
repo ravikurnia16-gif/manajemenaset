@@ -39,13 +39,7 @@ router.delete('/sizes/:id', c.deleteSize);
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 
-router.get('/items', c.getItems);
-router.get('/items/template', c.downloadImportTemplate);
-router.post('/items/import', upload.single('file'), c.importItems);
-router.get('/items/:id', c.getItemById);
-router.post('/items', c.createItem);
-router.put('/items/:id', c.updateItem);
-router.delete('/items/:id', c.deleteItem);
+
 
 // Variants (Ukuran/SKU)
 router.post('/variants', c.createVariant);
