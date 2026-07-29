@@ -60,13 +60,6 @@ export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse
             <button onClick={() => fileInputRef.current?.click()} className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-500/20" title="Import Stok">
                 <Upload size={14} /> Import Stok
             </button>
-
-            <button onClick={() => openModal('import-item')} className="bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 hover:bg-slate-50 transition-colors" title="Import Master Barang">
-                <Upload size={14} /> Import Barang
-            </button>
-            <button onClick={() => openModal('item')} className="bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 hover:bg-slate-50 transition-colors" title="Tambah Master Barang">
-                <Plus size={14} /> Tambah Barang
-            </button>
             
             <button onClick={() => openModal('transaction')} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-blue-500/20">
                 <Plus size={14} /> Transaksi Stok
