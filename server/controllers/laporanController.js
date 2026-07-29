@@ -271,8 +271,7 @@ exports.getKabidSummary = async (req, res) => {
 
         const users = await prisma.user.findMany({
             where: {
-                position: { in: sarprasPositions },
-                isActive: true
+                position: { in: sarprasPositions }
             },
             select: {
                 id: true,
@@ -358,8 +357,7 @@ exports.sendReportReminders = async () => {
 
         const users = await prisma.user.findMany({
             where: {
-                position: { in: sarprasPositions },
-                isActive: true
+                position: { in: sarprasPositions }
             },
             select: { id: true, name: true, phone: true }
         });
