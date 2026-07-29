@@ -202,7 +202,7 @@ const VehicleMaintenanceForm = () => {
                 vehicleId: form.vehicleId,
                 date: form.date,
                 category: hasRoutine ? 'ROUTINE' : 'NON_ROUTINE',
-                type: typeStr.substring(0, 200),
+                type: typeStr.substring(0, 190),
                 description: form.description || allItems.map(i => i.name).join(', '),
                 cost: totalCost(),
                 odometer: form.odometer || null,
