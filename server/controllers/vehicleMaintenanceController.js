@@ -8,8 +8,9 @@ exports.getAllMaintenanceLogs = async (req, res) => {
         const { id: userId, role } = req.user;
         let where = {};
 
-        // Filter by PIC if not a global admin/Sarpras staff
-        const isSarpras = role === 'KEPALA_BIDANG' || req.user?.position?.includes('Sarana dan Prasarana') || req.user?.position?.includes('Manajemen Aset');
+        const pos = (req.user?.position || '').toLowerCase();
+        const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+        const isSarpras = role === 'KEPALA_BIDANG' || pos.includes('sarana dan prasarana') || pos.includes('manajemen aset') || isKabidSarpras;
 
         if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role) && !isSarpras) {
             where = {
@@ -48,7 +49,11 @@ exports.getMaintenanceLogById = async (req, res) => {
         if (!log) return res.status(404).json({ error: 'Log tidak ditemukan' });
 
         // Access Check
-        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+        const pos = (req.user?.position || '').toLowerCase();
+        const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+        const isSarpras = role === 'KEPALA_BIDANG' || pos.includes('sarana dan prasarana') || pos.includes('manajemen aset') || isKabidSarpras;
+
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role) && !isSarpras) {
             const isPic = log.vehicle.pics.some(p => p.id === userId);
             if (!isPic) return res.status(403).json({ error: 'Anda tidak memiliki akses ke log kendaraan ini.' });
         }
@@ -74,7 +79,9 @@ exports.createMaintenanceLog = async (req, res) => {
         }
 
         // 2. PIC Validation
-        const isSarpras = role === 'KEPALA_BIDANG' || req.user?.position?.includes('Sarana dan Prasarana') || req.user?.position?.includes('Manajemen Aset');
+        const pos = (req.user?.position || '').toLowerCase();
+        const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+        const isSarpras = role === 'KEPALA_BIDANG' || pos.includes('sarana dan prasarana') || pos.includes('manajemen aset') || isKabidSarpras;
 
         if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role) && !isSarpras) {
             const vehicle = await prisma.vehicle.findUnique({
@@ -187,7 +194,11 @@ exports.updateMaintenanceLog = async (req, res) => {
 
         if (!existingLog) return res.status(404).json({ error: 'Log tidak ditemukan' });
 
-        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+        const pos = (req.user?.position || '').toLowerCase();
+        const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+        const isSarpras = role === 'KEPALA_BIDANG' || pos.includes('sarana dan prasarana') || pos.includes('manajemen aset') || isKabidSarpras;
+
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role) && !isSarpras) {
             const isPic = existingLog.vehicle.pics.some(p => p.id === userId);
             if (!isPic) return res.status(403).json({ error: 'Anda tidak memiliki izin mengedit log kendaraan ini.' });
         }
@@ -283,7 +294,11 @@ exports.deleteMaintenanceLog = async (req, res) => {
 
         if (!existingLog) return res.status(404).json({ error: 'Log tidak ditemukan' });
 
-        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role)) {
+        const pos = (req.user?.position || '').toLowerCase();
+        const isKabidSarpras = role === 'KABID_SARPRAS' || pos.includes('kepala bidang sarana') || pos.includes('kabid sarpras');
+        const isSarpras = role === 'KEPALA_BIDANG' || pos.includes('sarana dan prasarana') || pos.includes('manajemen aset') || isKabidSarpras;
+
+        if (!['SUPER_ADMIN', 'ADMIN_ASET', 'BIDANG_IT'].includes(role) && !isSarpras) {
             const isPic = existingLog.vehicle.pics.some(p => p.id === userId);
             if (!isPic) return res.status(403).json({ error: 'Anda tidak memiliki izin menghapus log kendaraan ini.' });
         }

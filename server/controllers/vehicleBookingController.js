@@ -100,7 +100,8 @@ exports.requestBooking = async (req, res) => {
         }
 
         const isPIC = vehicle.pics.some(p => p.id === userId);
-        const isKabidSarpras = currentUser.position === 'Kepala Bidang Sarana';
+        const currentUserPosition = (currentUser?.position || '').toLowerCase();
+        const isKabidSarpras = currentUser.role === 'KABID_SARPRAS' || currentUserPosition.includes('kepala bidang sarana') || currentUserPosition.includes('kabid sarpras');
 
         // Special Roles: Yayasan Leadership (Auto-Approval)
         const yayasanPositions = ['Ketua Yayasan', 'Bendahara Yayasan', 'Sekretaris Yayasan'];
@@ -354,10 +355,10 @@ exports.reviewBooking = async (req, res) => {
         const admin = await prisma.user.findUnique({ where: { id: req.user.id } });
         const adminName = admin?.name || req.user.username || 'Admin';
 
-        // Check permission: Super Admin or one of the Vehicle PICs or Kabid Sarpras or Admin Aset
         const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role);
         const isPIC = booking.vehicle.pics.some(p => p.id === req.user.id);
-        const isKabidSarpras = admin?.position === 'Kepala Bidang Sarana';
+        const adminPosition = (admin?.position || '').toLowerCase();
+        const isKabidSarpras = req.user.role === 'KABID_SARPRAS' || adminPosition.includes('kepala bidang sarana') || adminPosition.includes('kabid sarpras');
         const isAdminAset = req.user.role === 'ADMIN_ASET';
 
         if (!isSuperAdmin && !isPIC && !isKabidSarpras && !isAdminAset) {
@@ -756,7 +757,8 @@ exports.getBookings = async (req, res) => {
 
         const isSuperAdmin = ['SUPER_ADMIN', 'BIDANG_IT'].includes(req.user.role);
         const isAdminAset = req.user.role === 'ADMIN_ASET';
-        const isKabidSarpras = currentUser?.position === 'Kepala Bidang Sarana';
+        const currentUserPosition = (currentUser?.position || '').toLowerCase();
+        const isKabidSarpras = req.user.role === 'KABID_SARPRAS' || currentUserPosition.includes('kepala bidang sarana') || currentUserPosition.includes('kabid sarpras');
         const isNormalOrPIC = !isSuperAdmin && !isAdminAset && !isKabidSarpras;
 
         if (tab === 'PENDING' || tab === 'APPROVAL') {

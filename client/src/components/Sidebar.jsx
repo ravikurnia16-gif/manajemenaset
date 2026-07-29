@@ -77,7 +77,7 @@ const Sidebar = ({ isOpen = true }) => {
     
     const isAdminAset = role === 'ADMIN_ASET';
     const isWorkshopAdmin = isSuperAdmin || isAdminAset || isKabidSarpras || user?.unitId === 21 || (user?.unit?.name || '').toLowerCase().includes('workshop') || role === 'AUDITOR';
-    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(role);
+    const isVehicleAdmin = ['SUPER_ADMIN', 'ADMIN_ASET', 'KABID_SARPRAS', 'AUDITOR'].includes(role) || isKabidSarpras;
 
     const isPembangunanFull = ['SUPER_ADMIN', 'ADMIN_ASET', 'KEPALA_BIDANG', 'KABID_SARPRAS', 'ADMIN_PBG'].includes(role) || pos.includes('kepala bidang pembangunan') || pos.includes('staff pembangunan');
     
