@@ -89,8 +89,8 @@ exports.auditDailyChecklists = async () => {
                 }
             });
 
-            if (count < 4) { // Target: 2 per day * 2 days = 4
-                const msg = `⚠️ *Peringatan Ceklis Harian*\n\nKendaraan *${v.name} (${v.plateNumber})* tidak mengisi ceklis harian secara rutin (2x sehari) dalam 2 hari kerja terakhir. Total pengisian hanya: ${count} kali.\n\nMohon Staf Kendaraan segera menindaklanjuti.`;
+            if (count < 1) { // Target: 1 time in 2 days
+                const msg = `⚠️ *Peringatan Ceklis Harian*\n\nKendaraan *${v.name} (${v.plateNumber})* BELUM DILAKUKAN ceklis harian dalam 2 hari kerja terakhir.\n\nMohon Staf Kendaraan segera menindaklanjuti pengisian ceklis (Target: Minimal 1x per 2 hari).`;
                 for (const s of staff) {
                     sendMessage(s.phone, msg);
                 }
