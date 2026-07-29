@@ -1,7 +1,7 @@
 import { Search, Plus, Download, Upload } from 'lucide-react';
 import { Badge } from './UIComponents';
 import { useRef } from 'react';
-import api from '../../utils/api';
+import api from '../../lib/axios';
 
 export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse, setSelectedWarehouse, warehouses, openModal, fetchStocks }) => {
     const fileInputRef = useRef(null);

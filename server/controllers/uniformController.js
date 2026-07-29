@@ -454,7 +454,7 @@ exports.createItem = async (req, res) => {
         });
 
         // Auto-create variants for each size
-        if (sizes && Array.isArray(sizes)) {
+        if (sizes && Array.isArray(sizes) && sizes.length > 0) {
             for (const sz of sizes) {
                 const sizeName = sz.name || sz;
                 const sizeId = sz.sizeId ? parseInt(sz.sizeId) : null;
@@ -468,6 +468,16 @@ exports.createItem = async (req, res) => {
                     }
                 });
             }
+        } else {
+            // Auto-create default variant so item can be used in transactions
+            await prisma.uniformVariant.create({
+                data: {
+                    itemId: item.id,
+                    sizeName: 'ALL SIZE',
+                    sku: `${code}-ALL`,
+                    sellPrice: parseFloat(sellPrice || 0)
+                }
+            });
         }
 
         const result = await prisma.uniformItem.findUnique({

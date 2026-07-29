@@ -99,11 +99,15 @@ export const TransactionForm = ({ warehouses, vendors, onSave }) => {
         api.get('/uniforms/items').then(r => {
             const variants = [];
             r.data.forEach(item => {
-                item.variants?.forEach(v => {
-                    variants.push({ ...v, itemName: item.name });
-                });
+                if (item.variants && item.variants.length > 0) {
+                    item.variants.forEach(v => {
+                        variants.push({ ...v, itemName: item.name });
+                    });
+                }
             });
             setAllVariants(variants);
+        }).catch(err => {
+            console.error('Failed to fetch items:', err);
         });
     }, []);
 
@@ -152,9 +156,16 @@ export const TransactionForm = ({ warehouses, vendors, onSave }) => {
     );
 };
 
-export const PackageForm = ({ items, units, initialData, onSave }) => {
+export const PackageForm = ({ items: initialItems, units, initialData, onSave }) => {
     const [form, setForm] = useState(initialData || { isFixedPrice: true, items: [] });
     const [selectedItem, setSelectedItem] = useState('');
+    const [items, setItems] = useState(initialItems || []);
+
+    useEffect(() => {
+        if (items.length === 0) {
+            api.get('/uniforms/items').then(r => setItems(r.data)).catch(console.error);
+        }
+    }, []);
 
     const addItem = () => {
         if (!selectedItem) return;
