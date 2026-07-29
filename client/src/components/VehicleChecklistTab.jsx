@@ -17,7 +17,7 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
 
     // Form State
     const [formVehicleId, setFormVehicleId] = useState('');
-    const [formType, setFormType] = useState('DAILY');
+    const [formType, setFormType] = useState('HARIAN');
     const [formItems, setFormItems] = useState({});
     const [formNotes, setFormNotes] = useState('');
     const [formPhoto, setFormPhoto] = useState(null);
@@ -30,7 +30,7 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
 
     useEffect(() => {
         // Initialize form items when type changes
-        const items = formType === 'DAILY' ? DAILY_ITEMS : formType === 'WEEKLY' ? WEEKLY_ITEMS : MONTHLY_ITEMS;
+        const items = formType === 'HARIAN' ? DAILY_ITEMS : formType === 'MINGGUAN' ? WEEKLY_ITEMS : MONTHLY_ITEMS;
         const initialItems = {};
         items.forEach(item => initialItems[item] = false);
         setFormItems(initialItems);
@@ -62,14 +62,14 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
         
         try {
             setSubmitting(true);
-            const formData = new FormData();
-            formData.append('vehicleId', formVehicleId);
-            formData.append('type', formType);
-            formData.append('items', JSON.stringify(formItems));
-            formData.append('notes', formNotes);
-            if (formPhoto) formData.append('photo', formPhoto);
+            const payload = {
+                vehicleId: formVehicleId,
+                type: formType,
+                checks: JSON.stringify(formItems),
+                notes: formNotes
+            };
 
-            await api.post('/vehicle-checklists', formData);
+            await api.post('/vehicle-checklists', payload);
             
             alert('Ceklis berhasil disimpan!');
             setShowForm(false);
@@ -138,9 +138,9 @@ export default function VehicleChecklistTab({ vehicles, currentUserProfile, isAd
                                     value={formType}
                                     onChange={e => setFormType(e.target.value)}
                                 >
-                                    <option value="DAILY">Harian</option>
-                                    <option value="WEEKLY">Mingguan</option>
-                                    <option value="MONTHLY">Bulanan</option>
+                                    <option value="HARIAN">Harian</option>
+                                    <option value="MINGGUAN">Mingguan</option>
+                                    <option value="BULANAN">Bulanan</option>
                                 </select>
                             </div>
                         </div>
