@@ -9,16 +9,21 @@ const MasterCard = ({ title, icon: Icon, items, onAdd, onEdit, onDelete, renderE
     const [sortOrder, setSortOrder] = useState(0);
 
     const handleSubmit = async () => {
-        if (!name.trim()) return;
-        if (editItem) {
-            await onEdit(editItem.id, { name, sortOrder: parseInt(sortOrder) });
-        } else {
-            await onAdd({ name, sortOrder: parseInt(sortOrder) });
+        try {
+            if (!name.trim()) return;
+            const payload = renderExtra ? { name, sortOrder: parseInt(sortOrder) || 0 } : { name };
+            if (editItem) {
+                await onEdit(editItem.id, payload);
+            } else {
+                await onAdd(payload);
+            }
+            setName('');
+            setSortOrder(0);
+            setEditItem(null);
+            setShowForm(false);
+        } catch (err) {
+            alert(err.response?.data?.error || 'Gagal menyimpan data');
         }
-        setName('');
-        setSortOrder(0);
-        setEditItem(null);
-        setShowForm(false);
     };
 
     const startEdit = (item) => {
