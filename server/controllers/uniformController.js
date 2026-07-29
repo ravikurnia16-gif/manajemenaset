@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const xlsx = require('xlsx');
 
 // ========== HELPER: Generate Code ==========
 const generateCode = async (prefix, model) => {
@@ -239,6 +240,131 @@ exports.deleteUnit = async (req, res) => {
         res.json({ message: 'Unit berhasil dihapus' });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+// ========== ITEM IMPORT ==========
+exports.downloadImportTemplate = (req, res) => {
+    try {
+        const wb = xlsx.utils.book_new();
+        const wsData = [
+            ['Kode (Kosongi untuk Auto)', 'Kategori *', 'Jenis Pakaian *', 'Gender *', 'Unit *', 'Vendor', 'Harga Jual *', 'Ukuran (pisahkan koma) *'],
+            ['', 'Nasional', 'Kemeja', 'IKHWAN', 'SMP', 'Konveksi Berkah', '150000', 'S, M, L, XL']
+        ];
+        const ws = xlsx.utils.aoa_to_sheet(wsData);
+        xlsx.utils.book_append_sheet(wb, ws, "Template_Barang");
+        
+        const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+        res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Barang_Seragam.xlsx"');
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buf);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.importItems = async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'File Excel tidak ditemukan' });
+        
+        const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const rows = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
+        
+        if (rows.length < 2) return res.status(400).json({ error: 'File kosong atau tidak ada data (hanya header)' });
+        
+        const headers = rows[0];
+        const dataRows = rows.slice(1);
+        
+        // Fetch all masters mapping
+        const cats = await prisma.uniformCategory.findMany();
+        const cTypes = await prisma.uniformClothingType.findMany();
+        const units = await prisma.uniformUnit.findMany();
+        const vendors = await prisma.uniformVendor.findMany();
+        const sizes = await prisma.uniformSize.findMany();
+        
+        let successCount = 0;
+        
+        // We'll use a transaction for safety? We can do it one by one to avoid large transaction failures or bulk.
+        // Doing sequentially to generate code and find relations
+        for (let i = 0; i < dataRows.length; i++) {
+            const r = dataRows[i];
+            if (!r.length) continue; // skip empty rows
+            
+            const [codeIn, catIn, typeIn, genderIn, unitIn, vendorIn, priceIn, sizesIn] = r;
+            if (!catIn || !typeIn || !genderIn || !unitIn || !priceIn || !sizesIn) {
+                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Ada kolom wajib (Kategori, Jenis, Gender, Unit, Harga, Ukuran) yang kosong.` });
+            }
+            
+            // Validate relations strictly
+            const catMatch = cats.find(c => c.name.toLowerCase() === String(catIn).trim().toLowerCase());
+            if (!catMatch) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori '${catIn}' tidak ditemukan di Master Data.` });
+            
+            const typeMatch = cTypes.find(c => c.name.toLowerCase() === String(typeIn).trim().toLowerCase());
+            if (!typeMatch) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Jenis Pakaian '${typeIn}' tidak ditemukan di Master Data.` });
+            
+            const unitMatch = units.find(u => u.name.toLowerCase() === String(unitIn).trim().toLowerCase());
+            if (!unitMatch) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Unit '${unitIn}' tidak ditemukan di Master Data.` });
+            
+            let vendorMatch = null;
+            if (vendorIn) {
+                vendorMatch = vendors.find(v => v.name.toLowerCase() === String(vendorIn).trim().toLowerCase());
+                if (!vendorMatch) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Vendor '${vendorIn}' tidak ditemukan di Master Data.` });
+            }
+            
+            const genderStr = String(genderIn).trim().toUpperCase();
+            if (genderStr !== 'IKHWAN' && genderStr !== 'AKHWAT') {
+                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Gender harus 'IKHWAN' atau 'AKHWAT'.` });
+            }
+            
+            const parsedSizes = String(sizesIn).split(',').map(s => s.trim()).filter(Boolean);
+            if (parsedSizes.length === 0) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Ukuran tidak valid.` });
+            
+            const sizeMap = [];
+            for (let sn of parsedSizes) {
+                const sMatch = sizes.find(s => s.name.toLowerCase() === sn.toLowerCase());
+                if (!sMatch) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Ukuran '${sn}' tidak ditemukan di Master Data.` });
+                sizeMap.push(sMatch);
+            }
+            
+            let finalCode = codeIn;
+            if (!finalCode) {
+                finalCode = await generateCode('SRG', 'uniformItem');
+            } else {
+                const existing = await prisma.uniformItem.findUnique({ where: { code: String(finalCode) } });
+                if (existing) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kode barang '${finalCode}' sudah digunakan.` });
+            }
+            
+            const generatedName = [typeMatch.name, catMatch.name, genderStr === 'IKHWAN' ? 'Ikhwan' : 'Akhwat', unitMatch.name].filter(Boolean).join(' ');
+            
+            const newItem = await prisma.uniformItem.create({
+                data: {
+                    code: finalCode,
+                    name: generatedName,
+                    categoryId: catMatch.id,
+                    clothingTypeId: typeMatch.id,
+                    gender: genderStr,
+                    unitId: unitMatch.id,
+                    vendorId: vendorMatch?.id || null,
+                    sellPrice: parseFloat(priceIn) || 0,
+                }
+            });
+            
+            const variantsData = sizeMap.map(sm => ({
+                itemId: newItem.id,
+                sizeId: sm.id,
+                sizeName: sm.name,
+                sku: `${newItem.code}-${sm.name}`
+            }));
+            
+            await prisma.uniformVariant.createMany({ data: variantsData });
+            successCount++;
+        }
+        
+        res.json({ message: `Berhasil mengimport ${successCount} barang.` });
+    } catch (err) {
+        console.error('Import error:', err);
+        res.status(500).json({ error: err.message });
     }
 };
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, FileSpreadsheet } from 'lucide-react';
 import api from '../../lib/axios';
 import { InputField, SelectField } from './UIComponents';
 
@@ -193,6 +193,53 @@ export const PackageForm = ({ items, units, initialData, onSave }) => {
                 </div>
             </div>
             <button onClick={() => onSave(form)} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20">Simpan Paket</button>
+        </div>
+    );
+};
+
+export const ImportItemForm = ({ onSave }) => {
+    const [file, setFile] = useState(null);
+
+    const handleFileChange = (e) => {
+        setFile(e.target.files[0]);
+    };
+
+    const handleDownloadTemplate = async () => {
+        try {
+            const res = await api.get('/uniforms/items/template', { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'Template_Import_Barang_Seragam.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+        } catch (err) {
+            alert('Gagal mendownload template');
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-start gap-3 text-emerald-800">
+                <FileSpreadsheet className="shrink-0 mt-0.5 text-emerald-600" size={18} />
+                <div className="text-sm">
+                    <p className="font-bold mb-1">Download Template Excel</p>
+                    <p className="mb-2">Gunakan format Excel standar dari sistem kami untuk mengimport barang. Kategori, Jenis Pakaian, Unit, Vendor, dan Ukuran harus sesuai persis dengan Master Data.</p>
+                    <button onClick={handleDownloadTemplate} type="button" className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-lg shadow-sm">
+                        Download Template
+                    </button>
+                </div>
+            </div>
+            
+            <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">Upload File Excel (.xlsx)</label>
+                <input type="file" accept=".xlsx, .xls" onChange={handleFileChange} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white" />
+            </div>
+
+            <button onClick={() => { if(file) onSave(file) }} disabled={!file} className={`w-full py-3 rounded-xl font-bold text-sm shadow-lg transition-all ${file ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-500/20 hover:from-emerald-700 hover:to-teal-700' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
+                Mulai Import
+            </button>
         </div>
     );
 };

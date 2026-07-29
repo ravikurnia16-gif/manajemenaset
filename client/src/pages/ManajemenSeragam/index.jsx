@@ -3,7 +3,7 @@ import { Shirt, Package, Users, ArrowLeftRight, ShoppingCart, BarChart3, Boxes, 
 import api from '../../lib/axios';
 
 import { Modal } from './UIComponents';
-import { SimpleForm, ItemForm, TransactionForm, PackageForm } from './Forms';
+import { SimpleForm, ItemForm, TransactionForm, PackageForm, ImportItemForm } from './Forms';
 
 import { DashboardTab } from './DashboardTab';
 import { ItemsTab } from './ItemsTab';
@@ -147,6 +147,24 @@ const ManajemenSeragam = () => {
         }
     };
 
+    const handleImportItem = async (file) => {
+        try {
+            setLoading(true);
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await api.post('/uniforms/items/import', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            alert(res.data.message || 'Import berhasil');
+            closeModal();
+            fetchData();
+        } catch (err) {
+            alert(err.response?.data?.error || 'Gagal mengimport data');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSaveTransaction = async (formData) => {
         try {
             await api.post('/uniforms/transactions', formData);
@@ -182,6 +200,9 @@ const ManajemenSeragam = () => {
         }
         if (type === 'vendor') {
             return <SimpleForm fields={[{ name: 'name', label: 'Nama Vendor/Konveksi', required: true }, { name: 'phone', label: 'No. Telepon' }, { name: 'contactPerson', label: 'Contact Person' }, { name: 'address', label: 'Alamat' }, { name: 'email', label: 'Email' }, { name: 'description', label: 'Keterangan' }]} initialData={data} onSave={handleSaveVendor} />;
+        }
+        if (type === 'import-item') {
+            return <ImportItemForm onSave={handleImportItem} />;
         }
         if (type === 'transaction') {
             return <TransactionForm warehouses={warehouses} vendors={vendors} onSave={handleSaveTransaction} />;
@@ -234,6 +255,7 @@ const ManajemenSeragam = () => {
                 modal.type === 'vendor' ? (modal.data ? 'Edit Vendor' : 'Tambah Vendor') :
                 modal.type === 'transaction' ? 'Transaksi Stok' :
                 modal.type === 'package' ? (modal.data ? 'Edit Paket' : 'Buat Paket SPMB') :
+                modal.type === 'import-item' ? 'Import Data Barang' :
                 modal.type === 'sale' ? 'Buat Penjualan' :
                 modal.type === 'exchange' ? 'Tukar Ukuran' : ''
             } wide={['item', 'transaction', 'package', 'sale'].includes(modal.type)}>
