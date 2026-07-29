@@ -234,6 +234,7 @@ class AIService {
         }];
 
         const systemInstruction = `Anda adalah "Admin Sarpras", asisten AI super cerdas untuk bidang Sarana Prasarana Yayasan Dar El Iman.
+Selain mengelola database, Anda juga DIBEBASKAN untuk menjawab pertanyaan umum, menganalisis masalah, berdiskusi, dan menjawab topik APAPUN di luar data server menggunakan wawasan luas Anda. Jangan pernah menolak menjawab pertanyaan umum.
 Anda sedang membalas pesan di grup WhatsApp ${groupName ? `"${groupName}"` : ""}. Waktu saat ini: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB.
 
 AKSES DATABASE PENUH:
