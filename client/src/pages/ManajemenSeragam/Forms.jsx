@@ -46,7 +46,7 @@ export const ItemForm = ({ categories, clothingTypes, sizes, vendors, units, ini
                 <SelectField label="Gender" value={form.gender || ''} onChange={e => setForm({ ...form, gender: e.target.value })}>
                     <option value="">Semua</option>
                     <option value="IKHWAN">Ikhwan</option>
-                    <option value="AKHWAT">Akhowat</option>
+                    <option value="AKHWAT">Akhwat</option>
                 </SelectField>
                 <SelectField label="Jenjang / Unit" value={form.unitId || ''} onChange={e => setForm({ ...form, unitId: e.target.value })}>
                     <option value="">Semua</option>
@@ -163,7 +163,7 @@ export const PackageForm = ({ items, units, initialData, onSave }) => {
                 </SelectField>
                 <SelectField label="Gender" value={form.gender || ''} onChange={e => setForm({ ...form, gender: e.target.value })}>
                     <option value="">Semua</option>
-                    <option value="IKHWAN">Ikhwan</option><option value="AKHWAT">Akhowat</option>
+                    <option value="IKHWAN">Ikhwan</option><option value="AKHWAT">Akhwat</option>
                 </SelectField>
                 <InputField label="Harga Paket (Rp)" type="number" value={form.price || ''} onChange={e => setForm({ ...form, price: e.target.value })} />
             </div>

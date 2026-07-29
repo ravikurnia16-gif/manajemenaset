@@ -48,7 +48,7 @@ export const ItemsTab = ({ items, loading, search, setSearch, openModal }) => (
                             </td>
                             <td className="p-3 text-center"><Badge color="indigo">{item.category?.name}</Badge></td>
                             <td className="p-3 text-center"><Badge color="purple">{item.clothingType?.name || '-'}</Badge></td>
-                            <td className="p-3 text-center"><Badge color={item.gender === 'IKHWAN' ? 'blue' : item.gender === 'AKHWAT' ? 'pink' : 'slate'}>{item.gender === 'IKHWAN' ? 'Ikhwan' : item.gender === 'AKHWAT' ? 'Akhowat' : '-'}</Badge></td>
+                            <td className="p-3 text-center"><Badge color={item.gender === 'IKHWAN' ? 'blue' : item.gender === 'AKHWAT' ? 'pink' : 'slate'}>{item.gender === 'IKHWAN' ? 'Ikhwan' : item.gender === 'AKHWAT' ? 'Akhwat' : '-'}</Badge></td>
                             <td className="p-3 text-center"><Badge>{item.unit?.name || item.targetUnit || '-'}</Badge></td>
                             <td className="p-3 text-center">
                                 <div className="flex flex-wrap gap-1 justify-center">
