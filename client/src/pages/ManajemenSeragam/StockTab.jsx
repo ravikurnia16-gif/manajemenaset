@@ -1,7 +1,35 @@
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, Download, Upload } from 'lucide-react';
 import { Badge } from './UIComponents';
+import { useRef } from 'react';
+import api from '../../utils/api';
 
-export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse, setSelectedWarehouse, warehouses, openModal }) => (
+export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse, setSelectedWarehouse, warehouses, openModal, fetchStocks }) => {
+    const fileInputRef = useRef(null);
+
+    const handleImportTemplate = () => {
+        window.open('http://localhost:5000/api/uniforms/stocks/template');
+    };
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await api.post('/uniforms/stocks/import', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            alert(res.data.message || 'Import berhasil!');
+            if (fetchStocks) fetchStocks();
+        } catch (error) {
+            alert(error.response?.data?.error || 'Gagal mengimpor data');
+        }
+        e.target.value = null;
+    };
+
+    return (
     <div className="space-y-4">
         <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -12,6 +40,16 @@ export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse
                 <option value="">Semua Gudang</option>
                 {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
+            
+            <input type="file" accept=".xlsx, .xls" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+            
+            <button onClick={handleImportTemplate} className="bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 hover:bg-slate-50 transition-colors">
+                <Download size={14} /> Template
+            </button>
+            <button onClick={() => fileInputRef.current?.click()} className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-500/20">
+                <Upload size={14} /> Import
+            </button>
+            
             <button onClick={() => openModal('transaction')} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-blue-500/20">
                 <Plus size={14} /> Transaksi Stok
             </button>
@@ -55,4 +93,5 @@ export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse
             </table>
         </div>
     </div>
-);
+    );
+};

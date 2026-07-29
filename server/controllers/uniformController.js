@@ -593,6 +593,111 @@ exports.getStocks = async (req, res) => {
     }
 };
 
+exports.downloadStockImportTemplate = (req, res) => {
+    try {
+        const wb = xlsx.utils.book_new();
+        const wsData = [
+            ['SKU Barang *', 'Gudang *', 'Jumlah Stok (Masuk) *', 'Harga Beli per Unit', 'Vendor'],
+            ['KMJ-IKH-SMP-M', 'Gudang Pusat', '50', '150000', 'Konveksi Berkah']
+        ];
+        const ws = xlsx.utils.aoa_to_sheet(wsData);
+        xlsx.utils.book_append_sheet(wb, ws, "Template_Stok");
+        const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+        res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Stok.xlsx"');
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buffer);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.importStocks = async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'File Excel tidak ditemukan' });
+        const wb = xlsx.read(req.file.buffer, { type: 'buffer' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = xlsx.utils.sheet_to_json(ws, { header: 1 });
+        if (rows.length < 2) return res.status(400).json({ error: 'File kosong atau tidak valid' });
+
+        const dataRows = rows.slice(1);
+        const warehouses = await prisma.uniformWarehouse.findMany();
+        const vendors = await prisma.uniformVendor.findMany();
+        const variants = await prisma.uniformVariant.findMany({ include: { item: true } });
+
+        let successCount = 0;
+
+        for (let i = 0; i < dataRows.length; i++) {
+            const r = dataRows[i];
+            if (!r.length) continue;
+
+            const [skuIn, warehouseIn, qtyIn, costIn, vendorIn] = r;
+            if (!skuIn || !warehouseIn || !qtyIn) {
+                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kolom wajib (SKU, Gudang, Jumlah) kosong.` });
+            }
+
+            const variantMatch = variants.find(v => v.sku.toLowerCase() === String(skuIn).trim().toLowerCase());
+            if (!variantMatch) return res.status(400).json({ error: `Baris ${i + 2} ditolak: SKU '${skuIn}' tidak ditemukan di Data Barang.` });
+
+            const whMatch = warehouses.find(w => w.name.toLowerCase() === String(warehouseIn).trim().toLowerCase());
+            if (!whMatch) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Gudang '${warehouseIn}' tidak ditemukan.` });
+
+            let vendorId = null;
+            if (vendorIn) {
+                const vMatch = vendors.find(v => v.name.toLowerCase() === String(vendorIn).trim().toLowerCase());
+                if (!vMatch) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Vendor '${vendorIn}' tidak ditemukan.` });
+                vendorId = vMatch.id;
+            }
+
+            const qty = parseInt(qtyIn) || 0;
+            const cost = parseFloat(costIn) || variantMatch.sellPrice || variantMatch.item.sellPrice || 0;
+            
+            if (qty <= 0) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Jumlah stok harus lebih dari 0.` });
+
+            // Create IN transaction
+            const code = await generateCode('TRX/SRG', 'uniformStockTransaction');
+            
+            await prisma.$transaction(async (tx) => {
+                await tx.uniformStockTransaction.create({
+                    data: {
+                        code, type: 'IN',
+                        variantId: variantMatch.id,
+                        warehouseId: whMatch.id,
+                        quantity: qty,
+                        costPerUnit: cost,
+                        totalCost: cost * qty,
+                        vendorId,
+                        reason: 'Import Awal/Masal',
+                        createdById: req.user?.id || null
+                    }
+                });
+
+                const existingStock = await tx.uniformStock.findUnique({
+                    where: { variantId_warehouseId: { variantId: variantMatch.id, warehouseId: whMatch.id } }
+                });
+
+                let newAvgCost = cost;
+                if (existingStock && existingStock.quantity > 0) {
+                    const totalOldValue = existingStock.quantity * existingStock.avgCost;
+                    const totalNewValue = qty * cost;
+                    newAvgCost = (totalOldValue + totalNewValue) / (existingStock.quantity + qty);
+                }
+
+                await tx.uniformStock.upsert({
+                    where: { variantId_warehouseId: { variantId: variantMatch.id, warehouseId: whMatch.id } },
+                    create: { variantId: variantMatch.id, warehouseId: whMatch.id, quantity: qty, avgCost: newAvgCost, modalAwal: cost, minStock: variantMatch.item.minStock || 5 },
+                    update: { quantity: { increment: qty }, avgCost: newAvgCost }
+                });
+            });
+
+            successCount++;
+        }
+
+        res.json({ message: `${successCount} stok berhasil di-import (Sebagai transaksi Barang Masuk)` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // ========== STOCK TRANSACTION (IN/OUT/MUTATION/ADJUSTMENT) ==========
 
 exports.getStockTransactions = async (req, res) => {

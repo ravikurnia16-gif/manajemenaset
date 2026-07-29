@@ -53,6 +53,8 @@ router.delete('/variants/:id', c.deleteVariant);
 
 // Stock (Multi-Warehouse)
 router.get('/stocks', c.getStocks);
+router.get('/stocks/template', c.downloadStockImportTemplate);
+router.post('/stocks/import', upload.single('file'), c.importStocks);
 
 // Stock Transactions (IN/OUT/MUTATION/ADJUSTMENT)
 router.get('/transactions', c.getStockTransactions);

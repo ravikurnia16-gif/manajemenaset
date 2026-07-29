@@ -239,7 +239,7 @@ const ManajemenSeragam = () => {
                     {activeTab === 'dashboard' && <DashboardTab stats={stats} />}
                     {activeTab === 'master' && <MasterDataTab categories={categories} clothingTypes={clothingTypes} sizes={sizes} units={units} warehouses={warehouses} fetchData={fetchData} />}
                     {activeTab === 'items' && <ItemsTab items={items} loading={loading} search={search} setSearch={setSearch} openModal={openModal} />}
-                    {activeTab === 'stock' && <StockTab stocks={stocks} loading={loading} search={search} setSearch={setSearch} selectedWarehouse={selectedWarehouse} setSelectedWarehouse={setSelectedWarehouse} warehouses={warehouses} openModal={openModal} />}
+                    {activeTab === 'stock' && <StockTab stocks={stocks} loading={loading} search={search} setSearch={setSearch} selectedWarehouse={selectedWarehouse} setSelectedWarehouse={setSelectedWarehouse} warehouses={warehouses} openModal={openModal} fetchStocks={fetchData} />}
                     {activeTab === 'packages' && <PackagesTab packages={packages} openModal={openModal} />}
                     {activeTab === 'vendors' && <VendorsTab vendors={vendors} openModal={openModal} />}
                     {activeTab === 'sales' && <SalesTab sales={sales} loading={loading} search={search} setSearch={setSearch} openModal={openModal} />}
