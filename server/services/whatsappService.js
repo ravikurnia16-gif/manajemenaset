@@ -13,6 +13,8 @@ const WHATSAPP_API_URL = 'https://bidang-sarana-wawebjs.ltdh6w.easypanel.host/ap
 let waClient = null;
 let connectionStatus = 'DISCONNECTED'; // DISCONNECTED, SCAN_QR, CONNECTED
 let qrCodeData = null;
+let consecutiveErrors = 0;
+const MAX_CONSECUTIVE_ERRORS = 5; // Auto-restart after this many failures
 
 // Initialize WhatsApp Client
 const initializeWhatsApp = () => {
@@ -118,8 +120,13 @@ const initializeWhatsApp = () => {
             // Utility to get group ID easily
             if (msg.body.trim() === '/idgrup') {
                 if (msg.from.endsWith('@g.us')) {
-                    const chat = await msg.getChat();
-                    await msg.reply(`ID Grup "${chat.name}" adalah:\n*${msg.from}*\n\nMasukkan ID ini ke dalam pengaturan AI_ALLOWED_GROUPS (dipisahkan dengan koma jika lebih dari satu) agar Bot aktif di grup ini.`);
+                    try {
+                        const chat = await msg.getChat();
+                        await msg.reply(`ID Grup "${chat.name}" adalah:\n*${msg.from}*\n\nMasukkan ID ini ke dalam pengaturan AI_ALLOWED_GROUPS (dipisahkan dengan koma jika lebih dari satu) agar Bot aktif di grup ini.`);
+                    } catch (chatErr) {
+                        console.warn('[WhatsApp Local] getChat() gagal untuk /idgrup:', chatErr.message || chatErr);
+                        await msg.reply(`ID Grup ini adalah:\n*${msg.from}*`);
+                    }
                 }
                 return;
             }
@@ -135,8 +142,14 @@ const initializeWhatsApp = () => {
                 const allowedGroups = allowedGroupsRaw.split(',').map(g => g.trim());
                 if (allowedGroups.includes(msg.from)) {
                     isAllowed = true;
-                    const chat = await msg.getChat();
-                    groupName = chat.name || "Grup";
+                    // Safely get group name with fallback
+                    try {
+                        const chat = await msg.getChat();
+                        groupName = chat.name || "Grup";
+                    } catch (chatErr) {
+                        console.warn('[WhatsApp Local] getChat() gagal saat ambil nama grup:', chatErr.message || chatErr);
+                        groupName = "Grup"; // Fallback name
+                    }
                 }
             } else {
                 // Private logic (Only check DB Phone)
@@ -175,8 +188,13 @@ const initializeWhatsApp = () => {
             if (shouldTrigger) {
                 console.log(`[WhatsApp Local AI] Trigger matched for ${msg.from}. Generating response...`);
                 
-                const chat = await msg.getChat();
-                await chat.sendStateTyping();
+                // Safely send typing indicator (non-critical)
+                try {
+                    const chat = await msg.getChat();
+                    await chat.sendStateTyping();
+                } catch (typingErr) {
+                    console.warn('[WhatsApp Local] sendStateTyping gagal (non-critical):', typingErr.message || typingErr);
+                }
 
                 const aiService = require('./aiService');
                 const response = await aiService.generateChatResponse(cleanMessage || msg.body, isPrivate ? null : groupName, msg.from);
@@ -190,9 +208,23 @@ const initializeWhatsApp = () => {
                     exports.sendMessage(msg.from, response, { quotedMessageId: msg.id._serialized });
                     console.log(`[WhatsApp Local AI] Queued AI reply to ${msg.from}`);
                 }
+                
+                // Reset error counter on success
+                consecutiveErrors = 0;
             }
         } catch (error) {
-            console.error('[WhatsApp Local AI] Error handling message:', error);
+            consecutiveErrors++;
+            console.error(`[WhatsApp Local AI] Error handling message (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, error.message || error);
+            
+            // Auto-restart WhatsApp client if too many consecutive errors
+            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                console.warn('[WhatsApp Local] Terlalu banyak error berturut-turut. Auto-restart dalam 10 detik...');
+                consecutiveErrors = 0;
+                setTimeout(() => {
+                    console.log('[WhatsApp Local] Menjalankan auto-restart...');
+                    initializeWhatsApp();
+                }, 10000);
+            }
         }
     });
 
@@ -230,15 +262,20 @@ const getWhatsAppGroups = async () => {
                 .filter(c => c.isGroup)
                 .map(g => ({ id: g.id._serialized, name: g.name }));
         } catch (err) {
-            console.log('[WhatsApp Local] getChats() failed, falling back to getContacts()...', err.message);
-            const contacts = await waClient.getContacts();
-            groups = contacts
-                .filter(c => c.isGroup || (c.id && c.id.server === 'g.us'))
-                .map(g => ({ id: g.id._serialized, name: g.name || g.pushname || g.number || 'Unnamed Group' }));
+            console.warn('[WhatsApp Local] getChats() failed, falling back to getContacts():', err.message || err);
+            try {
+                const contacts = await waClient.getContacts();
+                groups = contacts
+                    .filter(c => c.isGroup || (c.id && c.id.server === 'g.us'))
+                    .map(g => ({ id: g.id._serialized, name: g.name || g.pushname || g.number || 'Unnamed Group' }));
+            } catch (contactErr) {
+                console.warn('[WhatsApp Local] getContacts() juga gagal:', contactErr.message || contactErr);
+                // Return empty rather than crash
+            }
         }
         return groups;
     } catch (error) {
-        console.error('[WhatsApp Local] Error getting groups', error);
+        console.error('[WhatsApp Local] Error getting groups:', error.message || error);
         return [];
     }
 }
