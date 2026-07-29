@@ -1761,7 +1761,8 @@ model UniformItem {
   vendor          UniformVendor?        @relation(fields: [vendorId], references: [id])
   description     String?               @db.Text
   image           String?               @db.LongText
-  sellPrice       Float                 @default(0)  // Harga Jual default
+  sellPrice       Float                 @default(0)  // Harga Jual default (digunakan sbg Harga Modal)
+  minStock        Int                   @default(5)  // Stok Minimal global
   isActive        Boolean               @default(true)
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt

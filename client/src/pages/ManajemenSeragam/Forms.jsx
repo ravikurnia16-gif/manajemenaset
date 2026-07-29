@@ -56,7 +56,10 @@ export const ItemForm = ({ categories, clothingTypes, sizes, vendors, units, ini
                     {vendors?.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                 </SelectField>
             </div>
-            <InputField label="Harga Jual (Rp)" type="number" value={form.sellPrice || ''} onChange={e => setForm({ ...form, sellPrice: e.target.value })} />
+            <div className="grid grid-cols-2 gap-4">
+                <InputField label="Harga Modal (Rp)" type="number" value={form.sellPrice || ''} onChange={e => setForm({ ...form, sellPrice: e.target.value })} />
+                <InputField label="Stok Minimal" type="number" value={form.minStock || ''} onChange={e => setForm({ ...form, minStock: e.target.value })} placeholder="5" />
+            </div>
             <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1.5">Ukuran</label>
                 <div className="flex flex-wrap gap-1.5 mb-2">

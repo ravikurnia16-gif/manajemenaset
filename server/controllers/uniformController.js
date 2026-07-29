@@ -248,8 +248,8 @@ exports.downloadImportTemplate = (req, res) => {
     try {
         const wb = xlsx.utils.book_new();
         const wsData = [
-            ['Kode (Kosongi untuk Auto)', 'Kategori *', 'Jenis Pakaian *', 'Gender *', 'Unit *', 'Vendor', 'Harga Jual *', 'Ukuran (pisahkan koma) *'],
-            ['', 'Nasional', 'Kemeja', 'IKHWAN', 'SMP', 'Konveksi Berkah', '150000', 'S, M, L, XL']
+            ['Kode (Kosongi untuk Auto)', 'Kategori *', 'Jenis Pakaian *', 'Gender *', 'Unit *', 'Vendor', 'Harga Modal *', 'Stok Minimal *', 'Ukuran (pisahkan koma) *'],
+            ['', 'Nasional', 'Kemeja', 'IKHWAN', 'SMP', 'Konveksi Berkah', '150000', '5', 'S, M, L, XL']
         ];
         const ws = xlsx.utils.aoa_to_sheet(wsData);
         xlsx.utils.book_append_sheet(wb, ws, "Template_Barang");
@@ -291,7 +291,7 @@ exports.importItems = async (req, res) => {
             const r = dataRows[i];
             if (!r.length) continue; // skip empty rows
             
-            const [codeIn, catIn, typeIn, genderIn, unitIn, vendorIn, priceIn, sizesIn] = r;
+            const [codeIn, catIn, typeIn, genderIn, unitIn, vendorIn, priceIn, minStockIn, sizesIn] = r;
             if (!catIn || !typeIn || !genderIn || !unitIn || !priceIn || !sizesIn) {
                 return res.status(400).json({ error: `Baris ${i + 2} ditolak: Ada kolom wajib (Kategori, Jenis, Gender, Unit, Harga, Ukuran) yang kosong.` });
             }
@@ -347,6 +347,7 @@ exports.importItems = async (req, res) => {
                     unitId: unitMatch.id,
                     vendorId: vendorMatch?.id || null,
                     sellPrice: parseFloat(priceIn) || 0,
+                    minStock: parseInt(minStockIn) || 5
                 }
             });
             
@@ -432,9 +433,10 @@ exports.getItemById = async (req, res) => {
 };
 
 exports.createItem = async (req, res) => {
-    const { name, categoryId, clothingTypeId, unitId, gender, targetUnit, vendorId, description, image, sellPrice, sizes } = req.body;
     try {
-        const code = await generateCode('SRG', 'uniformItem');
+        const { name, categoryId, clothingTypeId, unitId, gender, targetUnit, vendorId, description, image, sellPrice, minStock, sizes } = req.body;
+        let code = req.body.code;
+        if (!code) code = await generateCode('SRG', 'uniformItem');
 
         const item = await prisma.uniformItem.create({
             data: {
@@ -446,7 +448,8 @@ exports.createItem = async (req, res) => {
                 targetUnit: targetUnit || null, 
                 vendorId: vendorId ? parseInt(vendorId) : null,
                 description, image,
-                sellPrice: parseFloat(sellPrice || 0)
+                sellPrice: parseFloat(sellPrice || 0),
+                minStock: parseInt(minStock || 5)
             }
         });
 
@@ -492,6 +495,7 @@ exports.updateItem = async (req, res) => {
                 description: req.body.description,
                 image: req.body.image,
                 sellPrice: req.body.sellPrice ? parseFloat(req.body.sellPrice) : undefined,
+                minStock: req.body.minStock !== undefined ? parseInt(req.body.minStock) : undefined,
                 isActive: req.body.isActive
             },
             include: { category: true, clothingType: true, unit: true, vendor: true, variants: { include: { size: true } } }
@@ -652,10 +656,16 @@ exports.createStockTransaction = async (req, res) => {
                     const totalNewValue = qty * cost;
                     newAvgCost = (totalOldValue + totalNewValue) / (existingStock.quantity + qty);
                 }
+                
+                const variantData = await tx.uniformVariant.findUnique({
+                    where: { id: parseInt(variantId) },
+                    include: { item: { select: { minStock: true } } }
+                });
+                const globalMinStock = variantData?.item?.minStock || 5;
 
                 await tx.uniformStock.upsert({
                     where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } },
-                    create: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId), quantity: qty, avgCost: newAvgCost, modalAwal: cost },
+                    create: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId), quantity: qty, avgCost: newAvgCost, modalAwal: cost, minStock: globalMinStock },
                     update: { quantity: { increment: qty }, avgCost: newAvgCost }
                 });
             } else if (type === 'OUT' || type === 'ADJUSTMENT') {

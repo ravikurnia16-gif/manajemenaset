@@ -26,12 +26,13 @@ export const ItemsTab = ({ items, loading, search, setSearch, openModal }) => (
                         <th className="p-3 text-center">Gender</th>
                         <th className="p-3 text-center">Unit</th>
                         <th className="p-3 text-center">Ukuran Tersedia</th>
-                        <th className="p-3 text-right">Harga Jual</th>
+                        <th className="p-3 text-right">Harga Modal</th>
+                        <th className="p-3 text-center">Aksi</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                     {loading ? (
-                        <tr><td colSpan="8" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
+                        <tr><td colSpan="8" className="p-8 text-center text-slate-400">Memuat data barang...</td></tr>
                     ) : items.length === 0 ? (
                         <tr><td colSpan="8" className="p-8 text-center text-slate-400">Belum ada data barang. Klik "Tambah Barang" untuk memulai.</td></tr>
                     ) : items.map(item => (
