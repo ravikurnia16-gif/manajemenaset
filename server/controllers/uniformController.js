@@ -1794,7 +1794,7 @@ exports.updateVendorEvaluation = async (req, res) => {
 exports.receiveProjectGoods = async (req, res) => {
     try {
         const projectId = parseInt(req.params.id);
-        const { warehouseId, items } = req.body; // items: [{ variantId, quantity }]
+        const { warehouseId, items, isFinal } = req.body; // items: [{ variantId, quantity }]
         
         if (!warehouseId || !items || items.length === 0) {
             return res.status(400).json({ error: 'Data penerimaan tidak valid. Pastikan gudang dan rincian barang diisi.' });
@@ -1802,7 +1802,7 @@ exports.receiveProjectGoods = async (req, res) => {
 
         const project = await prisma.uniformProject.findUnique({
             where: { id: projectId },
-            include: { selections: true }
+            include: { selections: true, projectItems: true }
         });
 
         if (!project) return res.status(404).json({ error: 'Proyek tidak ditemukan' });
@@ -1811,15 +1811,26 @@ exports.receiveProjectGoods = async (req, res) => {
         const vendorId = selectedVendor ? selectedVendor.vendorId : null;
 
         const data = await prisma.$transaction(async (tx) => {
-            // Update project status to SELESAI
-            const updatedProj = await tx.uniformProject.update({
-                where: { id: projectId },
-                data: { status: 'SELESAI' }
-            });
+            // Track the updated quantities to check completion later
+            const updatedProjectItems = [...project.projectItems];
 
             // Iterate over received items
             for (const item of items) {
                 const qty = parseInt(item.quantity) || 0;
+                
+                // Update receivedQuantity in projectItem
+                const projectItemIndex = updatedProjectItems.findIndex(pi => pi.variantId === parseInt(item.variantId));
+                if (projectItemIndex !== -1) {
+                    const pi = updatedProjectItems[projectItemIndex];
+                    const newReceived = pi.receivedQuantity + qty;
+                    updatedProjectItems[projectItemIndex] = { ...pi, receivedQuantity: newReceived };
+                    
+                    await tx.uniformProjectItem.update({
+                        where: { id: pi.id },
+                        data: { receivedQuantity: newReceived }
+                    });
+                }
+
                 if (qty <= 0) continue;
 
                 // Record transaction
@@ -1859,10 +1870,20 @@ exports.receiveProjectGoods = async (req, res) => {
                 }
             }
 
+            // Check if all items are fully received
+            const allCompleted = updatedProjectItems.every(pi => pi.receivedQuantity >= pi.quantity);
+
+            // Update project status based on completion or isFinal flag
+            const finalStatus = (isFinal || allCompleted) ? 'SELESAI' : 'BERJALAN';
+            const updatedProj = await tx.uniformProject.update({
+                where: { id: projectId },
+                data: { status: finalStatus }
+            });
+
             return updatedProj;
         });
 
-        res.json(data);
+        res.json({ message: 'Penerimaan barang berhasil dicatat', data });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });

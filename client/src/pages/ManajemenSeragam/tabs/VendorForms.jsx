@@ -411,15 +411,17 @@ export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
     const [receivedQuantities, setReceivedQuantities] = useState({});
     const [warehouses, setWarehouses] = useState([]);
     const [isMatchesOrder, setIsMatchesOrder] = useState(true);
+    const [isFinal, setIsFinal] = useState(false);
     const projectItems = initialData?.projectItems || [];
 
     useEffect(() => {
         api.get('/uniforms/warehouses').then(res => setWarehouses(res.data)).catch(console.error);
         
-        // Auto-fill received quantities from order
+        // Auto-fill received quantities from remaining order
         const initialQtys = {};
         projectItems.forEach(pi => {
-            initialQtys[pi.variantId] = pi.quantity;
+            const remaining = Math.max(0, pi.quantity - (pi.receivedQuantity || 0));
+            initialQtys[pi.variantId] = remaining;
         });
         setReceivedQuantities(initialQtys);
     }, [initialData]);
@@ -434,10 +436,11 @@ export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
     const handleMatchesOrderChange = (matches) => {
         setIsMatchesOrder(matches);
         if (matches) {
-            // Reset to ordered quantities
+            // Reset to remaining quantities
             const initialQtys = {};
             projectItems.forEach(pi => {
-                initialQtys[pi.variantId] = pi.quantity;
+                const remaining = Math.max(0, pi.quantity - (pi.receivedQuantity || 0));
+                initialQtys[pi.variantId] = remaining;
             });
             setReceivedQuantities(initialQtys);
         }
@@ -453,14 +456,15 @@ export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
             }
         });
 
-        if (itemsToReceive.length === 0) {
-            alert('Silakan masukkan jumlah barang yang diterima.');
+        if (itemsToReceive.length === 0 && !isFinal) {
+            alert('Silakan masukkan jumlah barang yang diterima, atau centang Tutup Proyek jika ini adalah proses final.');
             return;
         }
 
         const payload = {
             warehouseId: parseInt(warehouseId),
-            items: itemsToReceive
+            items: itemsToReceive,
+            isFinal: isFinal
         };
         onSave(payload, initialData.id);
     };
@@ -469,7 +473,7 @@ export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
             <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl mb-4">
                 <p className="text-sm font-bold text-blue-800">Penerimaan Barang Proyek: {initialData?.title}</p>
-                <p className="text-xs text-blue-600">Masukkan rincian ukuran barang yang selesai diproduksi dan pilih gudang tujuan penyimpanan.</p>
+                <p className="text-xs text-blue-600">Masukkan jumlah barang yang baru datang (parsial) dan pilih gudang tujuan.</p>
             </div>
 
             <div>
@@ -482,47 +486,67 @@ export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
 
             <div className="space-y-4">
                 <div className="border-b border-slate-200 pb-3">
-                    <p className="text-xs font-bold text-slate-700 mb-2">Apakah barang yang diterima sesuai dengan pesanan?</p>
+                    <p className="text-xs font-bold text-slate-700 mb-2">Apakah barang yang datang sesuai dengan *Sisa Pesanan*?</p>
                     <div className="flex gap-4">
                         <label className="flex items-center gap-2 cursor-pointer text-sm">
                             <input type="radio" name="matchesOrder" checked={isMatchesOrder} onChange={() => handleMatchesOrderChange(true)} className="w-4 h-4 text-blue-600" />
-                            Ya, Sesuai Pesanan
+                            Ya, Sesuai Sisa
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer text-sm">
                             <input type="radio" name="matchesOrder" checked={!isMatchesOrder} onChange={() => handleMatchesOrderChange(false)} className="w-4 h-4 text-blue-600" />
-                            Tidak, Ada Selisih
+                            Tidak, Ketik Manual
                         </label>
                     </div>
                 </div>
 
-                <label className="block text-xs font-bold text-slate-700">Rincian Ukuran Barang Diterima</label>
-                <div className="grid gap-3">
-                    {projectItems.map(pi => (
-                        <div key={pi.id} className="flex justify-between items-center border border-slate-200 p-3 rounded-xl bg-slate-50">
-                            <div>
-                                <p className="font-bold text-sm text-slate-800">{pi.variant?.item?.name}</p>
-                                <p className="text-xs text-slate-500">Ukuran: <span className="font-bold text-slate-700">{pi.variant?.sizeName}</span> | Dipesan: {pi.quantity}</p>
+                <label className="block text-xs font-bold text-slate-700">Rincian Ukuran Barang</label>
+                <div className="grid gap-3 max-h-64 overflow-y-auto pr-2">
+                    {projectItems.map(pi => {
+                        const remaining = Math.max(0, pi.quantity - (pi.receivedQuantity || 0));
+                        return (
+                            <div key={pi.id} className="flex justify-between items-center border border-slate-200 p-3 rounded-xl bg-slate-50">
+                                <div>
+                                    <p className="font-bold text-sm text-slate-800">{pi.variant?.item?.name}</p>
+                                    <p className="text-xs text-slate-500">Ukuran: <span className="font-bold text-slate-700">{pi.variant?.sizeName}</span></p>
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Target: <span className="font-semibold text-blue-600">{pi.quantity}</span> | 
+                                        Sdh Diterima: <span className="font-semibold text-green-600">{pi.receivedQuantity || 0}</span> | 
+                                        Sisa: <span className="font-semibold text-red-500">{remaining}</span>
+                                    </p>
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Terima Sekarang</label>
+                                    <input 
+                                        type="number" 
+                                        min="0" 
+                                        className={`w-24 px-2 py-1.5 border rounded-lg text-sm text-center ${isMatchesOrder ? 'bg-slate-200 text-slate-500' : 'bg-white'}`} 
+                                        placeholder="0"
+                                        value={receivedQuantities[pi.variantId] !== undefined ? receivedQuantities[pi.variantId] : ''}
+                                        onChange={e => handleQuantityChange(pi.variantId, e.target.value)}
+                                        readOnly={isMatchesOrder}
+                                    />
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <label className="text-xs font-medium text-slate-700">Diterima:</label>
-                                <input 
-                                    type="number" 
-                                    min="0" 
-                                    className={`w-20 px-2 py-1.5 border rounded-lg text-sm text-center ${isMatchesOrder ? 'bg-slate-200 text-slate-500' : 'bg-white'}`} 
-                                    placeholder="0"
-                                    value={receivedQuantities[pi.variantId] !== undefined ? receivedQuantities[pi.variantId] : ''}
-                                    onChange={e => handleQuantityChange(pi.variantId, e.target.value)}
-                                    readOnly={isMatchesOrder}
-                                />
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-200 mt-4">
+                <label className="flex items-center gap-2 cursor-pointer text-sm p-3 bg-orange-50 border border-orange-200 rounded-xl">
+                    <input type="checkbox" checked={isFinal} onChange={(e) => setIsFinal(e.target.checked)} className="w-4 h-4 text-orange-600" />
+                    <div>
+                        <p className="font-bold text-orange-800">Tutup Proyek (Final)</p>
+                        <p className="text-xs text-orange-600">Centang ini jika pengiriman ini adalah yang terakhir dan Anda ingin mengakhiri proyek (meskipun masih ada sisa barang).</p>
+                    </div>
+                </label>
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
                 <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200">Batal</button>
-                <button type="submit" className="px-4 py-2 text-sm text-white bg-green-600 rounded-xl hover:bg-green-700 font-bold">Terima Barang & Selesai</button>
+                <button type="submit" className="px-4 py-2 text-sm text-white bg-green-600 rounded-xl hover:bg-green-700 font-bold flex items-center gap-2">
+                    <i className="fas fa-save"></i> Catat Penerimaan
+                </button>
             </div>
         </form>
     );
