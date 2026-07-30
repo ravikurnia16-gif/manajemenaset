@@ -1762,7 +1762,7 @@ model UniformItem {
   description     String?               @db.Text
   image           String?               @db.LongText
   sellPrice       Float                 @default(0)  // Harga Jual default (digunakan sbg Harga Modal)
-  minStock        Int                   @default(5)  // Stok Minimal global
+  minStock        Int                   @default(3)  // Stok Minimal global
   isActive        Boolean               @default(true)
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
@@ -1802,14 +1802,18 @@ model UniformStock {
   warehouseId  Int
   warehouse    UniformWarehouse @relation(fields: [warehouseId], references: [id])
   quantity     Int              @default(0)
-  minStock     Int              @default(5)   // Stok Minimal
+  minStock     Int              @default(3)   // Stok Minimal
   modalAwal    Float            @default(0)   // Modal Awal / Harga Beli
   avgCost      Float            @default(0)   // HPP Rata-rata (Average Cost)
   location     String?          // Rak / posisi di gudang
 
+  vendorId     Int?
+  vendor       UniformVendor?   @relation(fields: [vendorId], references: [id])
+
   updatedAt    DateTime         @updatedAt
 
-  @@unique([variantId, warehouseId])
+  // We allow multiple stock rows for the same variant in the same warehouse if vendor or cost differs.
+  // @@unique([variantId, warehouseId]) removed to support separation by vendor and cost.
 }
 
 // Paket SPMB (Bundle): Contoh "Paket Siswa Baru SMP Putra"

@@ -146,7 +146,7 @@ export const ManualStockForm = ({ categories = [], clothingTypes = [], units = [
         vendor: '',
         hargaModal: 0,
         stok: 0,
-        stokMinimal: 0
+        stokMinimal: 3
     });
 
     const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
