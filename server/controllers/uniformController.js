@@ -371,23 +371,31 @@ exports.importItems = async (req, res) => {
 
 // ========== ITEM & VARIANT ==========
 
+exports.getVariants = async (req, res) => {
+    try {
+        const variants = await prisma.uniformVariant.findMany({
+            include: { item: { include: { category: true, clothingType: true, unit: true } }, size: true },
+            orderBy: { sku: 'asc' }
+        });
+        res.json(variants);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.addManualStock = async (req, res) => {
     try {
         const {
-            kategori,
-            jenisPakaian,
-            unit,
-            gender,
-            ukuran,
-            gudang,
-            vendor,
-            hargaModal,
-            stok,
-            stokMinimal
+            variantId,
+            kategori, jenisPakaian, unit, gender, ukuran,
+            gudang, vendor, hargaModal, stok, stokMinimal
         } = req.body;
 
-        if (!kategori || !jenisPakaian || !unit || !gender || !ukuran || !gudang || !stok) {
-            return res.status(400).json({ error: 'Data tidak lengkap. Mohon isi kolom yang wajib.' });
+        if (!gudang || !stok) {
+            return res.status(400).json({ error: 'Gudang dan Stok wajib diisi.' });
+        }
+        if (!variantId && (!kategori || !jenisPakaian || !unit || !gender || !ukuran)) {
+            return res.status(400).json({ error: 'Pilih Barang atau isi atribut lengkap jika barang baru.' });
         }
 
         const qty = parseInt(stok) || 0;
@@ -395,58 +403,55 @@ exports.addManualStock = async (req, res) => {
         const cost = parseFloat(hargaModal) || 0;
 
         await prisma.$transaction(async (tx) => {
-            // Master Data (Upsert)
-            const catObj = await tx.uniformCategory.findFirst({ where: { name: kategori } }) || await tx.uniformCategory.create({ data: { name: kategori } });
-            const typeObj = await tx.uniformClothingType.findFirst({ where: { name: jenisPakaian } }) || await tx.uniformClothingType.create({ data: { name: jenisPakaian } });
-            const unitObj = await tx.uniformUnit.findFirst({ where: { name: unit } }) || await tx.uniformUnit.create({ data: { name: unit } });
-            const sizeObj = await tx.uniformSize.findFirst({ where: { name: ukuran } }) || await tx.uniformSize.create({ data: { name: ukuran } });
-            
             let whObj = await tx.uniformWarehouse.findFirst({ where: { name: gudang } });
-            if (!whObj) {
-                whObj = await tx.uniformWarehouse.create({ data: { name: gudang, location: '' } });
-            }
+            if (!whObj) whObj = await tx.uniformWarehouse.create({ data: { name: gudang, location: '' } });
             
             let vendorObj = null;
             if (vendor && vendor.trim()) {
                 vendorObj = await tx.uniformVendor.findFirst({ where: { name: vendor } });
-                if (!vendorObj) {
-                    vendorObj = await tx.uniformVendor.create({ data: { name: vendor } });
-                }
+                if (!vendorObj) vendorObj = await tx.uniformVendor.create({ data: { name: vendor } });
             }
 
-            // Generate Item Code
-            const genderCode = gender.toUpperCase() === 'IKHWAN' ? 'IK' : gender.toUpperCase() === 'AKHWAT' ? 'AK' : 'UN';
-            const prefix = `SRG/${unitObj.name}/${genderCode}`;
-            
-            // Generate Item Name
-            const genderName = gender.toUpperCase() === 'IKHWAN' ? 'Ikhwan' : gender.toUpperCase() === 'AKHWAT' ? 'Akhwat' : '';
-            const itemName = `${typeObj.name} ${catObj.name} ${genderName} ${unitObj.name}`.trim();
+            let variant;
+            if (variantId) {
+                variant = await tx.uniformVariant.findUnique({ where: { id: parseInt(variantId) }, include: { item: true } });
+                if (!variant) throw new Error('Variant tidak ditemukan');
+            } else {
+                // Master Data (Upsert)
+                const catObj = await tx.uniformCategory.findFirst({ where: { name: kategori } }) || await tx.uniformCategory.create({ data: { name: kategori } });
+                const typeObj = await tx.uniformClothingType.findFirst({ where: { name: jenisPakaian } }) || await tx.uniformClothingType.create({ data: { name: jenisPakaian } });
+                const unitObj = await tx.uniformUnit.findFirst({ where: { name: unit } }) || await tx.uniformUnit.create({ data: { name: unit } });
+                const sizeObj = await tx.uniformSize.findFirst({ where: { name: ukuran } }) || await tx.uniformSize.create({ data: { name: ukuran } });
+                
+                const genderCode = gender.toUpperCase() === 'IKHWAN' ? 'IK' : gender.toUpperCase() === 'AKHWAT' ? 'AK' : 'UN';
+                const prefix = `SRG/${unitObj.name}/${genderCode}`;
+                const genderName = gender.toUpperCase() === 'IKHWAN' ? 'Ikhwan' : gender.toUpperCase() === 'AKHWAT' ? 'Akhwat' : '';
+                const itemName = `${typeObj.name} ${catObj.name} ${genderName} ${unitObj.name}`.trim();
 
-            let item = await tx.uniformItem.findFirst({
-                where: { categoryId: catObj.id, clothingTypeId: typeObj.id, gender: gender.toUpperCase(), unitId: unitObj.id }
-            });
-
-            if (!item) {
-                const count = await tx.uniformItem.count({ where: { code: { startsWith: prefix } } });
-                const code = `${prefix}/${String(count + 1).padStart(3, '0')}`;
-                item = await tx.uniformItem.create({
-                    data: {
-                        code, name: itemName, categoryId: catObj.id, clothingTypeId: typeObj.id,
-                        gender: gender.toUpperCase(), unitId: unitObj.id,
-                        vendorId: vendorObj ? vendorObj.id : null, sellPrice: 0, minStock
-                    }
+                let item = await tx.uniformItem.findFirst({
+                    where: { categoryId: catObj.id, clothingTypeId: typeObj.id, gender: gender.toUpperCase(), unitId: unitObj.id }
                 });
-            } else if (minStock > 0 && item.minStock !== minStock) {
-                await tx.uniformItem.update({ where: { id: item.id }, data: { minStock } });
-            }
 
-            // Variant
-            const sku = `${item.code}-${sizeObj.name}`;
-            const variant = await tx.uniformVariant.upsert({
-                where: { sku },
-                update: {},
-                create: { itemId: item.id, sku, sizeId: sizeObj.id, sizeName: sizeObj.name }
-            });
+                if (!item) {
+                    const count = await tx.uniformItem.count({ where: { code: { startsWith: prefix } } });
+                    const code = `${prefix}/${String(count + 1).padStart(3, '0')}`;
+                    item = await tx.uniformItem.create({
+                        data: {
+                            code, name: itemName, categoryId: catObj.id, clothingTypeId: typeObj.id,
+                            gender: gender.toUpperCase(), unitId: unitObj.id,
+                            vendorId: vendorObj ? vendorObj.id : null, sellPrice: 0, minStock
+                        }
+                    });
+                } else if (minStock > 0 && item.minStock !== minStock) {
+                    await tx.uniformItem.update({ where: { id: item.id }, data: { minStock } });
+                }
+
+                const sku = `${item.code}-${sizeObj.name}`;
+                variant = await tx.uniformVariant.upsert({
+                    where: { sku }, update: {},
+                    create: { itemId: item.id, sku, sizeId: sizeObj.id, sizeName: sizeObj.name }
+                });
+            }
 
             // Stock
             if (qty > 0) {

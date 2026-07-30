@@ -13,10 +13,12 @@ import { SalesTab } from './SalesTab';
 import { TransactionsTab } from './TransactionsTab';
 import { ExchangesTab } from './ExchangesTab';
 import { MasterDataTab } from './tabs/MasterDataTab';
+import { ItemsTab } from './ItemsTab';
 
 const TABS = [
     { key: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={16} /> },
     { key: 'master', label: 'Master Data', icon: <Database size={16} /> },
+    { key: 'items', label: 'Data Barang', icon: <Shirt size={16} /> },
     { key: 'stock', label: 'Stok Gudang', icon: <Boxes size={16} /> },
     { key: 'packages', label: 'Paket SPMB', icon: <Package size={16} /> },
     { key: 'sales', label: 'Penjualan', icon: <ShoppingCart size={16} /> },
@@ -33,7 +35,7 @@ const ManajemenSeragam = () => {
     const [clothingTypes, setClothingTypes] = useState([]);
     const [sizes, setSizes] = useState([]);
     const [units, setUnits] = useState([]);
-    const [items, setItems] = useState([]);
+    const [variants, setVariants] = useState([]);
     const [stocks, setStocks] = useState([]);
     const [packages, setPackages] = useState([]);
     const [vendors, setVendors] = useState([]);
@@ -49,13 +51,14 @@ const ManajemenSeragam = () => {
         setLoading(true);
         try {
             // Always fetch master data (needed for dropdowns)
-            const [whRes, catRes, ctRes, szRes, vnRes, unRes] = await Promise.all([
+            const [whRes, catRes, ctRes, szRes, vnRes, unRes, varRes] = await Promise.all([
                 api.get('/uniforms/warehouses'),
                 api.get('/uniforms/categories'),
                 api.get('/uniforms/clothing-types'),
                 api.get('/uniforms/sizes'),
                 api.get('/uniforms/vendors'),
-                api.get('/uniforms/units')
+                api.get('/uniforms/units'),
+                api.get('/uniforms/variants')
             ]);
             setWarehouses(whRes.data);
             setCategories(catRes.data);
@@ -63,13 +66,11 @@ const ManajemenSeragam = () => {
             setSizes(szRes.data);
             setVendors(vnRes.data);
             setUnits(unRes.data);
+            setVariants(varRes.data);
 
             if (activeTab === 'dashboard') {
                 const r = await api.get('/uniforms/dashboard');
                 setStats(r.data);
-            } else if (activeTab === 'items') {
-                const r = await api.get('/uniforms/items', { params: { search } });
-                setItems(r.data);
             } else if (activeTab === 'stock') {
                 const r = await api.get('/uniforms/stocks', { params: { warehouseId: selectedWarehouse || undefined, search } });
                 setStocks(r.data);
@@ -217,7 +218,7 @@ const ManajemenSeragam = () => {
             return <TransactionForm warehouses={warehouses} vendors={vendors} onSave={handleSaveTransaction} />;
         }
         if (type === 'package') {
-            return <PackageForm items={items.length ? items : []} units={units} onSave={handleSavePackage} initialData={data} />;
+            return <PackageForm items={variants} units={units} onSave={handleSavePackage} initialData={data} />;
         }
         if (type === 'manual-stock') {
             return <ManualStockForm categories={categories} clothingTypes={clothingTypes} sizes={sizes} vendors={vendors} units={units} warehouses={warehouses} onSave={handleSaveManualStock} />;
@@ -250,6 +251,7 @@ const ManajemenSeragam = () => {
                 <div className="p-4 sm:p-5">
                     {activeTab === 'dashboard' && <DashboardTab stats={stats} />}
                     {activeTab === 'master' && <MasterDataTab categories={categories} clothingTypes={clothingTypes} sizes={sizes} units={units} warehouses={warehouses} fetchData={fetchData} />}
+                    {activeTab === 'items' && <ItemsTab variants={variants.filter(v => v.sku.toLowerCase().includes(search.toLowerCase()) || v.item?.name?.toLowerCase().includes(search.toLowerCase()))} loading={loading} search={search} setSearch={setSearch} />}
                     {activeTab === 'stock' && <StockTab stocks={stocks} loading={loading} search={search} setSearch={setSearch} selectedWarehouse={selectedWarehouse} setSelectedWarehouse={setSelectedWarehouse} warehouses={warehouses} openModal={openModal} fetchStocks={fetchData} />}
                     {activeTab === 'packages' && <PackagesTab packages={packages} openModal={openModal} />}
                     {activeTab === 'vendors' && <VendorsTab vendors={vendors} openModal={openModal} />}

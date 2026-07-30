@@ -35,13 +35,11 @@ router.post('/sizes', c.createSize);
 router.put('/sizes/:id', c.updateSize);
 router.delete('/sizes/:id', c.deleteSize);
 
-// Items (Barang Induk)
+// Items (Barang Induk) & Variants
+router.get('/variants', c.getVariants);
+
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
-
-
-
-
 // Stock (Multi-Warehouse)
 router.get('/stocks', c.getStocks);
 router.get('/stocks/template', c.downloadStockImportTemplate);
