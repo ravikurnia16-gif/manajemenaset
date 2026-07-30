@@ -450,31 +450,28 @@ exports.addManualStock = async (req, res) => {
 
             // Stock
             if (qty > 0) {
-                const existingStock = await tx.uniformStock.findFirst({
-                    where: { 
-                        variantId: variant.id, 
-                        warehouseId: whObj.id,
-                        vendorId: vendorObj ? vendorObj.id : null,
-                        modalAwal: cost
-                    }
+                const existingStock = await tx.uniformStock.findUnique({
+                    where: { variantId_warehouseId: { variantId: variant.id, warehouseId: whObj.id } }
                 });
 
-                if (existingStock) {
-                    await tx.uniformStock.update({
-                        where: { id: existingStock.id },
-                        data: {
-                            quantity: existingStock.quantity + qty,
-                            minStock: minStock > 0 ? minStock : existingStock.minStock
-                        }
-                    });
-                } else {
-                    await tx.uniformStock.create({
-                        data: {
-                            variantId: variant.id, warehouseId: whObj.id, vendorId: vendorObj ? vendorObj.id : null,
-                            quantity: qty, minStock, modalAwal: cost, avgCost: cost
-                        }
-                    });
+                let newAvgCost = cost;
+                if (existingStock && existingStock.quantity > 0) {
+                    const totalValue = (existingStock.quantity * existingStock.avgCost) + (qty * cost);
+                    newAvgCost = totalValue / (existingStock.quantity + qty);
                 }
+
+                await tx.uniformStock.upsert({
+                    where: { variantId_warehouseId: { variantId: variant.id, warehouseId: whObj.id } },
+                    create: {
+                        variantId: variant.id, warehouseId: whObj.id,
+                        quantity: qty, minStock, avgCost: cost
+                    },
+                    update: {
+                        quantity: { increment: qty },
+                        minStock: minStock > 0 ? minStock : undefined,
+                        avgCost: newAvgCost
+                    }
+                });
 
                 const trxCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
                 await tx.uniformStockTransaction.create({
