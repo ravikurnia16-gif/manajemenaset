@@ -1,7 +1,7 @@
 import { Search, Download, Upload } from 'lucide-react';
 import { Badge } from './UIComponents';
 import { useRef } from 'react';
-import api from '../../../lib/axios';
+import api from '../../lib/axios';
 
 export const ItemsTab = ({ variants = [], loading, search, setSearch, fetchVariants }) => {
     const fileInputRef = useRef(null);
