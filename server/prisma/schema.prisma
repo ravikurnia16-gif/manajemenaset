@@ -1716,6 +1716,7 @@ model UniformCategory {
   id    Int          @id @default(autoincrement())
   name  String       @unique // "Nasional", "Batik", "Muslim", dll
   items UniformItem[]
+  pricingRules UniformPricingRule[]
 }
 
 // Master Jenis Pakaian: Kemeja, Celana, Rok, Jilbab, Jubah, Dasi, Topi, dll
@@ -1724,6 +1725,7 @@ model UniformClothingType {
   id    Int          @id @default(autoincrement())
   name  String       @unique // "Kemeja", "Celana", "Rok", "Jilbab", dll
   items UniformItem[]
+  pricingRules UniformPricingRule[]
 }
 
 // Master Ukuran: S, M, L, XL, XXL, 28, 30, 32, dll
@@ -1741,6 +1743,7 @@ model UniformUnit {
   id    Int          @id @default(autoincrement())
   name  String       @unique // "TK", "SD", "SMP", "SMA"
   items UniformItem[]
+  pricingRules UniformPricingRule[]
 }
 
 // Barang induk seragam
@@ -1837,6 +1840,24 @@ model UniformPackageItem {
   itemId     Int
   item       UniformItem     @relation(fields: [itemId], references: [id])
   qty        Int             @default(1)
+}
+
+// Aturan Harga (Pricing Rules) otomatis
+model UniformPricingRule {
+  @@map("seragam_aturan_harga")
+  id             Int                  @id @default(autoincrement())
+  categoryId     Int?
+  category       UniformCategory?     @relation(fields: [categoryId], references: [id])
+  clothingTypeId Int?
+  clothingType   UniformClothingType? @relation(fields: [clothingTypeId], references: [id])
+  unitId         Int?
+  unit           UniformUnit?         @relation(fields: [unitId], references: [id])
+  gender         String?              // IKHWAN, AKHWAT, atau null/kosong untuk semua
+  sizeNames      String?              // misal: "S,M,L,XL" atau null untuk semua ukuran
+  price          Float                @default(0) // Harga Jual yang akan diterapkan
+  isActive       Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 }
 
 // Transaksi Penjualan / SPMB (Invoice)

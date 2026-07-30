@@ -243,6 +243,107 @@ exports.deleteUnit = async (req, res) => {
     }
 };
 
+// ========== PRICING RULES ==========
+
+exports.getPricingRules = async (req, res) => {
+    try {
+        const rules = await prisma.uniformPricingRule.findMany({
+            include: { category: true, clothingType: true, unit: true },
+            orderBy: { id: 'desc' }
+        });
+        res.json(rules);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createPricingRule = async (req, res) => {
+    try {
+        const { categoryId, clothingTypeId, unitId, gender, sizeNames, price } = req.body;
+        if (!price) return res.status(400).json({ error: 'Harga harus diisi' });
+
+        const data = await prisma.uniformPricingRule.create({
+            data: {
+                categoryId: categoryId ? parseInt(categoryId) : null,
+                clothingTypeId: clothingTypeId ? parseInt(clothingTypeId) : null,
+                unitId: unitId ? parseInt(unitId) : null,
+                gender: gender || null,
+                sizeNames: sizeNames || null,
+                price: parseFloat(price) || 0
+            },
+            include: { category: true, clothingType: true, unit: true }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.deletePricingRule = async (req, res) => {
+    try {
+        await prisma.uniformPricingRule.delete({ where: { id: parseInt(req.params.id) } });
+        res.json({ message: 'Aturan berhasil dihapus' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.applyPricingRules = async (req, res) => {
+    try {
+        const rules = await prisma.uniformPricingRule.findMany({ where: { isActive: true } });
+        if (!rules.length) return res.json({ message: 'Tidak ada aturan harga aktif yang ditemukan.' });
+
+        // Sort rules by specificity (most specific first)
+        const sortedRules = rules.sort((a, b) => {
+            const scoreA = (a.categoryId ? 1 : 0) + (a.clothingTypeId ? 1 : 0) + (a.unitId ? 1 : 0) + (a.gender ? 1 : 0) + (a.sizeNames ? 1 : 0);
+            const scoreB = (b.categoryId ? 1 : 0) + (b.clothingTypeId ? 1 : 0) + (b.unitId ? 1 : 0) + (b.gender ? 1 : 0) + (b.sizeNames ? 1 : 0);
+            return scoreB - scoreA;
+        });
+
+        const variants = await prisma.uniformVariant.findMany({
+            include: { item: true }
+        });
+
+        let updateCount = 0;
+        
+        for (const variant of variants) {
+            let matchedPrice = null;
+            
+            for (const rule of sortedRules) {
+                let match = true;
+                
+                if (rule.categoryId && variant.item.categoryId !== rule.categoryId) match = false;
+                if (rule.clothingTypeId && variant.item.clothingTypeId !== rule.clothingTypeId) match = false;
+                if (rule.unitId && variant.item.unitId !== rule.unitId) match = false;
+                if (rule.gender && variant.item.gender !== rule.gender) match = false;
+                
+                if (rule.sizeNames) {
+                    const sizes = rule.sizeNames.split(',').map(s => s.trim().toLowerCase());
+                    if (!sizes.includes(variant.sizeName.toLowerCase())) match = false;
+                }
+                
+                if (match) {
+                    matchedPrice = rule.price;
+                    break;
+                }
+            }
+
+            if (matchedPrice !== null && variant.sellPrice !== matchedPrice) {
+                await prisma.uniformVariant.update({
+                    where: { id: variant.id },
+                    data: { sellPrice: matchedPrice }
+                });
+                updateCount++;
+            }
+        }
+
+        res.json({ message: `Berhasil menerapkan harga ke ${updateCount} varian barang.` });
+    } catch (error) {
+        console.error('Apply Pricing Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // ========== ITEM IMPORT ==========
 exports.downloadImportTemplate = (req, res) => {
     try {
@@ -359,6 +460,37 @@ exports.importItems = async (req, res) => {
             }));
             
             await prisma.uniformVariant.createMany({ data: variantsData });
+            
+            // Get the newly created variants to apply pricing rules
+            const newVariants = await prisma.uniformVariant.findMany({ where: { itemId: newItem.id } });
+            
+            const rules = await prisma.uniformPricingRule.findMany({ where: { isActive: true } });
+            if (rules.length > 0) {
+                const sortedRules = rules.sort((a, b) => {
+                    const scoreA = (a.categoryId ? 1 : 0) + (a.clothingTypeId ? 1 : 0) + (a.unitId ? 1 : 0) + (a.gender ? 1 : 0) + (a.sizeNames ? 1 : 0);
+                    const scoreB = (b.categoryId ? 1 : 0) + (b.clothingTypeId ? 1 : 0) + (b.unitId ? 1 : 0) + (b.gender ? 1 : 0) + (b.sizeNames ? 1 : 0);
+                    return scoreB - scoreA;
+                });
+                
+                for (const nv of newVariants) {
+                    for (const rule of sortedRules) {
+                        let match = true;
+                        if (rule.categoryId && newItem.categoryId !== rule.categoryId) match = false;
+                        if (rule.clothingTypeId && newItem.clothingTypeId !== rule.clothingTypeId) match = false;
+                        if (rule.unitId && newItem.unitId !== rule.unitId) match = false;
+                        if (rule.gender && newItem.gender !== rule.gender) match = false;
+                        if (rule.sizeNames) {
+                            const sizeList = rule.sizeNames.split(',').map(s => s.trim().toLowerCase());
+                            if (!sizeList.includes(nv.sizeName.toLowerCase())) match = false;
+                        }
+                        if (match) {
+                            await prisma.uniformVariant.update({ where: { id: nv.id }, data: { sellPrice: rule.price } });
+                            break;
+                        }
+                    }
+                }
+            }
+
             successCount++;
         }
         
@@ -451,6 +583,31 @@ exports.addManualStock = async (req, res) => {
                     where: { sku }, update: {},
                     create: { itemId: item.id, sku, sizeId: sizeObj.id, sizeName: sizeObj.name }
                 });
+
+                // Terapkan Aturan Harga Otomatis jika ada
+                const rules = await tx.uniformPricingRule.findMany({ where: { isActive: true } });
+                if (rules.length > 0) {
+                    const sortedRules = rules.sort((a, b) => {
+                        const scoreA = (a.categoryId ? 1 : 0) + (a.clothingTypeId ? 1 : 0) + (a.unitId ? 1 : 0) + (a.gender ? 1 : 0) + (a.sizeNames ? 1 : 0);
+                        const scoreB = (b.categoryId ? 1 : 0) + (b.clothingTypeId ? 1 : 0) + (b.unitId ? 1 : 0) + (b.gender ? 1 : 0) + (b.sizeNames ? 1 : 0);
+                        return scoreB - scoreA;
+                    });
+                    for (const rule of sortedRules) {
+                        let match = true;
+                        if (rule.categoryId && item.categoryId !== rule.categoryId) match = false;
+                        if (rule.clothingTypeId && item.clothingTypeId !== rule.clothingTypeId) match = false;
+                        if (rule.unitId && item.unitId !== rule.unitId) match = false;
+                        if (rule.gender && item.gender !== rule.gender) match = false;
+                        if (rule.sizeNames) {
+                            const sizeList = rule.sizeNames.split(',').map(s => s.trim().toLowerCase());
+                            if (!sizeList.includes(variant.sizeName.toLowerCase())) match = false;
+                        }
+                        if (match) {
+                            await tx.uniformVariant.update({ where: { id: variant.id }, data: { sellPrice: rule.price } });
+                            break;
+                        }
+                    }
+                }
             }
 
             // Stock

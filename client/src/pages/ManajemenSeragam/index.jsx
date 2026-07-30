@@ -14,6 +14,7 @@ import { TransactionsTab } from './TransactionsTab';
 import { ExchangesTab } from './ExchangesTab';
 import { MasterDataTab } from './tabs/MasterDataTab';
 import { ItemsTab } from './ItemsTab';
+import { PricingRulesTab } from './PricingRulesTab';
 
 const TABS = [
     { key: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={16} /> },
@@ -25,6 +26,7 @@ const TABS = [
     { key: 'vendors', label: 'Vendor', icon: <Users size={16} /> },
     { key: 'transactions', label: 'Transaksi Stok', icon: <ArrowLeftRight size={16} /> },
     { key: 'exchanges', label: 'Tukar Ukuran', icon: <RefreshCw size={16} /> },
+    { key: 'pricing', label: 'Aturan Harga', icon: <Database size={16} /> },
 ];
 
 const ManajemenSeragam = () => {
@@ -258,6 +260,7 @@ const ManajemenSeragam = () => {
                     {activeTab === 'sales' && <SalesTab sales={sales} loading={loading} search={search} setSearch={setSearch} openModal={openModal} />}
                     {activeTab === 'transactions' && <TransactionsTab transactions={transactions} loading={loading} selectedWarehouse={selectedWarehouse} setSelectedWarehouse={setSelectedWarehouse} warehouses={warehouses} openModal={openModal} />}
                     {activeTab === 'exchanges' && <ExchangesTab exchanges={exchanges} openModal={openModal} />}
+                    {activeTab === 'pricing' && <PricingRulesTab categories={categories} clothingTypes={clothingTypes} units={units} sizes={sizes} />}
                 </div>
             </div>
 
