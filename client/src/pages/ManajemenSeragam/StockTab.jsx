@@ -1,6 +1,6 @@
 import { Search, Plus, Download, Upload, MoreVertical, ChevronDown, ChevronUp, PackageOpen } from 'lucide-react';
 import { Badge } from './UIComponents';
-import { useRef, useState } from 'react';
+import { useRef, useState, Fragment } from 'react';
 import api from '../../lib/axios';
 
 export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse, setSelectedWarehouse, warehouses, openModal, fetchStocks }) => {
