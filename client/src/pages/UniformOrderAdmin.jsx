@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, Filter, Trash2, ChevronDown, ChevronUp, Edit3, X } from 'lucide-react';
+import { ClipboardList, Filter, Trash2, ChevronDown, ChevronUp, Edit3, X, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import api from '../lib/axios';
 
 const UNITS = ['SD', 'SMP', 'SMA', 'Pondok Putra', 'Pondok Putri', 'Yayasan'];
@@ -202,6 +203,36 @@ const UniformOrderAdmin = () => {
         return dateB - dateA; // Terbaru di atas untuk pesanan selesai/batal
     });
 
+    const handleExport = () => {
+        if (displayedOrders.length === 0) {
+            alert('Tidak ada data untuk diekspor');
+            return;
+        }
+        
+        const exportData = displayedOrders.map((order, index) => {
+            return {
+                'No': index + 1,
+                'ID Pesanan': order.id,
+                'Kode Transaksi': order.code,
+                'Tanggal': new Date(order.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                'Jenis Pesanan': activeTab === 'WARID' ? 'Wali Murid' : 'Unit Internal',
+                'Status': statusLabel[order.status] || order.status,
+                'Nama Siswa / Barang': order.studentName,
+                'Pemesan': order.customerName || '-',
+                'No HP': order.customerPhone || '-',
+                'Unit / Kelas': order.customerUnit || '-',
+                'Gender': getGender(order),
+                'Rincian Pesanan': getOrderDisplay(order).replace(/\n/g, ', '),
+                'Catatan': order.note || '-'
+            };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Data Pesanan");
+        XLSX.writeFile(wb, `Pesanan_Seragam_${activeTab}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
             <div className="flex justify-between items-center">
@@ -209,6 +240,9 @@ const UniformOrderAdmin = () => {
                     <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><ClipboardList className="text-indigo-600" /> Pesanan</h1>
                 </div>
                 <div className="flex gap-2">
+                    <button onClick={handleExport} className="text-xs bg-green-50 text-green-600 px-3 py-1.5 rounded-lg font-bold border border-green-200 hover:bg-green-100 transition flex items-center gap-1 shadow-sm">
+                        <Download size={14} /> Ekspor
+                    </button>
                     <button onClick={() => navigate('/gudang/pesanan/unit')} className="text-xs bg-white text-indigo-600 px-3 py-1.5 rounded-lg font-bold border border-indigo-200 hover:bg-indigo-50 transition">
                         Pesanan Unit
                     </button>
