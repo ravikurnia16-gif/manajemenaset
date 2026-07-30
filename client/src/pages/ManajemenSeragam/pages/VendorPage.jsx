@@ -130,7 +130,7 @@ export default function VendorPage() {
                         <div className="text-center p-8 text-slate-400">Memuat data vendor...</div>
                     ) : (
                         <>
-                            {activeTab === 'profile' && <VendorsTab vendors={vendors} openModal={openModal} />}
+                            {activeTab === 'profile' && <VendorsTab vendors={vendors} openModal={openModal} onRefresh={fetchData} />}
                             {activeTab === 'projects' && <VendorProjectTab projects={projects} openModal={openModal} />}
                             {activeTab === 'mou' && <VendorMoUTab projects={projects} openModal={openModal} />}
                             {activeTab === 'evaluation' && <VendorEvaluationTab projects={projects} openModal={openModal} />}

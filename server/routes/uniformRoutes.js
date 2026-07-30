@@ -65,6 +65,7 @@ router.put('/packages/:id', c.updatePackage);
 router.delete('/packages/:id', c.deletePackage);
 
 // Vendors (Penjahit/Supplier)
+router.get('/vendors/sync-ratings', c.syncAllVendorRatings);
 router.get('/vendors', c.getVendors);
 router.post('/vendors', c.createVendor);
 router.put('/vendors/:id', c.updateVendor);

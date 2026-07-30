@@ -1755,30 +1755,51 @@ exports.updateVendorMoU = async (req, res) => {
 };
 
 const updateVendorRating = async (vendorId) => {
-    const evaluations = await prisma.uniformVendorEvaluation.findMany({
-        where: { vendorId: parseInt(vendorId) }
-    });
-    
-    let totalOrders = evaluations.length;
-    let avgRating = 0;
-    let avgOnTime = 0;
-    let avgReject = 0;
-    
-    if (totalOrders > 0) {
-        avgRating = evaluations.reduce((sum, ev) => sum + ev.rating, 0) / totalOrders;
-        avgOnTime = evaluations.reduce((sum, ev) => sum + ev.onTimeRate, 0) / totalOrders;
-        avgReject = evaluations.reduce((sum, ev) => sum + ev.rejectRate, 0) / totalOrders;
-    }
-    
-    await prisma.uniformVendor.update({
-        where: { id: parseInt(vendorId) },
-        data: {
-            rating: avgRating,
-            onTimeRate: avgOnTime,
-            rejectRate: avgReject,
-            totalOrders: totalOrders
+    try {
+        console.log('[VendorRating] Calculating for vendorId:', vendorId);
+        const evaluations = await prisma.uniformVendorEvaluation.findMany({
+            where: { vendorId: parseInt(vendorId) }
+        });
+        
+        let totalOrders = evaluations.length;
+        console.log('[VendorRating] Found evaluations:', totalOrders);
+        let avgRating = 0;
+        let avgOnTime = 0;
+        let avgReject = 0;
+        
+        if (totalOrders > 0) {
+            avgRating = evaluations.reduce((sum, ev) => sum + (parseFloat(ev.rating) || 0), 0) / totalOrders;
+            avgOnTime = evaluations.reduce((sum, ev) => sum + (parseFloat(ev.onTimeRate) || 0), 0) / totalOrders;
+            avgReject = evaluations.reduce((sum, ev) => sum + (parseFloat(ev.rejectRate) || 0), 0) / totalOrders;
         }
-    });
+        
+        console.log('[VendorRating] Averages - Rating:', avgRating, 'OnTime:', avgOnTime, 'Reject:', avgReject);
+        
+        await prisma.uniformVendor.update({
+            where: { id: parseInt(vendorId) },
+            data: {
+                rating: avgRating || 0,
+                onTimeRate: avgOnTime || 0,
+                rejectRate: avgReject || 0,
+                totalOrders: totalOrders || 0
+            }
+        });
+        console.log('[VendorRating] Successfully updated vendor:', vendorId);
+    } catch (err) {
+        console.error('[VendorRating] Error:', err.message);
+    }
+};
+
+exports.syncAllVendorRatings = async (req, res) => {
+    try {
+        const vendors = await prisma.uniformVendor.findMany();
+        for (const v of vendors) {
+            await updateVendorRating(v.id);
+        }
+        res.json({ message: 'Sync complete' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 };
 
 exports.createVendorEvaluation = async (req, res) => {
