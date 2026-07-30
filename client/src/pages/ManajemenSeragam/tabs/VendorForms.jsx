@@ -1,7 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '../../../lib/axios';
+import { Plus, Trash2 } from 'lucide-react';
 
 export const ProjectForm = ({ initialData, onSave, onCancel }) => {
-    const [formData, setFormData] = useState(initialData || { year: new Date().getFullYear(), title: '', targetQuantity: 0, status: 'PERENCANAAN', note: '' });
+    const [formData, setFormData] = useState(initialData || { year: new Date().getFullYear(), title: '', targetQuantity: 0, status: 'PERENCANAAN', note: '', items: [] });
+    const [availableItems, setAvailableItems] = useState([]);
+    const [selectedItemId, setSelectedItemId] = useState('');
+    const [quantity, setQuantity] = useState('');
+
+    useEffect(() => {
+        if (initialData?.projectItems) {
+            setFormData(prev => ({
+                ...prev,
+                items: initialData.projectItems.map(pi => ({ itemId: pi.itemId, quantity: pi.quantity, name: pi.item?.name }))
+            }));
+        }
+        api.get('/uniforms/items').then(res => setAvailableItems(res.data)).catch(console.error);
+    }, [initialData]);
+
+    const handleAddItem = () => {
+        if (!selectedItemId || !quantity) return;
+        const itemObj = availableItems.find(i => i.id == selectedItemId);
+        if (!itemObj) return;
+
+        const newItems = [...formData.items, { itemId: parseInt(selectedItemId), quantity: parseInt(quantity), name: itemObj.name }];
+        const newTotal = newItems.reduce((acc, curr) => acc + curr.quantity, 0);
+        
+        setFormData({ ...formData, items: newItems, targetQuantity: newTotal });
+        setSelectedItemId('');
+        setQuantity('');
+    };
+
+    const handleRemoveItem = (index) => {
+        const newItems = formData.items.filter((_, i) => i !== index);
+        const newTotal = newItems.reduce((acc, curr) => acc + curr.quantity, 0);
+        setFormData({ ...formData, items: newItems, targetQuantity: newTotal });
+    };
+
     return (
         <form onSubmit={e => { e.preventDefault(); onSave(formData); }} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -23,10 +58,56 @@ export const ProjectForm = ({ initialData, onSave, onCancel }) => {
                 <label className="block text-xs font-medium text-slate-700 mb-1">Judul / Nama Proyek</label>
                 <input type="text" required placeholder="Contoh: Pengadaan Seragam Siswa 2026" className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
             </div>
-            <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Jumlah Pesanan (Pcs)</label>
-                <input type="number" required className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" value={formData.targetQuantity} onChange={e => setFormData({ ...formData, targetQuantity: e.target.value })} />
+            
+            <div className="border border-slate-200 p-3 rounded-xl bg-slate-50 space-y-3">
+                <label className="block text-xs font-bold text-slate-700">Daftar Barang Pesanan</label>
+                
+                <div className="flex gap-2">
+                    <select className="flex-1 px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500 bg-white" value={selectedItemId} onChange={e => setSelectedItemId(e.target.value)}>
+                        <option value="">-- Pilih Barang --</option>
+                        {availableItems.map(item => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                        ))}
+                    </select>
+                    <input type="number" placeholder="Jumlah" min="1" className="w-24 px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" value={quantity} onChange={e => setQuantity(e.target.value)} />
+                    <button type="button" onClick={handleAddItem} className="px-3 py-2 bg-blue-100 text-blue-600 rounded-xl hover:bg-blue-200 transition-colors">
+                        <Plus size={16} />
+                    </button>
+                </div>
+
+                {formData.items.length > 0 && (
+                    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                        <table className="w-full text-xs text-left">
+                            <thead className="bg-slate-100 text-slate-600">
+                                <tr>
+                                    <th className="p-2">Nama Barang</th>
+                                    <th className="p-2 w-20 text-center">Jumlah</th>
+                                    <th className="p-2 w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {formData.items.map((item, idx) => (
+                                    <tr key={idx}>
+                                        <td className="p-2">{item.name}</td>
+                                        <td className="p-2 text-center font-medium">{item.quantity}</td>
+                                        <td className="p-2 text-center">
+                                            <button type="button" onClick={() => handleRemoveItem(idx)} className="text-red-500 hover:text-red-700">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                <tr className="bg-slate-50 font-bold">
+                                    <td className="p-2 text-right text-slate-600">Total Keseluruhan:</td>
+                                    <td className="p-2 text-center text-blue-600">{formData.targetQuantity}</td>
+                                    <td></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
+
             <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">Catatan Tambahan</label>
                 <textarea className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" rows={2} value={formData.note || ''} onChange={e => setFormData({ ...formData, note: e.target.value })}></textarea>

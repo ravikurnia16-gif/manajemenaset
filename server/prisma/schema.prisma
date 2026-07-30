@@ -1770,8 +1770,9 @@ model UniformItem {
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 
-  variants     UniformVariant[]
-  packageItems UniformPackageItem[]
+  variants        UniformVariant[]
+  packageItems    UniformPackageItem[]
+  projectItems    UniformProjectItem[]
 }
 
 // Variasi per ukuran (SKU): setiap kombinasi Item + Size = 1 SKU
@@ -2034,6 +2035,21 @@ model UniformProject {
   selections     UniformVendorSelection[]
   mous           UniformVendorMoU[]
   evaluations    UniformVendorEvaluation[]
+  projectItems   UniformProjectItem[]
+}
+
+model UniformProjectItem {
+  @@map("seragam_proyek_item")
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  project   UniformProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  itemId    Int
+  item      UniformItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantity  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([projectId, itemId])
 }
 
 model UniformVendorSelection {

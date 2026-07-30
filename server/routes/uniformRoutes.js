@@ -42,6 +42,7 @@ router.delete('/pricing-rules/:id', c.deletePricingRule);
 router.post('/pricing-rules/apply', c.applyPricingRules);
 
 // Items (Barang Induk) & Variants
+router.get('/items', c.getItems);
 router.get('/variants', c.getVariants);
 
 const multer = require('multer');
@@ -74,10 +75,10 @@ router.post('/projects', c.createProject);
 router.put('/projects/:id', c.updateProject);
 
 router.post('/vendor-selections', upload.single('file'), c.createVendorSelection);
-router.put('/vendor-selections/:id', c.updateVendorSelection);
+router.put('/vendor-selections/:id', upload.single('file'), c.updateVendorSelection);
 
 router.post('/vendor-mous', upload.single('file'), c.createVendorMoU);
-router.put('/vendor-mous/:id', c.updateVendorMoU);
+router.put('/vendor-mous/:id', upload.single('file'), c.updateVendorMoU);
 
 router.post('/vendor-evaluations', c.createVendorEvaluation);
 router.put('/vendor-evaluations/:id', c.updateVendorEvaluation);

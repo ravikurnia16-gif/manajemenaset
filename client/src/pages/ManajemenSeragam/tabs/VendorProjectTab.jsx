@@ -18,9 +18,15 @@ export const VendorProjectTab = ({ projects, openModal }) => {
                     {projects.map(project => (
                         <div key={project.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                             <div className="p-4 border-b border-slate-100 flex flex-wrap justify-between items-center bg-slate-50/50">
-                                <div>
+                                <div className="flex-1 pr-4">
                                     <h3 className="font-bold text-slate-800">{project.title} ({project.year})</h3>
-                                    <p className="text-xs text-slate-500">Target: {project.targetQuantity} pcs • Status: {project.status}</p>
+                                    <p className="text-xs text-slate-500 mb-1">Total Target: {project.targetQuantity} pcs • Status: {project.status}</p>
+                                    {project.projectItems && project.projectItems.length > 0 && (
+                                        <div className="text-xs text-slate-600 bg-white px-2 py-1.5 rounded-lg border border-slate-200 inline-block">
+                                            <span className="font-bold">Rincian Barang: </span>
+                                            {project.projectItems.map(pi => `${pi.item?.name} (${pi.quantity})`).join(', ')}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex gap-2">
                                     <button onClick={() => openModal('project', project)} className="text-xs text-blue-600 font-bold hover:underline">Edit Proyek</button>

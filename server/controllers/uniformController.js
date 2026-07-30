@@ -503,6 +503,18 @@ exports.importItems = async (req, res) => {
 
 // ========== ITEM & VARIANT ==========
 
+exports.getItems = async (req, res) => {
+    try {
+        const items = await prisma.uniformItem.findMany({
+            orderBy: { name: 'asc' },
+            include: { category: true, clothingType: true, unit: true }
+        });
+        res.json(items);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 exports.getVariants = async (req, res) => {
     try {
         const variants = await prisma.uniformVariant.findMany({
@@ -1540,6 +1552,7 @@ exports.getProjects = async (req, res) => {
         const data = await prisma.uniformProject.findMany({
             orderBy: { year: 'desc' },
             include: {
+                projectItems: { include: { item: true } },
                 selections: { include: { vendor: true } },
                 mous: { include: { vendor: true } },
                 evaluations: { include: { vendor: true } }
@@ -1553,9 +1566,19 @@ exports.getProjects = async (req, res) => {
 
 exports.createProject = async (req, res) => {
     try {
-        const { year, title, targetQuantity, status, note } = req.body;
+        const { year, title, targetQuantity, status, note, items } = req.body;
+        const projectItemsData = items ? items.map(i => ({ itemId: parseInt(i.itemId), quantity: parseInt(i.quantity) })) : [];
         const data = await prisma.uniformProject.create({
-            data: { year: parseInt(year), title, targetQuantity: parseInt(targetQuantity || 0), status, note }
+            data: { 
+                year: parseInt(year), 
+                title, 
+                targetQuantity: parseInt(targetQuantity || 0), 
+                status, 
+                note,
+                projectItems: {
+                    create: projectItemsData
+                }
+            }
         });
         res.json(data);
     } catch (error) {
@@ -1565,10 +1588,26 @@ exports.createProject = async (req, res) => {
 
 exports.updateProject = async (req, res) => {
     try {
-        const { year, title, targetQuantity, status, note } = req.body;
-        const data = await prisma.uniformProject.update({
-            where: { id: parseInt(req.params.id) },
-            data: { year: parseInt(year), title, targetQuantity: parseInt(targetQuantity || 0), status, note }
+        const { year, title, targetQuantity, status, note, items } = req.body;
+        const projectId = parseInt(req.params.id);
+
+        const data = await prisma.$transaction(async (tx) => {
+            if (items) {
+                await tx.uniformProjectItem.deleteMany({ where: { projectId } });
+                if (items.length > 0) {
+                    await tx.uniformProjectItem.createMany({
+                        data: items.map(i => ({
+                            projectId,
+                            itemId: parseInt(i.itemId),
+                            quantity: parseInt(i.quantity)
+                        }))
+                    });
+                }
+            }
+            return tx.uniformProject.update({
+                where: { id: projectId },
+                data: { year: parseInt(year), title, targetQuantity: parseInt(targetQuantity || 0), status, note }
+            });
         });
         res.json(data);
     } catch (error) {
@@ -1603,13 +1642,20 @@ exports.createVendorSelection = async (req, res) => {
 exports.updateVendorSelection = async (req, res) => {
     try {
         const { proposedPrice, status, reason } = req.body;
+        
+        let updateData = {
+            proposedPrice: parseFloat(proposedPrice || 0),
+            status,
+            reason
+        };
+
+        if (req.file) {
+            updateData.proposalFileUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        }
+
         const data = await prisma.uniformVendorSelection.update({
             where: { id: parseInt(req.params.id) },
-            data: {
-                proposedPrice: parseFloat(proposedPrice || 0),
-                status,
-                reason
-            }
+            data: updateData
         });
         res.json(data);
     } catch (error) {
@@ -1645,14 +1691,21 @@ exports.createVendorMoU = async (req, res) => {
 exports.updateVendorMoU = async (req, res) => {
     try {
         const { mouNumber, startDate, endDate, status } = req.body;
+        
+        let updateData = {
+            mouNumber,
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            status
+        };
+
+        if (req.file) {
+            updateData.fileUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        }
+
         const data = await prisma.uniformVendorMoU.update({
             where: { id: parseInt(req.params.id) },
-            data: {
-                mouNumber,
-                startDate: new Date(startDate),
-                endDate: new Date(endDate),
-                status
-            }
+            data: updateData
         });
         res.json(data);
     } catch (error) {
