@@ -3,20 +3,24 @@ import api from '../../../lib/axios';
 import { Plus, Trash2 } from 'lucide-react';
 
 export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
-    const [formData, setFormData] = useState(initialData || { year: new Date().getFullYear(), title: '', targetQuantity: 0, status: 'PERENCANAAN', note: '', items: [], projectType: 'SELEKSI', directVendorId: '' });
+    const [formData, setFormData] = useState(() => {
+        if (initialData) {
+            return {
+                ...initialData,
+                projectType: initialData.projectType || 'SELEKSI',
+                directVendorId: initialData.directVendorId || '',
+                items: initialData.projectItems ? initialData.projectItems.map(pi => ({ itemId: pi.itemId, quantity: pi.quantity, name: pi.item?.name })) : []
+            };
+        }
+        return { year: new Date().getFullYear(), title: '', targetQuantity: 0, status: 'PERENCANAAN', note: '', items: [], projectType: 'SELEKSI', directVendorId: '' };
+    });
     const [availableItems, setAvailableItems] = useState([]);
     const [searchItem, setSearchItem] = useState('');
     const [quantity, setQuantity] = useState('');
 
     useEffect(() => {
-        if (initialData?.projectItems) {
-            setFormData(prev => ({
-                ...prev,
-                items: initialData.projectItems.map(pi => ({ itemId: pi.itemId, quantity: pi.quantity, name: pi.item?.name }))
-            }));
-        }
         api.get('/uniforms/items').then(res => setAvailableItems(res.data)).catch(console.error);
-    }, [initialData]);
+    }, []);
 
     const handleAddItem = () => {
         if (!searchItem || !quantity) return;
