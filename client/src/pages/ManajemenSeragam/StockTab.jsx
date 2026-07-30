@@ -1,4 +1,4 @@
-import { Search, Plus, Download, Upload, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, Plus, Download, Upload, MoreVertical } from 'lucide-react';
 import { Badge } from './UIComponents';
 import { useRef, useState, useMemo, Fragment } from 'react';
 import api from '../../lib/axios';
@@ -66,42 +66,82 @@ export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse
             </button>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
-                    <tr>
-                        <th className="p-3 text-left">SKU</th>
-                        <th className="p-3 text-left">Barang</th>
-                        <th className="p-3 text-center">Ukuran</th>
-                        <th className="p-3 text-center">Total Stok</th>
-                        <th className="p-3 text-center">Status</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                    {loading ? (
-                        <tr><td colSpan="5" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
-                    ) : stocks.length === 0 ? (
-                        <tr><td colSpan="5" className="p-8 text-center text-slate-400">Belum ada data stok.</td></tr>
-                    ) : stocks.map(stock => {
-                        const minStock = stock.variant?.item?.minStock || stock.minStock || 3;
-                        return (
-                            <tr key={stock.id} className="hover:bg-slate-50/80 transition-colors">
-                                <td className="p-3 font-mono text-xs text-slate-400">{stock.variant?.sku}</td>
-                                <td className="p-3 font-bold text-slate-800">{stock.variant?.item?.name}</td>
-                                <td className="p-3 text-center"><Badge>{stock.variant?.sizeName}</Badge></td>
-                                <td className="p-3 text-center">
-                                    <span className={`font-extrabold text-lg ${stock.quantity <= minStock ? 'text-red-500' : 'text-slate-700'}`}>
-                                        {stock.quantity}
-                                    </span>
-                                    <span className="text-xs text-slate-400 ml-1">/ {minStock}</span>
-                                </td>
-                                <td className="p-3 text-center">
-                                    {stock.quantity <= 0 ? <Badge color="red">Habis</Badge> : stock.quantity <= minStock ? <Badge color="orange">Menipis</Badge> : <Badge color="green">Aman</Badge>}
-                                </td>
+            {(() => {
+                const groupedStocks = Object.values((stocks || []).reduce((acc, stock) => {
+                    const sku = stock.variant?.sku;
+                    if (!sku) return acc;
+                    if (!acc[sku]) {
+                        acc[sku] = {
+                            id: stock.variant?.id,
+                            sku: sku,
+                            variant: stock.variant,
+                            totalQuantity: 0,
+                            minStock: stock.variant?.item?.minStock || stock.minStock || 3,
+                            warehouses: []
+                        };
+                    }
+                    acc[sku].totalQuantity += stock.quantity;
+                    acc[sku].warehouses.push({
+                        name: stock.warehouse?.name || 'Gudang',
+                        quantity: stock.quantity
+                    });
+                    return acc;
+                }, {}));
+
+                return (
+                    <table className="w-full text-sm">
+                        <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+                            <tr>
+                                <th className="p-3 text-left">SKU</th>
+                                <th className="p-3 text-left">Barang</th>
+                                <th className="p-3 text-left">Total Stok</th>
+                                <th className="p-3 text-center">Status</th>
+                                <th className="p-3 text-center w-16">Aksi</th>
                             </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {loading ? (
+                                <tr><td colSpan="5" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
+                            ) : groupedStocks.length === 0 ? (
+                                <tr><td colSpan="5" className="p-8 text-center text-slate-400">Belum ada data stok.</td></tr>
+                            ) : groupedStocks.map(group => (
+                                <tr key={group.sku} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="p-3 font-mono text-xs text-slate-400">{group.sku}</td>
+                                    <td className="p-3">
+                                        <div className="font-bold text-slate-800">
+                                            {group.variant?.item?.name} ({group.variant?.sizeName})
+                                        </div>
+                                    </td>
+                                    <td className="p-3">
+                                        <div className="flex flex-col gap-1 text-xs">
+                                            {group.warehouses.map((w, idx) => (
+                                                <div key={idx} className="flex justify-between items-center w-32 text-slate-500">
+                                                    <span>{w.name}</span>
+                                                    <span className="font-semibold text-slate-700">({w.quantity})</span>
+                                                </div>
+                                            ))}
+                                            {group.warehouses.length > 1 && (
+                                                <div className="flex justify-between items-center w-32 font-bold text-slate-800 border-t border-slate-100 pt-1 mt-1">
+                                                    <span>Total</span>
+                                                    <span className={`${group.totalQuantity <= group.minStock ? 'text-red-500' : 'text-slate-800'}`}>({group.totalQuantity})</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="p-3 text-center">
+                                        {group.totalQuantity <= 0 ? <Badge color="red">Habis</Badge> : group.totalQuantity <= group.minStock ? <Badge color="orange">Menipis</Badge> : <Badge color="green">Aman</Badge>}
+                                    </td>
+                                    <td className="p-3 text-center">
+                                        <button className="text-slate-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50">
+                                            <MoreVertical size={16} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                );
+            })()}
         </div>
     </div>
     );
