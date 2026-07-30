@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const c = require('../controllers/uniformController');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Dashboard
 router.get('/dashboard', c.getDashboardStats);
@@ -48,8 +50,7 @@ router.get('/items/template', c.downloadItemImportTemplate);
 router.post('/items/import', upload.single('file'), c.importItems);
 router.get('/variants', c.getVariants);
 
-const multer = require('multer');
-const upload = multer({ storage: multer.memoryStorage() });
+
 // Stock (Multi-Warehouse)
 router.get('/stocks', c.getStocks);
 router.get('/stocks/template', c.downloadStockImportTemplate);
