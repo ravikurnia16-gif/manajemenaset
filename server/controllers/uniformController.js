@@ -1549,16 +1549,24 @@ exports.getDashboardStats = async (req, res) => {
 
 exports.getProjects = async (req, res) => {
     try {
-        const data = await prisma.uniformProject.findMany({
+        const projects = await prisma.uniformProject.findMany({
             orderBy: { year: 'desc' },
             include: {
-                projectItems: { include: { item: true } },
-                selections: { include: { vendor: true } },
-                mous: { include: { vendor: true } },
-                evaluations: { include: { vendor: true } }
+                selections: {
+                    include: { vendor: true }
+                },
+                mous: {
+                    include: { vendor: true }
+                },
+                evaluations: {
+                    include: { vendor: true }
+                },
+                projectItems: {
+                    include: { variant: { include: { item: true } } }
+                }
             }
         });
-        res.json(data);
+        res.json(projects);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -1567,7 +1575,7 @@ exports.getProjects = async (req, res) => {
 exports.createProject = async (req, res) => {
     try {
         const { year, title, targetQuantity, status, note, items, projectType, directVendorId } = req.body;
-        const projectItemsData = items ? items.map(i => ({ itemId: parseInt(i.itemId), quantity: parseInt(i.quantity) })) : [];
+        const projectItemsData = items ? items.map(i => ({ variantId: parseInt(i.variantId), quantity: parseInt(i.quantity) })) : [];
         
         const data = await prisma.$transaction(async (tx) => {
             const proj = await tx.uniformProject.create({
@@ -1610,14 +1618,11 @@ exports.updateProject = async (req, res) => {
 
         const data = await prisma.$transaction(async (tx) => {
             if (items) {
+                const projectItemsData = items.map(i => ({ variantId: parseInt(i.variantId), quantity: parseInt(i.quantity) }));
                 await tx.uniformProjectItem.deleteMany({ where: { projectId } });
-                if (items.length > 0) {
+                if (projectItemsData.length > 0) {
                     await tx.uniformProjectItem.createMany({
-                        data: items.map(i => ({
-                            projectId,
-                            itemId: parseInt(i.itemId),
-                            quantity: parseInt(i.quantity)
-                        }))
+                        data: projectItemsData.map(pi => ({ ...pi, projectId }))
                     });
                 }
             }

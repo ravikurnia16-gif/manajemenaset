@@ -9,33 +9,54 @@ export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
                 ...initialData,
                 projectType: initialData.projectType || 'SELEKSI',
                 directVendorId: initialData.directVendorId || '',
-                items: initialData.projectItems ? initialData.projectItems.map(pi => ({ itemId: pi.itemId, quantity: pi.quantity, name: pi.item?.name })) : []
+                items: initialData.projectItems ? initialData.projectItems.map(pi => ({ variantId: pi.variantId, quantity: pi.quantity, name: pi.variant?.item?.name, sizeName: pi.variant?.sizeName })) : []
             };
         }
         return { year: new Date().getFullYear(), title: '', targetQuantity: 0, status: 'PERENCANAAN', note: '', items: [], projectType: 'SELEKSI', directVendorId: '' };
     });
+    const [variants, setVariants] = useState([]);
     const [availableItems, setAvailableItems] = useState([]);
-    const [searchItem, setSearchItem] = useState('');
-    const [quantity, setQuantity] = useState('');
+    const [selectedItem, setSelectedItem] = useState('');
+    const [variantQuantities, setVariantQuantities] = useState({});
 
     useEffect(() => {
-        api.get('/uniforms/items').then(res => setAvailableItems(res.data)).catch(console.error);
+        api.get('/uniforms/variants').then(res => {
+            setVariants(res.data);
+            const itemsMap = new Map();
+            res.data.forEach(v => {
+                if (v.item && !itemsMap.has(v.item.id)) {
+                    itemsMap.set(v.item.id, v.item);
+                }
+            });
+            setAvailableItems(Array.from(itemsMap.values()));
+        }).catch(console.error);
     }, []);
 
-    const handleAddItem = () => {
-        if (!searchItem || !quantity) return;
-        const itemObj = availableItems.find(i => i.name === searchItem);
+    const handleAddItemVariants = () => {
+        if (!selectedItem) return;
+        const itemObj = availableItems.find(i => i.name === selectedItem);
         if (!itemObj) {
-            alert("Barang tidak ditemukan, pastikan memilih dari daftar.");
+            alert("Barang tidak ditemukan.");
             return;
         }
 
-        const newItems = [...formData.items, { itemId: parseInt(itemObj.id), quantity: parseInt(quantity), name: itemObj.name }];
+        const itemVariants = variants.filter(v => v.itemId === itemObj.id);
+        const newItems = [...formData.items];
+
+        itemVariants.forEach(v => {
+            const qty = parseInt(variantQuantities[v.id]) || 0;
+            if (qty > 0) {
+                // Remove if already exists
+                const existingIdx = newItems.findIndex(i => i.variantId === v.id);
+                if (existingIdx >= 0) newItems.splice(existingIdx, 1);
+                newItems.push({ variantId: v.id, quantity: qty, name: itemObj.name, sizeName: v.sizeName });
+            }
+        });
+
         const newTotal = newItems.reduce((acc, curr) => acc + curr.quantity, 0);
-        
         setFormData({ ...formData, items: newItems, targetQuantity: newTotal });
-        setSearchItem('');
-        setQuantity('');
+        setSelectedItem('');
+        setVariantQuantities({});
     };
 
     const handleRemoveItem = (index) => {
@@ -90,24 +111,46 @@ export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
             <div className="border border-slate-200 p-3 rounded-xl bg-slate-50 space-y-3">
                 <label className="block text-xs font-bold text-slate-700">Daftar Barang Pesanan</label>
                 
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2">
                     <input 
                         type="text"
                         list="available-items"
-                        placeholder="Ketik nama barang..."
-                        className="flex-1 px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500 bg-white" 
-                        value={searchItem} 
-                        onChange={e => setSearchItem(e.target.value)}
+                        placeholder="Pilih nama barang..."
+                        className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500 bg-white" 
+                        value={selectedItem} 
+                        onChange={e => setSelectedItem(e.target.value)}
                     />
                     <datalist id="available-items">
                         {availableItems.map(item => (
                             <option key={item.id} value={item.name} />
                         ))}
                     </datalist>
-                    <input type="number" placeholder="Jumlah" min="1" className="w-24 px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500" value={quantity} onChange={e => setQuantity(e.target.value)} />
-                    <button type="button" onClick={handleAddItem} className="px-3 py-2 bg-blue-100 text-blue-600 rounded-xl hover:bg-blue-200 transition-colors">
-                        <Plus size={16} />
-                    </button>
+
+                    {selectedItem && availableItems.find(i => i.name === selectedItem) && (
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                            <p className="text-xs font-bold text-slate-700 mb-2">Masukkan Jumlah per Ukuran:</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                {variants.filter(v => v.item?.name === selectedItem).map(v => (
+                                    <div key={v.id} className="flex items-center gap-2">
+                                        <label className="text-xs font-medium w-12 text-slate-700">Uk. {v.sizeName}</label>
+                                        <input 
+                                            type="number" 
+                                            min="0" 
+                                            className="w-full px-2 py-1.5 border rounded-lg text-sm text-center bg-slate-50" 
+                                            placeholder="0"
+                                            value={variantQuantities[v.id] || ''}
+                                            onChange={e => setVariantQuantities({...variantQuantities, [v.id]: e.target.value})}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="mt-3 flex justify-end">
+                                <button type="button" onClick={handleAddItemVariants} className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700">
+                                    Tambahkan ke Pesanan
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {formData.items.length > 0 && (
@@ -115,7 +158,7 @@ export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
                         <table className="w-full text-xs text-left">
                             <thead className="bg-slate-100 text-slate-600">
                                 <tr>
-                                    <th className="p-2">Nama Barang</th>
+                                    <th className="p-2">Nama Barang & Ukuran</th>
                                     <th className="p-2 w-20 text-center">Jumlah</th>
                                     <th className="p-2 w-10"></th>
                                 </tr>
@@ -123,7 +166,7 @@ export const ProjectForm = ({ vendors, initialData, onSave, onCancel }) => {
                             <tbody className="divide-y divide-slate-100">
                                 {formData.items.map((item, idx) => (
                                     <tr key={idx}>
-                                        <td className="p-2">{item.name}</td>
+                                        <td className="p-2">{item.name} - <span className="font-bold border border-slate-300 px-1 rounded">{item.sizeName}</span></td>
                                         <td className="p-2 text-center font-medium">{item.quantity}</td>
                                         <td className="p-2 text-center">
                                             <button type="button" onClick={() => handleRemoveItem(idx)} className="text-red-500 hover:text-red-700">
@@ -364,24 +407,40 @@ export const VendorEvaluationForm = ({ vendors, projects, initialData, onSave, o
 };
 
 export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
-    const [warehouses, setWarehouses] = useState([]);
     const [warehouseId, setWarehouseId] = useState('');
-    const [variants, setVariants] = useState([]);
     const [receivedQuantities, setReceivedQuantities] = useState({});
-    
-    // initialData is the project
+    const [warehouses, setWarehouses] = useState([]);
+    const [isMatchesOrder, setIsMatchesOrder] = useState(true);
     const projectItems = initialData?.projectItems || [];
 
     useEffect(() => {
         api.get('/uniforms/warehouses').then(res => setWarehouses(res.data)).catch(console.error);
-        api.get('/uniforms/variants').then(res => setVariants(res.data)).catch(console.error);
-    }, []);
+        
+        // Auto-fill received quantities from order
+        const initialQtys = {};
+        projectItems.forEach(pi => {
+            initialQtys[pi.variantId] = pi.quantity;
+        });
+        setReceivedQuantities(initialQtys);
+    }, [initialData]);
 
     const handleQuantityChange = (variantId, val) => {
         setReceivedQuantities(prev => ({
             ...prev,
             [variantId]: parseInt(val) || 0
         }));
+    };
+
+    const handleMatchesOrderChange = (matches) => {
+        setIsMatchesOrder(matches);
+        if (matches) {
+            // Reset to ordered quantities
+            const initialQtys = {};
+            projectItems.forEach(pi => {
+                initialQtys[pi.variantId] = pi.quantity;
+            });
+            setReceivedQuantities(initialQtys);
+        }
     };
 
     const handleSubmit = (e) => {
@@ -422,38 +481,43 @@ export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
             </div>
 
             <div className="space-y-4">
-                <label className="block text-xs font-bold text-slate-700">Rincian Ukuran Barang</label>
-                {projectItems.map(pi => {
-                    // Find variants for this item
-                    const itemVariants = variants.filter(v => v.itemId === pi.itemId);
-                    return (
-                        <div key={pi.id} className="border border-slate-200 p-3 rounded-xl bg-slate-50">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="font-bold text-sm text-slate-800">{pi.item?.name}</span>
-                                <span className="text-xs text-slate-500 bg-slate-200 px-2 py-1 rounded-lg">Target Pesanan: {pi.quantity} pcs</span>
+                <div className="border-b border-slate-200 pb-3">
+                    <p className="text-xs font-bold text-slate-700 mb-2">Apakah barang yang diterima sesuai dengan pesanan?</p>
+                    <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm">
+                            <input type="radio" name="matchesOrder" checked={isMatchesOrder} onChange={() => handleMatchesOrderChange(true)} className="w-4 h-4 text-blue-600" />
+                            Ya, Sesuai Pesanan
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer text-sm">
+                            <input type="radio" name="matchesOrder" checked={!isMatchesOrder} onChange={() => handleMatchesOrderChange(false)} className="w-4 h-4 text-blue-600" />
+                            Tidak, Ada Selisih
+                        </label>
+                    </div>
+                </div>
+
+                <label className="block text-xs font-bold text-slate-700">Rincian Ukuran Barang Diterima</label>
+                <div className="grid gap-3">
+                    {projectItems.map(pi => (
+                        <div key={pi.id} className="flex justify-between items-center border border-slate-200 p-3 rounded-xl bg-slate-50">
+                            <div>
+                                <p className="font-bold text-sm text-slate-800">{pi.variant?.item?.name}</p>
+                                <p className="text-xs text-slate-500">Ukuran: <span className="font-bold text-slate-700">{pi.variant?.sizeName}</span> | Dipesan: {pi.quantity}</p>
                             </div>
-                            {itemVariants.length === 0 ? (
-                                <p className="text-xs text-slate-400 italic">Barang ini belum memiliki varian ukuran di master data.</p>
-                            ) : (
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                    {itemVariants.map(v => (
-                                        <div key={v.id} className="flex items-center gap-2">
-                                            <label className="text-xs font-medium w-12 text-slate-700">Ukuran {v.sizeName}</label>
-                                            <input 
-                                                type="number" 
-                                                min="0" 
-                                                className="w-full px-2 py-1.5 border rounded-lg text-sm text-center" 
-                                                placeholder="0"
-                                                value={receivedQuantities[v.id] || ''}
-                                                onChange={e => handleQuantityChange(v.id, e.target.value)}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                                <label className="text-xs font-medium text-slate-700">Diterima:</label>
+                                <input 
+                                    type="number" 
+                                    min="0" 
+                                    className={`w-20 px-2 py-1.5 border rounded-lg text-sm text-center ${isMatchesOrder ? 'bg-slate-200 text-slate-500' : 'bg-white'}`} 
+                                    placeholder="0"
+                                    value={receivedQuantities[pi.variantId] !== undefined ? receivedQuantities[pi.variantId] : ''}
+                                    onChange={e => handleQuantityChange(pi.variantId, e.target.value)}
+                                    readOnly={isMatchesOrder}
+                                />
+                            </div>
                         </div>
-                    );
-                })}
+                    ))}
+                </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
