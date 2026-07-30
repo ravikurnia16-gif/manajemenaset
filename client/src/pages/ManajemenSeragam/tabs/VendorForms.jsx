@@ -500,36 +500,43 @@ export const ProjectReceiveForm = ({ initialData, onSave, onCancel }) => {
                 </div>
 
                 <label className="block text-xs font-bold text-slate-700">Rincian Ukuran Barang</label>
-                <div className="grid gap-3 max-h-64 overflow-y-auto pr-2">
-                    {projectItems.map(pi => {
-                        const remaining = Math.max(0, pi.quantity - (pi.receivedQuantity || 0));
-                        return (
-                            <div key={pi.id} className="flex justify-between items-center border border-slate-200 p-3 rounded-xl bg-slate-50">
-                                <div>
-                                    <p className="font-bold text-sm text-slate-800">{pi.variant?.item?.name}</p>
-                                    <p className="text-xs text-slate-500">Ukuran: <span className="font-bold text-slate-700">{pi.variant?.sizeName}</span></p>
-                                    <p className="text-xs text-slate-500 mt-1">
-                                        Target: <span className="font-semibold text-blue-600">{pi.quantity}</span> | 
-                                        Sdh Diterima: <span className="font-semibold text-green-600">{pi.receivedQuantity || 0}</span> | 
-                                        Sisa: <span className="font-semibold text-red-500">{remaining}</span>
-                                    </p>
+                {projectItems.length === 0 ? (
+                    <div className="p-4 border border-dashed border-red-200 bg-red-50 rounded-xl text-center">
+                        <p className="text-sm font-bold text-red-600">Proyek ini belum memiliki rincian ukuran barang!</p>
+                        <p className="text-xs text-red-500 mt-1">Silakan "Edit Proyek" terlebih dahulu di menu sebelumnya untuk memasukkan rincian barang, atau Anda tidak dapat melakukan penerimaan.</p>
+                    </div>
+                ) : (
+                    <div className="grid gap-3 max-h-64 overflow-y-auto pr-2">
+                        {projectItems.map(pi => {
+                            const remaining = Math.max(0, pi.quantity - (pi.receivedQuantity || 0));
+                            return (
+                                <div key={pi.id} className="flex justify-between items-center border border-slate-200 p-3 rounded-xl bg-slate-50">
+                                    <div>
+                                        <p className="font-bold text-sm text-slate-800">{pi.variant?.item?.name || 'Unknown Item'}</p>
+                                        <p className="text-xs text-slate-500">Ukuran: <span className="font-bold text-slate-700">{pi.variant?.size || pi.variant?.sizeName || '?'}</span></p>
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            Target: <span className="font-semibold text-blue-600">{pi.quantity}</span> | 
+                                            Sdh Diterima: <span className="font-semibold text-green-600">{pi.receivedQuantity || 0}</span> | 
+                                            Sisa: <span className="font-semibold text-red-500">{remaining}</span>
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Terima Sekarang</label>
+                                        <input 
+                                            type="number" 
+                                            min="0" 
+                                            className={`w-24 px-2 py-1.5 border rounded-lg text-sm text-center ${isMatchesOrder ? 'bg-slate-200 text-slate-500' : 'bg-white'}`} 
+                                            placeholder="0"
+                                            value={receivedQuantities[pi.variantId] !== undefined ? receivedQuantities[pi.variantId] : ''}
+                                            onChange={e => handleQuantityChange(pi.variantId, e.target.value)}
+                                            readOnly={isMatchesOrder}
+                                        />
+                                    </div>
                                 </div>
-                                <div className="flex flex-col items-end gap-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Terima Sekarang</label>
-                                    <input 
-                                        type="number" 
-                                        min="0" 
-                                        className={`w-24 px-2 py-1.5 border rounded-lg text-sm text-center ${isMatchesOrder ? 'bg-slate-200 text-slate-500' : 'bg-white'}`} 
-                                        placeholder="0"
-                                        value={receivedQuantities[pi.variantId] !== undefined ? receivedQuantities[pi.variantId] : ''}
-                                        onChange={e => handleQuantityChange(pi.variantId, e.target.value)}
-                                        readOnly={isMatchesOrder}
-                                    />
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
             <div className="pt-2 border-t border-slate-200 mt-4">
