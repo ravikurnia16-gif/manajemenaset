@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, CheckCircle2, Play } from 'lucide-react';
-import api from '../../../lib/axios';
+import api from '../../lib/axios';
 import { SelectField, InputField } from './UIComponents';
 
 export const PricingRulesTab = ({ categories, clothingTypes, units, sizes }) => {
