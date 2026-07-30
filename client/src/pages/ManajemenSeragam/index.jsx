@@ -215,7 +215,7 @@ const ManajemenSeragam = () => {
             return <ImportItemForm onSave={handleImportItem} />;
         }
         if (type === 'transaction') {
-            return <TransactionForm warehouses={warehouses} vendors={vendors} onSave={handleSaveTransaction} />;
+            return <TransactionForm warehouses={warehouses} vendors={vendors} variants={variants} onSave={handleSaveTransaction} />;
         }
         if (type === 'package') {
             return <PackageForm items={variants} units={units} onSave={handleSavePackage} initialData={data} />;

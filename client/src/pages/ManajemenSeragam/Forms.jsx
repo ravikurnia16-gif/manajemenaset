@@ -16,25 +16,8 @@ export const SimpleForm = ({ fields, initialData, onSave }) => {
 };
 
 
-export const TransactionForm = ({ warehouses, vendors, onSave }) => {
-    const [form, setForm] = useState({ type: 'IN', quantity: 1, costPerUnit: 0 });
-    const [allVariants, setAllVariants] = useState([]);
-
-    useEffect(() => {
-        api.get('/uniforms/items').then(r => {
-            const variants = [];
-            r.data.forEach(item => {
-                if (item.variants && item.variants.length > 0) {
-                    item.variants.forEach(v => {
-                        variants.push({ ...v, itemName: item.name });
-                    });
-                }
-            });
-            setAllVariants(variants);
-        }).catch(err => {
-            console.error('Failed to fetch items:', err);
-        });
-    }, []);
+export const TransactionForm = ({ variants = [], warehouses = [], vendors = [], onSave }) => {
+    const [form, setForm] = useState({ type: 'IN', quantity: 1, costPerUnit: 0, variantId: '', variantSearch: '' });
 
     return (
         <div className="space-y-4">
@@ -44,10 +27,27 @@ export const TransactionForm = ({ warehouses, vendors, onSave }) => {
                 <option value="MUTATION">Mutasi Antar Gudang</option>
                 <option value="ADJUSTMENT">Penyesuaian Stok</option>
             </SelectField>
-            <SelectField label="Barang (Variant)" value={form.variantId || ''} onChange={e => setForm({ ...form, variantId: e.target.value })}>
-                <option value="">Pilih Barang</option>
-                {allVariants.map(v => <option key={v.id} value={v.id}>{v.itemName} - {v.sizeName} ({v.sku})</option>)}
-            </SelectField>
+            
+            <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pilih Barang (Variant) *</label>
+                <input 
+                    list="trx-variants-list" 
+                    value={form.variantSearch || ''} 
+                    onChange={(e) => {
+                        const val = e.target.value;
+                        const match = variants.find(v => `${v.sku} - ${v.item?.name} (${v.sizeName})` === val);
+                        setForm({ ...form, variantSearch: val, variantId: match ? match.id : '' });
+                    }} 
+                    placeholder="Ketik untuk mencari SKU atau Nama Barang..." 
+                    className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all w-full" 
+                    required 
+                />
+                <datalist id="trx-variants-list">
+                    {variants.map(v => (
+                        <option key={v.id} value={`${v.sku} - ${v.item?.name} (${v.sizeName})`} />
+                    ))}
+                </datalist>
+            </div>
             <div className="grid grid-cols-2 gap-4">
                 <SelectField label="Gudang Asal" value={form.warehouseId || ''} onChange={e => setForm({ ...form, warehouseId: e.target.value })}>
                     <option value="">Pilih Gudang</option>
@@ -84,20 +84,16 @@ export const TransactionForm = ({ warehouses, vendors, onSave }) => {
 export const PackageForm = ({ items: initialItems, units, initialData, onSave }) => {
     const [form, setForm] = useState(initialData || { isFixedPrice: true, items: [] });
     const [selectedItem, setSelectedItem] = useState('');
+    const [itemSearch, setItemSearch] = useState('');
     const [items, setItems] = useState(initialItems || []);
-
-    useEffect(() => {
-        if (items.length === 0) {
-            api.get('/uniforms/items').then(r => setItems(r.data)).catch(console.error);
-        }
-    }, []);
 
     const addItem = () => {
         if (!selectedItem) return;
         const item = items.find(i => String(i.id) === String(selectedItem));
         if (!item || form.items?.some(fi => fi.itemId === item.id)) return;
-        setForm({ ...form, items: [...(form.items || []), { itemId: item.id, itemName: item.name, qty: 1 }] });
+        setForm({ ...form, items: [...(form.items || []), { itemId: item.id, itemName: `${item.sku} - ${item.item?.name} (${item.sizeName})`, qty: 1 }] });
         setSelectedItem('');
+        setItemSearch('');
     };
 
     return (
@@ -124,10 +120,21 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
                     </div>
                 ))}
                 <div className="flex gap-2 mt-2">
-                    <select className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white" value={selectedItem} onChange={e => setSelectedItem(e.target.value)}>
-                        <option value="">Pilih Barang</option>
-                        {items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
+                    <input 
+                        list="pkg-variants-list" 
+                        value={itemSearch} 
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            const match = items.find(v => `${v.sku} - ${v.item?.name} (${v.sizeName})` === val);
+                            setItemSearch(val);
+                            setSelectedItem(match ? match.id : '');
+                        }} 
+                        placeholder="Ketik untuk mencari Barang..." 
+                        className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white" 
+                    />
+                    <datalist id="pkg-variants-list">
+                        {items.map(v => <option key={v.id} value={`${v.sku} - ${v.item?.name} (${v.sizeName})`} />)}
+                    </datalist>
                     <button onClick={addItem} className="px-3 py-2 bg-slate-100 rounded-xl hover:bg-slate-200"><Plus size={14} /></button>
                 </div>
             </div>
