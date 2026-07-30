@@ -667,7 +667,7 @@ exports.getStocks = async (req, res) => {
             include: {
                 variant: {
                     include: {
-                        item: { include: { category: true, clothingType: true, vendor: true } },
+                        item: { include: { category: true, clothingType: true, vendor: true, unit: true } },
                         size: true
                     }
                 },
