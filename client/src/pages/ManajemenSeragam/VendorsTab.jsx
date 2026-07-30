@@ -1,5 +1,5 @@
 import { Plus, MapPin, Mail, Pencil, ExternalLink, RefreshCw } from 'lucide-react';
-import api from '../../utils/api';
+import api from '../../lib/axios';
 
 export const VendorsTab = ({ vendors, openModal, onRefresh }) => {
     const handleSync = async () => {
