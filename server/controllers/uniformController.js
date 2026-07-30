@@ -1155,7 +1155,12 @@ exports.getVendors = async (req, res) => {
     try {
         const data = await prisma.uniformVendor.findMany({
             where: { isActive: true },
-            orderBy: { name: 'asc' }
+            orderBy: { name: 'asc' },
+            include: {
+                selections: { include: { project: true } },
+                mous: { include: { project: true } },
+                evaluations: { include: { project: true } }
+            }
         });
         res.json(data);
     } catch (error) {
@@ -1523,6 +1528,170 @@ exports.getDashboardStats = async (req, res) => {
             pendingSales,
             warehouses: warehouseCount
         });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// ========== VENDOR LIFECYCLE (PROJECT, SELECTION, MOU, EVALUATION) ==========
+
+exports.getProjects = async (req, res) => {
+    try {
+        const data = await prisma.uniformProject.findMany({
+            orderBy: { year: 'desc' },
+            include: {
+                selections: { include: { vendor: true } },
+                mous: { include: { vendor: true } },
+                evaluations: { include: { vendor: true } }
+            }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createProject = async (req, res) => {
+    try {
+        const { year, title, targetQuantity, status, note } = req.body;
+        const data = await prisma.uniformProject.create({
+            data: { year: parseInt(year), title, targetQuantity: parseInt(targetQuantity || 0), status, note }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateProject = async (req, res) => {
+    try {
+        const { year, title, targetQuantity, status, note } = req.body;
+        const data = await prisma.uniformProject.update({
+            where: { id: parseInt(req.params.id) },
+            data: { year: parseInt(year), title, targetQuantity: parseInt(targetQuantity || 0), status, note }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createVendorSelection = async (req, res) => {
+    try {
+        const { projectId, vendorId, proposedPrice, status, reason } = req.body;
+        let proposalFileUrl = null;
+        if (req.file) {
+            proposalFileUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        }
+
+        const data = await prisma.uniformVendorSelection.create({
+            data: {
+                projectId: parseInt(projectId),
+                vendorId: parseInt(vendorId),
+                proposedPrice: parseFloat(proposedPrice || 0),
+                status: status || 'MENUNGGU',
+                reason,
+                proposalFileUrl
+            }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateVendorSelection = async (req, res) => {
+    try {
+        const { proposedPrice, status, reason } = req.body;
+        const data = await prisma.uniformVendorSelection.update({
+            where: { id: parseInt(req.params.id) },
+            data: {
+                proposedPrice: parseFloat(proposedPrice || 0),
+                status,
+                reason
+            }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createVendorMoU = async (req, res) => {
+    try {
+        const { projectId, vendorId, mouNumber, startDate, endDate, status } = req.body;
+        let fileUrl = null;
+        if (req.file) {
+            fileUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        }
+
+        const data = await prisma.uniformVendorMoU.create({
+            data: {
+                projectId: parseInt(projectId),
+                vendorId: parseInt(vendorId),
+                mouNumber,
+                startDate: new Date(startDate),
+                endDate: new Date(endDate),
+                status: status || 'DRAFT',
+                fileUrl
+            }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateVendorMoU = async (req, res) => {
+    try {
+        const { mouNumber, startDate, endDate, status } = req.body;
+        const data = await prisma.uniformVendorMoU.update({
+            where: { id: parseInt(req.params.id) },
+            data: {
+                mouNumber,
+                startDate: new Date(startDate),
+                endDate: new Date(endDate),
+                status
+            }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createVendorEvaluation = async (req, res) => {
+    try {
+        const { projectId, vendorId, rating, onTimeRate, rejectRate, notes } = req.body;
+        const data = await prisma.uniformVendorEvaluation.create({
+            data: {
+                projectId: parseInt(projectId),
+                vendorId: parseInt(vendorId),
+                rating: parseFloat(rating || 0),
+                onTimeRate: parseFloat(onTimeRate || 0),
+                rejectRate: parseFloat(rejectRate || 0),
+                notes
+            }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.updateVendorEvaluation = async (req, res) => {
+    try {
+        const { rating, onTimeRate, rejectRate, notes } = req.body;
+        const data = await prisma.uniformVendorEvaluation.update({
+            where: { id: parseInt(req.params.id) },
+            data: {
+                rating: parseFloat(rating || 0),
+                onTimeRate: parseFloat(onTimeRate || 0),
+                rejectRate: parseFloat(rejectRate || 0),
+                notes
+            }
+        });
+        res.json(data);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

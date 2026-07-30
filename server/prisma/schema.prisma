@@ -1976,6 +1976,9 @@ model UniformVendor {
 
   stockTransactions UniformStockTransaction[]
   items             UniformItem[]
+  selections        UniformVendorSelection[]
+  mous              UniformVendorMoU[]
+  evaluations       UniformVendorEvaluation[]
 }
 
 // Tukar Ukuran (Return/Exchange) — hanya tukar barang, bukan uang
@@ -2015,4 +2018,70 @@ model UniformSchedule {
   updatedAt   DateTime @updatedAt
 
   sales       UniformSale[]
+}
+
+model UniformProject {
+  @@map("seragam_proyek")
+  id             Int      @id @default(autoincrement())
+  year           Int      @unique
+  title          String
+  targetQuantity Int      @default(0)
+  status         String   @default("PERENCANAAN") // PERENCANAAN, SELEKSI, BERJALAN, SELESAI
+  note           String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  selections     UniformVendorSelection[]
+  mous           UniformVendorMoU[]
+  evaluations    UniformVendorEvaluation[]
+}
+
+model UniformVendorSelection {
+  @@map("seragam_vendor_seleksi")
+  id              Int      @id @default(autoincrement())
+  projectId       Int
+  project         UniformProject @relation(fields: [projectId], references: [id])
+  vendorId        Int
+  vendor          UniformVendor @relation(fields: [vendorId], references: [id])
+  proposalFileUrl String?  @db.LongText
+  proposedPrice   Float    @default(0)
+  status          String   @default("MENUNGGU") // MENUNGGU, DIPILIH, DITOLAK
+  reason          String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([projectId, vendorId])
+}
+
+model UniformVendorMoU {
+  @@map("seragam_vendor_mou")
+  id          Int      @id @default(autoincrement())
+  projectId   Int
+  project     UniformProject @relation(fields: [projectId], references: [id])
+  vendorId    Int
+  vendor      UniformVendor @relation(fields: [vendorId], references: [id])
+  mouNumber   String
+  startDate   DateTime
+  endDate     DateTime
+  fileUrl     String?  @db.LongText
+  status      String   @default("DRAFT") // DRAFT, SIGNED, EXPIRED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model UniformVendorEvaluation {
+  @@map("seragam_vendor_evaluasi")
+  id          Int      @id @default(autoincrement())
+  projectId   Int
+  project     UniformProject @relation(fields: [projectId], references: [id])
+  vendorId    Int
+  vendor      UniformVendor @relation(fields: [vendorId], references: [id])
+  rating      Float    @default(0)
+  onTimeRate  Float    @default(0)
+  rejectRate  Float    @default(0)
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([projectId, vendorId])
 }

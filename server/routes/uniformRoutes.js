@@ -68,6 +68,20 @@ router.post('/vendors', c.createVendor);
 router.put('/vendors/:id', c.updateVendor);
 router.delete('/vendors/:id', c.deleteVendor);
 
+// Vendor Projects & Selections
+router.get('/projects', c.getProjects);
+router.post('/projects', c.createProject);
+router.put('/projects/:id', c.updateProject);
+
+router.post('/vendor-selections', upload.single('file'), c.createVendorSelection);
+router.put('/vendor-selections/:id', c.updateVendorSelection);
+
+router.post('/vendor-mous', upload.single('file'), c.createVendorMoU);
+router.put('/vendor-mous/:id', c.updateVendorMoU);
+
+router.post('/vendor-evaluations', c.createVendorEvaluation);
+router.put('/vendor-evaluations/:id', c.updateVendorEvaluation);
+
 // Sales (POS / SPMB / Unit Order)
 router.get('/sales', c.getSales);
 router.get('/sales/:id', c.getSaleById);
