@@ -396,15 +396,22 @@ exports.addManualStock = async (req, res) => {
 
         await prisma.$transaction(async (tx) => {
             // Master Data (Upsert)
-            const catObj = await tx.uniformCategory.upsert({ where: { name: kategori }, update: {}, create: { name: kategori } });
-            const typeObj = await tx.uniformClothingType.upsert({ where: { name: jenisPakaian }, update: {}, create: { name: jenisPakaian } });
-            const unitObj = await tx.uniformUnit.upsert({ where: { name: unit }, update: {}, create: { name: unit } });
-            const sizeObj = await tx.uniformSize.upsert({ where: { name: ukuran }, update: {}, create: { name: ukuran } });
-            const whObj = await tx.uniformWarehouse.upsert({ where: { name: gudang }, update: {}, create: { name: gudang, location: '' } });
+            const catObj = await tx.uniformCategory.findFirst({ where: { name: kategori } }) || await tx.uniformCategory.create({ data: { name: kategori } });
+            const typeObj = await tx.uniformClothingType.findFirst({ where: { name: jenisPakaian } }) || await tx.uniformClothingType.create({ data: { name: jenisPakaian } });
+            const unitObj = await tx.uniformUnit.findFirst({ where: { name: unit } }) || await tx.uniformUnit.create({ data: { name: unit } });
+            const sizeObj = await tx.uniformSize.findFirst({ where: { name: ukuran } }) || await tx.uniformSize.create({ data: { name: ukuran } });
+            
+            let whObj = await tx.uniformWarehouse.findFirst({ where: { name: gudang } });
+            if (!whObj) {
+                whObj = await tx.uniformWarehouse.create({ data: { name: gudang, location: '' } });
+            }
             
             let vendorObj = null;
             if (vendor && vendor.trim()) {
-                vendorObj = await tx.uniformVendor.upsert({ where: { name: vendor }, update: {}, create: { name: vendor } });
+                vendorObj = await tx.uniformVendor.findFirst({ where: { name: vendor } });
+                if (!vendorObj) {
+                    vendorObj = await tx.uniformVendor.create({ data: { name: vendor } });
+                }
             }
 
             // Generate Item Code
