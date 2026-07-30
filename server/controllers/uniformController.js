@@ -473,8 +473,10 @@ exports.addManualStock = async (req, res) => {
                     });
                 }
 
+                const trxCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
                 await tx.uniformStockTransaction.create({
                     data: {
+                        code: trxCode,
                         variantId: variant.id, warehouseId: whObj.id,
                         type: 'IN', quantity: qty,
                         costPerUnit: cost, vendorId: vendorObj ? vendorObj.id : null,
