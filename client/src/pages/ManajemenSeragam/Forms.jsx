@@ -142,10 +142,13 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
         </div>
     );
 };
-export const ManualStockForm = ({ variants = [], warehouses = [], vendors = [], onSave }) => {
+export const ManualStockForm = ({ categories = [], clothingTypes = [], units = [], sizes = [], warehouses = [], vendors = [], onSave }) => {
     const [form, setForm] = useState({
-        variantId: '',
-        variantSearch: '',
+        kategori: '',
+        jenisPakaian: '',
+        unit: '',
+        gender: '',
+        ukuran: '',
         gudang: '',
         vendor: '',
         hargaModal: 0,
@@ -157,26 +160,31 @@ export const ManualStockForm = ({ variants = [], warehouses = [], vendors = [], 
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-col gap-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pilih Barang (Variant) *</label>
-                <input 
-                    list="variants-list" 
-                    name="variantSearch" 
-                    value={form.variantSearch} 
-                    onChange={(e) => {
-                        const val = e.target.value;
-                        const match = variants.find(v => `${v.sku} - ${v.item?.name} (${v.sizeName})` === val);
-                        setForm({ ...form, variantSearch: val, variantId: match ? match.id : '' });
-                    }} 
-                    placeholder="Ketik untuk mencari SKU atau Nama Barang..." 
-                    className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all w-full" 
-                    required 
-                />
-                <datalist id="variants-list">
-                    {variants.map(v => (
-                        <option key={v.id} value={`${v.sku} - ${v.item?.name} (${v.sizeName})`} />
-                    ))}
-                </datalist>
+            <div className="grid grid-cols-2 gap-4">
+                <SelectField label="Kategori *" name="kategori" value={form.kategori} onChange={handleChange} required>
+                    <option value="">Pilih Kategori</option>
+                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                </SelectField>
+                <SelectField label="Jenis Pakaian *" name="jenisPakaian" value={form.jenisPakaian} onChange={handleChange} required>
+                    <option value="">Pilih Jenis Pakaian</option>
+                    {clothingTypes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                </SelectField>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-4">
+                <SelectField label="Unit *" name="unit" value={form.unit} onChange={handleChange} required>
+                    <option value="">Pilih Unit</option>
+                    {units.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                </SelectField>
+                <SelectField label="Gender *" name="gender" value={form.gender} onChange={handleChange} required>
+                    <option value="">Pilih Gender</option>
+                    <option value="IKHWAN">Ikhwan</option>
+                    <option value="AKHWAT">Akhwat</option>
+                </SelectField>
+                <SelectField label="Ukuran *" name="ukuran" value={form.ukuran} onChange={handleChange} required>
+                    <option value="">Pilih Ukuran</option>
+                    {sizes.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                </SelectField>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -196,13 +204,7 @@ export const ManualStockForm = ({ variants = [], warehouses = [], vendors = [], 
                 <InputField label="Harga Modal (Rp)" type="number" name="hargaModal" value={form.hargaModal} onChange={handleChange} />
             </div>
 
-            <button onClick={() => {
-                if (!form.variantId) {
-                    alert('Silakan pilih barang yang valid dari daftar.');
-                    return;
-                }
-                onSave(form);
-            }} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 mt-4">
+            <button onClick={() => onSave(form)} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 mt-4">
                 Simpan Stok
             </button>
         </div>
