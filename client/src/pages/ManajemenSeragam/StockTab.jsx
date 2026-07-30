@@ -1,6 +1,6 @@
 import { Search, Plus, Download, Upload, ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge } from './UIComponents';
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState, useMemo, Fragment } from 'react';
 import api from '../../lib/axios';
 
 export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse, setSelectedWarehouse, warehouses, openModal, fetchStocks }) => {
@@ -67,7 +67,7 @@ export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             {(() => {
-                const groupedStocks = Object.values(stocks.reduce((acc, s) => {
+                const groupedStocks = Object.values((stocks || []).reduce((acc, s) => {
                     const vid = s.variant?.id;
                     if (!vid) return acc;
                     if (!acc[vid]) {
@@ -102,7 +102,7 @@ export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse
                             ) : groupedStocks.length === 0 ? (
                                 <tr><td colSpan="6" className="p-8 text-center text-slate-400">Belum ada data stok.</td></tr>
                             ) : groupedStocks.map(g => (
-                                <React.Fragment key={g.id}>
+                                <Fragment key={g.id}>
                                     <tr 
                                         className="hover:bg-slate-50/80 transition-colors cursor-pointer"
                                         onClick={() => setExpandedRow(expandedRow === g.id ? null : g.id)}
