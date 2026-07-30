@@ -67,7 +67,14 @@ const initializeWhatsApp = () => {
             '--disable-extensions',
             '--disable-features=dbus',
             '--disable-breakpad',
-            '--disable-crash-reporter'
+            '--disable-crash-reporter',
+            '--disable-background-networking',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-ipc-flooding-protection',
+            '--disable-renderer-backgrounding',
+            '--no-zygote',
+            '--disable-accelerated-2d-canvas'
         ]
     };
 
@@ -86,7 +93,11 @@ const initializeWhatsApp = () => {
         authStrategy: new LocalAuth({
             dataPath: './.wwebjs_auth'
         }),
-        puppeteer: puppeteerConfig
+        puppeteer: puppeteerConfig,
+        webVersionCache: {
+            type: 'remote',
+            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
+        }
     });
 
     waClient.on('qr', async (qr) => {
@@ -236,8 +247,20 @@ const initializeWhatsApp = () => {
 
     console.log('[WhatsApp Local] Initializing client...');
     waClient.initialize().catch(err => {
-        console.error('[WhatsApp Local] Failed to initialize:', err);
+        console.error('[WhatsApp Local] Failed to initialize:', err.message || err);
         connectionStatus = 'DISCONNECTED';
+        
+        // If it's a Target closed error or similar severe protocol error, it might be corrupted session
+        if (err.message && err.message.includes('Target closed')) {
+            console.warn('[WhatsApp Local] Target closed error detected. Auth session might be corrupted. Deleting .wwebjs_auth...');
+            try {
+                fs.rmSync(path.join(process.cwd(), '.wwebjs_auth'), { recursive: true, force: true });
+                console.log('[WhatsApp Local] .wwebjs_auth folder deleted. Will try to reinitialize in 10 seconds...');
+                setTimeout(initializeWhatsApp, 10000);
+            } catch (rmErr) {
+                console.error('[WhatsApp Local] Failed to delete .wwebjs_auth:', rmErr.message);
+            }
+        }
     });
 };
 
