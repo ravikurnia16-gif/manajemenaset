@@ -24,7 +24,7 @@ export const VendorProjectTab = ({ projects, openModal }) => {
                                     {project.projectItems && project.projectItems.length > 0 && (
                                         <div className="text-xs text-slate-600 bg-white px-2 py-1.5 rounded-lg border border-slate-200 inline-block">
                                             <span className="font-bold">Rincian Barang: </span>
-                                            {project.projectItems.map(pi => `${pi.item?.name} (${pi.quantity})`).join(', ')}
+                                            {project.projectItems.map(pi => `${pi.variant?.item?.name || 'Unknown'} - ${pi.variant?.size || '?'} (${pi.quantity})`).join(', ')}
                                         </div>
                                     )}
                                 </div>
