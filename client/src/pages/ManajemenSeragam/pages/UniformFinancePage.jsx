@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import api from '../../../lib/axios';
-import { formatRupiah } from '../../../utils/formatters';
+
+const formatRupiah = (number) => {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0
+    }).format(number || 0);
+};
 
 export default function UniformFinancePage() {
     const [data, setData] = useState({
