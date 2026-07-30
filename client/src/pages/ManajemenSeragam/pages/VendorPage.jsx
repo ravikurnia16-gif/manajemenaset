@@ -152,7 +152,10 @@ export default function VendorPage() {
                         fields={[
                             { name: 'name', label: 'Nama Vendor', type: 'text', required: true },
                             { name: 'phone', label: 'No. HP / WA', type: 'text' },
-                            { name: 'contactPerson', label: 'Nama Kontak (CP)', type: 'text' }
+                            { name: 'contactPerson', label: 'Nama Kontak (CP)', type: 'text' },
+                            { name: 'email', label: 'Email', type: 'email' },
+                            { name: 'address', label: 'Alamat Lengkap', type: 'textarea' },
+                            { name: 'mapsUrl', label: 'Link Google Maps', type: 'text' }
                         ]}
                         initialData={modal.data}
                         onSubmit={handleSaveVendor}

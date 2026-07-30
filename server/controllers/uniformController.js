@@ -1754,6 +1754,33 @@ exports.updateVendorMoU = async (req, res) => {
     }
 };
 
+const updateVendorRating = async (vendorId) => {
+    const evaluations = await prisma.uniformVendorEvaluation.findMany({
+        where: { vendorId: parseInt(vendorId) }
+    });
+    
+    let totalOrders = evaluations.length;
+    let avgRating = 0;
+    let avgOnTime = 0;
+    let avgReject = 0;
+    
+    if (totalOrders > 0) {
+        avgRating = evaluations.reduce((sum, ev) => sum + ev.rating, 0) / totalOrders;
+        avgOnTime = evaluations.reduce((sum, ev) => sum + ev.onTimeRate, 0) / totalOrders;
+        avgReject = evaluations.reduce((sum, ev) => sum + ev.rejectRate, 0) / totalOrders;
+    }
+    
+    await prisma.uniformVendor.update({
+        where: { id: parseInt(vendorId) },
+        data: {
+            rating: avgRating,
+            onTimeRate: avgOnTime,
+            rejectRate: avgReject,
+            totalOrders: totalOrders
+        }
+    });
+};
+
 exports.createVendorEvaluation = async (req, res) => {
     try {
         const { projectId, vendorId, rating, onTimeRate, rejectRate, notes } = req.body;
@@ -1767,6 +1794,7 @@ exports.createVendorEvaluation = async (req, res) => {
                 notes
             }
         });
+        await updateVendorRating(vendorId);
         res.json(data);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -1785,6 +1813,7 @@ exports.updateVendorEvaluation = async (req, res) => {
                 notes
             }
         });
+        await updateVendorRating(data.vendorId);
         res.json(data);
     } catch (error) {
         res.status(500).json({ error: error.message });

@@ -1963,6 +1963,7 @@ model UniformVendor {
   address        String?  @db.Text
   contactPerson  String?
   email          String?
+  mapsUrl        String?  @db.Text
   description    String?  @db.Text
 
   // Evaluasi
