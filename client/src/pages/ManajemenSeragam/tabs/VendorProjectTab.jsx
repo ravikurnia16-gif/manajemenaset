@@ -29,8 +29,13 @@ export const VendorProjectTab = ({ projects, openModal }) => {
                                     )}
                                 </div>
                                 <div className="flex gap-2">
-                                    <button onClick={() => openModal('project', project)} className="text-xs text-blue-600 font-bold hover:underline">Edit Proyek</button>
-                                    <button onClick={() => openModal('vendor-selection', { projectId: project.id })} className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1">
+                                    {project.status !== 'SELESAI' && (
+                                        <button onClick={() => openModal('project-receive', project)} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-green-200 transition-colors">
+                                            <CheckCircle size={14} /> Terima & Selesai
+                                        </button>
+                                    )}
+                                    <button onClick={() => openModal('project', project)} className="text-xs text-blue-600 font-bold hover:underline px-2 py-1.5">Edit Proyek</button>
+                                    <button onClick={() => openModal('vendor-selection', { projectId: project.id })} className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-blue-200 transition-colors">
                                         <Plus size={14} /> Tambah Vendor Seleksi
                                     </button>
                                 </div>

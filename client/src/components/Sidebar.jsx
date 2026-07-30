@@ -285,7 +285,10 @@ const Sidebar = ({ isOpen = true }) => {
                             <ShoppingCart size={16} /> Penjualan
                         </Link>
                         <Link to="/gudang/seragam/vendor" className={subNavItemClass('/gudang/seragam/vendor')}>
-                            <Users size={16} /> Vendor Seragam
+                            <Users size={16} /> Vendor & Produksi
+                        </Link>
+                        <Link to="/gudang/seragam/keuangan" className={subNavItemClass('/gudang/seragam/keuangan')}>
+                            <FileSignature size={16} /> Laporan Keuangan
                         </Link>
                     </>
                 ))}

@@ -4,6 +4,7 @@ const c = require('../controllers/uniformController');
 
 // Dashboard
 router.get('/dashboard', c.getDashboardStats);
+router.get('/finance-report', c.getFinanceReport);
 
 // Warehouse (Gudang)
 router.get('/warehouses', c.getWarehouses);
@@ -73,6 +74,7 @@ router.delete('/vendors/:id', c.deleteVendor);
 router.get('/projects', c.getProjects);
 router.post('/projects', c.createProject);
 router.put('/projects/:id', c.updateProject);
+router.post('/projects/:id/receive', c.receiveProjectGoods);
 
 router.post('/vendor-selections', upload.single('file'), c.createVendorSelection);
 router.put('/vendor-selections/:id', upload.single('file'), c.updateVendorSelection);

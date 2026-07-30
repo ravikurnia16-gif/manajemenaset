@@ -1566,20 +1566,37 @@ exports.getProjects = async (req, res) => {
 
 exports.createProject = async (req, res) => {
     try {
-        const { year, title, targetQuantity, status, note, items } = req.body;
+        const { year, title, targetQuantity, status, note, items, projectType, directVendorId } = req.body;
         const projectItemsData = items ? items.map(i => ({ itemId: parseInt(i.itemId), quantity: parseInt(i.quantity) })) : [];
-        const data = await prisma.uniformProject.create({
-            data: { 
-                year: parseInt(year), 
-                title, 
-                targetQuantity: parseInt(targetQuantity || 0), 
-                status, 
-                note,
-                projectItems: {
-                    create: projectItemsData
+        
+        const data = await prisma.$transaction(async (tx) => {
+            const proj = await tx.uniformProject.create({
+                data: { 
+                    year: parseInt(year), 
+                    title, 
+                    targetQuantity: parseInt(targetQuantity || 0), 
+                    status, 
+                    note,
+                    projectItems: {
+                        create: projectItemsData
+                    }
                 }
+            });
+
+            if (projectType === 'PENUNJUKAN_LANGSUNG' && directVendorId) {
+                await tx.uniformVendorSelection.create({
+                    data: {
+                        projectId: proj.id,
+                        vendorId: parseInt(directVendorId),
+                        status: 'DIPILIH',
+                        reason: 'Penunjukan Langsung'
+                    }
+                });
             }
+
+            return proj;
         });
+
         res.json(data);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -1588,7 +1605,7 @@ exports.createProject = async (req, res) => {
 
 exports.updateProject = async (req, res) => {
     try {
-        const { year, title, targetQuantity, status, note, items } = req.body;
+        const { year, title, targetQuantity, status, note, items, projectType, directVendorId } = req.body;
         const projectId = parseInt(req.params.id);
 
         const data = await prisma.$transaction(async (tx) => {
@@ -1604,6 +1621,25 @@ exports.updateProject = async (req, res) => {
                     });
                 }
             }
+
+            if (projectType === 'PENUNJUKAN_LANGSUNG' && directVendorId) {
+                // Check if selection already exists
+                const existingSelection = await tx.uniformVendorSelection.findFirst({
+                    where: { projectId, vendorId: parseInt(directVendorId) }
+                });
+                
+                if (!existingSelection) {
+                    await tx.uniformVendorSelection.create({
+                        data: {
+                            projectId,
+                            vendorId: parseInt(directVendorId),
+                            status: 'DIPILIH',
+                            reason: 'Penunjukan Langsung'
+                        }
+                    });
+                }
+            }
+
             return tx.uniformProject.update({
                 where: { id: projectId },
                 data: { year: parseInt(year), title, targetQuantity: parseInt(targetQuantity || 0), status, note }
@@ -1746,6 +1782,177 @@ exports.updateVendorEvaluation = async (req, res) => {
         });
         res.json(data);
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.receiveProjectGoods = async (req, res) => {
+    try {
+        const projectId = parseInt(req.params.id);
+        const { warehouseId, items } = req.body; // items: [{ variantId, quantity }]
+        
+        if (!warehouseId || !items || items.length === 0) {
+            return res.status(400).json({ error: 'Data penerimaan tidak valid. Pastikan gudang dan rincian barang diisi.' });
+        }
+
+        const project = await prisma.uniformProject.findUnique({
+            where: { id: projectId },
+            include: { selections: true }
+        });
+
+        if (!project) return res.status(404).json({ error: 'Proyek tidak ditemukan' });
+
+        const selectedVendor = project.selections.find(s => s.status === 'DIPILIH');
+        const vendorId = selectedVendor ? selectedVendor.vendorId : null;
+
+        const data = await prisma.$transaction(async (tx) => {
+            // Update project status to SELESAI
+            const updatedProj = await tx.uniformProject.update({
+                where: { id: projectId },
+                data: { status: 'SELESAI' }
+            });
+
+            // Iterate over received items
+            for (const item of items) {
+                const qty = parseInt(item.quantity) || 0;
+                if (qty <= 0) continue;
+
+                // Record transaction
+                const trx = await tx.uniformStockTransaction.create({
+                    data: {
+                        code: `TRX/PRJ/${projectId}/${item.variantId}/${Date.now()}`,
+                        type: 'IN',
+                        variantId: parseInt(item.variantId),
+                        warehouseId: parseInt(warehouseId),
+                        quantity: qty,
+                        referenceType: 'PROJECT',
+                        referenceId: projectId,
+                        vendorId: vendorId,
+                        note: `Penerimaan barang dari Proyek ${project.title}`
+                    }
+                });
+
+                // Upsert stock
+                const existingStock = await tx.uniformStock.findFirst({
+                    where: { variantId: parseInt(item.variantId), warehouseId: parseInt(warehouseId) }
+                });
+
+                if (existingStock) {
+                    await tx.uniformStock.update({
+                        where: { id: existingStock.id },
+                        data: { quantity: existingStock.quantity + qty }
+                    });
+                } else {
+                    await tx.uniformStock.create({
+                        data: {
+                            variantId: parseInt(item.variantId),
+                            warehouseId: parseInt(warehouseId),
+                            quantity: qty,
+                            minStock: 3
+                        }
+                    });
+                }
+            }
+
+            return updatedProj;
+        });
+
+        res.json(data);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getFinanceReport = async (req, res) => {
+    try {
+        // 1. Total Pendapatan (Revenue)
+        // Penjualan yang statusnya bukan CANCELLED
+        const sales = await prisma.uniformSale.findMany({
+            where: { status: { not: 'CANCELLED' } },
+            select: { paidAmount: true, code: true, createdAt: true, customerName: true, totalAmount: true }
+        });
+        const totalRevenue = sales.reduce((sum, sale) => sum + (sale.paidAmount || 0), 0);
+
+        // 2. Total Pengeluaran (Expenses)
+        // Proyek yang sudah SELESAI
+        const completedProjects = await prisma.uniformProject.findMany({
+            where: { status: 'SELESAI' },
+            include: { selections: { where: { status: 'DIPILIH' } } }
+        });
+        
+        let totalExpenses = 0;
+        const projectExpenses = [];
+        for (const proj of completedProjects) {
+            if (proj.selections.length > 0) {
+                const cost = proj.selections[0].proposedPrice || 0;
+                totalExpenses += cost;
+                projectExpenses.push({
+                    id: proj.id,
+                    title: proj.title,
+                    cost: cost,
+                    updatedAt: proj.updatedAt
+                });
+            }
+        }
+
+        // 3. Nilai Stok (Asset Value)
+        const stocks = await prisma.uniformStock.findMany({
+            include: { variant: { include: { item: true } } }
+        });
+        
+        const totalAssetValue = stocks.reduce((sum, stock) => {
+            const price = stock.variant.sellPrice || stock.variant.item.sellPrice || 0;
+            return sum + (stock.quantity * price);
+        }, 0);
+
+        // 4. Laba / Rugi
+        const netProfit = totalRevenue - totalExpenses;
+
+        // 5. Arus Kas (Cash Flow)
+        const cashFlow = [];
+        
+        // Pemasukan dari Penjualan
+        sales.forEach(s => {
+            if (s.paidAmount > 0) {
+                cashFlow.push({
+                    type: 'IN',
+                    date: s.createdAt,
+                    amount: s.paidAmount,
+                    description: `Penerimaan Penjualan: ${s.code} (${s.customerName})`,
+                    reference: s.code
+                });
+            }
+        });
+
+        // Pengeluaran dari Proyek
+        projectExpenses.forEach(p => {
+            if (p.cost > 0) {
+                cashFlow.push({
+                    type: 'OUT',
+                    date: p.updatedAt,
+                    amount: p.cost,
+                    description: `Pembayaran Proyek: ${p.title}`,
+                    reference: `PRJ-${p.id}`
+                });
+            }
+        });
+
+        // Urutkan berdasarkan tanggal terbaru
+        cashFlow.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        res.json({
+            summary: {
+                totalRevenue,
+                totalExpenses,
+                netProfit,
+                totalAssetValue
+            },
+            cashFlow: cashFlow.slice(0, 50) // Batasi 50 transaksi terbaru
+        });
+
+    } catch (error) {
+        console.error(error);
         res.status(500).json({ error: error.message });
     }
 };

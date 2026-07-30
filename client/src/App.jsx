@@ -29,6 +29,7 @@ import ManajemenSeragamMaster from './pages/ManajemenSeragam/pages/MasterDataPag
 import ManajemenSeragamStock from './pages/ManajemenSeragam/pages/StockPage';
 import ManajemenSeragamSales from './pages/ManajemenSeragam/pages/SalesPage';
 import ManajemenSeragamVendor from './pages/ManajemenSeragam/pages/VendorPage';
+import UniformFinancePage from './pages/ManajemenSeragam/pages/UniformFinancePage';
 import UnitOrderForm from './pages/UnitOrderForm';
 import VehicleDashboard from './pages/VehicleDashboard';
 import PersonnelDashboard from './pages/PersonnelDashboard';
@@ -268,6 +269,7 @@ function App() {
           <Route path="gudang/seragam/stok" element={<ManajemenSeragamStock />} />
           <Route path="gudang/seragam/penjualan" element={<ManajemenSeragamSales />} />
           <Route path="gudang/seragam/vendor" element={<ManajemenSeragamVendor />} />
+          <Route path="gudang/seragam/keuangan" element={<UniformFinancePage />} />
 
           {/* Module: Manajemen Personalia */}
           <Route path="personalia/dashboard" element={

@@ -7,7 +7,7 @@ import { VendorsTab } from '../VendorsTab';
 import { VendorProjectTab } from '../tabs/VendorProjectTab';
 import { VendorMoUTab } from '../tabs/VendorMoUTab';
 import { VendorEvaluationTab } from '../tabs/VendorEvaluationTab';
-import { ProjectForm, VendorSelectionForm, VendorMoUForm, VendorEvaluationForm } from '../tabs/VendorForms';
+import { ProjectForm, VendorSelectionForm, VendorMoUForm, VendorEvaluationForm, ProjectReceiveForm } from '../tabs/VendorForms';
 
 const TABS = [
     { key: 'profile', label: 'Profil Vendor', icon: <Users size={16} /> },
@@ -91,6 +91,15 @@ export default function VendorPage() {
         } catch (err) { alert(err.response?.data?.error || 'Gagal menyimpan evaluasi'); }
     };
 
+    const handleSaveProjectReceive = async (payload, projectId) => {
+        try {
+            await api.post(`/uniforms/projects/${projectId}/receive`, payload);
+            alert('Barang berhasil diterima dan stok telah diupdate.');
+            closeModal();
+            fetchData();
+        } catch (err) { alert(err.response?.data?.error || 'Gagal menerima barang'); }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex items-center gap-3">
@@ -135,7 +144,8 @@ export default function VendorPage() {
                 modal.type === 'project' ? (modal.data ? 'Edit Proyek Pengadaan' : 'Buat Proyek Pengadaan') :
                 modal.type === 'vendor-selection' ? (modal.data?.id ? 'Edit Data Seleksi' : 'Pilih Vendor Peserta') :
                 modal.type === 'vendor-mou' ? (modal.data?.id ? 'Edit MoU' : 'Buat MoU Baru') :
-                modal.type === 'vendor-evaluation' ? (modal.data?.id ? 'Edit Penilaian' : 'Beri Penilaian') : ''
+                modal.type === 'vendor-evaluation' ? (modal.data?.id ? 'Edit Penilaian' : 'Beri Penilaian') :
+                modal.type === 'project-receive' ? 'Penerimaan Barang Proyek' : ''
             }>
                 {modal.type === 'vendor' && (
                     <SimpleForm
@@ -150,7 +160,7 @@ export default function VendorPage() {
                     />
                 )}
                 {modal.type === 'project' && (
-                    <ProjectForm initialData={modal.data} onSave={handleSaveProject} onCancel={closeModal} />
+                    <ProjectForm vendors={vendors} initialData={modal.data} onSave={handleSaveProject} onCancel={closeModal} />
                 )}
                 {modal.type === 'vendor-selection' && (
                     <VendorSelectionForm vendors={vendors} initialData={modal.data} onSave={handleSaveVendorSelection} onCancel={closeModal} />
@@ -160,6 +170,9 @@ export default function VendorPage() {
                 )}
                 {modal.type === 'vendor-evaluation' && (
                     <VendorEvaluationForm vendors={vendors} projects={projects} initialData={modal.data} onSave={handleSaveVendorEvaluation} onCancel={closeModal} />
+                )}
+                {modal.type === 'project-receive' && (
+                    <ProjectReceiveForm initialData={modal.data} onSave={handleSaveProjectReceive} onCancel={closeModal} />
                 )}
             </Modal>
         </div>
