@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BarChart3 } from 'lucide-react';
-import api from '../../../../lib/axios';
+import api from '../../../lib/axios';
 import { DashboardTab } from '../DashboardTab';
 
 export default function DashboardPage() {

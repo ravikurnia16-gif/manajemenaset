@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Boxes, ArrowLeftRight } from 'lucide-react';
-import api from '../../../../lib/axios';
+import api from '../../../lib/axios';
 import { Modal } from '../UIComponents';
 import { TransactionForm, ManualStockForm } from '../Forms';
 import { StockTab } from '../StockTab';

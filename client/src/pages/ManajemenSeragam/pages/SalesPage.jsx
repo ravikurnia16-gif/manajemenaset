@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ShoppingCart, Package, RefreshCw } from 'lucide-react';
-import api from '../../../../lib/axios';
+import api from '../../../lib/axios';
 import { Modal } from '../UIComponents';
 import { PackageForm } from '../Forms';
 import { SalesTab } from '../SalesTab';

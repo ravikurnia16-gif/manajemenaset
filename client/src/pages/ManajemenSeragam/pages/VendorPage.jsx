@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Users } from 'lucide-react';
-import api from '../../../../lib/axios';
+import api from '../../../lib/axios';
 import { Modal } from '../UIComponents';
 import { SimpleForm } from '../Forms';
 import { VendorsTab } from '../VendorsTab';
