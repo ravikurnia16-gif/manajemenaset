@@ -54,4 +54,4 @@ EXPOSE 3000
 ENTRYPOINT ["dumb-init", "--"]
 
 # Jalankan aplikasi
-CMD ["sh", "-c", "cd server && node fix_index.js && npx prisma db push --accept-data-loss && node index.js"]
+CMD ["sh", "-c", "cd server && node merge_stocks.js && npx prisma db push --accept-data-loss && node index.js"]

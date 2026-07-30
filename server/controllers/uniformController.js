@@ -506,7 +506,6 @@ exports.getStocks = async (req, res) => {
         const data = await prisma.uniformStock.findMany({
             where,
             include: {
-                vendor: true,
                 variant: {
                     include: {
                         item: { include: { category: true, clothingType: true, vendor: true } },
@@ -743,23 +742,28 @@ exports.importStocks = async (req, res) => {
                         }
                     });
 
-                    const existingStock = await tx.uniformStock.findFirst({
-                        where: { variantId: variant.id, warehouseId: wh.id, vendorId: vendor ? vendor.id : null, modalAwal: cost }
+                    const existingStock = await tx.uniformStock.findUnique({
+                        where: { variantId_warehouseId: { variantId: variant.id, warehouseId: wh.id } }
                     });
 
-                    if (existingStock) {
-                        await tx.uniformStock.update({
-                            where: { id: existingStock.id },
-                            data: { quantity: existingStock.quantity + qty, minStock: item.minStock }
-                        });
-                    } else {
-                        await tx.uniformStock.create({
-                            data: {
-                                variantId: variant.id, warehouseId: wh.id, vendorId: vendor ? vendor.id : null,
-                                quantity: qty, modalAwal: cost, avgCost: cost, minStock: item.minStock
-                            }
-                        });
+                    let newAvgCost = cost;
+                    if (existingStock && existingStock.quantity > 0) {
+                        const totalValue = (existingStock.quantity * existingStock.avgCost) + (qty * cost);
+                        newAvgCost = totalValue / (existingStock.quantity + qty);
                     }
+
+                    await tx.uniformStock.upsert({
+                        where: { variantId_warehouseId: { variantId: variant.id, warehouseId: wh.id } },
+                        create: {
+                            variantId: variant.id, warehouseId: wh.id,
+                            quantity: qty, avgCost: cost, minStock: item.minStock
+                        },
+                        update: {
+                            quantity: { increment: qty },
+                            avgCost: newAvgCost,
+                            minStock: item.minStock
+                        }
+                    });
                 });
             }
             successCount++;
@@ -821,65 +825,71 @@ exports.createStockTransaction = async (req, res) => {
                 }
             });
 
-            // 2. Update stock
-            const vId = parseInt(variantId);
-            const wId = parseInt(warehouseId);
-            const deductFifo = async (tx, vid, wid, qtyToDeduct, cbMutate = null) => {
-                let remaining = Math.abs(qtyToDeduct);
-                const stocks = await tx.uniformStock.findMany({
-                    where: { variantId: vid, warehouseId: wid, quantity: { gt: 0 } },
-                    orderBy: { id: 'asc' }
-                });
-                for (const stock of stocks) {
-                    if (remaining <= 0) break;
-                    const deduct = Math.min(stock.quantity, remaining);
-                    await tx.uniformStock.update({
-                        where: { id: stock.id },
-                        data: { quantity: stock.quantity - deduct }
-                    });
-                    if (cbMutate) await cbMutate(stock, deduct);
-                    remaining -= deduct;
-                }
-                if (remaining > 0) throw new Error('Stok tidak mencukupi');
-            };
-
+            // 2. Update stock (upsert)
             if (type === 'IN') {
-                const variantData = await tx.uniformVariant.findUnique({
-                    where: { id: vId },
-                    include: { item: { select: { minStock: true } } }
+                // Average Cost calculation
+                const existingStock = await tx.uniformStock.findUnique({
+                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } }
                 });
-                const globalMinStock = variantData?.item?.minStock || 3;
-                const vdorId = vendorId ? parseInt(vendorId) : null;
-                const existingStock = await tx.uniformStock.findFirst({
-                    where: { variantId: vId, warehouseId: wId, vendorId: vdorId, modalAwal: cost }
-                });
-                if (existingStock) {
-                    await tx.uniformStock.update({
-                        where: { id: existingStock.id },
-                        data: { quantity: existingStock.quantity + qty }
-                    });
-                } else {
-                    await tx.uniformStock.create({
-                        data: { variantId: vId, warehouseId: wId, vendorId: vdorId, quantity: qty, modalAwal: cost, avgCost: cost, minStock: globalMinStock }
-                    });
+
+                let newAvgCost = cost;
+                if (existingStock && existingStock.quantity > 0) {
+                    const totalValue = (existingStock.quantity * existingStock.avgCost) + (qty * cost);
+                    newAvgCost = totalValue / (existingStock.quantity + qty);
                 }
+
+                await tx.uniformStock.upsert({
+                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } },
+                    create: {
+                        variantId: parseInt(variantId),
+                        warehouseId: parseInt(warehouseId),
+                        quantity: qty,
+                        avgCost: cost
+                    },
+                    update: {
+                        quantity: { increment: qty },
+                        avgCost: newAvgCost
+                    }
+                });
             } else if (type === 'OUT' || type === 'ADJUSTMENT') {
-                await deductFifo(tx, vId, wId, qty);
+                // Check stock availability
+                const stock = await tx.uniformStock.findUnique({
+                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } }
+                });
+                if (!stock || stock.quantity < Math.abs(qty)) {
+                    throw new Error('Stok tidak mencukupi di gudang asal');
+                }
+                
+                await tx.uniformStock.update({
+                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } },
+                    data: { quantity: { decrement: Math.abs(qty) } }
+                });
             } else if (type === 'MUTATION') {
-                const toWId = parseInt(toWarehouseId);
-                await deductFifo(tx, vId, wId, qty, async (sourceStock, deductedQty) => {
-                    const existingDest = await tx.uniformStock.findFirst({
-                        where: { variantId: vId, warehouseId: toWId, vendorId: sourceStock.vendorId, modalAwal: sourceStock.modalAwal }
-                    });
-                    if (existingDest) {
-                        await tx.uniformStock.update({
-                            where: { id: existingDest.id },
-                            data: { quantity: existingDest.quantity + deductedQty }
-                        });
-                    } else {
-                        await tx.uniformStock.create({
-                            data: { variantId: vId, warehouseId: toWId, vendorId: sourceStock.vendorId, quantity: deductedQty, modalAwal: sourceStock.modalAwal, avgCost: sourceStock.modalAwal, minStock: sourceStock.minStock }
-                        });
+                // Check stock availability
+                const stock = await tx.uniformStock.findUnique({
+                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } }
+                });
+                if (!stock || stock.quantity < qty) {
+                    throw new Error('Stok tidak mencukupi di gudang asal');
+                }
+
+                // Decrement origin
+                await tx.uniformStock.update({
+                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(warehouseId) } },
+                    data: { quantity: { decrement: qty } }
+                });
+
+                // Increment destination
+                await tx.uniformStock.upsert({
+                    where: { variantId_warehouseId: { variantId: parseInt(variantId), warehouseId: parseInt(toWarehouseId) } },
+                    create: {
+                        variantId: parseInt(variantId),
+                        warehouseId: parseInt(toWarehouseId),
+                        quantity: qty,
+                        avgCost: stock.avgCost // bawa avg cost dari asal
+                    },
+                    update: {
+                        quantity: { increment: qty }
                     }
                 });
             }
@@ -1102,12 +1112,11 @@ exports.createSale = async (req, res) => {
                 subtotal += totalPrice;
 
                 // Check stock availability
-                const stocks = await tx.uniformStock.findMany({
-                    where: { variantId: parseInt(item.variantId), warehouseId: parseInt(warehouseId), quantity: { gt: 0 } },
-                    orderBy: { id: 'asc' }
+                const stock = await tx.uniformStock.findUnique({
+                    where: { variantId_warehouseId: { variantId: parseInt(item.variantId), warehouseId: parseInt(warehouseId) } }
                 });
 
-                const available = stocks.reduce((sum, s) => sum + s.quantity, 0);
+                const available = stock ? stock.quantity : 0;
                 const canDeliver = Math.min(qty, available);
 
                 saleItems.push({
@@ -1122,19 +1131,13 @@ exports.createSale = async (req, res) => {
                 });
 
                 // Reduce stock
-                if (canDeliver > 0 && stocks.length > 0) {
-                    let remaining = canDeliver;
-                    let totalCostValue = 0;
-                    for (const s of stocks) {
-                        if (remaining <= 0) break;
-                        const deduct = Math.min(s.quantity, remaining);
-                        await tx.uniformStock.update({
-                            where: { id: s.id },
-                            data: { quantity: s.quantity - deduct }
-                        });
-                        totalCostValue += (s.avgCost || 0) * deduct;
-                        remaining -= deduct;
-                    }
+                if (canDeliver > 0 && stock) {
+                    await tx.uniformStock.update({
+                        where: { variantId_warehouseId: { variantId: parseInt(item.variantId), warehouseId: parseInt(warehouseId) } },
+                        data: { quantity: { decrement: canDeliver } }
+                    });
+                    
+                    const totalCostValue = (stock.avgCost || 0) * canDeliver;
 
                     // Create OUT transaction
                     const trxCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
@@ -1248,38 +1251,26 @@ exports.createExchange = async (req, res) => {
             });
 
             // 2. Return old variant to stock (IN)
-            const fVId = parseInt(fromVariantId);
-            const existingIn = await tx.uniformStock.findFirst({
-                where: { variantId: fVId, warehouseId: whId }
+            await tx.uniformStock.upsert({
+                where: { variantId_warehouseId: { variantId: parseInt(fromVariantId), warehouseId: whId } },
+                create: { variantId: parseInt(fromVariantId), warehouseId: whId, quantity },
+                update: { quantity: { increment: quantity } }
             });
-            if (existingIn) {
-                await tx.uniformStock.update({
-                    where: { id: existingIn.id },
-                    data: { quantity: existingIn.quantity + quantity }
-                });
-            } else {
-                await tx.uniformStock.create({
-                    data: { variantId: fVId, warehouseId: whId, quantity }
-                });
-            }
 
             // 3. Deduct new variant from stock (OUT)
             const tVId = parseInt(toVariantId);
-            let remaining = quantity;
-            const stocks = await tx.uniformStock.findMany({
-                where: { variantId: tVId, warehouseId: whId, quantity: { gt: 0 } },
-                orderBy: { id: 'asc' }
+            const stockOut = await tx.uniformStock.findUnique({
+                where: { variantId_warehouseId: { variantId: tVId, warehouseId: whId } }
             });
-            for (const stock of stocks) {
-                if (remaining <= 0) break;
-                const deduct = Math.min(stock.quantity, remaining);
-                await tx.uniformStock.update({
-                    where: { id: stock.id },
-                    data: { quantity: stock.quantity - deduct }
-                });
-                remaining -= deduct;
+
+            if (!stockOut || stockOut.quantity < quantity) {
+                throw new Error('Stok pengganti tidak mencukupi');
             }
-            if (remaining > 0) throw new Error('Stok pengganti tidak mencukupi');
+
+            await tx.uniformStock.update({
+                where: { variantId_warehouseId: { variantId: tVId, warehouseId: whId } },
+                data: { quantity: { decrement: quantity } }
+            });
 
             return exchange;
         });

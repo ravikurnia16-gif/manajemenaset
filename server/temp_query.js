@@ -1,13 +1,25 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+
 async function main() {
-  const count = await prisma.vehicleLocationHistory.count();
-  const records = await prisma.vehicleLocationHistory.findMany({
-    take: 5,
-    orderBy: { id: 'desc' },
-    include: { booking: true }
-  });
-  console.log('Total:', count);
-  console.log('Records:', JSON.stringify(records, null, 2));
+    try {
+        console.log("Testing getStocks query...");
+        const data = await prisma.uniformStock.findMany({
+            include: {
+                vendor: true,
+                variant: {
+                    include: {
+                        item: { include: { category: true, clothingType: true, vendor: true } },
+                        size: true
+                    }
+                },
+                warehouse: true
+            },
+            orderBy: { variant: { item: { name: 'asc' } } }
+        });
+        console.log("Success! Returned", data.length, "rows.");
+    } catch (e) {
+        console.error("Query failed:", e);
+    }
 }
-main().catch(console.error).finally(() => prisma.$disconnect());
+main().finally(() => prisma.$disconnect());

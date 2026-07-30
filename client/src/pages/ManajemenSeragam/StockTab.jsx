@@ -66,97 +66,42 @@ export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse
             </button>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            {(() => {
-                const groupedStocks = Object.values((stocks || []).reduce((acc, s) => {
-                    const vid = s.variant?.id;
-                    if (!vid) return acc;
-                    if (!acc[vid]) {
-                        acc[vid] = {
-                            id: vid,
-                            variant: s.variant,
-                            quantity: 0,
-                            minStock: s.variant?.item?.minStock || s.minStock || 3,
-                            details: []
-                        };
-                    }
-                    acc[vid].quantity += s.quantity;
-                    acc[vid].details.push(s);
-                    return acc;
-                }, {}));
-
-                return (
-                    <table className="w-full text-sm">
-                        <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
-                            <tr>
-                                <th className="p-3 w-8"></th>
-                                <th className="p-3 text-left">SKU</th>
-                                <th className="p-3 text-left">Barang</th>
-                                <th className="p-3 text-center">Ukuran</th>
-                                <th className="p-3 text-center">Total Stok</th>
-                                <th className="p-3 text-center">Status</th>
+            <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+                    <tr>
+                        <th className="p-3 text-left">SKU</th>
+                        <th className="p-3 text-left">Barang</th>
+                        <th className="p-3 text-center">Ukuran</th>
+                        <th className="p-3 text-center">Total Stok</th>
+                        <th className="p-3 text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                    {loading ? (
+                        <tr><td colSpan="5" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
+                    ) : stocks.length === 0 ? (
+                        <tr><td colSpan="5" className="p-8 text-center text-slate-400">Belum ada data stok.</td></tr>
+                    ) : stocks.map(stock => {
+                        const minStock = stock.variant?.item?.minStock || stock.minStock || 3;
+                        return (
+                            <tr key={stock.id} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="p-3 font-mono text-xs text-slate-400">{stock.variant?.sku}</td>
+                                <td className="p-3 font-bold text-slate-800">{stock.variant?.item?.name}</td>
+                                <td className="p-3 text-center"><Badge>{stock.variant?.sizeName}</Badge></td>
+                                <td className="p-3 text-center">
+                                    <span className={`font-extrabold text-lg ${stock.quantity <= minStock ? 'text-red-500' : 'text-slate-700'}`}>
+                                        {stock.quantity}
+                                    </span>
+                                    <span className="text-xs text-slate-400 ml-1">/ {minStock}</span>
+                                </td>
+                                <td className="p-3 text-center">
+                                    {stock.quantity <= 0 ? <Badge color="red">Habis</Badge> : stock.quantity <= minStock ? <Badge color="orange">Menipis</Badge> : <Badge color="green">Aman</Badge>}
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {loading ? (
-                                <tr><td colSpan="6" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
-                            ) : groupedStocks.length === 0 ? (
-                                <tr><td colSpan="6" className="p-8 text-center text-slate-400">Belum ada data stok.</td></tr>
-                            ) : groupedStocks.map(g => (
-                                <Fragment key={g.id}>
-                                    <tr 
-                                        className="hover:bg-slate-50/80 transition-colors cursor-pointer"
-                                        onClick={() => setExpandedRow(expandedRow === g.id ? null : g.id)}
-                                    >
-                                        <td className="p-3 text-slate-400 text-center">
-                                            {expandedRow === g.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                        </td>
-                                        <td className="p-3 font-mono text-xs text-slate-400">{g.variant?.sku}</td>
-                                        <td className="p-3 font-bold text-slate-800">{g.variant?.item?.name}</td>
-                                        <td className="p-3 text-center"><Badge>{g.variant?.sizeName}</Badge></td>
-                                        <td className="p-3 text-center">
-                                            <span className={`font-extrabold text-lg ${g.quantity <= g.minStock ? 'text-red-500' : 'text-slate-700'}`}>
-                                                {g.quantity}
-                                            </span>
-                                            <span className="text-xs text-slate-400 ml-1">/ {g.minStock}</span>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            {g.quantity <= 0 ? <Badge color="red">Habis</Badge> : g.quantity <= g.minStock ? <Badge color="orange">Menipis</Badge> : <Badge color="green">Aman</Badge>}
-                                        </td>
-                                    </tr>
-                                    {expandedRow === g.id && (
-                                        <tr>
-                                            <td colSpan="6" className="p-0 bg-slate-50 border-b border-slate-100">
-                                                <div className="p-4 pl-12 overflow-x-auto">
-                                                    <table className="w-full text-xs text-left text-slate-600">
-                                                        <thead className="bg-slate-100 text-slate-500">
-                                                            <tr>
-                                                                <th className="px-3 py-2 rounded-tl-lg rounded-bl-lg">Gudang</th>
-                                                                <th className="px-3 py-2">Vendor</th>
-                                                                <th className="px-3 py-2 text-right">Modal Awal</th>
-                                                                <th className="px-3 py-2 text-center rounded-tr-lg rounded-br-lg">Stok</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-100">
-                                                            {g.details.map((detail, idx) => (
-                                                                <tr key={idx} className="hover:bg-white transition-colors">
-                                                                    <td className="px-3 py-2 font-medium text-slate-700">{detail.warehouse?.name}</td>
-                                                                    <td className="px-3 py-2">{detail.vendor?.name || '-'}</td>
-                                                                    <td className="px-3 py-2 text-right">Rp {(detail.modalAwal || 0).toLocaleString('id-ID')}</td>
-                                                                    <td className="px-3 py-2 text-center font-bold">{detail.quantity}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </Fragment>
-                            ))}
-                        </tbody>
-                    </table>
-                );
-            })()}
+                        );
+                    })}
+                </tbody>
+            </table>
         </div>
     </div>
     );
