@@ -151,7 +151,7 @@ export const StockTab = ({ stocks, loading, search, setSearch, selectedWarehouse
                                             </td>
                                         </tr>
                                     )}
-                                </React.Fragment>
+                                </Fragment>
                             ))}
                         </tbody>
                     </table>
