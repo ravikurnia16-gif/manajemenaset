@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Box, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck, Shirt } from 'lucide-react';
+import { LayoutDashboard, Box, Boxes, ShoppingCart, ArrowLeftRight, Trash2, FileCheck, FileText, Database, Settings, LogOut, Calendar, ChevronDown, ChevronRight, Truck, Warehouse, Users, UserCog, Plus, MapPin, Home, Zap, Trophy, TrendingUp, MessageSquare, FileSignature, Inbox, ClipboardCheck, Building2, ClipboardList, HardHat, Wrench, Cog, ShieldCheck, Shirt } from 'lucide-react';
 import { cn } from '../lib/utils';
 import api from '../lib/axios';
 
@@ -270,11 +270,25 @@ const Sidebar = ({ isOpen = true }) => {
                 ))}
 
                 {/* 4. Manajemen Seragam */}
-                {isWarehouseAdmin && (
-                    <Link to="/gudang/seragam" className={navItemClass('/gudang/seragam')}>
-                        <Shirt size={18} /> Manajemen Seragam
-                    </Link>
-                )}
+                {isWarehouseAdmin && renderCollapsible('seragam', <Shirt size={18} />, 'Manajemen Seragam', (
+                    <>
+                        <Link to="/gudang/seragam/dashboard" className={subNavItemClass('/gudang/seragam/dashboard')}>
+                            <LayoutDashboard size={16} /> Dashboard
+                        </Link>
+                        <Link to="/gudang/seragam/master" className={subNavItemClass('/gudang/seragam/master')}>
+                            <Database size={16} /> Data Induk
+                        </Link>
+                        <Link to="/gudang/seragam/stok" className={subNavItemClass('/gudang/seragam/stok')}>
+                            <Boxes size={16} /> Stok & Inventori
+                        </Link>
+                        <Link to="/gudang/seragam/penjualan" className={subNavItemClass('/gudang/seragam/penjualan')}>
+                            <ShoppingCart size={16} /> Penjualan
+                        </Link>
+                        <Link to="/gudang/seragam/vendor" className={subNavItemClass('/gudang/seragam/vendor')}>
+                            <Users size={16} /> Vendor Seragam
+                        </Link>
+                    </>
+                ))}
 
 
 

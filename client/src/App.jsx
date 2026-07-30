@@ -24,7 +24,11 @@ import Settings from './pages/Settings';
 import WhatsAppRules from './pages/WhatsAppRules';
 import UniformOrderPage from './pages/UniformOrderPage';
 import UniformOrderAdmin from './pages/UniformOrderAdmin';
-import ManajemenSeragam from './pages/ManajemenSeragam';
+import ManajemenSeragamDashboard from './pages/ManajemenSeragam/pages/DashboardPage';
+import ManajemenSeragamMaster from './pages/ManajemenSeragam/pages/MasterDataPage';
+import ManajemenSeragamStock from './pages/ManajemenSeragam/pages/StockPage';
+import ManajemenSeragamSales from './pages/ManajemenSeragam/pages/SalesPage';
+import ManajemenSeragamVendor from './pages/ManajemenSeragam/pages/VendorPage';
 import UnitOrderForm from './pages/UnitOrderForm';
 import VehicleDashboard from './pages/VehicleDashboard';
 import PersonnelDashboard from './pages/PersonnelDashboard';
@@ -258,7 +262,12 @@ function App() {
           <Route path="gudang/transaksi/input" element={<WarehouseTransactionForm />} />
           <Route path="gudang/pesanan" element={<UniformOrderAdmin />} />
           <Route path="gudang/pesanan/unit" element={<UnitOrderForm />} />
-          <Route path="gudang/seragam" element={<ManajemenSeragam />} />
+          <Route path="gudang/seragam" element={<Navigate to="/gudang/seragam/dashboard" replace />} />
+          <Route path="gudang/seragam/dashboard" element={<ManajemenSeragamDashboard />} />
+          <Route path="gudang/seragam/master" element={<ManajemenSeragamMaster />} />
+          <Route path="gudang/seragam/stok" element={<ManajemenSeragamStock />} />
+          <Route path="gudang/seragam/penjualan" element={<ManajemenSeragamSales />} />
+          <Route path="gudang/seragam/vendor" element={<ManajemenSeragamVendor />} />
 
           {/* Module: Manajemen Personalia */}
           <Route path="personalia/dashboard" element={

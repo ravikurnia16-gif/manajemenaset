@@ -1,0 +1,131 @@
+import { useState, useEffect, useCallback } from 'react';
+import { ShoppingCart, Package, RefreshCw } from 'lucide-react';
+import api from '../../../../lib/axios';
+import { Modal } from '../UIComponents';
+import { PackageForm } from '../Forms';
+import { SalesTab } from '../SalesTab';
+import { PackagesTab } from '../PackagesTab';
+import { ExchangesTab } from '../ExchangesTab';
+
+const TABS = [
+    { key: 'sales', label: 'Penjualan', icon: <ShoppingCart size={16} /> },
+    { key: 'packages', label: 'Paket SPMB', icon: <Package size={16} /> },
+    { key: 'exchanges', label: 'Tukar Ukuran', icon: <RefreshCw size={16} /> },
+];
+
+export default function SalesPage() {
+    const [activeTab, setActiveTab] = useState('sales');
+    
+    // Data states
+    const [sales, setSales] = useState([]);
+    const [packages, setPackages] = useState([]);
+    const [exchanges, setExchanges] = useState([]);
+    
+    // Lookup states for forms
+    const [units, setUnits] = useState([]);
+    const [variants, setVariants] = useState([]);
+    
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState('');
+    const [modal, setModal] = useState({ open: false, type: '', data: null });
+
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            // Fetch dropdown data needed for package form
+            const commonRes = await Promise.all([
+                api.get('/uniforms/units'),
+                api.get('/uniforms/variants')
+            ]);
+            setUnits(commonRes[0].data);
+            setVariants(commonRes[1].data);
+
+            if (activeTab === 'sales') {
+                const r = await api.get('/uniforms/sales', { params: { search } });
+                setSales(r.data);
+            } else if (activeTab === 'packages') {
+                const r = await api.get('/uniforms/packages');
+                setPackages(r.data);
+            } else if (activeTab === 'exchanges') {
+                const r = await api.get('/uniforms/exchanges');
+                setExchanges(r.data);
+            }
+        } catch (err) {
+            console.error('Fetch error:', err);
+        } finally {
+            setLoading(false);
+        }
+    }, [activeTab, search]);
+
+    useEffect(() => {
+        const t = setTimeout(fetchData, 300);
+        return () => clearTimeout(t);
+    }, [fetchData]);
+
+    const openModal = (type, data = null) => setModal({ open: true, type, data });
+    const closeModal = () => setModal({ open: false, type: '', data: null });
+
+    const handleSavePackage = async (formData) => {
+        try {
+            if (formData.id) {
+                await api.put(`/uniforms/packages/${formData.id}`, formData);
+            } else {
+                await api.post('/uniforms/packages', formData);
+            }
+            closeModal();
+            fetchData();
+        } catch (err) {
+            alert(err.response?.data?.error || 'Gagal menyimpan');
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center gap-3">
+                <div className="p-3 bg-blue-100 text-blue-600 rounded-xl">
+                    <ShoppingCart size={24} />
+                </div>
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-800">Penjualan & Distribusi</h1>
+                    <p className="text-slate-500">Kelola pesanan penjualan, paket SPMB, dan retur/tukar ukuran</p>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="flex overflow-x-auto border-b border-slate-100 px-2 scrollbar-hide">
+                    {TABS.map(tab => (
+                        <button
+                            key={tab.key}
+                            onClick={() => { setActiveTab(tab.key); setSearch(''); }}
+                            className={`flex items-center gap-2 px-4 py-3.5 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${activeTab === tab.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                        >
+                            {tab.icon} {tab.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="p-4 sm:p-5">
+                    {activeTab === 'sales' && (
+                        <SalesTab sales={sales} loading={loading} search={search} setSearch={setSearch} openModal={openModal} />
+                    )}
+                    {activeTab === 'packages' && (
+                        <PackagesTab packages={packages} openModal={openModal} />
+                    )}
+                    {activeTab === 'exchanges' && (
+                        <ExchangesTab exchanges={exchanges} openModal={openModal} />
+                    )}
+                </div>
+            </div>
+
+            <Modal isOpen={modal.open} onClose={closeModal} title={
+                modal.type === 'package' ? (modal.data ? 'Edit Paket' : 'Buat Paket SPMB') :
+                modal.type === 'sale' ? 'Buat Penjualan' :
+                modal.type === 'exchange' ? 'Tukar Ukuran' : ''
+            } wide={modal.type === 'package'}>
+                {modal.type === 'package' && (
+                    <PackageForm items={variants} units={units} onSave={handleSavePackage} initialData={modal.data} />
+                )}
+            </Modal>
+        </div>
+    );
+}
