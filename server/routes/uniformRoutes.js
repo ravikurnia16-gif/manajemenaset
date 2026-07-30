@@ -46,6 +46,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.get('/stocks', c.getStocks);
 router.get('/stocks/template', c.downloadStockImportTemplate);
 router.post('/stocks/import', upload.single('file'), c.importStocks);
+router.post('/stocks/manual', c.addManualStock);
 
 // Stock Transactions (IN/OUT/MUTATION/ADJUSTMENT)
 router.get('/transactions', c.getStockTransactions);

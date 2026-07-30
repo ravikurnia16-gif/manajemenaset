@@ -371,7 +371,117 @@ exports.importItems = async (req, res) => {
 
 // ========== ITEM & VARIANT ==========
 
+exports.addManualStock = async (req, res) => {
+    try {
+        const {
+            kategori,
+            jenisPakaian,
+            unit,
+            gender,
+            ukuran,
+            gudang,
+            vendor,
+            hargaModal,
+            stok,
+            stokMinimal
+        } = req.body;
 
+        if (!kategori || !jenisPakaian || !unit || !gender || !ukuran || !gudang || !stok) {
+            return res.status(400).json({ error: 'Data tidak lengkap. Mohon isi kolom yang wajib.' });
+        }
+
+        const qty = parseInt(stok) || 0;
+        const minStock = parseInt(stokMinimal) || 0;
+        const cost = parseFloat(hargaModal) || 0;
+
+        await prisma.$transaction(async (tx) => {
+            // Master Data (Upsert)
+            const catObj = await tx.uniformCategory.upsert({ where: { name: kategori }, update: {}, create: { name: kategori } });
+            const typeObj = await tx.uniformClothingType.upsert({ where: { name: jenisPakaian }, update: {}, create: { name: jenisPakaian } });
+            const unitObj = await tx.uniformUnit.upsert({ where: { name: unit }, update: {}, create: { name: unit } });
+            const sizeObj = await tx.uniformSize.upsert({ where: { name: ukuran }, update: {}, create: { name: ukuran } });
+            const whObj = await tx.uniformWarehouse.upsert({ where: { name: gudang }, update: {}, create: { name: gudang, location: '' } });
+            
+            let vendorObj = null;
+            if (vendor && vendor.trim()) {
+                vendorObj = await tx.uniformVendor.upsert({ where: { name: vendor }, update: {}, create: { name: vendor } });
+            }
+
+            // Generate Item Code
+            const genderCode = gender.toUpperCase() === 'IKHWAN' ? 'IK' : gender.toUpperCase() === 'AKHWAT' ? 'AK' : 'UN';
+            const prefix = `SRG/${unitObj.name}/${genderCode}`;
+            
+            // Generate Item Name
+            const genderName = gender.toUpperCase() === 'IKHWAN' ? 'Ikhwan' : gender.toUpperCase() === 'AKHWAT' ? 'Akhwat' : '';
+            const itemName = `${typeObj.name} ${catObj.name} ${genderName} ${unitObj.name}`.trim();
+
+            let item = await tx.uniformItem.findFirst({
+                where: { categoryId: catObj.id, clothingTypeId: typeObj.id, gender: gender.toUpperCase(), unitId: unitObj.id }
+            });
+
+            if (!item) {
+                const count = await tx.uniformItem.count({ where: { code: { startsWith: prefix } } });
+                const code = `${prefix}/${String(count + 1).padStart(3, '0')}`;
+                item = await tx.uniformItem.create({
+                    data: {
+                        code, name: itemName, categoryId: catObj.id, clothingTypeId: typeObj.id,
+                        gender: gender.toUpperCase(), unitId: unitObj.id,
+                        vendorId: vendorObj ? vendorObj.id : null, sellPrice: 0, minStock
+                    }
+                });
+            } else if (minStock > 0 && item.minStock !== minStock) {
+                await tx.uniformItem.update({ where: { id: item.id }, data: { minStock } });
+            }
+
+            // Variant
+            const sku = `${item.code}-${sizeObj.name}`;
+            const variant = await tx.uniformVariant.upsert({
+                where: { sku },
+                update: {},
+                create: { itemId: item.id, sku, sizeId: sizeObj.id, sizeName: sizeObj.name }
+            });
+
+            // Stock
+            if (qty > 0) {
+                const existingStock = await tx.uniformStock.findFirst({
+                    where: { variantId: variant.id, warehouseId: whObj.id }
+                });
+
+                if (existingStock) {
+                    await tx.uniformStock.update({
+                        where: { id: existingStock.id },
+                        data: {
+                            quantity: existingStock.quantity + qty,
+                            modalAwal: cost > 0 ? cost : existingStock.modalAwal,
+                            avgCost: cost > 0 ? cost : existingStock.avgCost,
+                            minStock: minStock > 0 ? minStock : existingStock.minStock
+                        }
+                    });
+                } else {
+                    await tx.uniformStock.create({
+                        data: {
+                            variantId: variant.id, warehouseId: whObj.id,
+                            quantity: qty, minStock, modalAwal: cost, avgCost: cost
+                        }
+                    });
+                }
+
+                await tx.uniformStockTransaction.create({
+                    data: {
+                        variantId: variant.id, warehouseId: whObj.id,
+                        type: 'IN', quantity: qty,
+                        costPerUnit: cost, vendorId: vendorObj ? vendorObj.id : null,
+                        note: 'Manual Entry'
+                    }
+                });
+            }
+        });
+
+        res.json({ message: 'Stok berhasil ditambahkan!' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
 
 // ========== STOCK (Multi-Warehouse) ==========
 
@@ -412,19 +522,72 @@ exports.getStocks = async (req, res) => {
     }
 };
 
-exports.downloadStockImportTemplate = (req, res) => {
+const ExcelJS = require('exceljs');
+
+exports.downloadStockImportTemplate = async (req, res) => {
     try {
-        const wb = xlsx.utils.book_new();
-        const wsData = [
-            ['Kategori', 'Jenis Pakaian', 'Unit', 'Gender', 'Ukuran', 'Lokasi Gudang', 'Vendor', 'Harga Modal', 'Stok', 'Stok minimal'],
-            ['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', 'Gudang Pusat', 'Konveksi Berkah', '150000', '50', '5']
+        const categories = await prisma.uniformCategory.findMany();
+        const types = await prisma.uniformClothingType.findMany();
+        const units = await prisma.uniformUnit.findMany();
+        const sizes = await prisma.uniformSize.findMany();
+        const warehouses = await prisma.uniformWarehouse.findMany();
+        const vendors = await prisma.uniformVendor.findMany();
+
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Template_Stok');
+
+        sheet.columns = [
+            { header: 'Kategori', key: 'cat', width: 20 },
+            { header: 'Jenis Pakaian', key: 'type', width: 20 },
+            { header: 'Unit', key: 'unit', width: 15 },
+            { header: 'Gender', key: 'gender', width: 15 },
+            { header: 'Ukuran', key: 'size', width: 15 },
+            { header: 'Lokasi Gudang', key: 'wh', width: 20 },
+            { header: 'Vendor', key: 'vendor', width: 20 },
+            { header: 'Harga Modal', key: 'cost', width: 15 },
+            { header: 'Stok', key: 'stock', width: 15 },
+            { header: 'Stok minimal', key: 'min', width: 15 }
         ];
-        const ws = xlsx.utils.aoa_to_sheet(wsData);
-        xlsx.utils.book_append_sheet(wb, ws, "Template_Stok");
-        const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+        // Sample Data
+        sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', 'Gudang Pusat', vendors.length ? vendors[0].name : '', 150000, 50, 5]);
+
+        // Helper to format arrays as comma-separated string for excel validation formulas
+        const formatValidation = (arr, maxLen = 250) => {
+            let str = `"${arr.join(',')}"`;
+            if (str.length > maxLen) {
+                // If the list is too long for direct validation formula, we will just use the first few elements and allow custom inputs.
+                // Or better, we could create a hidden sheet. For now, limit the string length to prevent corrupted excel files.
+                return `"${arr.slice(0, 15).join(',')}"`; 
+            }
+            return str;
+        };
+
+        const catList = categories.map(c => c.name);
+        const typeList = types.map(t => t.name);
+        const unitList = units.map(u => u.name);
+        const sizeList = sizes.map(s => s.name);
+        const whList = warehouses.map(w => w.name);
+        const vendorList = vendors.map(v => v.name);
+
+        for (let i = 2; i <= 100; i++) {
+            if (catList.length) sheet.getCell(`A${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(catList)] };
+            if (typeList.length) sheet.getCell(`B${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(typeList)] };
+            if (unitList.length) sheet.getCell(`C${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(unitList)] };
+            sheet.getCell(`D${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"IKHWAN,AKHWAT"'] };
+            if (sizeList.length) sheet.getCell(`E${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(sizeList)] };
+            if (whList.length) sheet.getCell(`F${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(whList)] };
+            if (vendorList.length) sheet.getCell(`G${i}`).dataValidation = { type: 'list', allowBlank: true, formulae: [formatValidation(vendorList)] };
+            
+            sheet.getCell(`H${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
+            sheet.getCell(`I${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
+            sheet.getCell(`J${i}`).dataValidation = { type: 'whole', operator: 'greaterThanOrEqual', formulae: [0] };
+        }
+
         res.setHeader('Content-Disposition', 'attachment; filename="Template_Import_Stok.xlsx"');
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.send(buffer);
+        await workbook.xlsx.write(res);
+        res.end();
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

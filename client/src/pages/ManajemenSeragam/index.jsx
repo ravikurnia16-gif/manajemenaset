@@ -3,7 +3,7 @@ import { Shirt, Package, Users, ArrowLeftRight, ShoppingCart, BarChart3, Boxes, 
 import api from '../../lib/axios';
 
 import { Modal } from './UIComponents';
-import { SimpleForm, TransactionForm, PackageForm } from './Forms';
+import { SimpleForm, TransactionForm, PackageForm, ManualStockForm } from './Forms';
 
 import { DashboardTab } from './DashboardTab';
 import { StockTab } from './StockTab';
@@ -173,6 +173,17 @@ const ManajemenSeragam = () => {
         }
     };
 
+    const handleSaveManualStock = async (formData) => {
+        try {
+            await api.post('/uniforms/stocks/manual', formData);
+            alert('Stok berhasil ditambahkan!');
+            closeModal();
+            fetchData();
+        } catch (err) {
+            alert(err.response?.data?.error || 'Gagal menambahkan stok');
+        }
+    };
+
     const handleSavePackage = async (formData) => {
         try {
             if (formData.id) {
@@ -207,6 +218,9 @@ const ManajemenSeragam = () => {
         }
         if (type === 'package') {
             return <PackageForm items={items.length ? items : []} units={units} onSave={handleSavePackage} initialData={data} />;
+        }
+        if (type === 'manual-stock') {
+            return <ManualStockForm categories={categories} clothingTypes={clothingTypes} sizes={sizes} vendors={vendors} units={units} warehouses={warehouses} onSave={handleSaveManualStock} />;
         }
         return null;
     };
@@ -253,9 +267,10 @@ const ManajemenSeragam = () => {
                 modal.type === 'transaction' ? 'Transaksi Stok' :
                 modal.type === 'package' ? (modal.data ? 'Edit Paket' : 'Buat Paket SPMB') :
                 modal.type === 'import-item' ? 'Import Data Barang' :
+                modal.type === 'manual-stock' ? 'Tambah Stok Manual' :
                 modal.type === 'sale' ? 'Buat Penjualan' :
                 modal.type === 'exchange' ? 'Tukar Ukuran' : ''
-            } wide={['item', 'transaction', 'package', 'sale'].includes(modal.type)}>
+            } wide={['item', 'transaction', 'package', 'sale', 'manual-stock'].includes(modal.type)}>
                 {renderModalContent()}
             </Modal>
         </div>
