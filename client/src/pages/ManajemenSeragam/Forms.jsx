@@ -151,7 +151,6 @@ export const ManualStockForm = ({ categories = [], clothingTypes = [], units = [
         ukuran: '',
         gudang: '',
         vendor: '',
-        hargaModal: 0,
         stok: 0,
         stokMinimal: 3
     });
@@ -198,10 +197,9 @@ export const ManualStockForm = ({ categories = [], clothingTypes = [], units = [
                 </SelectField>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
                 <InputField label="Stok *" type="number" name="stok" value={form.stok} onChange={handleChange} required />
                 <InputField label="Stok Minimal" type="number" name="stokMinimal" value={form.stokMinimal} onChange={handleChange} />
-                <InputField label="Harga Modal (Rp)" type="number" name="hargaModal" value={form.hargaModal} onChange={handleChange} />
             </div>
 
             <button onClick={() => onSave(form)} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 mt-4">

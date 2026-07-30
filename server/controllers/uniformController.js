@@ -727,13 +727,12 @@ exports.downloadStockImportTemplate = async (req, res) => {
             { header: 'Ukuran', key: 'size', width: 15 },
             { header: 'Lokasi Gudang', key: 'wh', width: 20 },
             { header: 'Vendor', key: 'vendor', width: 20 },
-            { header: 'Harga Modal', key: 'cost', width: 15 },
             { header: 'Stok', key: 'stock', width: 15 },
             { header: 'Stok minimal', key: 'min', width: 15 }
         ];
 
         // Sample Data
-        sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', 'Gudang Pusat', vendors.length ? vendors[0].name : '', 150000, 50, 5]);
+        sheet.addRow(['Seragam Nasional', 'Kemeja Panjang', 'SMP', 'IKHWAN', 'M', 'Gudang Pusat', vendors.length ? vendors[0].name : '', 50, 5]);
 
         // Helper to format arrays as comma-separated string for excel validation formulas
         const formatValidation = (arr, maxLen = 250) => {
@@ -788,7 +787,7 @@ exports.importStocks = async (req, res) => {
         let successCount = 0;
 
         for (let i = 0; i < dataRows.length; i++) {
-            const [catIn, clothIn, unitIn, genderIn, sizeIn, whIn, vendorIn, costIn, qtyIn, minIn] = dataRows[i];
+            const [catIn, clothIn, unitIn, genderIn, sizeIn, whIn, vendorIn, qtyIn, minIn] = dataRows[i];
             
             if (!catIn || !clothIn || !unitIn || !genderIn || !sizeIn || !whIn || !qtyIn) {
                 return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori, Jenis, Unit, Gender, Ukuran, Lokasi Gudang, dan Stok wajib diisi.` });
@@ -860,13 +859,13 @@ exports.importStocks = async (req, res) => {
                 item = await prisma.uniformItem.create({
                     data: {
                         name: itemName,
-                        code,
+                        code: code,
                         categoryId: cat.id,
                         clothingTypeId: cloth.id,
                         unitId: unit.id,
                         gender: gender,
                         vendorId: vendor ? vendor.id : null,
-                        sellPrice: parseFloat(costIn) || 0,
+                        sellPrice: 0,
                         minStock: parseInt(minIn) || 5,
                         targetUnit: unit.name
                     }
@@ -894,7 +893,6 @@ exports.importStocks = async (req, res) => {
 
             // Create Stock & Transaction
             const qty = parseInt(qtyIn) || 0;
-            const cost = parseFloat(costIn) || item.sellPrice;
 
             if (qty > 0) {
                 const trcCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
