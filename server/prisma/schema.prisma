@@ -1960,6 +1960,7 @@ model UniformVendor {
 
   stockTransactions UniformStockTransaction[]
   items             UniformItem[]
+  stocks            UniformStock[]
 }
 
 // Tukar Ukuran (Return/Exchange) — hanya tukar barang, bukan uang
