@@ -143,6 +143,7 @@ export const ManualStockForm = ({ categories = [], clothingTypes = [], units = [
         gender: '',
         ukuran: '',
         gudang: '',
+        vendor: '',
         hargaModal: 0,
         stok: 0,
         stokMinimal: 3
@@ -179,10 +180,14 @@ export const ManualStockForm = ({ categories = [], clothingTypes = [], units = [
                 </SelectField>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-2 gap-4">
                 <SelectField label="Lokasi Gudang *" name="gudang" value={form.gudang} onChange={handleChange} required>
                     <option value="">Pilih Gudang</option>
                     {warehouses.map(w => <option key={w.id} value={w.name}>{w.name}</option>)}
+                </SelectField>
+                <SelectField label="Vendor" name="vendor" value={form.vendor} onChange={handleChange}>
+                    <option value="">Tanpa Vendor (Opsional)</option>
+                    {vendors.map(v => <option key={v.id} value={v.name}>{v.name}</option>)}
                 </SelectField>
             </div>
 
