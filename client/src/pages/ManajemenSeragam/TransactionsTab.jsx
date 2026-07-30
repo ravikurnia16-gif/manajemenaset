@@ -21,15 +21,14 @@ export const TransactionsTab = ({ transactions, loading, selectedWarehouse, setS
                         <th className="p-3 text-left">Barang</th>
                         <th className="p-3 text-center">Gudang</th>
                         <th className="p-3 text-center">Qty</th>
-                        <th className="p-3 text-right">Biaya</th>
                         <th className="p-3 text-center">Tanggal</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                     {loading ? (
-                        <tr><td colSpan="7" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
+                        <tr><td colSpan="6" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
                     ) : transactions.length === 0 ? (
-                        <tr><td colSpan="7" className="p-8 text-center text-slate-400">Belum ada transaksi stok.</td></tr>
+                        <tr><td colSpan="6" className="p-8 text-center text-slate-400">Belum ada transaksi stok.</td></tr>
                     ) : transactions.map(t => (
                         <tr key={t.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="p-3 font-mono text-xs text-slate-400">{t.code}</td>
@@ -42,7 +41,6 @@ export const TransactionsTab = ({ transactions, loading, selectedWarehouse, setS
                                 {t.toWarehouse && <span className="text-blue-500"> → {t.toWarehouse.name}</span>}
                             </td>
                             <td className="p-3 text-center font-bold">{t.quantity > 0 ? `+${t.quantity}` : t.quantity}</td>
-                            <td className="p-3 text-right text-slate-600">Rp {Math.abs(t.totalCost || 0).toLocaleString('id-ID')}</td>
                             <td className="p-3 text-center text-xs text-slate-500">{new Date(t.createdAt).toLocaleDateString('id-ID')}</td>
                         </tr>
                     ))}
