@@ -266,13 +266,15 @@ const Sidebar = ({ isOpen = true }) => {
                                 <ShoppingCart size={16} /> Pesanan
                             </Link>
                         )}
-                        {isWarehouseAdmin && (
-                            <Link to="/gudang/seragam" className={subNavItemClass('/gudang/seragam')}>
-                                <Shirt size={16} /> Manajemen Seragam
-                            </Link>
-                        )}
                     </>
                 ))}
+
+                {/* 4. Manajemen Seragam */}
+                {isWarehouseAdmin && (
+                    <Link to="/gudang/seragam" className={navItemClass('/gudang/seragam')}>
+                        <Shirt size={18} /> Manajemen Seragam
+                    </Link>
+                )}
 
 
 
