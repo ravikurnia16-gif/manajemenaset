@@ -130,7 +130,7 @@ export default function MasterDataPage() {
                         <MasterDataTab categories={categories} clothingTypes={clothingTypes} sizes={sizes} units={units} warehouses={warehouses} fetchData={fetchData} />
                     )}
                     {activeTab === 'items' && (
-                        <ItemsTab variants={variants.filter(v => v.sku.toLowerCase().includes(search.toLowerCase()) || v.item?.name?.toLowerCase().includes(search.toLowerCase()))} loading={loading} search={search} setSearch={setSearch} />
+                        <ItemsTab variants={variants.filter(v => v.sku.toLowerCase().includes(search.toLowerCase()) || v.item?.name?.toLowerCase().includes(search.toLowerCase()))} loading={loading} search={search} setSearch={setSearch} fetchVariants={fetchData} />
                     )}
                     {activeTab === 'pricing' && (
                         <PricingRulesTab categories={categories} clothingTypes={clothingTypes} units={units} sizes={sizes} />

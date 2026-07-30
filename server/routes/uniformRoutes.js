@@ -44,6 +44,8 @@ router.post('/pricing-rules/apply', c.applyPricingRules);
 
 // Items (Barang Induk) & Variants
 router.get('/items', c.getItems);
+router.get('/items/template', c.downloadItemImportTemplate);
+router.post('/items/import', upload.single('file'), c.importItems);
 router.get('/variants', c.getVariants);
 
 const multer = require('multer');
