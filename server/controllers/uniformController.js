@@ -218,6 +218,13 @@ exports.importItems = async (req, res) => {
         const dataRows = rows.slice(1).filter(r => r.length > 0 && r[0]);
         let successCount = 0;
 
+        // Pre-fetch master data
+        const cats = await prisma.uniformCategory.findMany();
+        const cTypes = await prisma.uniformClothingType.findMany();
+        const units = await prisma.uniformUnit.findMany();
+        const sizes = await prisma.uniformSize.findMany();
+        const vendors = await prisma.uniformVendor.findMany();
+
         for (let i = 0; i < dataRows.length; i++) {
             const [catIn, clothIn, unitIn, genderIn, sizeIn, vendorIn] = dataRows[i];
             
@@ -225,41 +232,34 @@ exports.importItems = async (req, res) => {
                 return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori, Jenis, Unit, Gender, dan Ukuran wajib diisi.` });
             }
 
-            // Upsert Master Data
-            const cat = await prisma.uniformCategory.upsert({
-                where: { name: String(catIn).trim() },
-                create: { name: String(catIn).trim() },
-                update: {}
-            });
-            const cloth = await prisma.uniformClothingType.upsert({
-                where: { name: String(clothIn).trim() },
-                create: { name: String(clothIn).trim() },
-                update: {}
-            });
-            const unit = await prisma.uniformUnit.upsert({
-                where: { name: String(unitIn).trim() },
-                create: { name: String(unitIn).trim() },
-                update: {}
-            });
-            const size = await prisma.uniformSize.upsert({
-                where: { name: String(sizeIn).trim().toUpperCase() },
-                create: { name: String(sizeIn).trim().toUpperCase() },
-                update: {}
-            });
-            
+            // Validate Master Data (Case-insensitive matching)
+            const cat = cats.find(c => c.name.toLowerCase() === String(catIn).trim().toLowerCase());
+            if (!cat) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Kategori '${catIn}' tidak ditemukan di Master Data.` });
+
+            const cloth = cTypes.find(c => c.name.toLowerCase() === String(clothIn).trim().toLowerCase());
+            if (!cloth) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Jenis Pakaian '${clothIn}' tidak ditemukan di Master Data.` });
+
+            const unit = units.find(u => u.name.toLowerCase() === String(unitIn).trim().toLowerCase());
+            if (!unit) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Unit '${unitIn}' tidak ditemukan di Master Data.` });
+
+            const sizeNameInput = String(sizeIn).trim().toUpperCase();
+            const size = sizes.find(s => s.name.toUpperCase() === sizeNameInput);
+            if (!size) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Ukuran '${sizeIn}' tidak ditemukan di Master Data.` });
+
             let vendor = null;
             if (vendorIn) {
-                vendor = await prisma.uniformVendor.upsert({
-                    where: { name: String(vendorIn).trim() },
-                    create: { name: String(vendorIn).trim() },
-                    update: {}
-                });
+                vendor = vendors.find(v => v.name.toLowerCase() === String(vendorIn).trim().toLowerCase());
+                if (!vendor) return res.status(400).json({ error: `Baris ${i + 2} ditolak: Vendor '${vendorIn}' tidak ditemukan di Master Data.` });
             }
 
-            // Find or Create Item
             const gender = String(genderIn).trim().toUpperCase();
-            const itemName = `${cat.name} ${cloth.name} ${gender} ${unit.name}`;
+            if (gender !== 'IKHWAN' && gender !== 'AKHWAT') {
+                return res.status(400).json({ error: `Baris ${i + 2} ditolak: Gender harus IKHWAN atau AKHWAT.` });
+            }
+
+            const itemName = `${cat.name} ${cloth.name} ${gender === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'} ${unit.name}`;
             
+            // Find or Create Item
             let item = await prisma.uniformItem.findFirst({
                 where: {
                     categoryId: cat.id,
