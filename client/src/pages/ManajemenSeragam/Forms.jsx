@@ -94,12 +94,12 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
     const [unit, setUnit] = useState('');
 
     const addCombination = () => {
-        if (!kategori || !gender || !unit) return;
+        if (!kategori || !gender || !form.targetUnit) return;
 
         const matchingItems = items.filter(i => 
             i.category?.name === kategori && 
             i.gender === gender && 
-            i.unit?.name === unit
+            i.unit?.name === form.targetUnit
         );
 
         const newItems = matchingItems
@@ -117,34 +117,35 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
         // Reset selections
         setKategori('');
         setGender('');
-        setUnit('');
     };
 
     const handleSave = () => {
         const actualItems = (form.items || []).map(fi => items.find(i => i.id === fi.itemId)).filter(Boolean);
-        
         const genders = [...new Set(actualItems.map(i => i.gender))].filter(Boolean);
-        const units = [...new Set(actualItems.map(i => i.unit?.name))].filter(Boolean);
-
         const derivedGender = genders.length === 1 ? genders[0] : 'ALL';
-        const derivedUnit = units.length === 1 ? units[0] : 'ALL';
 
         onSave({
             ...form,
             price: parseFloat(form.price) || 0,
-            targetUnit: derivedUnit,
+            targetUnit: form.targetUnit || 'ALL',
             gender: derivedGender,
         });
     };
 
     return (
         <div className="space-y-4">
-            <InputField label="Nama Paket" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Contoh: Paket SD" required />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InputField label="Nama Paket" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Contoh: Paket SD" required />
+                <SelectField label="Jenjang / Unit" value={form.targetUnit || ''} onChange={e => setForm({ ...form, targetUnit: e.target.value })} required>
+                    <option value="">Pilih Unit</option>
+                    {units?.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                </SelectField>
+            </div>
             <InputField label="Harga Paket (Rp)" type="number" value={form.price || ''} onChange={e => setForm({ ...form, price: e.target.value })} required />
             
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
                 <label className="block text-xs font-bold text-slate-500 uppercase">Tambah Isi Paket (Berdasarkan Kategori)</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <SelectField label="Kategori" value={kategori} onChange={e => setKategori(e.target.value)}>
                         <option value="">Pilih Kategori</option>
                         {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -154,14 +155,10 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
                         <option value="IKHWAN">Ikhwan</option>
                         <option value="AKHWAT">Akhwat</option>
                     </SelectField>
-                    <SelectField label="Jenjang / Unit" value={unit} onChange={e => setUnit(e.target.value)}>
-                        <option value="">Pilih Unit</option>
-                        {units?.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-                    </SelectField>
                 </div>
                 <button 
                     onClick={addCombination}
-                    disabled={!kategori || !gender || !unit}
+                    disabled={!kategori || !gender || !form.targetUnit}
                     className="w-full bg-slate-200 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-300 transition disabled:opacity-50"
                 >
                     Tambah Kombinasi ke Paket
