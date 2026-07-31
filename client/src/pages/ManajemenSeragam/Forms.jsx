@@ -196,7 +196,8 @@ export const ManualStockForm = ({ variants = [], categories = [], clothingTypes 
     // Kategori Filter
     const isSchoolUnit = ['SD', 'SMP', 'SMA'].includes(form.unit?.toUpperCase());
     const availableCategories = categories.filter(c => {
-        if (isSchoolUnit && c.name.toLowerCase() === 'hitam putih') return false;
+        const catName = c.name.toLowerCase();
+        if (isSchoolUnit && (catName === 'hitam' || catName === 'putih')) return false;
         return true;
     });
 
@@ -205,7 +206,8 @@ export const ManualStockForm = ({ variants = [], categories = [], clothingTypes 
     const allowedTypesAkhwat = ['jilbab', 'baju', 'rok celana'];
     const availableJenis = clothingTypes.filter(c => {
         const nameLower = c.name.toLowerCase();
-        if (form.kategori?.toLowerCase() === 'hitam putih') {
+        const catSelected = form.kategori?.toLowerCase();
+        if (catSelected === 'hitam' || catSelected === 'putih') {
             return nameLower === 'jubah';
         }
         if (form.gender === 'IKHWAN') {
