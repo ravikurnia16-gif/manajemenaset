@@ -30,7 +30,9 @@ export const PackagesTab = ({ packages, openModal }) => (
                         <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Isi Paket ({pkg.items?.length || 0} item)</p>
                         {pkg.items?.map(pi => (
                             <div key={pi.id} className="flex justify-between text-xs text-slate-600 py-0.5">
-                                <span>{pi.item?.name}</span>
+                                <span>
+                                    {pi.item?.category?.name || ''}_{pi.item?.clothingType?.name || ''}_{pi.item?.unit?.name || ''}
+                                </span>
                                 <span className="text-slate-400">x{pi.qty}</span>
                             </div>
                         ))}

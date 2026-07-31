@@ -87,11 +87,16 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
     const [itemSearch, setItemSearch] = useState('');
     const [items, setItems] = useState(initialItems || []);
 
+    const getItemLabel = (item) => {
+        if (!item) return '';
+        return `${item.category?.name || ''}_${item.clothingType?.name || ''}_${item.unit?.name || ''}`;
+    };
+
     const addItem = () => {
         if (!selectedItem) return;
         const item = items.find(i => String(i.id) === String(selectedItem));
         if (!item || form.items?.some(fi => fi.itemId === item.id)) return;
-        setForm({ ...form, items: [...(form.items || []), { itemId: item.id, itemName: `${item.sku} - ${item.item?.name} (${item.sizeName})`, qty: 1 }] });
+        setForm({ ...form, items: [...(form.items || []), { itemId: item.id, itemName: getItemLabel(item), qty: 1 }] });
         setSelectedItem('');
         setItemSearch('');
     };
@@ -125,7 +130,7 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
                         value={itemSearch} 
                         onChange={(e) => {
                             const val = e.target.value;
-                            const match = items.find(v => `${v.sku} - ${v.item?.name} (${v.sizeName})` === val);
+                            const match = items.find(v => getItemLabel(v) === val);
                             setItemSearch(val);
                             setSelectedItem(match ? match.id : '');
                         }} 
@@ -133,7 +138,9 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
                         className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white" 
                     />
                     <datalist id="pkg-variants-list">
-                        {items.map(v => <option key={v.id} value={`${v.sku} - ${v.item?.name} (${v.sizeName})`} />)}
+                        {items.map(v => (
+                            <option key={v.id} value={getItemLabel(v)} />
+                        ))}
                     </datalist>
                     <button onClick={addItem} className="px-3 py-2 bg-slate-100 rounded-xl hover:bg-slate-200"><Plus size={14} /></button>
                 </div>

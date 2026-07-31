@@ -23,6 +23,7 @@ export default function SalesPage() {
     
     // Lookup states for forms
     const [units, setUnits] = useState([]);
+    const [items, setItems] = useState([]);
     const [variants, setVariants] = useState([]);
     
     const [loading, setLoading] = useState(true);
@@ -35,10 +36,10 @@ export default function SalesPage() {
             // Fetch dropdown data needed for package form
             const commonRes = await Promise.all([
                 api.get('/uniforms/units'),
-                api.get('/uniforms/variants')
+                api.get('/uniforms/items')
             ]);
             setUnits(commonRes[0].data);
-            setVariants(commonRes[1].data);
+            setItems(commonRes[1].data);
 
             if (activeTab === 'sales') {
                 const r = await api.get('/uniforms/sales', { params: { search } });
@@ -123,7 +124,7 @@ export default function SalesPage() {
                 modal.type === 'exchange' ? 'Tukar Ukuran' : ''
             } wide={modal.type === 'package'}>
                 {modal.type === 'package' && (
-                    <PackageForm items={variants} units={units} onSave={handleSavePackage} initialData={modal.data} />
+                    <PackageForm items={items} units={units} onSave={handleSavePackage} initialData={modal.data} />
                 )}
             </Modal>
         </div>

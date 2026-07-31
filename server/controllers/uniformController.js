@@ -1234,7 +1234,7 @@ exports.getPackages = async (req, res) => {
             where: { isActive: true },
             include: {
                 items: {
-                    include: { item: { select: { id: true, name: true, code: true, sellPrice: true } } }
+                    include: { item: { include: { category: true, clothingType: true, unit: true } } }
                 }
             },
             orderBy: { name: 'asc' }
