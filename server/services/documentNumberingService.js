@@ -79,10 +79,22 @@ async function generateDocumentNumber(category, type) {
         select: { number: true }
     });
 
+    const uniformSales = await prisma.uniformSale.findMany({
+        where: {
+            code: { not: null },
+            createdAt: {
+                gte: yearStart,
+                lt: yearEnd,
+            },
+        },
+        select: { code: true }
+    });
+
     let maxSeq = 0;
-    for (const d of docs) {
-        if (d.number) {
-            const parts = d.number.split('/');
+    
+    const checkSeq = (numStr) => {
+        if (numStr) {
+            const parts = numStr.split('/');
             if (parts.length > 0 && !isNaN(parseInt(parts[0]))) {
                 const seq = parseInt(parts[0]);
                 if (seq > maxSeq) {
@@ -90,6 +102,14 @@ async function generateDocumentNumber(category, type) {
                 }
             }
         }
+    };
+
+    for (const d of docs) {
+        checkSeq(d.number);
+    }
+    
+    for (const s of uniformSales) {
+        checkSeq(s.code);
     }
 
     const nextSeq = maxSeq + 1;

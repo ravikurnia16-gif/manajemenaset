@@ -1263,10 +1263,17 @@ exports.getSaleById = async (req, res) => {
     }
 };
 
+const { generateDocumentNumber } = require('../services/documentNumberingService');
+
 exports.createSale = async (req, res) => {
     const { type, warehouseId, customerName, customerPhone, studentName, studentClass, targetUnit, packageId, discount, paidAmount, paymentMethod, scheduleId, items, note, status } = req.body;
     try {
-        const code = await generateCode('INV/SRG', 'uniformSale');
+        let code;
+        if (type === 'SPMB') {
+            code = await generateDocumentNumber('Invoice', 'INVOICE');
+        } else {
+            code = await generateCode('INV/SRG', 'uniformSale');
+        }
 
         const result = await prisma.$transaction(async (tx) => {
             // Calculate totals
