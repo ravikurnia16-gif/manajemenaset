@@ -1611,6 +1611,26 @@ exports.fulfillSale = async (req, res) => {
     }
 };
 
+exports.updateSalePayment = async (req, res) => {
+    try {
+        const saleId = parseInt(req.params.id);
+        const { paymentStatus } = req.body;
+        
+        if (!['PAID', 'UNPAID', 'PARTIAL'].includes(paymentStatus)) {
+            return res.status(400).json({ error: 'Status pembayaran tidak valid' });
+        }
+
+        const updatedSale = await prisma.uniformSale.update({
+            where: { id: saleId },
+            data: { paymentStatus }
+        });
+
+        res.json(updatedSale);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 // ========== EXCHANGE (TUKAR UKURAN) ==========
 
 exports.getExchanges = async (req, res) => {

@@ -118,6 +118,15 @@ export default function SalesPage() {
         }
     };
 
+    const handleUpdatePayment = async (id, status) => {
+        try {
+            await api.put(`/uniforms/sales/${id}/payment`, { paymentStatus: status });
+            fetchData();
+        } catch (err) {
+            alert(err.response?.data?.error || 'Gagal mengubah status pembayaran');
+        }
+    };
+
     const handleSaveExchange = async (formData) => {
         try {
             await api.post('/uniforms/exchanges', formData);
@@ -161,6 +170,7 @@ export default function SalesPage() {
                             openModal={openModal} 
                             canFulfill={canFulfill}
                             onDelete={handleDeleteSale}
+                            onUpdatePayment={handleUpdatePayment}
                         />
                     )}
                     {activeTab === 'packages' && (

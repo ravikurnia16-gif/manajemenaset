@@ -1,8 +1,8 @@
-import { Search, ShoppingCart, Trash2 } from 'lucide-react';
+import { Search, ShoppingCart, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import { Badge } from './UIComponents';
 import React from 'react';
 
-export const SalesTab = ({ sales, loading, search, setSearch, openModal, canFulfill, onDelete }) => (
+export const SalesTab = ({ sales, loading, search, setSearch, openModal, canFulfill, onDelete, onUpdatePayment }) => (
     <div className="space-y-4">
         <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -45,6 +45,19 @@ export const SalesTab = ({ sales, loading, search, setSearch, openModal, canFulf
                                     <td className="p-3 text-right font-bold text-slate-700">Rp {(s.totalAmount || 0).toLocaleString('id-ID')}</td>
                                     <td className="p-3 text-center">
                                         <Badge color={s.paymentStatus === 'PAID' ? 'green' : s.paymentStatus === 'PARTIAL' ? 'orange' : 'red'}>{s.paymentStatus}</Badge>
+                                        {onUpdatePayment && (
+                                            <button 
+                                                onClick={() => onUpdatePayment(s.id, s.paymentStatus === 'PAID' ? 'UNPAID' : 'PAID')}
+                                                className={`mt-2 mx-auto flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded transition-colors ${
+                                                    s.paymentStatus === 'PAID' 
+                                                        ? 'bg-red-50 text-red-600 hover:bg-red-100' 
+                                                        : 'bg-green-50 text-green-600 hover:bg-green-100'
+                                                }`}
+                                            >
+                                                {s.paymentStatus === 'PAID' ? <XCircle size={12} /> : <CheckCircle size={12} />}
+                                                {s.paymentStatus === 'PAID' ? 'Batal Lunas' : 'Tandai Lunas'}
+                                            </button>
+                                        )}
                                     </td>
                                     <td className="p-3 text-center">
                                         <Badge color={s.status === 'COMPLETED' ? 'green' : s.status === 'PARTIAL_DELIVERED' ? 'orange' : s.status === 'PENDING' ? 'yellow' : 'slate'}>{s.status}</Badge>
