@@ -228,9 +228,7 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                             </SelectField>
                         </>
                     )}
-                    {form.type === 'SPMB' && (
-                        <InputField type="date" label="Tenggat Pelunasan Tagihan *" value={form.dueDate || ''} onChange={e => setForm({ ...form, dueDate: e.target.value })} required />
-                    )}
+                    {/* dueDate is omitted for SPMB per user request */}
                 </div>
                 
                 <div className="bg-blue-50 p-4 rounded-xl space-y-2">

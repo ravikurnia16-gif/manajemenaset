@@ -1266,7 +1266,7 @@ exports.getSaleById = async (req, res) => {
 const { generateDocumentNumber } = require('../services/documentNumberingService');
 
 exports.createSale = async (req, res) => {
-    const { type, warehouseId, customerName, customerPhone, studentName, studentClass, targetUnit, packageId, discount, paidAmount, paymentMethod, scheduleId, items, note, status, dueDate } = req.body;
+    const { type, warehouseId, customerName, customerPhone, studentName, studentClass, targetUnit, packageId, discount, paidAmount, paymentMethod, scheduleId, items, note, status } = req.body;
     try {
         let code;
         if (type === 'SPMB') {
@@ -1379,7 +1379,6 @@ exports.createSale = async (req, res) => {
                     status: isPending ? 'PENDING' : (allDelivered ? 'COMPLETED' : 'PARTIAL_DELIVERED'),
                     scheduleId: scheduleId ? parseInt(scheduleId) : null,
                     note,
-                    dueDate: dueDate ? new Date(dueDate) : null,
                     items: { create: saleItems }
                 },
                 include: { items: true, warehouse: true }

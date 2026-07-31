@@ -81,7 +81,6 @@ async function generateDocumentNumber(category, type) {
 
     const uniformSales = await prisma.uniformSale.findMany({
         where: {
-            code: { not: null },
             createdAt: {
                 gte: yearStart,
                 lt: yearEnd,
