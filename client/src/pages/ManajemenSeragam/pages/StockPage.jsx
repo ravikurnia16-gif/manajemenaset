@@ -140,7 +140,7 @@ export default function StockPage() {
                     <TransactionForm warehouses={warehouses} vendors={vendors} variants={variants} onSave={handleSaveTransaction} />
                 )}
                 {modal.type === 'manual-stock' && (
-                    <ManualStockForm variants={variants} warehouses={warehouses} vendors={vendors} onSave={handleSaveManualStock} />
+                    <ManualStockForm variants={variants} categories={categories} clothingTypes={clothingTypes} sizes={sizes} units={units} warehouses={warehouses} vendors={vendors} onSave={handleSaveManualStock} />
                 )}
             </Modal>
         </div>

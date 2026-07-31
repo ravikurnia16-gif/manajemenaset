@@ -190,87 +190,89 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
         </div>
     );
 };
-export const ManualStockForm = ({ variants = [], warehouses = [], vendors = [], onSave }) => {
-    const [form, setForm] = useState({ variantId: '', gudang: '', vendor: '', stok: 0, stokMinimal: 3 });
-    const [kategori, setKategori] = useState('');
-    const [jenisPakaian, setJenisPakaian] = useState('');
-    const [unit, setUnit] = useState('');
-    const [gender, setGender] = useState('');
-    const [ukuran, setUkuran] = useState('');
+export const ManualStockForm = ({ variants = [], categories = [], clothingTypes = [], units = [], sizes = [], warehouses = [], vendors = [], onSave }) => {
+    const [form, setForm] = useState({ variantId: '', gudang: '', vendor: '', stok: 0, stokMinimal: 3, gender: '', unit: '', kategori: '', jenisPakaian: '', ukuran: '' });
 
-    const availableCategories = Array.from(new Set(variants.map(v => v.item?.category?.name))).filter(Boolean);
-    
-    const availableJenis = Array.from(new Set(
-        variants.filter(v => v.item?.category?.name === kategori)
-        .map(v => v.item?.clothingType?.name)
-    )).filter(Boolean);
+    // Kategori Filter
+    const isSchoolUnit = ['SD', 'SMP', 'SMA'].includes(form.unit?.toUpperCase());
+    const availableCategories = categories.filter(c => {
+        if (isSchoolUnit && c.name.toLowerCase() === 'hitam putih') return false;
+        return true;
+    });
 
-    const availableUnits = Array.from(new Set(
-        variants.filter(v => v.item?.category?.name === kategori && v.item?.clothingType?.name === jenisPakaian)
-        .map(v => v.item?.unit?.name)
-    )).filter(Boolean);
+    // Jenis Pakaian Filter
+    const allowedTypesIkhwan = ['baju', 'celana', 'jubah'];
+    const allowedTypesAkhwat = ['jilbab', 'baju', 'rok celana'];
+    const availableJenis = clothingTypes.filter(c => {
+        const nameLower = c.name.toLowerCase();
+        if (form.kategori?.toLowerCase() === 'hitam putih') {
+            return nameLower === 'jubah';
+        }
+        if (form.gender === 'IKHWAN') {
+            return allowedTypesIkhwan.includes(nameLower);
+        }
+        if (form.gender === 'AKHWAT') {
+            return allowedTypesAkhwat.includes(nameLower);
+        }
+        return true;
+    });
 
-    const availableGenders = Array.from(new Set(
-        variants.filter(v => v.item?.category?.name === kategori && v.item?.clothingType?.name === jenisPakaian && v.item?.unit?.name === unit)
-        .map(v => v.item?.gender)
-    )).filter(Boolean);
+    // Ukuran Filter
+    const jubahSizes = ['38', '40', '42', '44', '46', '48', '50/20', '50/22', '50/24', '52/20', '52/22', '52/24', '54/20', '54/22', '54/24', '54/26'];
+    const isJubah = form.jenisPakaian?.toLowerCase() === 'jubah';
+    const availableSizes = isJubah 
+        ? jubahSizes.map(s => ({ name: s })) 
+        : sizes.filter(s => !jubahSizes.includes(s.name));
 
-    const availableSizes = Array.from(new Set(
-        variants.filter(v => v.item?.category?.name === kategori && v.item?.clothingType?.name === jenisPakaian && v.item?.unit?.name === unit && v.item?.gender === gender)
-        .map(v => v.sizeName)
-    )).filter(Boolean);
+    const handleGenderChange = (e) => setForm(f => ({ ...f, gender: e.target.value, jenisPakaian: '', ukuran: '', variantId: '' }));
+    const handleUnitChange = (e) => setForm(f => ({ ...f, unit: e.target.value, kategori: '', jenisPakaian: '', ukuran: '', variantId: '' }));
+    const handleKategoriChange = (e) => setForm(f => ({ ...f, kategori: e.target.value, jenisPakaian: '', ukuran: '', variantId: '' }));
+    const handleJenisChange = (e) => setForm(f => ({ ...f, jenisPakaian: e.target.value, ukuran: '', variantId: '' }));
+    const handleUkuranChange = (e) => setForm(f => ({ ...f, ukuran: e.target.value, variantId: '' }));
+    const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
     useEffect(() => {
-        if (kategori && jenisPakaian && unit && gender && ukuran) {
+        if (form.gender && form.unit && form.kategori && form.jenisPakaian && form.ukuran) {
             const match = variants.find(v => 
-                v.item?.category?.name === kategori && 
-                v.item?.clothingType?.name === jenisPakaian && 
-                v.item?.unit?.name === unit && 
-                v.item?.gender === gender && 
-                v.sizeName === ukuran
+                v.item?.gender === form.gender && 
+                v.item?.unit?.name === form.unit && 
+                v.item?.category?.name === form.kategori && 
+                v.item?.clothingType?.name === form.jenisPakaian && 
+                v.sizeName === form.ukuran
             );
-            if (match) setForm(f => ({ ...f, variantId: match.id }));
-            else setForm(f => ({ ...f, variantId: '' }));
-        } else {
-            setForm(f => ({ ...f, variantId: '' }));
+            if (match && match.id !== form.variantId) setForm(f => ({ ...f, variantId: match.id }));
+            else if (!match && form.variantId !== '') setForm(f => ({ ...f, variantId: '' }));
         }
-    }, [kategori, jenisPakaian, unit, gender, ukuran, variants]);
-
-    // Handle cascading resets
-    const handleKategoriChange = (e) => { setKategori(e.target.value); setJenisPakaian(''); setUnit(''); setGender(''); setUkuran(''); };
-    const handleJenisChange = (e) => { setJenisPakaian(e.target.value); setUnit(''); setGender(''); setUkuran(''); };
-    const handleUnitChange = (e) => { setUnit(e.target.value); setGender(''); setUkuran(''); };
-    const handleGenderChange = (e) => { setGender(e.target.value); setUkuran(''); };
-    const handleUkuranChange = (e) => { setUkuran(e.target.value); };
-    const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+    }, [form.gender, form.unit, form.kategori, form.jenisPakaian, form.ukuran, variants, form.variantId]);
 
     return (
         <div className="space-y-4">
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-4 space-y-4">
-                <div className="text-xs font-bold text-slate-500 uppercase">Pilih Barang (Berdasarkan Data Master)</div>
+                <div className="text-xs font-bold text-slate-500 uppercase">Pilih / Buat Barang Baru</div>
                 <div className="grid grid-cols-2 gap-4">
-                    <SelectField label="Kategori *" value={kategori} onChange={handleKategoriChange} required>
-                        <option value="">Pilih Kategori</option>
-                        {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    <SelectField label="Gender *" value={form.gender} onChange={handleGenderChange} required>
+                        <option value="">Pilih Gender</option>
+                        <option value="IKHWAN">Ikhwan</option>
+                        <option value="AKHWAT">Akhwat</option>
                     </SelectField>
-                    <SelectField label="Jenis Pakaian *" value={jenisPakaian} onChange={handleJenisChange} disabled={!kategori} required>
-                        <option value="">Pilih Jenis Pakaian</option>
-                        {availableJenis.map(c => <option key={c} value={c}>{c}</option>)}
+                    <SelectField label="Unit *" value={form.unit} onChange={handleUnitChange} disabled={!form.gender} required>
+                        <option value="">Pilih Unit</option>
+                        {units.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                     </SelectField>
                 </div>
                 
                 <div className="grid grid-cols-3 gap-4">
-                    <SelectField label="Unit *" value={unit} onChange={handleUnitChange} disabled={!jenisPakaian} required>
-                        <option value="">Pilih Unit</option>
-                        {availableUnits.map(u => <option key={u} value={u}>{u}</option>)}
+                    <SelectField label="Kategori *" value={form.kategori} onChange={handleKategoriChange} disabled={!form.unit} required>
+                        <option value="">Pilih Kategori</option>
+                        {availableCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                     </SelectField>
-                    <SelectField label="Gender *" value={gender} onChange={handleGenderChange} disabled={!unit} required>
-                        <option value="">Pilih Gender</option>
-                        {availableGenders.map(g => <option key={g} value={g}>{g === 'IKHWAN' ? 'Ikhwan' : 'Akhwat'}</option>)}
+                    <SelectField label="Jenis Pakaian *" value={form.jenisPakaian} onChange={handleJenisChange} disabled={!form.kategori} required>
+                        <option value="">Pilih Jenis Pakaian</option>
+                        {availableJenis.map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)}
                     </SelectField>
-                    <SelectField label="Ukuran *" value={ukuran} onChange={handleUkuranChange} disabled={!gender} required>
+                    <SelectField label="Ukuran *" value={form.ukuran} onChange={handleUkuranChange} disabled={!form.jenisPakaian} required>
                         <option value="">Pilih Ukuran</option>
-                        {availableSizes.map(s => <option key={s} value={s}>{s}</option>)}
+                        {availableSizes.map(s => <option key={s.id || s.name} value={s.name}>{s.name}</option>)}
                     </SelectField>
                 </div>
             </div>
@@ -293,7 +295,7 @@ export const ManualStockForm = ({ variants = [], warehouses = [], vendors = [], 
 
             <button 
                 onClick={() => onSave(form)} 
-                disabled={!form.variantId || !form.gudang || !form.stok}
+                disabled={!form.gender || !form.unit || !form.kategori || !form.jenisPakaian || !form.ukuran || !form.gudang || !form.stok}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 mt-4 disabled:opacity-50"
             >
                 Simpan Stok
