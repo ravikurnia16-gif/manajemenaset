@@ -1497,7 +1497,12 @@ exports.fulfillSale = async (req, res) => {
                 });
 
                 const available = stock ? stock.quantity : 0;
-                const canDeliver = Math.min(actualReqQty, available);
+                
+                if (available < actualReqQty) {
+                    throw new Error(`Stok tidak mencukupi untuk ${item.itemName} (Ukuran: ${item.size}). Tersedia: ${available}, Dibutuhkan: ${actualReqQty}`);
+                }
+                
+                const canDeliver = actualReqQty;
 
                 if (canDeliver > 0) {
                     await tx.uniformStock.update({
