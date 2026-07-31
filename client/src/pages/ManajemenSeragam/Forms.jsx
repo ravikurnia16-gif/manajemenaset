@@ -203,7 +203,7 @@ export const ManualStockForm = ({ variants = [], categories = [], clothingTypes 
 
     // Jenis Pakaian Filter
     const allowedTypesIkhwan = ['baju', 'celana', 'jubah'];
-    const allowedTypesAkhwat = ['jilbab', 'baju', 'rok celana'];
+    const allowedTypesAkhwat = ['jilbab', 'baju', 'celana', 'rok celana'];
     const availableJenis = clothingTypes.filter(c => {
         const nameLower = c.name.toLowerCase();
         const catSelected = form.kategori?.toLowerCase();
