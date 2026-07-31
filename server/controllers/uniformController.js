@@ -1629,48 +1629,65 @@ exports.getExchanges = async (req, res) => {
 };
 
 exports.createExchange = async (req, res) => {
-    const { customerName, studentName, fromVariantId, toVariantId, qty, reason, note, warehouseId } = req.body;
+    const { reason, note, warehouseId, exchanges, fromVariantId, toVariantId, qty } = req.body;
     try {
         const code = await generateCode('EXC/SRG', 'uniformExchange');
-        const quantity = parseInt(qty || 1);
         const whId = parseInt(warehouseId);
 
+        let itemsToExchange = exchanges || [];
+        if (itemsToExchange.length === 0 && fromVariantId && toVariantId) {
+            itemsToExchange = [{ fromVariantId, toVariantId, qty: qty || 1 }];
+        }
+
+        if (itemsToExchange.length === 0) throw new Error('Tidak ada barang yang ditukar');
+
         const result = await prisma.$transaction(async (tx) => {
-            // 1. Create exchange record
-            const exchange = await tx.uniformExchange.create({
-                data: {
-                    code, customerName, studentName,
-                    fromVariantId: parseInt(fromVariantId),
-                    toVariantId: parseInt(toVariantId),
-                    qty: quantity, reason, note,
-                    status: 'COMPLETED',
-                    createdById: req.user?.id || null
+            const exchangeRecords = [];
+
+            for (const item of itemsToExchange) {
+                const quantity = parseInt(item.qty || 1);
+                const fVId = parseInt(item.fromVariantId);
+                const tVId = parseInt(item.toVariantId);
+
+                // 1. Create exchange record
+                const exchange = await tx.uniformExchange.create({
+                    data: {
+                        code, 
+                        customerName: '-', // removed from form
+                        studentName: '-', // removed from form
+                        fromVariantId: fVId,
+                        toVariantId: tVId,
+                        qty: quantity, 
+                        reason, note,
+                        status: 'COMPLETED',
+                        createdById: req.user?.id || null
+                    }
+                });
+                exchangeRecords.push(exchange);
+
+                // 2. Return old variant to stock (IN)
+                await tx.uniformStock.upsert({
+                    where: { variantId_warehouseId: { variantId: fVId, warehouseId: whId } },
+                    create: { variantId: fVId, warehouseId: whId, quantity },
+                    update: { quantity: { increment: quantity } }
+                });
+
+                // 3. Deduct new variant from stock (OUT)
+                const stockOut = await tx.uniformStock.findUnique({
+                    where: { variantId_warehouseId: { variantId: tVId, warehouseId: whId } }
+                });
+
+                if (!stockOut || stockOut.quantity < quantity) {
+                    throw new Error('Stok pengganti tidak mencukupi untuk salah satu barang');
                 }
-            });
 
-            // 2. Return old variant to stock (IN)
-            await tx.uniformStock.upsert({
-                where: { variantId_warehouseId: { variantId: parseInt(fromVariantId), warehouseId: whId } },
-                create: { variantId: parseInt(fromVariantId), warehouseId: whId, quantity },
-                update: { quantity: { increment: quantity } }
-            });
-
-            // 3. Deduct new variant from stock (OUT)
-            const tVId = parseInt(toVariantId);
-            const stockOut = await tx.uniformStock.findUnique({
-                where: { variantId_warehouseId: { variantId: tVId, warehouseId: whId } }
-            });
-
-            if (!stockOut || stockOut.quantity < quantity) {
-                throw new Error('Stok pengganti tidak mencukupi');
+                await tx.uniformStock.update({
+                    where: { variantId_warehouseId: { variantId: tVId, warehouseId: whId } },
+                    data: { quantity: { decrement: quantity } }
+                });
             }
 
-            await tx.uniformStock.update({
-                where: { variantId_warehouseId: { variantId: tVId, warehouseId: whId } },
-                data: { quantity: { decrement: quantity } }
-            });
-
-            return exchange;
+            return exchangeRecords;
         });
 
         res.json(result);

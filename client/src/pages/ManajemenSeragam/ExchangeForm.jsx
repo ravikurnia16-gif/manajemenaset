@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Plus, Trash2 } from 'lucide-react';
 
 const InputField = ({ label, ...props }) => (
     <div className="space-y-1.5">
@@ -17,75 +17,128 @@ const SelectField = ({ label, children, ...props }) => (
     </div>
 );
 
-export const ExchangeForm = ({ warehouses = [], variants = [], onSave }) => {
-    const [form, setForm] = useState({
-        customerName: '',
-        studentName: '',
-        warehouseId: warehouses[0]?.id || '',
-        fromVariantId: '',
-        toVariantId: '',
-        qty: 1,
-        reason: 'SIZE_MISMATCH',
-        note: ''
-    });
+const VariantInput = ({ label, value, onChange, variants, placeholder }) => {
+    const selected = variants.find(v => String(v.id) === String(value));
+    const [inputValue, setInputValue] = useState(selected ? `${selected.item?.name} (${selected.sizeName})` : '');
 
-    const selectedFromVariant = variants.find(v => String(v.id) === String(form.fromVariantId));
-    const availableToVariants = selectedFromVariant 
-        ? variants.filter(v => String(v.itemId) === String(selectedFromVariant.itemId))
-        : [];
+    return (
+        <div className="space-y-1.5">
+           <label className="block text-xs font-bold text-slate-500 uppercase">{label}</label>
+           <input 
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              list="variants-list-opts"
+              value={inputValue}
+              onChange={e => {
+                  setInputValue(e.target.value);
+                  const matched = variants.find(v => `${v.item?.name} (${v.sizeName})` === e.target.value);
+                  if (matched) onChange(matched.id);
+                  else onChange('');
+              }}
+              placeholder={placeholder || "Ketik nama barang..."}
+              required
+           />
+           <datalist id="variants-list-opts">
+               {variants.map(v => <option key={v.id} value={`${v.item?.name} (${v.sizeName})`} />)}
+           </datalist>
+        </div>
+    );
+};
+
+export const ExchangeForm = ({ warehouses = [], variants = [], onSave }) => {
+    const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || '');
+    const [reason, setReason] = useState('SIZE_MISMATCH');
+    const [note, setNote] = useState('');
+    const [exchanges, setExchanges] = useState([{ fromVariantId: '', toVariantId: '', qty: 1 }]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSave(form);
+        onSave({
+            warehouseId,
+            reason,
+            note,
+            exchanges
+        });
+    };
+
+    const updateExchange = (index, field, value) => {
+        const newExchanges = [...exchanges];
+        newExchanges[index][field] = value;
+        if (field === 'fromVariantId') newExchanges[index].toVariantId = ''; // reset target
+        setExchanges(newExchanges);
+    };
+
+    const removeExchange = (index) => {
+        setExchanges(exchanges.filter((_, i) => i !== index));
+    };
+
+    const addExchange = () => {
+        setExchanges([...exchanges, { fromVariantId: '', toVariantId: '', qty: 1 }]);
     };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <InputField label="Nama Pelanggan / Wali Murid *" value={form.customerName} onChange={e => setForm({ ...form, customerName: e.target.value })} required />
-                <InputField label="Nama Siswa" value={form.studentName} onChange={e => setForm({ ...form, studentName: e.target.value })} />
-            </div>
-
-            <SelectField label="Lokasi Gudang Penukaran *" value={form.warehouseId} onChange={e => setForm({ ...form, warehouseId: e.target.value })} required>
+            <SelectField label="Lokasi Gudang Penukaran *" value={warehouseId} onChange={e => setWarehouseId(e.target.value)} required>
                 <option value="">-- Pilih Gudang --</option>
                 {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </SelectField>
 
-            <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/50 space-y-4">
-                <h3 className="text-sm font-bold text-blue-800 flex items-center gap-2">
-                    <RefreshCw size={16} /> Rincian Penukaran
-                </h3>
-                
-                <SelectField label="Barang yang Dikembalikan (Dari) *" value={form.fromVariantId} onChange={e => setForm({ ...form, fromVariantId: e.target.value, toVariantId: '' })} required>
-                    <option value="">-- Pilih Barang yang Dikembalikan --</option>
-                    {variants.map(v => (
-                        <option key={v.id} value={v.id}>{v.sku} - {v.item?.name} ({v.sizeName})</option>
-                    ))}
-                </SelectField>
-
-                <div className="grid grid-cols-3 gap-4">
-                    <div className="col-span-2">
-                        <SelectField label="Barang Pengganti (Ke) *" value={form.toVariantId} onChange={e => setForm({ ...form, toVariantId: e.target.value })} required disabled={!form.fromVariantId}>
-                            <option value="">-- Pilih Ukuran Pengganti --</option>
-                            {availableToVariants.map(v => (
-                                <option key={v.id} value={v.id}>{v.sku} - {v.item?.name} ({v.sizeName})</option>
-                            ))}
-                        </SelectField>
-                    </div>
-                    <div>
-                        <InputField label="Jumlah (Qty) *" type="number" min="1" value={form.qty} onChange={e => setForm({ ...form, qty: parseInt(e.target.value) || 1 })} required />
-                    </div>
+            <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                    <h3 className="text-sm font-bold text-blue-800 flex items-center gap-2">
+                        <RefreshCw size={16} /> Rincian Penukaran
+                    </h3>
+                    <button type="button" onClick={addExchange} className="text-xs flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-200 font-bold">
+                        <Plus size={14} /> Tambah Barang
+                    </button>
                 </div>
+
+                {exchanges.map((exc, index) => {
+                    const selectedFromVariant = variants.find(v => String(v.id) === String(exc.fromVariantId));
+                    const availableToVariants = selectedFromVariant 
+                        ? variants.filter(v => String(v.itemId) === String(selectedFromVariant.itemId))
+                        : [];
+
+                    return (
+                        <div key={index} className="p-4 rounded-xl border border-blue-100 bg-blue-50/50 space-y-4 relative">
+                            {exchanges.length > 1 && (
+                                <button type="button" onClick={() => removeExchange(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 p-1 bg-white rounded-full shadow-sm">
+                                    <Trash2 size={14} />
+                                </button>
+                            )}
+                            
+                            <VariantInput 
+                                label="Barang yang Dikembalikan (Ketik Nama) *" 
+                                value={exc.fromVariantId} 
+                                onChange={val => updateExchange(index, 'fromVariantId', val)} 
+                                variants={variants} 
+                            />
+
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="col-span-2">
+                                    <SelectField label="Barang Pengganti (Ke) *" value={exc.toVariantId} onChange={e => updateExchange(index, 'toVariantId', e.target.value)} required disabled={!exc.fromVariantId}>
+                                        <option value="">-- Pilih Ukuran Pengganti --</option>
+                                        {availableToVariants.map(v => (
+                                            <option key={v.id} value={v.id}>{v.item?.name} ({v.sizeName})</option>
+                                        ))}
+                                    </SelectField>
+                                </div>
+                                <div>
+                                    <InputField label="Jumlah (Qty) *" type="number" min="1" value={exc.qty} onChange={e => updateExchange(index, 'qty', parseInt(e.target.value) || 1)} required />
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-                <SelectField label="Alasan Penukaran *" value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })} required>
+                <SelectField label="Alasan Penukaran *" value={reason} onChange={e => setReason(e.target.value)} required>
                     <option value="SIZE_MISMATCH">Ukuran Tidak Pas</option>
                     <option value="DEFECTIVE">Barang Cacat / Rusak</option>
                     <option value="WRONG_ITEM">Salah Barang</option>
                     <option value="OTHER">Lainnya</option>
                 </SelectField>
-                <InputField label="Catatan Tambahan" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} />
+                <InputField label="Catatan Tambahan" value={note} onChange={e => setNote(e.target.value)} />
             </div>
 
             <div className="pt-4 mt-4 border-t border-slate-100 flex justify-end">
