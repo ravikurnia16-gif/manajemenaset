@@ -978,6 +978,18 @@ exports.createStockTransaction = async (req, res) => {
         const cost = parseFloat(costPerUnit || 0);
 
         const result = await prisma.$transaction(async (tx) => {
+            let finalNote = note;
+            if (!finalNote) {
+                if (type === 'IN') finalNote = 'Penambahan Stok Manual';
+                else if (type === 'OUT') finalNote = 'Pengurangan Stok Manual';
+                else if (type === 'ADJUSTMENT') finalNote = `Penyesuaian Stok: ${reason || ''}`;
+                else if (type === 'MUTATION') {
+                    const fromWh = await tx.uniformWarehouse.findUnique({ where: { id: parseInt(warehouseId) } });
+                    const toWh = await tx.uniformWarehouse.findUnique({ where: { id: parseInt(toWarehouseId) } });
+                    finalNote = `Pindah Gudang dari ${fromWh?.name || 'Gudang'} ke ${toWh?.name || 'Gudang'}`;
+                }
+            }
+
             // 1. Create transaction record
             const trx = await tx.uniformStockTransaction.create({
                 data: {
@@ -989,7 +1001,7 @@ exports.createStockTransaction = async (req, res) => {
                     costPerUnit: cost,
                     totalCost: cost * qty,
                     vendorId: vendorId ? parseInt(vendorId) : null,
-                    reason, note,
+                    reason, note: finalNote,
                     createdById: req.user?.id || null
                 }
             });
@@ -1336,7 +1348,7 @@ exports.createSale = async (req, res) => {
                             costPerUnit: totalCostValue / canDeliver,
                             totalCost: totalCostValue,
                             referenceType: 'SALE',
-                            note: `Penjualan ${code}`,
+                            note: type === 'SPMB' ? 'Pembelian Paket SPMB' : `Pembelian dari ${customerName || studentName || 'Pelanggan'}`,
                             createdById: req.user?.id || null
                         }
                     });
@@ -1551,7 +1563,7 @@ exports.fulfillSale = async (req, res) => {
                             costPerUnit: totalCostValue / canDeliver,
                             totalCost: totalCostValue,
                             referenceType: 'SALE',
-                            note: `Fulfillment Pesanan ${sale.code}`,
+                            note: sale.type === 'SPMB' ? 'Pembelian Paket SPMB' : `Pembelian dari ${sale.customerName || sale.studentName || 'Pelanggan'}`,
                             createdById: req.user?.id || null
                         }
                     });
