@@ -2,7 +2,7 @@ import { Search, ShoppingCart } from 'lucide-react';
 import { Badge } from './UIComponents';
 import React from 'react';
 
-export const SalesTab = ({ sales, loading, search, setSearch, openModal }) => (
+export const SalesTab = ({ sales, loading, search, setSearch, openModal, canFulfill }) => (
     <div className="space-y-4">
         <div className="flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -48,7 +48,7 @@ export const SalesTab = ({ sales, loading, search, setSearch, openModal }) => (
                                     </td>
                                     <td className="p-3 text-center">
                                         <Badge color={s.status === 'COMPLETED' ? 'green' : s.status === 'PARTIAL_DELIVERED' ? 'orange' : s.status === 'PENDING' ? 'yellow' : 'slate'}>{s.status}</Badge>
-                                        {!hasPackages && s.status === 'PENDING' && (
+                                        {!hasPackages && s.status === 'PENDING' && canFulfill && (
                                             <button onClick={() => openModal('fulfill', s)} className="mt-2 text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200 block mx-auto">
                                                 Proses
                                             </button>
@@ -80,9 +80,15 @@ export const SalesTab = ({ sales, loading, search, setSearch, openModal }) => (
                                             </td>
                                             <td colSpan="2" className="p-3">
                                                 {isPkgPending ? (
-                                                    <button onClick={() => openModal('fulfill', { ...s, selectedPackageId: pkg.id })} className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded hover:bg-indigo-200 shadow-sm block w-full text-center">
-                                                        Proses Paket Ini
-                                                    </button>
+                                                    canFulfill ? (
+                                                        <button onClick={() => openModal('fulfill', { ...s, selectedPackageId: pkg.id })} className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded hover:bg-indigo-200 shadow-sm block w-full text-center">
+                                                            Proses Paket Ini
+                                                        </button>
+                                                    ) : (
+                                                        <div className="text-[10px] font-bold text-yellow-600 text-center bg-yellow-50 rounded py-1 border border-yellow-100">
+                                                            Menunggu Diproses
+                                                        </div>
+                                                    )
                                                 ) : (
                                                     <div className="text-[10px] font-bold text-green-600 text-center bg-green-50 rounded py-1 border border-green-100">
                                                         Selesai Diproses

@@ -23,6 +23,9 @@ export default function SalesPage() {
     const [sales, setSales] = useState([]);
     const [packages, setPackages] = useState([]);
     const [exchanges, setExchanges] = useState([]);
+
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const canFulfill = ['SUPER_ADMIN', 'ADMIN_ASET'].includes(user.role);
     
     // Lookup states for forms
     const [units, setUnits] = useState([]);
@@ -140,7 +143,14 @@ export default function SalesPage() {
 
                 <div className="p-4 sm:p-5">
                     {activeTab === 'sales' && (
-                        <SalesTab sales={sales} loading={loading} search={search} setSearch={setSearch} openModal={openModal} />
+                        <SalesTab 
+                            sales={sales} 
+                            loading={loading} 
+                            search={search} 
+                            setSearch={setSearch} 
+                            openModal={openModal} 
+                            canFulfill={canFulfill}
+                        />
                     )}
                     {activeTab === 'packages' && (
                         <PackagesTab packages={packages} openModal={openModal} />

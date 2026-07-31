@@ -1,8 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const c = require('../controllers/uniformController');
+const { verifyToken, authorizeRole } = require('../middleware/authMiddleware');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
+
+// === PUBLIC ROUTES ===
+// Diakses oleh wali murid lewat scan QR untuk melihat tagihan
+router.get('/sales/:id', c.getSaleById);
+
+// === PROTECTED ROUTES ===
+router.use(verifyToken);
 
 // Dashboard
 router.get('/dashboard', c.getDashboardStats);
@@ -91,9 +99,9 @@ router.put('/vendor-evaluations/:id', c.updateVendorEvaluation);
 
 // Sales (POS / SPMB / Unit Order)
 router.get('/sales', c.getSales);
-router.get('/sales/:id', c.getSaleById);
 router.post('/sales', c.createSale);
-router.post('/sales/:id/fulfill', c.fulfillSale);
+// Hanya Super Admin & Admin Aset yang boleh memproses/mengeluarkan barang dari gudang
+router.post('/sales/:id/fulfill', authorizeRole(['SUPER_ADMIN', 'ADMIN_ASET']), c.fulfillSale);
 router.put('/sales/:id/payment', c.updateSalePayment);
 
 // Exchange (Tukar Ukuran)
