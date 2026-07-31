@@ -270,26 +270,34 @@ const Sidebar = ({ isOpen = true }) => {
                 ))}
 
                 {/* 4. Manajemen Seragam */}
-                {isWarehouseAdmin && renderCollapsible('seragam', <Shirt size={18} />, 'Manajemen Seragam', (
+                {(isWarehouseAdmin || user?.role === 'ADMIN_UNIT') && renderCollapsible('seragam', <Shirt size={18} />, 'Manajemen Seragam', (
                     <>
-                        <Link to="/gudang/seragam/dashboard" className={subNavItemClass('/gudang/seragam/dashboard')}>
-                            <LayoutDashboard size={16} /> Dashboard
-                        </Link>
-                        <Link to="/gudang/seragam/master" className={subNavItemClass('/gudang/seragam/master')}>
-                            <Database size={16} /> Data Induk
-                        </Link>
-                        <Link to="/gudang/seragam/stok" className={subNavItemClass('/gudang/seragam/stok')}>
-                            <Boxes size={16} /> Stok & Inventori
-                        </Link>
+                        {isWarehouseAdmin && (
+                            <>
+                                <Link to="/gudang/seragam/dashboard" className={subNavItemClass('/gudang/seragam/dashboard')}>
+                                    <LayoutDashboard size={16} /> Dashboard
+                                </Link>
+                                <Link to="/gudang/seragam/master" className={subNavItemClass('/gudang/seragam/master')}>
+                                    <Database size={16} /> Data Induk
+                                </Link>
+                                <Link to="/gudang/seragam/stok" className={subNavItemClass('/gudang/seragam/stok')}>
+                                    <Boxes size={16} /> Stok & Inventori
+                                </Link>
+                            </>
+                        )}
                         <Link to="/gudang/seragam/penjualan" className={subNavItemClass('/gudang/seragam/penjualan')}>
                             <ShoppingCart size={16} /> Pesanan Seragam
                         </Link>
-                        <Link to="/gudang/seragam/vendor" className={subNavItemClass('/gudang/seragam/vendor')}>
-                            <Users size={16} /> Vendor & Produksi
-                        </Link>
-                        <Link to="/gudang/seragam/keuangan" className={subNavItemClass('/gudang/seragam/keuangan')}>
-                            <FileSignature size={16} /> Laporan Keuangan
-                        </Link>
+                        {isWarehouseAdmin && (
+                            <>
+                                <Link to="/gudang/seragam/vendor" className={subNavItemClass('/gudang/seragam/vendor')}>
+                                    <Users size={16} /> Vendor & Produksi
+                                </Link>
+                                <Link to="/gudang/seragam/keuangan" className={subNavItemClass('/gudang/seragam/keuangan')}>
+                                    <FileSignature size={16} /> Laporan Keuangan
+                                </Link>
+                            </>
+                        )}
                     </>
                 ))}
 
