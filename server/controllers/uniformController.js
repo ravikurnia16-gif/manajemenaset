@@ -1232,7 +1232,8 @@ exports.getSales = async (req, res) => {
             where,
             include: {
                 warehouse: { select: { id: true, name: true } },
-                package: { select: { id: true, name: true } },
+                package: { select: { id: true, name: true } }, // Legacy
+                salePackages: { include: { package: { select: { id: true, name: true } } } },
                 items: true,
                 schedule: { select: { id: true, title: true, date: true } }
             },
@@ -1251,7 +1252,8 @@ exports.getSaleById = async (req, res) => {
             where: { id: parseInt(req.params.id) },
             include: {
                 warehouse: true,
-                package: { include: { items: { include: { item: true } } } },
+                package: { include: { items: { include: { item: true } } } }, // Legacy
+                salePackages: { include: { package: { include: { items: { include: { item: true } } } } } },
                 items: { include: { variant: { include: { item: true } } } },
                 schedule: true
             }
@@ -1266,51 +1268,41 @@ exports.getSaleById = async (req, res) => {
 const { generateDocumentNumber } = require('../services/documentNumberingService');
 
 exports.createSale = async (req, res) => {
-    const { type, warehouseId, customerName, customerPhone, studentName, studentClass, targetUnit, packageId, discount, paidAmount, paymentMethod, scheduleId, items, note, status } = req.body;
+    const { type, warehouseId, customerName, customerPhone, studentName, studentClass, targetUnit, packageId, discount, paidAmount, paymentMethod, scheduleId, items, packages, note, status } = req.body;
     try {
         let code;
-        if (type === 'SPMB') {
+        if (type === 'SPMB' || type === 'UNIT_ORDER') {
             code = await generateDocumentNumber('Invoice', 'INVOICE');
         } else {
             code = await generateCode('INV/SRG', 'uniformSale');
         }
 
         const result = await prisma.$transaction(async (tx) => {
-            // Calculate totals
             let subtotal = 0;
             const saleItems = [];
+            const salePackagesData = [];
             const isPending = status === 'PENDING';
-            let pkg = null;
 
-            if (type === 'SPMB' && packageId) {
-                pkg = await tx.uniformPackage.findUnique({ where: { id: parseInt(packageId) } });
-            }
-
-            for (const item of items) {
+            const processItem = async (item, unitPriceOverride, salePackageIndex) => {
                 const variant = await tx.uniformVariant.findUnique({
                     where: { id: parseInt(item.variantId) },
                     include: { item: true }
                 });
                 if (!variant) throw new Error(`Variant ID ${item.variantId} tidak ditemukan`);
 
-                let unitPrice = variant.sellPrice || variant.item.sellPrice || 0;
-                if (type === 'SPMB') {
-                    unitPrice = 0;
-                }
+                let unitPrice = unitPriceOverride !== undefined ? unitPriceOverride : (variant.sellPrice || variant.item.sellPrice || 0);
 
                 const qty = parseInt(item.qty);
                 const totalPrice = unitPrice * qty;
-                if (type !== 'SPMB') {
+                if (unitPriceOverride === undefined) { // Not SPMB/Unit Packages
                     subtotal += totalPrice;
                 }
 
-                // Check stock availability
                 const stock = await tx.uniformStock.findUnique({
                     where: { variantId_warehouseId: { variantId: parseInt(item.variantId), warehouseId: parseInt(warehouseId) } }
                 });
 
                 const available = stock ? stock.quantity : 0;
-                // Jika pesanan PENDING (Daftar Tunggu), jangan potong stok.
                 const canDeliver = isPending ? 0 : Math.min(qty, available);
 
                 saleItems.push({
@@ -1321,10 +1313,10 @@ exports.createSale = async (req, res) => {
                     qtyDelivered: canDeliver,
                     unitPrice,
                     totalPrice,
-                    status: canDeliver >= qty ? 'DELIVERED' : 'BACKORDER'
+                    status: canDeliver >= qty ? 'DELIVERED' : 'BACKORDER',
+                    _packageIndex: salePackageIndex // Temporary internal field to link back
                 });
 
-                // Reduce stock
                 if (canDeliver > 0 && stock) {
                     await tx.uniformStock.update({
                         where: { variantId_warehouseId: { variantId: parseInt(item.variantId), warehouseId: parseInt(warehouseId) } },
@@ -1333,11 +1325,10 @@ exports.createSale = async (req, res) => {
                     
                     const totalCostValue = (stock.avgCost || 0) * canDeliver;
 
-                    // Create OUT transaction
                     const trxCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
                     await tx.uniformStockTransaction.create({
                         data: {
-                            code: trxCode + '-' + Date.now(),
+                            code: trxCode + '-' + Date.now() + Math.floor(Math.random()*1000),
                             type: 'OUT',
                             variantId: parseInt(item.variantId),
                             warehouseId: parseInt(warehouseId),
@@ -1350,22 +1341,51 @@ exports.createSale = async (req, res) => {
                         }
                     });
                 }
-            }
+            };
 
-            if (type === 'SPMB' && pkg) {
-                const uniqueSizes = [...new Set(items.map(i => i.size))];
-                const totalPackages = uniqueSizes.reduce((sum, size) => {
-                    const sample = items.find(i => i.size === size);
-                    return sum + (sample ? parseInt(sample.qty) : 0);
-                }, 0);
-                subtotal = totalPackages * pkg.price;
+            // Process New Multi-Package Format
+            if (packages && packages.length > 0) {
+                for (let i = 0; i < packages.length; i++) {
+                    const p = packages[i];
+                    subtotal += p.qty * p.price;
+                    salePackagesData.push({
+                        packageId: parseInt(p.packageId),
+                        qty: p.qty,
+                        price: p.price
+                    });
+                    for (const item of p.items) {
+                        await processItem(item, 0, i); // Price is 0 for items inside packages
+                    }
+                }
+            } else if (items && items.length > 0) {
+                // Legacy / Retail format
+                let pkg = null;
+                if ((type === 'SPMB' || type === 'UNIT_ORDER') && packageId) {
+                    pkg = await tx.uniformPackage.findUnique({ where: { id: parseInt(packageId) } });
+                    const uniqueSizes = [...new Set(items.map(i => i.size))];
+                    const totalPackages = uniqueSizes.reduce((sum, size) => {
+                        const sample = items.find(i => i.size === size);
+                        return sum + (sample ? parseInt(sample.qty) : 0);
+                    }, 0);
+                    subtotal = totalPackages * pkg.price;
+                    salePackagesData.push({
+                        packageId: parseInt(packageId),
+                        qty: totalPackages,
+                        price: pkg.price
+                    });
+                }
+
+                for (const item of items) {
+                    await processItem(item, pkg ? 0 : undefined, pkg ? 0 : undefined);
+                }
             }
 
             const disc = parseFloat(discount || 0);
             const totalAmount = subtotal - disc;
             const paid = parseFloat(paidAmount || 0);
-            const allDelivered = saleItems.every(i => i.qtyDelivered >= i.qty);
+            const allDelivered = saleItems.length > 0 && saleItems.every(i => i.qtyDelivered >= i.qty);
 
+            // Create sale first to get ID, then we will attach items with their specific package ID if needed
             const sale = await tx.uniformSale.create({
                 data: {
                     code, type: type || 'RETAIL',
@@ -1379,12 +1399,38 @@ exports.createSale = async (req, res) => {
                     status: isPending ? 'PENDING' : (allDelivered ? 'COMPLETED' : 'PARTIAL_DELIVERED'),
                     scheduleId: scheduleId ? parseInt(scheduleId) : null,
                     note,
-                    items: { create: saleItems }
+                    salePackages: {
+                        create: salePackagesData
+                    }
                 },
-                include: { items: true, warehouse: true }
+                include: { salePackages: true }
             });
 
-            return sale;
+            // Now create items linking to the created salePackages if applicable
+            const itemsToCreate = saleItems.map(si => {
+                const pkgIdx = si._packageIndex;
+                delete si._packageIndex;
+                
+                let salePackageId = null;
+                if (pkgIdx !== undefined && sale.salePackages && sale.salePackages[pkgIdx]) {
+                    salePackageId = sale.salePackages[pkgIdx].id;
+                }
+                
+                return {
+                    ...si,
+                    saleId: sale.id,
+                    salePackageId
+                };
+            });
+
+            if (itemsToCreate.length > 0) {
+                await tx.uniformSaleItem.createMany({ data: itemsToCreate });
+            }
+
+            return await tx.uniformSale.findUnique({
+                where: { id: sale.id },
+                include: { items: true, salePackages: true, warehouse: true }
+            });
         });
 
         res.json(result);

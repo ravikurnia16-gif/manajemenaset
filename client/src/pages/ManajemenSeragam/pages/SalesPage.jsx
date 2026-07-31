@@ -113,17 +113,6 @@ export default function SalesPage() {
         } catch (err) { alert(err.response?.data?.error || 'Gagal memproses tukar ukuran'); }
     };
 
-    const handleFulfillSale = async (e) => {
-        e.preventDefault();
-        const warehouseId = e.target.warehouseId.value;
-        if (!warehouseId) return alert('Silakan pilih gudang');
-        try {
-            await api.post(`/uniforms/sales/${modal.data.id}/fulfill`, { warehouseId });
-            closeModal();
-            fetchData();
-        } catch (err) { alert(err.response?.data?.error || 'Gagal memproses pesanan'); }
-    };
-
     return (
         <div className="space-y-6">
             <div className="flex items-center gap-3">

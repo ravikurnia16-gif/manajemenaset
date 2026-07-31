@@ -22,7 +22,8 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
         type: 'RETAIL', warehouseId: warehouses[0]?.id || '',
         customerName: '', customerPhone: '', studentName: '', studentClass: '', targetUnit: '',
         packageId: '', subtotal: 0, discount: 0, totalAmount: 0, paidAmount: 0,
-        paymentStatus: 'UNPAID', paymentMethod: 'CASH', status: 'COMPLETED', items: []
+        paymentStatus: 'UNPAID', paymentMethod: 'CASH', status: 'COMPLETED', items: [],
+        packages: [] // array of { packageId, name, price, qty, items: [] }
     });
 
     const [variantSearch, setVariantSearch] = useState('');
@@ -30,13 +31,15 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
 
     useEffect(() => {
         let subtotal = 0;
-        if (form.type === 'SPMB' && form.packagePrice) {
-            const uniqueSizes = [...new Set(form.items.map(i => i.size))];
-            const totalPackages = uniqueSizes.reduce((sum, size) => {
-                const sample = form.items.find(i => i.size === size);
-                return sum + (sample ? sample.qty : 0);
-            }, 0);
-            subtotal = totalPackages * form.packagePrice;
+        if (form.type === 'SPMB' || form.type === 'UNIT_ORDER') {
+            form.packages.forEach(pkg => {
+                const uniqueSizes = [...new Set(pkg.items.map(i => i.size))];
+                const totalPackages = uniqueSizes.reduce((sum, size) => {
+                    const sample = pkg.items.find(i => i.size === size);
+                    return sum + (sample ? sample.qty : 0);
+                }, 0);
+                subtotal += totalPackages * pkg.price;
+            });
         } else {
             subtotal = form.items.reduce((sum, item) => sum + (item.unitPrice * item.qty), 0);
         }
@@ -47,9 +50,10 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
         else if (parseFloat(form.paidAmount) > 0) paymentStatus = 'PARTIAL';
 
         setForm(f => ({ ...f, subtotal, totalAmount, paymentStatus }));
-    }, [form.items, form.discount, form.paidAmount, form.type, form.packagePrice]);
+    }, [form.items, form.packages, form.discount, form.paidAmount, form.type]);
 
-    const handlePackageSelect = (pkgId) => {
+    const handleAddPackage = (pkgId) => {
+        if (!pkgId) return;
         const pkg = packages.find(p => String(p.id) === String(pkgId));
         if (pkg) {
             const pkgItems = [];
@@ -66,10 +70,34 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                     });
                 });
             });
-            setForm({ ...form, packageId: pkgId, items: pkgItems, packagePrice: pkg.price, subtotal: 0, isFixedPrice: pkg.isFixedPrice });
-        } else {
-            setForm({ ...form, packageId: '', items: [], packagePrice: 0 });
+            
+            setForm({
+                ...form,
+                packages: [
+                    ...form.packages,
+                    { packageId: pkg.id, name: pkg.name, price: pkg.price, items: pkgItems }
+                ]
+            });
         }
+    };
+
+    const updatePackageItemQty = (pkgIndex, sizeName, newQty) => {
+        const newPackages = [...form.packages];
+        newPackages[pkgIndex].items = newPackages[pkgIndex].items.map(i => 
+            i.size === sizeName ? { ...i, qty: newQty } : i
+        );
+        const uniqueSizes = [...new Set(newPackages[pkgIndex].items.map(i => i.size))];
+        const totalPackages = uniqueSizes.reduce((sum, size) => {
+            const sample = newPackages[pkgIndex].items.find(i => i.size === size);
+            return sum + (sample ? sample.qty : 0);
+        }, 0);
+        newPackages[pkgIndex].qty = totalPackages;
+        
+        setForm({ ...form, packages: newPackages });
+    };
+
+    const removePackage = (pkgIndex) => {
+        setForm({ ...form, packages: form.packages.filter((_, i) => i !== pkgIndex) });
     };
 
     const addRetailItem = () => {
@@ -95,17 +123,6 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
         setForm({ ...form, items: newItems });
     };
     
-    const updateItemSize = (idx, sizeName) => {
-        const newItems = [...form.items];
-        newItems[idx].size = sizeName;
-        // Find variantId matching itemId and sizeName
-        const matched = variants.find(v => String(v.itemId) === String(newItems[idx].itemId) && v.sizeName === sizeName);
-        if (matched) {
-            newItems[idx].variantId = matched.id;
-        }
-        setForm({ ...form, items: newItems });
-    };
-
     const removeItem = (idx) => {
         setForm({ ...form, items: form.items.filter((_, i) => i !== idx) });
     };
@@ -113,9 +130,9 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-                <SelectField label="Tipe Pesanan" value={form.type} onChange={e => setForm({ ...form, type: e.target.value, items: [], status: e.target.value === 'SPMB' ? 'PENDING' : 'COMPLETED' })}>
+                <SelectField label="Tipe Pesanan" value={form.type} onChange={e => setForm({ ...form, type: e.target.value, items: [], packages: [], status: e.target.value === 'SPMB' ? 'PENDING' : 'COMPLETED' })}>
                     <option value="RETAIL">Eceran (Retail)</option>
-                    <option value="SPMB">Paket Siswa Baru (SPMB)</option>
+                    <option value="SPMB">Pesanan Unit / SPMB</option>
                 </SelectField>
                 {form.type === 'RETAIL' && (
                     <SelectField label="Lokasi Gudang" value={form.warehouseId} onChange={e => setForm({ ...form, warehouseId: e.target.value })}>
@@ -137,8 +154,8 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                             <option value="">-- Pilih Unit --</option>
                             {units.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                         </SelectField>
-                        <SelectField label="Pilih Paket SPMB *" value={form.packageId} onChange={e => handlePackageSelect(e.target.value)} disabled={!form.targetUnit} required>
-                            <option value="">-- Pilih Paket --</option>
+                        <SelectField label="Tambah Paket *" value="" onChange={e => handleAddPackage(e.target.value)} disabled={!form.targetUnit}>
+                            <option value="">-- Tambah Paket --</option>
                             {packages
                                 .filter(p => !form.targetUnit || p.targetUnit === form.targetUnit || !p.targetUnit || p.targetUnit === 'ALL')
                                 .map(p => <option key={p.id} value={p.id}>{p.name} (Rp {p.price.toLocaleString()})</option>)}
@@ -149,12 +166,16 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
 
             {form.type === 'SPMB' && (
                 <div className="space-y-4">
-                    {form.items.length > 0 && (
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
-                            <label className="block text-sm font-bold text-slate-800">Tentukan Jumlah Paket per Ukuran</label>
-                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                                {[...new Set(form.items.map(i => i.size))].map(sizeName => {
-                                    const sampleItem = form.items.find(i => i.size === sizeName);
+                    {form.packages.map((pkg, pkgIndex) => (
+                        <div key={pkgIndex} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 relative">
+                            <button type="button" onClick={() => removePackage(pkgIndex)} className="absolute top-3 right-3 text-red-500 hover:text-red-700 bg-red-50 rounded p-1"><X size={16} /></button>
+                            <div>
+                                <label className="block text-sm font-bold text-blue-800">{pkg.name}</label>
+                                <div className="text-xs text-slate-500">Harga Paket: Rp {pkg.price.toLocaleString()} &bull; Total Dipesan: {pkg.qty || 0} Paket</div>
+                            </div>
+                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 mt-2">
+                                {[...new Set(pkg.items.map(i => i.size))].map(sizeName => {
+                                    const sampleItem = pkg.items.find(i => i.size === sizeName);
                                     return (
                                         <div key={sizeName} className="flex items-center gap-2 bg-white border border-slate-200 rounded p-1.5 shadow-sm">
                                             <span className="text-xs font-bold text-slate-700 w-10 text-center">{sizeName}</span>
@@ -164,8 +185,7 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                                                 value={sampleItem?.qty || ''} 
                                                 onChange={e => {
                                                     const newQty = parseInt(e.target.value) || 0;
-                                                    const newItems = form.items.map(i => i.size === sizeName ? { ...i, qty: newQty } : i);
-                                                    setForm({ ...form, items: newItems });
+                                                    updatePackageItemQty(pkgIndex, sizeName, newQty);
                                                 }} 
                                                 placeholder="0" 
                                             />
@@ -174,7 +194,7 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                                 })}
                             </div>
                         </div>
-                    )}
+                    ))}
                 </div>
             )}
 
@@ -228,7 +248,6 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                             </SelectField>
                         </>
                     )}
-                    {/* dueDate is omitted for SPMB per user request */}
                 </div>
                 
                 <div className="bg-blue-50 p-4 rounded-xl space-y-2">
@@ -258,21 +277,27 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
             <div className="pt-2">
                 <button 
                     onClick={() => {
-                        const dataToSave = { ...form, items: form.items.filter(i => i.qty > 0) };
+                        const dataToSave = { ...form };
                         if (form.type === 'SPMB') {
+                            dataToSave.packages = dataToSave.packages.map(p => ({
+                                ...p, items: p.items.filter(i => i.qty > 0)
+                            })).filter(p => p.items.length > 0);
+                            
                             if (!dataToSave.customerName) dataToSave.customerName = `Pesanan SPMB ${form.targetUnit || ''}`;
                             if (!dataToSave.warehouseId && warehouses.length > 0) dataToSave.warehouseId = warehouses[0].id;
                             dataToSave.status = 'PENDING';
-                            dataToSave.paidAmount = 0; // Ensure it's marked as UNPAID
+                            dataToSave.paidAmount = 0; 
                             dataToSave.discount = 0;
                             dataToSave.paymentMethod = '';
-                            if (form.dueDate) {
-                                dataToSave.note = (dataToSave.note || '') + `\n[DEADLINE:${form.dueDate}]`;
-                            }
+                        } else {
+                            dataToSave.items = form.items.filter(i => i.qty > 0);
                         }
                         onSave(dataToSave);
                     }} 
-                    disabled={form.items.filter(i => i.qty > 0).length === 0 || (form.type === 'RETAIL' && !form.warehouseId) || (form.type === 'SPMB' && !form.packageId)}
+                    disabled={
+                        (form.type === 'RETAIL' && (!form.warehouseId || form.items.filter(i => i.qty > 0).length === 0)) || 
+                        (form.type === 'SPMB' && form.packages.length === 0)
+                    }
                     className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition disabled:opacity-50 disabled:grayscale"
                 >
                     Simpan Pesanan

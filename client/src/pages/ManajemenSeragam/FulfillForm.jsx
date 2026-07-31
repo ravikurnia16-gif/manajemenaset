@@ -6,10 +6,15 @@ export const FulfillForm = ({ sale, warehouses = [], onSave }) => {
     const [masterWarehouse, setMasterWarehouse] = useState('');
 
     useEffect(() => {
-        if (sale && sale.items) {
-            const pending = sale.items.filter(i => i.qty - i.qtyDelivered > 0);
+        if (sale) {
+            let pending = sale.items.filter(i => i.qty > i.qtyDelivered);
+            if (sale.selectedPackageId) {
+                pending = pending.filter(i => String(i.salePackageId) === String(sale.selectedPackageId));
+            }
+            
             setItemsToFulfill(pending.map(i => ({
                 saleItemId: i.id,
+                variantId: i.variantId,
                 name: i.itemName,
                 size: i.size,
                 needed: i.qty - i.qtyDelivered,

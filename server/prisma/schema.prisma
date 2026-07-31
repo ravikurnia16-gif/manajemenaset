@@ -1877,9 +1877,11 @@ model UniformSale {
   studentClass    String?          // Kelas
   targetUnit      String?          // TK, SD, SMP, SMA
 
-  // Paket (jika SPMB)
+  // Paket (jika SPMB - deprecated, keep for backwards compat)
   packageId       Int?
   package         UniformPackage?  @relation(fields: [packageId], references: [id])
+
+  salePackages    UniformSalePackage[]
 
   // Keuangan
   subtotal        Float            @default(0)
@@ -1906,12 +1908,27 @@ model UniformSale {
   items           UniformSaleItem[]
 }
 
+model UniformSalePackage {
+  @@map("seragam_penjualan_paket")
+  id        Int @id @default(autoincrement())
+  saleId    Int
+  sale      UniformSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  packageId Int
+  package   UniformPackage @relation(fields: [packageId], references: [id])
+  qty       Int @default(1)
+  price     Float // Harga per paket saat transaksi
+  
+  items     UniformSaleItem[]
+}
+
 // Item di dalam penjualan (mendukung Partial Delivery)
 model UniformSaleItem {
   @@map("seragam_penjualan_item")
   id            Int             @id @default(autoincrement())
   saleId        Int
   sale          UniformSale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  salePackageId Int?
+  salePackage   UniformSalePackage? @relation(fields: [salePackageId], references: [id], onDelete: Cascade)
   variantId     Int
   variant       UniformVariant  @relation(fields: [variantId], references: [id])
   itemName      String          // Snapshot nama barang
