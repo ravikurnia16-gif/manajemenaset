@@ -88,41 +88,55 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
     // Derive unique categories from items
     const categories = Array.from(new Set(items.map(i => i.category?.name))).filter(Boolean);
 
-    // State for the new fields (used when creating a new package)
+    // State for the new combination fields
     const [kategori, setKategori] = useState('');
     const [gender, setGender] = useState('');
     const [unit, setUnit] = useState('');
-    const [harga, setHarga] = useState(initialData?.price || '');
 
-    const handleSave = () => {
-        let packageData = { ...form, price: parseFloat(harga) || 0 };
-        
-        if (!initialData) {
-            const displayGender = gender === 'IKHWAN' ? 'Ikhwan' : gender === 'AKHWAT' ? 'Akhwat' : gender;
-            const generatedName = `${kategori} ${displayGender} ${unit}`.trim();
-            
-            const matchingItems = items.filter(i => 
-                i.category?.name === kategori && 
-                i.gender === gender && 
-                i.unit?.name === unit
-            );
+    const addCombination = () => {
+        if (!kategori || !gender || !unit) return;
 
-            packageData = {
-                ...packageData,
-                name: generatedName,
-                targetUnit: unit,
-                gender: gender,
-                items: matchingItems.map(i => ({ itemId: i.id, qty: 1 }))
-            };
+        const matchingItems = items.filter(i => 
+            i.category?.name === kategori && 
+            i.gender === gender && 
+            i.unit?.name === unit
+        );
+
+        const newItems = matchingItems
+            .filter(i => !form.items?.some(fi => fi.itemId === i.id))
+            .map(i => ({ 
+                itemId: i.id, 
+                itemName: `${i.category?.name || ''} ${i.gender || ''} ${i.unit?.name || ''} ${i.clothingType?.name || ''}`.trim(), 
+                qty: 1 
+            }));
+
+        if (newItems.length > 0) {
+            setForm({ ...form, items: [...(form.items || []), ...newItems] });
         }
         
-        onSave(packageData);
+        // Reset selections
+        setKategori('');
+        setGender('');
+        setUnit('');
+    };
+
+    const handleSave = () => {
+        onSave({
+            ...form,
+            price: parseFloat(form.price) || 0,
+            targetUnit: form.targetUnit || 'ALL', // default fallback
+            gender: form.gender || 'ALL', // default fallback
+        });
     };
 
     return (
         <div className="space-y-4">
-            {!initialData && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <InputField label="Nama Paket" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Contoh: Paket SD" required />
+            <InputField label="Harga Paket (Rp)" type="number" value={form.price || ''} onChange={e => setForm({ ...form, price: e.target.value })} required />
+            
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                <label className="block text-xs font-bold text-slate-500 uppercase">Tambah Isi Paket (Berdasarkan Kategori)</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <SelectField label="Kategori" value={kategori} onChange={e => setKategori(e.target.value)}>
                         <option value="">Pilih Kategori</option>
                         {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -137,16 +151,39 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
                         {units?.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                     </SelectField>
                 </div>
+                <button 
+                    onClick={addCombination}
+                    disabled={!kategori || !gender || !unit}
+                    className="w-full bg-slate-200 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-300 transition disabled:opacity-50"
+                >
+                    Tambah Kombinasi ke Paket
+                </button>
+            </div>
+
+            {form.items?.length > 0 && (
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Daftar Isi Paket</label>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-2">
+                        {form.items.map((fi, idx) => {
+                            const actualItem = items.find(i => i.id === fi.itemId);
+                            const displayName = fi.itemName || `${actualItem?.category?.name || ''} ${actualItem?.gender || ''} ${actualItem?.unit?.name || ''} ${actualItem?.clothingType?.name || ''}`.trim();
+                            return (
+                                <div key={idx} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                    <span className="flex-1 text-sm font-medium text-slate-700">{displayName}</span>
+                                    <button onClick={() => setForm({ ...form, items: form.items.filter((_, i) => i !== idx) })} className="text-red-400 hover:text-red-600 p-1">
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
             )}
-            {initialData && (
-                <InputField label="Nama Paket" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} required />
-            )}
-            <InputField label="Harga Paket (Rp)" type="number" value={harga} onChange={e => setHarga(e.target.value)} required />
-            
+
             <button 
                 onClick={handleSave} 
-                disabled={!initialData && (!kategori || !gender || !unit || harga === '')} 
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 disabled:opacity-50"
+                disabled={!form.name || form.price === '' || form.items?.length === 0} 
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 disabled:opacity-50 mt-4"
             >
                 Simpan Paket
             </button>
