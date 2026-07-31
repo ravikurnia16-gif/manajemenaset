@@ -293,7 +293,7 @@ exports.importItems = async (req, res) => {
                         gender: gender,
                         vendorId: vendor ? vendor.id : null,
                         sellPrice: 0,
-                        targetUnit: unit.name
+
                     }
                 });
             }
@@ -864,8 +864,7 @@ exports.importStocks = async (req, res) => {
                         gender: gender,
                         vendorId: vendor ? vendor.id : null,
                         sellPrice: 0,
-                        minStock: parseInt(minIn) || 5,
-                        targetUnit: unit.name
+                        minStock: parseInt(minIn) || 5
                     }
                 });
             }

@@ -1759,7 +1759,7 @@ model UniformItem {
   gender          String?               // IKHWAN, AKHWAT
   unitId          Int?
   unit            UniformUnit?          @relation(fields: [unitId], references: [id])
-  targetUnit      String?               // TK, SD, SMP, SMA (legacy, will be replaced by unit)
+
   vendorId        Int?
   vendor          UniformVendor?        @relation(fields: [vendorId], references: [id])
   description     String?               @db.Text
