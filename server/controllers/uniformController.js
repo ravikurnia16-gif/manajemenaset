@@ -1418,12 +1418,13 @@ exports.updateSalePayment = async (req, res) => {
 
 // Fulfill Pending Sale
 exports.fulfillSale = async (req, res) => {
-    const { warehouseId } = req.body;
+    const { warehouseId, fulfillments } = req.body;
     try {
         const saleId = parseInt(req.params.id);
-        const whId = parseInt(warehouseId);
         
-        if (!whId) return res.status(400).json({ error: 'Gudang harus dipilih' });
+        if (!warehouseId && (!fulfillments || !Array.isArray(fulfillments))) {
+            return res.status(400).json({ error: 'Data fulfillment tidak valid' });
+        }
 
         const result = await prisma.$transaction(async (tx) => {
             const sale = await tx.uniformSale.findUnique({
@@ -1436,34 +1437,34 @@ exports.fulfillSale = async (req, res) => {
                 throw new Error('Pesanan sudah selesai diproses');
             }
 
-            let allItemsDelivered = true;
+            // Map current items so we can track updates
+            const itemsMap = new Map(sale.items.map(i => [i.id, i]));
 
-            for (const item of sale.items) {
-                if (item.qtyDelivered >= item.qty) continue;
-
+            const processFulfillment = async (item, whId, requestQty) => {
                 const needed = item.qty - item.qtyDelivered;
+                if (needed <= 0 || requestQty <= 0) return;
 
+                const actualReqQty = Math.min(requestQty, needed);
+                
                 const stock = await tx.uniformStock.findUnique({
                     where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } }
                 });
 
                 const available = stock ? stock.quantity : 0;
-                const canDeliver = Math.min(needed, available);
+                const canDeliver = Math.min(actualReqQty, available);
 
                 if (canDeliver > 0) {
-                    // Reduce stock
                     await tx.uniformStock.update({
                         where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } },
                         data: { quantity: { decrement: canDeliver } }
                     });
 
                     const totalCostValue = (stock.avgCost || 0) * canDeliver;
-
-                    // Out Transaction
                     const trxCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
+                    
                     await tx.uniformStockTransaction.create({
                         data: {
-                            code: trxCode + '-' + Date.now(),
+                            code: trxCode + '-' + Date.now() + Math.floor(Math.random()*1000),
                             type: 'OUT',
                             variantId: item.variantId,
                             warehouseId: whId,
@@ -1476,7 +1477,6 @@ exports.fulfillSale = async (req, res) => {
                         }
                     });
 
-                    // Update SaleItem
                     await tx.uniformSaleItem.update({
                         where: { id: item.id },
                         data: {
@@ -1484,21 +1484,31 @@ exports.fulfillSale = async (req, res) => {
                             status: (item.qtyDelivered + canDeliver) >= item.qty ? 'DELIVERED' : 'BACKORDER'
                         }
                     });
-                }
 
-                if ((item.qtyDelivered + canDeliver) < item.qty) {
-                    allItemsDelivered = false;
+                    item.qtyDelivered += canDeliver;
+                }
+            };
+
+            if (fulfillments && Array.isArray(fulfillments)) {
+                for (const reqF of fulfillments) {
+                    const item = itemsMap.get(parseInt(reqF.saleItemId));
+                    if (!item) continue;
+                    await processFulfillment(item, parseInt(reqF.warehouseId), parseInt(reqF.qty));
+                }
+            } else if (warehouseId) {
+                const whId = parseInt(warehouseId);
+                for (const item of sale.items) {
+                    await processFulfillment(item, whId, item.qty - item.qtyDelivered);
                 }
             }
 
-            // Update Sale status & warehouseId
+            const allItemsDelivered = Array.from(itemsMap.values()).every(i => i.qtyDelivered >= i.qty);
+
             const updatedSale = await tx.uniformSale.update({
                 where: { id: saleId },
                 data: {
-                    warehouseId: whId,
                     status: allItemsDelivered ? 'COMPLETED' : 'PARTIAL_DELIVERED'
-                },
-                include: { items: true, warehouse: true }
+                }
             });
 
             return updatedSale;

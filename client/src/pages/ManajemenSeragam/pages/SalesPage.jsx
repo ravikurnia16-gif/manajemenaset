@@ -4,6 +4,7 @@ import api from '../../../lib/axios';
 import { Modal } from '../UIComponents';
 import { PackageForm } from '../Forms';
 import { SaleForm } from '../SaleForm';
+import { FulfillForm } from '../FulfillForm';
 import { SalesTab } from '../SalesTab';
 import { PackagesTab } from '../PackagesTab';
 import { ExchangesTab } from '../ExchangesTab';
@@ -75,6 +76,14 @@ export default function SalesPage() {
 
     const openModal = (type, data = null) => setModal({ open: true, type, data });
     const closeModal = () => setModal({ open: false, type: '', data: null });
+
+    const handleFulfillSale = async (fulfillments) => {
+        try {
+            await api.post(`/uniforms/sales/${modal.data.id}/fulfill`, { fulfillments });
+            closeModal();
+            fetchData();
+        } catch (err) { alert(err.response?.data?.error || 'Gagal memproses pesanan'); }
+    };
 
     const handleSavePackage = async (formData) => {
         try {
@@ -175,21 +184,11 @@ export default function SalesPage() {
                     />
                 )}
                 {modal.type === 'fulfill' && (
-                    <form onSubmit={handleFulfillSale} className="space-y-4">
-                        <p className="text-sm text-slate-600 mb-4">
-                            Silakan pilih gudang yang akan digunakan untuk mengeluarkan barang bagi pesanan <strong>{modal.data?.code}</strong> ({modal.data?.customerName}).
-                        </p>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Gudang Pengeluaran</label>
-                            <select name="warehouseId" className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" required>
-                                <option value="">-- Pilih Gudang --</option>
-                                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                            </select>
-                        </div>
-                        <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition">
-                            Proses & Keluarkan Stok
-                        </button>
-                    </form>
+                    <FulfillForm 
+                        sale={modal.data} 
+                        warehouses={warehouses} 
+                        onSave={handleFulfillSale} 
+                    />
                 )}
             </Modal>
         </div>
