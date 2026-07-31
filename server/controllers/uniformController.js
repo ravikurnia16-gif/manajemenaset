@@ -1264,7 +1264,7 @@ exports.getSaleById = async (req, res) => {
 };
 
 exports.createSale = async (req, res) => {
-    const { type, warehouseId, customerName, customerPhone, studentName, studentClass, targetUnit, packageId, discount, paidAmount, paymentMethod, scheduleId, items, note } = req.body;
+    const { type, warehouseId, customerName, customerPhone, studentName, studentClass, targetUnit, packageId, discount, paidAmount, paymentMethod, scheduleId, items, note, status } = req.body;
     try {
         const code = await generateCode('INV/SRG', 'uniformSale');
 
@@ -1272,6 +1272,7 @@ exports.createSale = async (req, res) => {
             // Calculate totals
             let subtotal = 0;
             const saleItems = [];
+            const isPending = status === 'PENDING';
 
             for (const item of items) {
                 const variant = await tx.uniformVariant.findUnique({
@@ -1291,17 +1292,18 @@ exports.createSale = async (req, res) => {
                 });
 
                 const available = stock ? stock.quantity : 0;
-                const canDeliver = Math.min(qty, available);
+                // Jika pesanan PENDING (Daftar Tunggu), jangan potong stok.
+                const canDeliver = isPending ? 0 : Math.min(qty, available);
 
                 saleItems.push({
                     variantId: parseInt(item.variantId),
                     itemName: variant.item.name,
-                    size: variant.size,
+                    size: variant.sizeName || variant.size?.name,
                     qty,
                     qtyDelivered: canDeliver,
                     unitPrice,
                     totalPrice,
-                    status: canDeliver >= qty ? 'DELIVERED' : canDeliver > 0 ? 'BACKORDER' : 'BACKORDER'
+                    status: canDeliver >= qty ? 'DELIVERED' : 'BACKORDER'
                 });
 
                 // Reduce stock
@@ -1347,7 +1349,7 @@ exports.createSale = async (req, res) => {
                     paidAmount: paid,
                     paymentStatus: paid >= totalAmount ? 'PAID' : paid > 0 ? 'PARTIAL' : 'UNPAID',
                     paymentMethod,
-                    status: allDelivered ? 'COMPLETED' : 'PARTIAL_DELIVERED',
+                    status: isPending ? 'PENDING' : (allDelivered ? 'COMPLETED' : 'PARTIAL_DELIVERED'),
                     scheduleId: scheduleId ? parseInt(scheduleId) : null,
                     note,
                     items: { create: saleItems }
@@ -1382,6 +1384,100 @@ exports.updateSalePayment = async (req, res) => {
             }
         });
         res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Fulfill Pending Sale
+exports.fulfillSale = async (req, res) => {
+    const { warehouseId } = req.body;
+    try {
+        const saleId = parseInt(req.params.id);
+        const whId = parseInt(warehouseId);
+        
+        if (!whId) return res.status(400).json({ error: 'Gudang harus dipilih' });
+
+        const result = await prisma.$transaction(async (tx) => {
+            const sale = await tx.uniformSale.findUnique({
+                where: { id: saleId },
+                include: { items: true }
+            });
+
+            if (!sale) throw new Error('Pesanan tidak ditemukan');
+            if (sale.status !== 'PENDING' && sale.status !== 'PARTIAL_DELIVERED') {
+                throw new Error('Pesanan sudah selesai diproses');
+            }
+
+            let allItemsDelivered = true;
+
+            for (const item of sale.items) {
+                if (item.qtyDelivered >= item.qty) continue;
+
+                const needed = item.qty - item.qtyDelivered;
+
+                const stock = await tx.uniformStock.findUnique({
+                    where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } }
+                });
+
+                const available = stock ? stock.quantity : 0;
+                const canDeliver = Math.min(needed, available);
+
+                if (canDeliver > 0) {
+                    // Reduce stock
+                    await tx.uniformStock.update({
+                        where: { variantId_warehouseId: { variantId: item.variantId, warehouseId: whId } },
+                        data: { quantity: { decrement: canDeliver } }
+                    });
+
+                    const totalCostValue = (stock.avgCost || 0) * canDeliver;
+
+                    // Out Transaction
+                    const trxCode = await generateCode('TRX/SRG', 'uniformStockTransaction');
+                    await tx.uniformStockTransaction.create({
+                        data: {
+                            code: trxCode + '-' + Date.now(),
+                            type: 'OUT',
+                            variantId: item.variantId,
+                            warehouseId: whId,
+                            quantity: -canDeliver,
+                            costPerUnit: totalCostValue / canDeliver,
+                            totalCost: totalCostValue,
+                            referenceType: 'SALE',
+                            note: `Fulfillment Pesanan ${sale.code}`,
+                            createdById: req.user?.id || null
+                        }
+                    });
+
+                    // Update SaleItem
+                    await tx.uniformSaleItem.update({
+                        where: { id: item.id },
+                        data: {
+                            qtyDelivered: { increment: canDeliver },
+                            status: (item.qtyDelivered + canDeliver) >= item.qty ? 'DELIVERED' : 'BACKORDER'
+                        }
+                    });
+                }
+
+                if ((item.qtyDelivered + canDeliver) < item.qty) {
+                    allItemsDelivered = false;
+                }
+            }
+
+            // Update Sale status & warehouseId
+            const updatedSale = await tx.uniformSale.update({
+                where: { id: saleId },
+                data: {
+                    warehouseId: whId,
+                    status: allItemsDelivered ? 'COMPLETED' : 'PARTIAL_DELIVERED'
+                },
+                include: { items: true, warehouse: true }
+            });
+
+            return updatedSale;
+        });
+
+        res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

@@ -208,10 +208,12 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
 
             <div className="border-t pt-4 grid grid-cols-2 gap-4">
                 <div className="space-y-4">
-                    <SelectField label="Status Pengambilan" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
-                        <option value="COMPLETED">Diambil Semua Sekarang (Stok Keluar)</option>
-                        <option value="PENDING">Diambil Nanti (Backorder)</option>
-                    </SelectField>
+                    {form.type === 'RETAIL' && (
+                        <SelectField label="Status Pengambilan" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
+                            <option value="COMPLETED">Diambil Semua Sekarang (Stok Keluar)</option>
+                            <option value="PENDING">Diambil Nanti (Backorder)</option>
+                        </SelectField>
+                    )}
                     <SelectField label="Metode Pembayaran" value={form.paymentMethod} onChange={e => setForm({ ...form, paymentMethod: e.target.value })}>
                         <option value="CASH">Tunai (Cash)</option>
                         <option value="TRANSFER">Transfer Bank</option>
@@ -246,6 +248,7 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                         if (form.type === 'SPMB') {
                             if (!dataToSave.customerName) dataToSave.customerName = `Pesanan SPMB ${form.targetUnit || ''}`;
                             if (!dataToSave.warehouseId && warehouses.length > 0) dataToSave.warehouseId = warehouses[0].id;
+                            dataToSave.status = 'PENDING';
                         }
                         onSave(dataToSave);
                     }} 

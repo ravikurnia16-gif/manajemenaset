@@ -93,6 +93,7 @@ router.put('/vendor-evaluations/:id', c.updateVendorEvaluation);
 router.get('/sales', c.getSales);
 router.get('/sales/:id', c.getSaleById);
 router.post('/sales', c.createSale);
+router.post('/sales/:id/fulfill', c.fulfillSale);
 router.put('/sales/:id/payment', c.updateSalePayment);
 
 // Exchange (Tukar Ukuran)

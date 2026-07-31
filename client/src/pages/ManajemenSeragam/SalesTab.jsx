@@ -43,7 +43,12 @@ export const SalesTab = ({ sales, loading, search, setSearch, openModal }) => (
                                 <Badge color={s.paymentStatus === 'PAID' ? 'green' : s.paymentStatus === 'PARTIAL' ? 'orange' : 'red'}>{s.paymentStatus}</Badge>
                             </td>
                             <td className="p-3 text-center">
-                                <Badge color={s.status === 'COMPLETED' ? 'green' : s.status === 'PARTIAL_DELIVERED' ? 'orange' : 'slate'}>{s.status}</Badge>
+                                <Badge color={s.status === 'COMPLETED' ? 'green' : s.status === 'PARTIAL_DELIVERED' ? 'orange' : s.status === 'PENDING' ? 'yellow' : 'slate'}>{s.status}</Badge>
+                                {s.status === 'PENDING' && (
+                                    <button onClick={() => openModal('fulfill', s)} className="mt-2 text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200 block mx-auto">
+                                        Proses
+                                    </button>
+                                )}
                             </td>
                             <td className="p-3 text-center text-xs text-slate-500">{new Date(s.createdAt).toLocaleDateString('id-ID')}</td>
                         </tr>

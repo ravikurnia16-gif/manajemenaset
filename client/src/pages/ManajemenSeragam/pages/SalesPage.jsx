@@ -92,6 +92,17 @@ export default function SalesPage() {
         } catch (err) { alert(err.response?.data?.error || 'Gagal menyimpan penjualan'); }
     };
 
+    const handleFulfillSale = async (e) => {
+        e.preventDefault();
+        const warehouseId = e.target.warehouseId.value;
+        if (!warehouseId) return alert('Silakan pilih gudang');
+        try {
+            await api.post(`/uniforms/sales/${modal.data.id}/fulfill`, { warehouseId });
+            closeModal();
+            fetchData();
+        } catch (err) { alert(err.response?.data?.error || 'Gagal memproses pesanan'); }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex items-center gap-3">
@@ -133,7 +144,8 @@ export default function SalesPage() {
             <Modal isOpen={modal.open} onClose={closeModal} title={
                 modal.type === 'package' ? (modal.data ? 'Edit Paket' : 'Buat Paket SPMB') :
                 modal.type === 'sale' ? 'Buat Pesanan' :
-                modal.type === 'exchange' ? 'Tukar Ukuran' : ''
+                modal.type === 'exchange' ? 'Tukar Ukuran' :
+                modal.type === 'fulfill' ? 'Proses & Keluarkan Barang' : ''
             } wide={modal.type === 'package'}>
                 {modal.type === 'package' && (
                     <PackageForm items={items} units={units} onSave={handleSavePackage} initialData={modal.data} />
@@ -143,6 +155,23 @@ export default function SalesPage() {
                         warehouses={warehouses} packages={allPackages} variants={variants} units={units}
                         onSave={handleSaveSale} initialData={modal.data} 
                     />
+                )}
+                {modal.type === 'fulfill' && (
+                    <form onSubmit={handleFulfillSale} className="space-y-4">
+                        <p className="text-sm text-slate-600 mb-4">
+                            Silakan pilih gudang yang akan digunakan untuk mengeluarkan barang bagi pesanan <strong>{modal.data?.code}</strong> ({modal.data?.customerName}).
+                        </p>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Gudang Pengeluaran</label>
+                            <select name="warehouseId" className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500" required>
+                                <option value="">-- Pilih Gudang --</option>
+                                {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                            </select>
+                        </div>
+                        <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition">
+                            Proses & Keluarkan Stok
+                        </button>
+                    </form>
                 )}
             </Modal>
         </div>
