@@ -18,7 +18,7 @@ export const PackagesTab = ({ packages, openModal }) => (
                             <h3 className="font-bold text-slate-800">{pkg.name}</h3>
                             <div className="flex gap-1.5 mt-1">
                                 {pkg.targetUnit && <Badge color="blue">{pkg.targetUnit}</Badge>}
-                                {pkg.gender && <Badge>{pkg.gender === 'L' ? 'Putra' : pkg.gender === 'P' ? 'Putri' : 'Unisex'}</Badge>}
+                                {pkg.gender && <Badge>{pkg.gender === 'IKHWAN' ? 'Ikhwan' : pkg.gender === 'AKHWAT' ? 'Akhwat' : 'Unisex'}</Badge>}
                             </div>
                         </div>
                         <div className="text-right">

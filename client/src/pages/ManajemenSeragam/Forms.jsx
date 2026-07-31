@@ -121,11 +121,19 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
     };
 
     const handleSave = () => {
+        const actualItems = (form.items || []).map(fi => items.find(i => i.id === fi.itemId)).filter(Boolean);
+        
+        const genders = [...new Set(actualItems.map(i => i.gender))].filter(Boolean);
+        const units = [...new Set(actualItems.map(i => i.unit?.name))].filter(Boolean);
+
+        const derivedGender = genders.length === 1 ? genders[0] : 'ALL';
+        const derivedUnit = units.length === 1 ? units[0] : 'ALL';
+
         onSave({
             ...form,
             price: parseFloat(form.price) || 0,
-            targetUnit: form.targetUnit || 'ALL', // default fallback
-            gender: form.gender || 'ALL', // default fallback
+            targetUnit: derivedUnit,
+            gender: derivedGender,
         });
     };
 
