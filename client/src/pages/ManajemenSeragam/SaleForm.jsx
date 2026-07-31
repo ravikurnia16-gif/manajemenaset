@@ -138,34 +138,30 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
             {form.type === 'SPMB' && (
                 <div className="space-y-4">
                     {form.items.length > 0 && (
-                        <div className="space-y-4">
-                            <label className="block text-xs font-bold text-slate-500 uppercase">Tentukan Jumlah per Ukuran</label>
-                            {Object.entries(form.items.reduce((acc, curr) => {
-                                acc[curr.itemName] = acc[curr.itemName] || [];
-                                acc[curr.itemName].push(curr);
-                                return acc;
-                            }, {})).map(([name, itemVariants]) => (
-                                <div key={name} className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
-                                    <div className="text-sm font-bold text-slate-800">{name}</div>
-                                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                                        {itemVariants.map((iv) => {
-                                            const idx = form.items.findIndex(x => x.variantId === iv.variantId);
-                                            return (
-                                                <div key={iv.variantId} className="flex items-center gap-1 bg-white border border-slate-200 rounded p-1">
-                                                    <span className="text-xs text-slate-600 font-medium w-8 text-center">{iv.size}</span>
-                                                    <input 
-                                                        type="number" min="0" 
-                                                        className="w-full border-l border-slate-200 pl-1 py-1 text-xs outline-none bg-transparent" 
-                                                        value={iv.qty || ''} 
-                                                        onChange={e => updateItemQty(idx, e.target.value)} 
-                                                        placeholder="0" 
-                                                    />
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            ))}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                            <label className="block text-sm font-bold text-slate-800">Tentukan Jumlah Paket per Ukuran</label>
+                            <p className="text-xs text-slate-500 mb-2">Mengisi jumlah di sini akan otomatis diterapkan ke seluruh pakaian dalam paket ini.</p>
+                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                                {[...new Set(form.items.map(i => i.size))].map(sizeName => {
+                                    const sampleItem = form.items.find(i => i.size === sizeName);
+                                    return (
+                                        <div key={sizeName} className="flex items-center gap-2 bg-white border border-slate-200 rounded p-1.5 shadow-sm">
+                                            <span className="text-xs font-bold text-slate-700 w-10 text-center">{sizeName}</span>
+                                            <input 
+                                                type="number" min="0" 
+                                                className="w-full border-l border-slate-200 pl-2 py-1 text-sm font-bold text-blue-700 outline-none bg-transparent" 
+                                                value={sampleItem?.qty || ''} 
+                                                onChange={e => {
+                                                    const newQty = parseInt(e.target.value) || 0;
+                                                    const newItems = form.items.map(i => i.size === sizeName ? { ...i, qty: newQty } : i);
+                                                    setForm({ ...form, items: newItems });
+                                                }} 
+                                                placeholder="0" 
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>
