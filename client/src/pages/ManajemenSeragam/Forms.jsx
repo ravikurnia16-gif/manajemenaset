@@ -119,51 +119,52 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
         setGender('');
     };
 
-    const handleSave = () => {
-        const actualItems = (form.items || []).map(fi => items.find(i => i.id === fi.itemId)).filter(Boolean);
-        const genders = [...new Set(actualItems.map(i => i.gender))].filter(Boolean);
-        const derivedGender = genders.length === 1 ? genders[0] : 'ALL';
+    const handleAutoPopulate = (field, value) => {
+        const newForm = { ...form, [field]: value };
+        setForm(newForm);
 
+        if (newForm.targetUnit && newForm.gender) {
+            const matchingItems = items.filter(i => 
+                i.unit?.name === newForm.targetUnit && 
+                i.gender === newForm.gender
+            );
+
+            const newItems = matchingItems.map(i => ({ 
+                itemId: i.id, 
+                itemName: `${i.category?.name || ''} ${i.gender || ''} ${i.unit?.name || ''} ${i.clothingType?.name || ''}`.trim(), 
+                qty: 1 
+            }));
+
+            setForm(f => ({ ...f, items: newItems, [field]: value }));
+        }
+    };
+
+    const handleSave = () => {
         onSave({
             ...form,
             price: parseFloat(form.price) || 0,
             targetUnit: form.targetUnit || 'ALL',
-            gender: derivedGender,
+            gender: form.gender || 'ALL',
         });
     };
 
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <InputField label="Nama Paket" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Contoh: Paket SD" required />
-                <SelectField label="Jenjang / Unit" value={form.targetUnit || ''} onChange={e => setForm({ ...form, targetUnit: e.target.value })} required>
-                    <option value="">Pilih Unit</option>
-                    {units?.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-                </SelectField>
-            </div>
-            <InputField label="Harga Paket (Rp)" type="number" value={form.price || ''} onChange={e => setForm({ ...form, price: e.target.value })} required />
-            
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
-                <label className="block text-xs font-bold text-slate-500 uppercase">Tambah Isi Paket (Berdasarkan Kategori)</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <SelectField label="Kategori" value={kategori} onChange={e => setKategori(e.target.value)}>
-                        <option value="">Pilih Kategori</option>
-                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            <div className="grid grid-cols-1 gap-4">
+                <InputField label="Nama Paket" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Contoh: Paket SD Ikhwan" required />
+                <div className="grid grid-cols-2 gap-4">
+                    <SelectField label="Jenjang / Unit *" value={form.targetUnit || ''} onChange={e => handleAutoPopulate('targetUnit', e.target.value)} required>
+                        <option value="">Pilih Unit</option>
+                        {units?.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                     </SelectField>
-                    <SelectField label="Gender" value={gender} onChange={e => setGender(e.target.value)}>
+                    <SelectField label="Gender *" value={form.gender || ''} onChange={e => handleAutoPopulate('gender', e.target.value)} required>
                         <option value="">Pilih Gender</option>
                         <option value="IKHWAN">Ikhwan</option>
                         <option value="AKHWAT">Akhwat</option>
                     </SelectField>
                 </div>
-                <button 
-                    onClick={addCombination}
-                    disabled={!kategori || !gender || !form.targetUnit}
-                    className="w-full bg-slate-200 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-300 transition disabled:opacity-50"
-                >
-                    Tambah Kombinasi ke Paket
-                </button>
             </div>
+            <InputField label="Harga Paket (Rp)" type="number" value={form.price || ''} onChange={e => setForm({ ...form, price: e.target.value })} required />
 
             {form.items?.length > 0 && (
                 <div>
