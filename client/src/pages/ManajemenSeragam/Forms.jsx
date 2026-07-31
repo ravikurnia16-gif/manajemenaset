@@ -194,10 +194,23 @@ export const ManualStockForm = ({ variants = [], categories = [], clothingTypes 
     const [form, setForm] = useState({ variantId: '', gudang: '', vendor: '', stok: 0, stokMinimal: 3, gender: '', unit: '', kategori: '', jenisPakaian: '', ukuran: '' });
 
     // Kategori Filter
-    const isSchoolUnit = ['SD', 'SMP', 'SMA'].includes(form.unit?.toUpperCase());
+    const selectedUnit = form.unit?.toUpperCase();
+    const isSchoolUnit = ['SD', 'SMP', 'SMA'].includes(selectedUnit);
+    const tkAllowedCats = ['hijau', 'olahraga', 'batik', 'navy'];
+    const taudAllowedCats = ['batik', 'kotak kotak', 'kotak-kotak', 'olahraga', 'muslim', 'jubah'];
+    
     const availableCategories = categories.filter(c => {
         const catName = c.name.toLowerCase();
-        if (isSchoolUnit && (catName === 'hitam' || catName === 'putih')) return false;
+        
+        if (selectedUnit === 'TK') {
+            return tkAllowedCats.includes(catName);
+        }
+        if (selectedUnit === 'TAUD') {
+            return taudAllowedCats.includes(catName);
+        }
+        if (isSchoolUnit && (catName === 'hitam' || catName === 'putih')) {
+            return false;
+        }
         return true;
     });
 
