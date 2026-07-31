@@ -282,7 +282,7 @@ const Sidebar = ({ isOpen = true }) => {
                             <Boxes size={16} /> Stok & Inventori
                         </Link>
                         <Link to="/gudang/seragam/penjualan" className={subNavItemClass('/gudang/seragam/penjualan')}>
-                            <ShoppingCart size={16} /> Penjualan
+                            <ShoppingCart size={16} /> Pesanan Seragam
                         </Link>
                         <Link to="/gudang/seragam/vendor" className={subNavItemClass('/gudang/seragam/vendor')}>
                             <Users size={16} /> Vendor & Produksi

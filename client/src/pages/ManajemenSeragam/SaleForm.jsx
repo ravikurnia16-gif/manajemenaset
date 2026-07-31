@@ -105,22 +105,31 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                     <option value="RETAIL">Eceran (Retail)</option>
                     <option value="SPMB">Paket Siswa Baru (SPMB)</option>
                 </SelectField>
-                <SelectField label="Lokasi Gudang" value={form.warehouseId} onChange={e => setForm({ ...form, warehouseId: e.target.value })}>
-                    <option value="">-- Pilih Gudang --</option>
-                    {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </SelectField>
+                {form.type === 'RETAIL' && (
+                    <SelectField label="Lokasi Gudang" value={form.warehouseId} onChange={e => setForm({ ...form, warehouseId: e.target.value })}>
+                        <option value="">-- Pilih Gudang --</option>
+                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </SelectField>
+                )}
             </div>
 
             <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <InputField label="Nama Wali Murid" value={form.customerName} onChange={e => setForm({ ...form, customerName: e.target.value })} />
-                <InputField label="No HP (WA)" value={form.customerPhone} onChange={e => setForm({ ...form, customerPhone: e.target.value })} />
-                
-                {form.type === 'SPMB' && (
+                {form.type === 'RETAIL' ? (
                     <>
-                        <InputField label="Nama Siswa" value={form.studentName} onChange={e => setForm({ ...form, studentName: e.target.value })} />
-                        <SelectField label="Jenjang / Unit" value={form.targetUnit} onChange={e => setForm({ ...form, targetUnit: e.target.value })}>
-                            <option value="">-- Pilih --</option>
+                        <InputField label="Nama Pelanggan / Wali Murid *" value={form.customerName} onChange={e => setForm({ ...form, customerName: e.target.value })} required />
+                        <InputField label="No HP (WA)" value={form.customerPhone} onChange={e => setForm({ ...form, customerPhone: e.target.value })} />
+                    </>
+                ) : (
+                    <>
+                        <SelectField label="Jenjang / Unit *" value={form.targetUnit} onChange={e => setForm({ ...form, targetUnit: e.target.value })} required>
+                            <option value="">-- Pilih Unit --</option>
                             {units.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                        </SelectField>
+                        <SelectField label="Pilih Paket SPMB *" value={form.packageId} onChange={e => handlePackageSelect(e.target.value)} disabled={!form.targetUnit} required>
+                            <option value="">-- Pilih Paket --</option>
+                            {packages
+                                .filter(p => !form.targetUnit || p.targetUnit === form.targetUnit || !p.targetUnit || p.targetUnit === 'ALL')
+                                .map(p => <option key={p.id} value={p.id}>{p.name} (Rp {p.price.toLocaleString()})</option>)}
                         </SelectField>
                     </>
                 )}
@@ -128,11 +137,6 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
 
             {form.type === 'SPMB' && (
                 <div className="space-y-4">
-                    <SelectField label="Pilih Paket SPMB" value={form.packageId} onChange={e => handlePackageSelect(e.target.value)}>
-                        <option value="">-- Pilih Paket --</option>
-                        {packages.map(p => <option key={p.id} value={p.id}>{p.name} (Rp {p.price.toLocaleString()})</option>)}
-                    </SelectField>
-                    
                     {form.items.length > 0 && (
                         <div className="space-y-4">
                             <label className="block text-xs font-bold text-slate-500 uppercase">Tentukan Jumlah per Ukuran</label>
@@ -239,9 +243,13 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                 <button 
                     onClick={() => {
                         const dataToSave = { ...form, items: form.items.filter(i => i.qty > 0) };
+                        if (form.type === 'SPMB') {
+                            if (!dataToSave.customerName) dataToSave.customerName = `Pesanan SPMB ${form.targetUnit || ''}`;
+                            if (!dataToSave.warehouseId && warehouses.length > 0) dataToSave.warehouseId = warehouses[0].id;
+                        }
                         onSave(dataToSave);
                     }} 
-                    disabled={form.items.filter(i => i.qty > 0).length === 0 || !form.warehouseId || (form.type === 'SPMB' && !form.packageId)}
+                    disabled={form.items.filter(i => i.qty > 0).length === 0 || (form.type === 'RETAIL' && !form.warehouseId) || (form.type === 'SPMB' && !form.packageId)}
                     className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition disabled:opacity-50 disabled:grayscale"
                 >
                     Simpan Pesanan
