@@ -8,6 +8,10 @@ const upload = multer({ storage: multer.memoryStorage() });
 // === PUBLIC ROUTES ===
 // Diakses oleh wali murid lewat scan QR untuk melihat tagihan
 router.get('/sales/:id', c.getSaleById);
+// Diakses oleh wali murid untuk membuat form pesanan mandiri
+router.get('/public/units', c.getUnits);
+router.get('/public/variants', c.getVariants);
+router.post('/public/sales', c.createSale);
 
 // === PROTECTED ROUTES ===
 router.use(verifyToken);

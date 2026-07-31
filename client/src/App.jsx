@@ -40,6 +40,7 @@ import BusBooking from './pages/BusBooking';
 import BusBookingPublic from './pages/BusBookingPublic';
 import BusInvoicePublic from './pages/BusInvoicePublic';
 import UniformInvoicePublic from './pages/UniformInvoicePublic';
+import UniformOrderPublic from './pages/UniformOrderPublic';
 import BusInvoiceBatchPrint from './pages/BusInvoiceBatchPrint';
 import BusConfirmationPublic from './pages/BusConfirmationPublic';
 import BusInvoiceVerify from './pages/BusInvoiceVerify';
@@ -181,6 +182,7 @@ function App() {
         <Route path="/public/invoice-bus/batch" element={<BusInvoiceBatchPrint />} />
         <Route path="/public/invoice-bus/:id" element={<BusInvoicePublic />} />
         <Route path="/public/invoice-seragam/:id" element={<UniformInvoicePublic />} />
+        <Route path="/public/pesan-seragam" element={<UniformOrderPublic />} />
         <Route path="/public/confirm-bus/:id/:token" element={<BusConfirmationPublic />} />
         <Route path="/q/:token" element={<QuickComplete />} />
         <Route path="/verify/:uuid" element={<PublicVerify />} />

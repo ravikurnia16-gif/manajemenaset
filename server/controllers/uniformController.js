@@ -1280,8 +1280,13 @@ exports.getSaleById = async (req, res) => {
 const { generateDocumentNumber } = require('../services/documentNumberingService');
 
 exports.createSale = async (req, res) => {
-    const { type, warehouseId, customerName, customerPhone, studentName, studentClass, targetUnit, packageId, discount, paidAmount, paymentMethod, scheduleId, items, packages, note, status } = req.body;
+    let { type, warehouseId, customerName, customerPhone, studentName, studentClass, targetUnit, packageId, discount, paidAmount, paymentMethod, scheduleId, items, packages, note, status } = req.body;
     try {
+        if (!warehouseId) {
+            const firstWh = await prisma.uniformWarehouse.findFirst();
+            if (firstWh) warehouseId = firstWh.id;
+        }
+
         let code;
         if (type === 'SPMB' || type === 'UNIT_ORDER') {
             code = await generateDocumentNumber('Invoice', 'INVOICE');
