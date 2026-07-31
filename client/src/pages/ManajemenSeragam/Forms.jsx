@@ -82,45 +82,28 @@ export const TransactionForm = ({ variants = [], warehouses = [], vendors = [], 
 };
 
 export const PackageForm = ({ items: initialItems, units, initialData, onSave }) => {
-    const [form, setForm] = useState(initialData || { isFixedPrice: true, items: [] });
+    const defaultYear = new Date().getFullYear().toString();
+    
+    const [form, setForm] = useState(() => {
+        let year = defaultYear;
+        let name = `Paket ${defaultYear}`;
+        
+        if (initialData) {
+             const yearMatch = initialData.name?.match(/\b(\d{4})\b/);
+             if (yearMatch) year = yearMatch[1];
+             return { ...initialData, year };
+        }
+        return { isFixedPrice: true, items: [], year, name };
+    });
+
     const items = initialItems || [];
     
-    // Derive unique categories from items
-    const categories = Array.from(new Set(items.map(i => i.category?.name))).filter(Boolean);
-
-    // State for the new combination fields
-    const [kategori, setKategori] = useState('');
-    const [gender, setGender] = useState('');
-    const [unit, setUnit] = useState('');
-
-    const addCombination = () => {
-        if (!kategori || !gender || !form.targetUnit) return;
-
-        const matchingItems = items.filter(i => 
-            i.category?.name === kategori && 
-            i.gender === gender && 
-            i.unit?.name === form.targetUnit
-        );
-
-        const newItems = matchingItems
-            .filter(i => !form.items?.some(fi => fi.itemId === i.id))
-            .map(i => ({ 
-                itemId: i.id, 
-                itemName: `${i.category?.name || ''} ${i.gender || ''} ${i.unit?.name || ''} ${i.clothingType?.name || ''}`.trim(), 
-                qty: 1 
-            }));
-
-        if (newItems.length > 0) {
-            setForm({ ...form, items: [...(form.items || []), ...newItems] });
-        }
-        
-        // Reset selections
-        setKategori('');
-        setGender('');
-    };
-
     const handleAutoPopulate = (field, value) => {
         const newForm = { ...form, [field]: value };
+        
+        const genderText = newForm.gender === 'IKHWAN' ? 'Ikhwan' : newForm.gender === 'AKHWAT' ? 'Akhwat' : (newForm.gender || '');
+        newForm.name = `Paket ${genderText} ${newForm.targetUnit || ''} ${newForm.year || ''}`.replace(/\s+/g, ' ').trim();
+        
         setForm(newForm);
 
         if (newForm.targetUnit && newForm.gender) {
@@ -151,8 +134,8 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4">
-                <InputField label="Nama Paket" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Contoh: Paket SD Ikhwan" required />
-                <div className="grid grid-cols-2 gap-4">
+                <InputField label="Nama Paket (Otomatis)" value={form.name || ''} readOnly disabled style={{ backgroundColor: '#f8fafc', color: '#64748b' }} />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <SelectField label="Jenjang / Unit *" value={form.targetUnit || ''} onChange={e => handleAutoPopulate('targetUnit', e.target.value)} required>
                         <option value="">Pilih Unit</option>
                         {units?.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
@@ -162,6 +145,7 @@ export const PackageForm = ({ items: initialItems, units, initialData, onSave })
                         <option value="IKHWAN">Ikhwan</option>
                         <option value="AKHWAT">Akhwat</option>
                     </SelectField>
+                    <InputField label="Tahun *" type="number" value={form.year || ''} onChange={e => handleAutoPopulate('year', e.target.value)} required />
                 </div>
             </div>
             <InputField label="Harga Paket (Rp)" type="number" value={form.price || ''} onChange={e => setForm({ ...form, price: e.target.value })} required />
