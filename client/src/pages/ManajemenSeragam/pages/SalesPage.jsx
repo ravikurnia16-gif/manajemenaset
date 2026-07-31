@@ -7,6 +7,7 @@ import { SaleForm } from '../SaleForm';
 import { SalesTab } from '../SalesTab';
 import { PackagesTab } from '../PackagesTab';
 import { ExchangesTab } from '../ExchangesTab';
+import { ExchangeForm } from '../ExchangeForm';
 
 const TABS = [
     { key: 'sales', label: 'Pesanan', icon: <ShoppingCart size={16} /> },
@@ -95,6 +96,14 @@ export default function SalesPage() {
         } catch (err) { alert(err.response?.data?.error || 'Gagal menyimpan penjualan'); }
     };
 
+    const handleSaveExchange = async (formData) => {
+        try {
+            await api.post('/uniforms/exchanges', formData);
+            closeModal();
+            fetchData();
+        } catch (err) { alert(err.response?.data?.error || 'Gagal memproses tukar ukuran'); }
+    };
+
     const handleFulfillSale = async (e) => {
         e.preventDefault();
         const warehouseId = e.target.warehouseId.value;
@@ -149,7 +158,7 @@ export default function SalesPage() {
                 modal.type === 'sale' ? 'Buat Pesanan' :
                 modal.type === 'exchange' ? 'Tukar Ukuran' :
                 modal.type === 'fulfill' ? 'Proses & Keluarkan Barang' : ''
-            } wide={modal.type === 'package'}>
+            } wide={modal.type === 'package' || modal.type === 'exchange'}>
                 {modal.type === 'package' && (
                     <PackageForm items={items} units={units} onSave={handleSavePackage} initialData={modal.data} />
                 )}
@@ -157,6 +166,12 @@ export default function SalesPage() {
                     <SaleForm 
                         warehouses={warehouses} packages={allPackages} variants={variants} units={units}
                         onSave={handleSaveSale} initialData={modal.data} 
+                    />
+                )}
+                {modal.type === 'exchange' && (
+                    <ExchangeForm 
+                        warehouses={warehouses} variants={variants} 
+                        onSave={handleSaveExchange} 
                     />
                 )}
                 {modal.type === 'fulfill' && (
