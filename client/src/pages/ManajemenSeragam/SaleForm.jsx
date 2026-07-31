@@ -20,14 +20,18 @@ const SelectField = ({ label, children, ...props }) => (
 export const SaleForm = ({ warehouses = [], packages = [], variants = [], units = [], onSave, initialData }) => {
     const [form, setForm] = useState(initialData || {
         type: 'RETAIL', warehouseId: warehouses[0]?.id || '',
-        customerName: '', customerPhone: '', studentName: '', studentClass: '', targetUnit: '',
+        customerName: '', customerPhone: '', studentName: '', studentClass: '', targetUnit: '', gender: '',
         packageId: '', subtotal: 0, discount: 0, totalAmount: 0, paidAmount: 0,
         paymentStatus: 'UNPAID', paymentMethod: 'CASH', status: 'COMPLETED', items: [],
         packages: [] // array of { packageId, name, price, qty, items: [] }
     });
 
-    const [variantSearch, setVariantSearch] = useState('');
-    const [selectedVariant, setSelectedVariant] = useState('');
+    const [retailInput, setRetailInput] = useState({
+        category: '',
+        clothingType: '',
+        size: '',
+        qty: 1
+    });
 
     useEffect(() => {
         let subtotal = 0;
@@ -100,21 +104,54 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
         setForm({ ...form, packages: form.packages.filter((_, i) => i !== pkgIndex) });
     };
 
-    const addRetailItem = () => {
-        if (!selectedVariant) return;
-        const v = variants.find(x => String(x.id) === String(selectedVariant));
-        if (!v) return;
-        setForm({
-            ...form, items: [...form.items, {
+    const availableRetailVariants = form.type === 'RETAIL' && form.targetUnit && form.gender 
+        ? variants.filter(v => v.item?.unit?.name === form.targetUnit && v.item?.gender === form.gender)
+        : [];
+    
+    const availableCategories = [...new Set(availableRetailVariants.map(v => v.item?.category?.name))].filter(Boolean);
+    const availableClothingTypes = retailInput.category
+        ? [...new Set(availableRetailVariants.filter(v => v.item?.category?.name === retailInput.category).map(v => v.item?.clothingType?.name))].filter(Boolean)
+        : [];
+        
+    let availableSizes = [];
+    if (retailInput.clothingType === 'SEMUA_SETELAN') {
+        availableSizes = [...new Set(availableRetailVariants.filter(v => v.item?.category?.name === retailInput.category).map(v => v.size?.name || v.sizeName))].filter(Boolean);
+    } else if (retailInput.clothingType) {
+        availableSizes = [...new Set(availableRetailVariants.filter(v => v.item?.category?.name === retailInput.category && v.item?.clothingType?.name === retailInput.clothingType).map(v => v.size?.name || v.sizeName))].filter(Boolean);
+    }
+
+    const addRetailItemAdvanced = () => {
+        if (!retailInput.category || !retailInput.clothingType || !retailInput.size || retailInput.qty < 1) {
+            alert('Mohon lengkapi pilihan kategori, jenis, ukuran, dan jumlah.');
+            return;
+        }
+
+        const newItems = [...form.items];
+        let targetVariants = [];
+
+        if (retailInput.clothingType === 'SEMUA_SETELAN') {
+            targetVariants = availableRetailVariants.filter(v => v.item?.category?.name === retailInput.category && (v.size?.name || v.sizeName) === retailInput.size);
+        } else {
+            targetVariants = availableRetailVariants.filter(v => v.item?.category?.name === retailInput.category && v.item?.clothingType?.name === retailInput.clothingType && (v.size?.name || v.sizeName) === retailInput.size);
+        }
+
+        if (targetVariants.length === 0) {
+            alert('Barang tidak ditemukan di database dengan ukuran tersebut.');
+            return;
+        }
+
+        targetVariants.forEach(v => {
+            newItems.push({
                 variantId: v.id,
                 itemName: `${v.item?.name} (${v.size?.name || v.sizeName})`,
                 size: v.size?.name || v.sizeName,
-                qty: 1,
+                qty: parseInt(retailInput.qty),
                 unitPrice: v.item?.sellPrice || 0
-            }]
+            });
         });
-        setVariantSearch('');
-        setSelectedVariant('');
+
+        setForm({ ...form, items: newItems });
+        setRetailInput({ ...retailInput, size: '', qty: 1 }); // reset selected size
     };
 
     const updateItemQty = (idx, qty) => {
@@ -142,11 +179,20 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
                 )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <div className={`grid ${form.type === 'RETAIL' ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2'} gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100`}>
                 {form.type === 'RETAIL' ? (
                     <>
-                        <InputField label="Nama Pelanggan / Wali Murid *" value={form.customerName} onChange={e => setForm({ ...form, customerName: e.target.value })} required />
-                        <InputField label="No HP (WA)" value={form.customerPhone} onChange={e => setForm({ ...form, customerPhone: e.target.value })} />
+                        <InputField label="Nama Siswa *" value={form.customerName} onChange={e => setForm({ ...form, customerName: e.target.value })} required placeholder="Misal: Ahmad" />
+                        <InputField label="No HP (WA)" value={form.customerPhone} onChange={e => setForm({ ...form, customerPhone: e.target.value })} placeholder="Misal: 08123..." />
+                        <SelectField label="Jenjang / Unit *" value={form.targetUnit} onChange={e => setForm({ ...form, targetUnit: e.target.value, items: [] })} required>
+                            <option value="">-- Pilih Unit --</option>
+                            {units.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                        </SelectField>
+                        <SelectField label="Gender *" value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value, items: [] })} required>
+                            <option value="">-- Pilih Gender --</option>
+                            <option value="IKHWAN">Ikhwan</option>
+                            <option value="AKHWAT">Akhwat</option>
+                        </SelectField>
                     </>
                 ) : (
                     <>
@@ -199,25 +245,32 @@ export const SaleForm = ({ warehouses = [], packages = [], variants = [], units 
             )}
 
             {form.type === 'RETAIL' && (
-                <div className="space-y-2">
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Cari & Tambah Barang</label>
-                    <div className="flex gap-2">
-                        <input 
-                            list="retail-variants"
-                            className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Ketik SKU atau Nama Barang..."
-                            value={variantSearch}
-                            onChange={e => {
-                                const val = e.target.value;
-                                const match = variants.find(v => `${v.sku} - ${v.item?.name} (${v.sizeName})` === val);
-                                setVariantSearch(val);
-                                setSelectedVariant(match ? match.id : '');
-                            }}
-                        />
-                        <datalist id="retail-variants">
-                            {variants.map(v => <option key={v.id} value={`${v.sku} - ${v.item?.name} (${v.sizeName})`} />)}
-                        </datalist>
-                        <button type="button" onClick={addRetailItem} className="px-4 bg-slate-100 rounded-xl hover:bg-slate-200"><Plus size={16} /></button>
+                <div className="space-y-4">
+                    <label className="block text-xs font-bold text-slate-500 uppercase">Inputan Pesanan</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                        <SelectField label="Kategori Seragam" value={retailInput.category} onChange={e => setRetailInput({ ...retailInput, category: e.target.value, clothingType: '', size: '' })} disabled={!form.targetUnit || !form.gender}>
+                            <option value="">-- Kategori --</option>
+                            {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                        </SelectField>
+
+                        <SelectField label="Jenis Pakaian" value={retailInput.clothingType} onChange={e => setRetailInput({ ...retailInput, clothingType: e.target.value, size: '' })} disabled={!retailInput.category}>
+                            <option value="">-- Jenis --</option>
+                            {availableClothingTypes.map(c => <option key={c} value={c}>{c}</option>)}
+                            {availableClothingTypes.length > 1 && <option value="SEMUA_SETELAN" className="font-bold text-blue-600">Baju & Celana (Setelan)</option>}
+                        </SelectField>
+
+                        <SelectField label="Ukuran" value={retailInput.size} onChange={e => setRetailInput({ ...retailInput, size: e.target.value })} disabled={!retailInput.clothingType}>
+                            <option value="">-- Ukuran --</option>
+                            {availableSizes.map(s => <option key={s} value={s}>{s}</option>)}
+                        </SelectField>
+                        
+                        <InputField type="number" min="1" label="Jumlah" value={retailInput.qty} onChange={e => setRetailInput({ ...retailInput, qty: e.target.value })} disabled={!retailInput.size} />
+                        
+                        <div className="flex items-end">
+                            <button type="button" onClick={addRetailItemAdvanced} className="w-full h-[46px] flex items-center justify-center gap-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50" disabled={!retailInput.size}>
+                                <Plus size={18} /> Tambah
+                            </button>
+                        </div>
                     </div>
 
                     <div className="mt-2 space-y-1.5">
